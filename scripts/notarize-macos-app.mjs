@@ -21,6 +21,17 @@ function run(program, args, options = {}) {
   }
 }
 
+function distributionMode() {
+  const normalized = String(process.env.VOYAVPN_MACOS_DISTRIBUTION ?? "developer-id").trim().toLowerCase();
+  if (["app-store", "appstore", "testflight", "mas"].includes(normalized)) {
+    return "app-store";
+  }
+  if (!normalized || ["developer-id", "developerid", "notarized", "dmg", "auto"].includes(normalized)) {
+    return "developer-id";
+  }
+  throw new Error("VOYAVPN_MACOS_DISTRIBUTION must be developer-id, app-store, or auto.");
+}
+
 function notaryCredentials() {
   if (process.env.VOYAVPN_NOTARY_KEYCHAIN_PROFILE) {
     return ["--keychain-profile", process.env.VOYAVPN_NOTARY_KEYCHAIN_PROFILE];
@@ -67,6 +78,9 @@ function stapleTarget(submittedArtifact) {
 function main() {
   if (process.platform !== "darwin") {
     throw new Error("macOS notarization must run on macOS.");
+  }
+  if (distributionMode() === "app-store") {
+    throw new Error("App Store/TestFlight builds are submitted through App Store Connect and are not notarized with notarytool.");
   }
 
   const submittedArtifact = prepareArtifact();

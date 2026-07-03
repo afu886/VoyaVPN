@@ -11,10 +11,11 @@ Runtime shape:
 - Runtime config file: `Library/Application Support/VoyaVPN/packet-tunnel-runtime.json`
 
 The Tauri app writes the generated sing-box JSON into the App Group container
-and starts the VPN profile through NetworkExtension. The extension then owns the
-packet tunnel and runs the embedded sing-box Apple/libbox runtime.
+and starts the VPN profile in-process through NetworkExtension. The extension
+then owns the packet tunnel and runs the sing-box Apple/libbox runtime linked
+into or embedded with the PacketTunnel extension.
 
-Build helper:
+Build commands:
 
 ```sh
 pnpm native:macos:libbox
@@ -34,10 +35,18 @@ destination with:
 
 `pnpm native:macos:tunnel` stages:
 
-- `VoyaVPN.app/Contents/MacOS/voyavpn-macos-tunnelctl`
 - `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
 - `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex/Contents/Frameworks/Libbox.framework`
-  when `Libbox.xcframework` is present.
+  only when the selected `Libbox.xcframework` slice is a dynamic framework.
+
+`voyavpn-macos-tunnelctl` is no longer bundled by default because App
+Store/TestFlight provisioning applies to app bundles and extensions, not a loose
+helper executable with restricted NetworkExtension entitlements. Set
+`VOYAVPN_BUILD_MACOS_TUNNEL_HELPER=1` only for local development experiments.
+
+When the selected `Libbox.framework` slice is static, the script links Libbox
+symbols into `VoyaPacketTunnel` and intentionally does not embed a framework in
+the extension bundle.
 
 By default the staged app bundle is
 `target/native/macos/VoyaVPN.app`. To inject the native tunnel into a real Tauri
@@ -48,10 +57,23 @@ export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 pnpm native:macos:tunnel
 ```
 
-Set `VOYAVPN_CODESIGN_IDENTITY` to codesign the staged Libbox framework, helper,
-and extension. The final App Store/TestFlight lane must sign the containing app
-with `src-tauri/entitlements/macos-app.plist` and the extension with
-`src-tauri/entitlements/packet-tunnel.plist`.
+Set `VOYAVPN_CODESIGN_IDENTITY` to codesign the staged dynamic Libbox framework
+when present and the extension. The final App Store/TestFlight lane must sign
+the containing app with `src-tauri/entitlements/macos-app.plist` and the
+extension with `src-tauri/entitlements/packet-tunnel.plist`.
+
+Provisioning profiles are discovered from `VOYAVPN_PROVISIONING_PROFILE_DIR`
+when set, otherwise from `../docs/certs` when that directory exists. Override
+individual profiles with:
+
+- `VOYAVPN_MACOS_APP_PROVISIONING_PROFILE`
+- `VOYAVPN_PACKET_TUNNEL_PROVISIONING_PROFILE`
+
+When profiles are present, `pnpm native:macos:tunnel` embeds them as
+`Contents/embedded.provisionprofile` in the containing app and PacketTunnel
+extension and generates signing entitlements from the profile app identifiers.
+Set `VOYAVPN_REQUIRE_PROVISIONING=1` in App Store/TestFlight lanes so missing or
+mismatched profiles fail the build.
 
 Release signing and notarization helpers:
 
@@ -72,11 +94,15 @@ Provisioning requirements:
 - Network Extension capability with `packet-tunnel-provider` for the containing
   app and the PacketTunnel extension.
 
-`pnpm native:macos:tunnel:verify` checks the staged files, embedded
-`Libbox.framework`, code signatures, and required entitlement strings. Set
-`VOYAVPN_REQUIRE_LIBBOX=1` or `VOYAVPN_REQUIRE_CODESIGN=1` to make those checks
-hard failures in release lanes.
+`pnpm native:macos:tunnel:verify` checks the staged app and PacketTunnel
+extension, either static Libbox symbols or an embedded dynamic
+`Libbox.framework`, embedded provisioning profiles when present, code
+signatures, and required entitlement strings. Set `VOYAVPN_REQUIRE_LIBBOX=1`,
+`VOYAVPN_REQUIRE_CODESIGN=1`, or
+`VOYAVPN_REQUIRE_PROVISIONING=1` to make those checks hard failures in release
+lanes.
 
 If `Libbox.xcframework` is absent, the PacketTunnel provider still builds but
-fails closed at runtime with a clear "requires Libbox.xcframework" error. It
-does not report a connected VPN without an active sing-box runtime.
+fails closed at runtime with a clear "requires the sing-box Apple/libbox
+runtime" error. It does not report a connected VPN without an active sing-box
+runtime.

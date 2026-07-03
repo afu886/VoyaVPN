@@ -211,6 +211,7 @@ final package is signed and notarized:
 pnpm native:macos:libbox
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 export VOYAVPN_CODESIGN_IDENTITY="<Developer ID or Apple Distribution identity>"
+export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-App-Store-or-TestFlight>"
 pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
 pnpm native:macos:app:sign
@@ -224,21 +225,38 @@ instead provide an already-built framework through `VOYAVPN_LIBBOX_XCFRAMEWORK`.
 `VOYAVPN_MACOS_APP_BUNDLE` points the staging, verification, signing, and
 notarization helpers at the actual Tauri `.app`; when it is omitted, the scripts
 use `target/native/macos/VoyaVPN.app` for local staging only.
+For App Store/TestFlight builds, set `VOYAVPN_PROVISIONING_PROFILE_DIR` or the
+more specific `VOYAVPN_MACOS_APP_PROVISIONING_PROFILE` and
+`VOYAVPN_PACKET_TUNNEL_PROVISIONING_PROFILE` paths. The scripts embed the
+profiles and derive `com.apple.application-identifier`,
+`com.apple.developer.team-identifier`, and keychain access group entitlements
+from them.
 
 The staged assets are:
 
-- `VoyaVPN.app/Contents/MacOS/voyavpn-macos-tunnelctl`
 - `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
 - `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex/Contents/Frameworks/Libbox.framework`
-  when libbox is available
+  only when the selected Libbox slice is dynamic.
+
+The macOS app controls `NETunnelProviderManager` in-process. A loose
+`voyavpn-macos-tunnelctl` executable is not bundled by default because it cannot
+carry a matching embedded provisioning profile for App Store/TestFlight
+NetworkExtension entitlements.
+
+If the selected `Libbox.framework` slice is static, `pnpm native:macos:tunnel`
+links the required Libbox symbols into `VoyaPacketTunnel` and does not embed a
+framework in the extension bundle. `pnpm native:macos:tunnel:verify` accepts
+either static symbols or an embedded dynamic framework when
+`VOYAVPN_REQUIRE_LIBBOX=1` is set.
 
 The containing app uses `src-tauri/entitlements/macos-app.plist`; the extension
 uses `src-tauri/entitlements/packet-tunnel.plist`. App Store/TestFlight builds
 must provision the matching App Group `group.app.voyavpn.desktop` and Network
 Extension entitlement for `packet-tunnel-provider`. Set
-`VOYAVPN_REQUIRE_LIBBOX=1` and `VOYAVPN_REQUIRE_CODESIGN=1` in release lanes so
-missing libbox or unsigned native tunnel assets fail the build instead of
-becoming a runtime-only error.
+`VOYAVPN_REQUIRE_LIBBOX=1`, `VOYAVPN_REQUIRE_CODESIGN=1`, and
+`VOYAVPN_REQUIRE_PROVISIONING=1` in release lanes so missing libbox, unsigned
+native tunnel assets, or missing profiles fail the build instead of becoming a
+runtime-only error.
 
 For notarization, prefer a keychain profile stored on the signing machine:
 

@@ -21,12 +21,13 @@ VoyaVPN uses platform-native tunnel backends:
 
 - macOS TUN uses a Network Extension `NEPacketTunnelProvider` hosted in a
   PacketTunnel app extension. The Tauri app writes the generated sing-box config
-  and asks the signed `voyavpn-macos-tunnelctl` helper to start or stop the VPN
-  profile through `NETunnelProviderManager`. The PacketTunnel provider embeds
+  into the App Group container and starts or stops the VPN profile in-process
+  through `NETunnelProviderManager`. The PacketTunnel provider links or embeds
   sing-box's Apple `Libbox.xcframework`, starts a libbox command server, maps
   libbox TUN settings onto `NEPacketTunnelNetworkSettings`, and hands the
   `packetFlow` file descriptor back to libbox. It does not run the TUN core
-  directly with sudo.
+  directly with sudo, and App Store/TestFlight builds do not depend on a loose
+  helper executable for restricted NetworkExtension operations.
 - Windows TUN uses a Windows service named `VoyaVPNTunnelService`. The desktop
   app writes the generated sing-box config and asks the service to start or stop
   sing-box with Wintun. The service validates the config with `sing-box check`
@@ -51,8 +52,9 @@ shared through `voya-core`.
   Native backends are expected to capture terminal and app traffic at the OS
   tunnel layer.
 - App Store/TestFlight macOS builds must include App Group and Network
-  Extension entitlements and an embedded, signed `Libbox.framework`. Developer
-  builds without libbox still compile, but the PacketTunnel provider fails
-  closed instead of reporting a connected tunnel. Windows installers must
+  Extension entitlements and a signed PacketTunnel extension with a linked
+  static Libbox runtime or an embedded signed dynamic `Libbox.framework`.
+  Developer builds without libbox still compile, but the PacketTunnel provider
+  fails closed instead of reporting a connected tunnel. Windows installers must
   install and update the service before enabling service-backed TUN in release
   smoke tests.

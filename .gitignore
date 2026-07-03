@@ -59,6 +59,7 @@ dist-pack/
 packages/native/lib/
 target/
 *.tgz
+src-tauri/native/macos/Frameworks/
 
 # Test and coverage output
 coverage/

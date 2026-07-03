@@ -83,7 +83,6 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
             options.tempPath = paths.tempURL.path
             options.logMaxLines = 3000
             options.debug = false
-            options.crashReportSource = "VoyaVPN PacketTunnel"
 
             var setupError: NSError?
             LibboxSetup(options, &setupError)
@@ -182,7 +181,7 @@ private enum PacketTunnelProviderError: LocalizedError {
         case .unsupportedRuntimeConfig(let version):
             return "VoyaVPN PacketTunnel runtime config version \(version) is not supported."
         case .singBoxRuntimeUnavailable:
-            return "VoyaVPN PacketTunnel requires Libbox.xcframework. Build it with `pnpm native:macos:libbox` or set VOYAVPN_LIBBOX_XCFRAMEWORK."
+            return "VoyaVPN PacketTunnel requires the sing-box Apple/libbox runtime. Build it with `pnpm native:macos:libbox` or set VOYAVPN_LIBBOX_XCFRAMEWORK."
         case .libboxSetupFailed(let message):
             return "VoyaVPN PacketTunnel failed to set up libbox: \(message)"
         case .libboxCommandServerFailed(let message):
@@ -251,20 +250,12 @@ private enum PacketTunnelProviderError: LocalizedError {
         }
 
         private func makeDNSSettings(_ options: LibboxTunOptionsProtocol) throws -> NEDNSSettings? {
-            guard options.getDNSMode()?.value != LibboxDNSModeDisabled else {
+            let server = try options.getDNSServerAddress().value
+            guard !server.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return nil
             }
 
-            let serverIterator = try options.getDNSServerAddress()
-            var servers: [String] = []
-            while serverIterator.hasNext() {
-                servers.append(serverIterator.next())
-            }
-            guard !servers.isEmpty else {
-                return nil
-            }
-
-            let dnsSettings = NEDNSSettings(servers: servers)
+            let dnsSettings = NEDNSSettings(servers: [server])
             dnsSettings.matchDomains = [""]
             dnsSettings.matchDomainsNoSearch = true
             return dnsSettings
@@ -411,7 +402,7 @@ private enum PacketTunnelProviderError: LocalizedError {
             semaphore.wait()
         }
 
-        private func updateDefaultInterface(_ listener: LibboxInterfaceUpdateListenerProtocol, _ path: NWPath) {
+        private func updateDefaultInterface(_ listener: LibboxInterfaceUpdateListenerProtocol, _ path: Network.NWPath) {
             guard path.status != .unsatisfied,
                   let defaultInterface = path.availableInterfaces.first
             else {
@@ -487,14 +478,6 @@ private enum PacketTunnelProviderError: LocalizedError {
             nil
         }
 
-        func readWIFISSID() -> String? {
-            nil
-        }
-
-        func connectSSHAgent(_ ret0_: UnsafeMutablePointer<Int32>?) throws {
-            throw platformError("SSH agent forwarding is not supported.")
-        }
-
         func serviceStop() throws {
             try provider?.closeService()
         }
@@ -547,55 +530,12 @@ private enum PacketTunnelProviderError: LocalizedError {
 
         func send(_ notification: LibboxNotification?) throws {}
 
-        func startNeighborMonitor(_ listener: LibboxNeighborUpdateListenerProtocol?) throws {}
-
-        func registerMyInterface(_ name: String?) {}
-
-        func closeNeighborMonitor(_: LibboxNeighborUpdateListenerProtocol?) throws {}
-
         func localDNSTransport() -> (any LibboxLocalDNSTransportProtocol)? {
             nil
         }
 
         func systemCertificates() -> (any LibboxStringIteratorProtocol)? {
             nil
-        }
-
-        func usePlatformShell() -> Bool {
-            false
-        }
-
-        func checkPlatformShell() throws {
-            throw platformError("Platform shell is not supported.")
-        }
-
-        func openShellSession(
-            _ user: LibboxPlatformUser?,
-            command: String?,
-            environ: (any LibboxStringIteratorProtocol)?,
-            term: String?,
-            rows: Int32,
-            cols: Int32
-        ) throws -> any LibboxShellSessionProtocol {
-            throw platformError("Platform shell is not supported.")
-        }
-
-        func readSystemSSHHostKey(_ error: NSErrorPointer) -> String {
-            error?.pointee = platformError("System SSH host key is not available.")
-            return ""
-        }
-
-        func lookupSFTPServer(_ error: NSErrorPointer) -> String {
-            error?.pointee = platformError("SFTP server lookup is not supported.")
-            return ""
-        }
-
-        func tailscaleHostname() -> String {
-            ""
-        }
-
-        func lookupUser(_ username: String?) throws -> LibboxPlatformUser {
-            throw platformError("User lookup is not supported.")
         }
 
         func reset() {

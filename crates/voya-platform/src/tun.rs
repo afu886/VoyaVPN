@@ -1,6 +1,6 @@
 use std::{io, path::PathBuf};
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 use std::process::Command;
 
 use thiserror::Error;
@@ -287,18 +287,17 @@ fn macos_packet_tunnel_status() -> NativeTunStatus {
     ) {
         return status;
     }
-    let helper_path = match require_bundled_component(
-        macos_tunnel_helper_path(),
-        "PacketTunnel helper is not bundled in this build",
-    ) {
-        Ok(path) => path,
-        Err(status) => return status,
-    };
 
-    match macos_tunnel_helper_status(&helper_path) {
-        Ok(provider_state) => NativeTunStatus {
+    match macos_packet_tunnel_bridge_status() {
+        Ok(output) if output.starts_with("error:") => NativeTunStatus {
             backend: TunBackend::MacosPacketTunnel,
-            provider_state,
+            provider_state: NativeTunProviderState::Error,
+            component_ready: true,
+            message: Some(output.trim_start_matches("error:").to_string()),
+        },
+        Ok(output) => NativeTunStatus {
+            backend: TunBackend::MacosPacketTunnel,
+            provider_state: parse_macos_provider_state(&output),
             component_ready: true,
             message: None,
         },
@@ -326,53 +325,6 @@ fn require_bundled_component(
     }
 }
 
-#[cfg(target_os = "macos")]
-fn macos_tunnel_helper_path() -> Option<PathBuf> {
-    let executable = std::env::current_exe().ok()?;
-    let macos_dir = executable.parent()?;
-    Some(macos_dir.join(MACOS_TUNNEL_HELPER_NAME))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_tunnel_helper_path() -> Option<PathBuf> {
-    None
-}
-
-#[cfg(target_os = "macos")]
-fn macos_tunnel_helper_status(
-    helper_path: &std::path::Path,
-) -> Result<NativeTunProviderState, NativeTunError> {
-    let output = Command::new(helper_path)
-        .arg("status")
-        .output()
-        .map_err(|source| NativeTunError::Command {
-            action: "query macOS PacketTunnel status",
-            source,
-        })?;
-    if !output.status.success() {
-        return Err(NativeTunError::CommandFailed {
-            action: "query macOS PacketTunnel status",
-            status_code: output.status.code(),
-            output: command_output_text(&output.stdout, &output.stderr),
-        });
-    }
-
-    Ok(parse_macos_provider_state(&command_output_text(
-        &output.stdout,
-        &output.stderr,
-    )))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_tunnel_helper_status(
-    _helper_path: &std::path::Path,
-) -> Result<NativeTunProviderState, NativeTunError> {
-    Err(NativeTunError::ComponentMissing {
-        backend: TunBackend::MacosPacketTunnel,
-        message: "PacketTunnel helper is not available on this platform".to_string(),
-    })
-}
-
 #[cfg(any(target_os = "macos", test))]
 fn parse_macos_provider_state(output: &str) -> NativeTunProviderState {
     match output.trim() {
@@ -386,7 +338,7 @@ fn parse_macos_provider_state(output: &str) -> NativeTunProviderState {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 fn command_output_text(stdout: &[u8], stderr: &[u8]) -> String {
     let stdout = String::from_utf8_lossy(stdout);
     let stderr = String::from_utf8_lossy(stderr);
@@ -429,85 +381,167 @@ fn start_macos_packet_tunnel(request: &NativeTunStartRequest) -> Result<(), Nati
         });
     }
 
-    start_macos_packet_tunnel_with_helper(request)
+    start_macos_packet_tunnel_with_bridge(request)
 }
 
 #[cfg(target_os = "macos")]
-fn start_macos_packet_tunnel_with_helper(
+fn start_macos_packet_tunnel_with_bridge(
     request: &NativeTunStartRequest,
 ) -> Result<(), NativeTunError> {
-    let Some(helper_path) = macos_tunnel_helper_path() else {
-        return Err(NativeTunError::ComponentMissing {
-            backend: TunBackend::MacosPacketTunnel,
-            message: "PacketTunnel helper is missing".to_string(),
-        });
-    };
-    let mut command = Command::new(helper_path);
-    command
-        .arg("start")
-        .arg("--config")
-        .arg(&request.main_config_path);
-    if let Some(active_profile_id) = &request.active_profile_id {
-        command.arg("--profile").arg(active_profile_id);
-    }
-    let output = command.output().map_err(|source| NativeTunError::Command {
-        action: "start macOS PacketTunnel",
-        source,
-    })?;
-    if output.status.success() {
+    let config_path =
+        request
+            .main_config_path
+            .to_str()
+            .ok_or_else(|| NativeTunError::InvalidRequest {
+                backend: TunBackend::MacosPacketTunnel,
+                message: "main config path is not valid UTF-8".to_string(),
+            })?;
+    let output =
+        macos_packet_tunnel_bridge_start(config_path, request.active_profile_id.as_deref())?;
+    if output == "ok" {
         return Ok(());
     }
 
     Err(NativeTunError::CommandFailed {
         action: "start macOS PacketTunnel",
-        status_code: output.status.code(),
-        output: command_output_text(&output.stdout, &output.stderr),
+        status_code: None,
+        output: output.trim_start_matches("error:").to_string(),
     })
 }
 
 #[cfg(not(target_os = "macos"))]
-fn start_macos_packet_tunnel_with_helper(
+fn start_macos_packet_tunnel_with_bridge(
     _request: &NativeTunStartRequest,
 ) -> Result<(), NativeTunError> {
     Err(NativeTunError::ComponentMissing {
         backend: TunBackend::MacosPacketTunnel,
-        message: "PacketTunnel helper is not available on this platform".to_string(),
+        message: "PacketTunnel bridge is not available on this platform".to_string(),
     })
 }
 
 fn stop_macos_packet_tunnel() -> Result<(), NativeTunError> {
-    stop_macos_packet_tunnel_with_helper()
+    stop_macos_packet_tunnel_with_bridge()
 }
 
 #[cfg(target_os = "macos")]
-fn stop_macos_packet_tunnel_with_helper() -> Result<(), NativeTunError> {
-    let Some(helper_path) = macos_tunnel_helper_path() else {
-        return Ok(());
-    };
-    if !helper_path.exists() {
-        return Ok(());
-    }
-    let output = Command::new(helper_path)
-        .arg("stop")
-        .output()
-        .map_err(|source| NativeTunError::Command {
-            action: "stop macOS PacketTunnel",
-            source,
-        })?;
-    if output.status.success() {
+fn stop_macos_packet_tunnel_with_bridge() -> Result<(), NativeTunError> {
+    let output = macos_packet_tunnel_bridge_stop()?;
+    if output == "ok" {
         return Ok(());
     }
 
     Err(NativeTunError::CommandFailed {
         action: "stop macOS PacketTunnel",
-        status_code: output.status.code(),
-        output: command_output_text(&output.stdout, &output.stderr),
+        status_code: None,
+        output: output.trim_start_matches("error:").to_string(),
     })
 }
 
 #[cfg(not(target_os = "macos"))]
-fn stop_macos_packet_tunnel_with_helper() -> Result<(), NativeTunError> {
+fn stop_macos_packet_tunnel_with_bridge() -> Result<(), NativeTunError> {
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod macos_packet_tunnel_bridge {
+    use std::ffi::{CStr, CString};
+
+    use libc::c_char;
+
+    use super::{NativeTunError, TunBackend};
+
+    unsafe extern "C" {
+        fn voya_macos_packet_tunnel_status() -> *mut c_char;
+        fn voya_macos_packet_tunnel_start(
+            config_path: *const c_char,
+            profile_id: *const c_char,
+        ) -> *mut c_char;
+        fn voya_macos_packet_tunnel_stop() -> *mut c_char;
+        fn voya_macos_packet_tunnel_free(value: *mut c_char);
+    }
+
+    pub fn status() -> Result<String, NativeTunError> {
+        bridge_string("query macOS PacketTunnel status", || unsafe {
+            voya_macos_packet_tunnel_status()
+        })
+    }
+
+    pub fn start(config_path: &str, profile_id: Option<&str>) -> Result<String, NativeTunError> {
+        let config_path = c_string(config_path, "main config path")?;
+        let profile_id = match profile_id {
+            Some(profile_id) => Some(c_string(profile_id, "active profile id")?),
+            None => None,
+        };
+        bridge_string("start macOS PacketTunnel", || unsafe {
+            voya_macos_packet_tunnel_start(
+                config_path.as_ptr(),
+                profile_id
+                    .as_ref()
+                    .map_or(std::ptr::null(), |profile_id| profile_id.as_ptr()),
+            )
+        })
+    }
+
+    pub fn stop() -> Result<String, NativeTunError> {
+        bridge_string("stop macOS PacketTunnel", || unsafe {
+            voya_macos_packet_tunnel_stop()
+        })
+    }
+
+    fn c_string(value: &str, label: &'static str) -> Result<CString, NativeTunError> {
+        CString::new(value).map_err(|_| NativeTunError::InvalidRequest {
+            backend: TunBackend::MacosPacketTunnel,
+            message: format!("{label} contains an interior NUL byte"),
+        })
+    }
+
+    fn bridge_string(
+        action: &'static str,
+        invoke: impl FnOnce() -> *mut c_char,
+    ) -> Result<String, NativeTunError> {
+        let value = invoke();
+        if value.is_null() {
+            return Err(NativeTunError::CommandFailed {
+                action,
+                status_code: None,
+                output: "macOS PacketTunnel bridge returned a null response".to_string(),
+            });
+        }
+
+        let output = unsafe { CStr::from_ptr(value) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe {
+            voya_macos_packet_tunnel_free(value);
+        }
+        Ok(output)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_packet_tunnel_bridge_status() -> Result<String, NativeTunError> {
+    macos_packet_tunnel_bridge::status()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_packet_tunnel_bridge_status() -> Result<String, NativeTunError> {
+    Err(NativeTunError::ComponentMissing {
+        backend: TunBackend::MacosPacketTunnel,
+        message: "PacketTunnel bridge is not available on this platform".to_string(),
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn macos_packet_tunnel_bridge_start(
+    config_path: &str,
+    profile_id: Option<&str>,
+) -> Result<String, NativeTunError> {
+    macos_packet_tunnel_bridge::start(config_path, profile_id)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_packet_tunnel_bridge_stop() -> Result<String, NativeTunError> {
+    macos_packet_tunnel_bridge::stop()
 }
 
 #[cfg(windows)]
@@ -714,6 +748,11 @@ pub enum NativeTunError {
         backend: TunBackend,
         message: String,
     },
+    #[error("native TUN request is invalid for {backend:?}: {message}")]
+    InvalidRequest {
+        backend: TunBackend,
+        message: String,
+    },
     #[error("failed to {action}: {source}")]
     Command {
         action: &'static str,
@@ -783,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn macos_helper_status_parser_maps_known_states() {
+    fn macos_provider_status_parser_maps_known_states() {
         assert_eq!(
             parse_macos_provider_state("running\n"),
             NativeTunProviderState::Running
