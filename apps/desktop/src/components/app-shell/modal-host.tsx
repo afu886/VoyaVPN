@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Cpu, FileJson2, Languages, Monitor, Moon, Settings, Sun, Type } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@voya/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -9,17 +9,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+} from "@voya/ui/components/dialog";
+import { Label } from "@voya/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { fontOptions } from "@/config/fonts";
+} from "@voya/ui/components/select";
+import { Separator } from "@voya/ui/components/separator";
+import { fontOptions } from "@voya/ui/config/fonts";
 import { BackupDialog } from "@/features/backup";
 import { IntegrationSettings, RuntimeConfigSettings, SourceSettings } from "@/features/options";
 import { QrDialog } from "@/features/qr";
@@ -38,7 +38,7 @@ import {
 import { type MissingCorePayload, useModalStore } from "@/stores/modal-store";
 import { formatCoreType } from "@/lib/core-types";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 const themeOptions: Array<{ icon: typeof Monitor; labelKey: string; value: ThemeMode }> = [
   { icon: Monitor, labelKey: "menu.themeSystem", value: "system" },

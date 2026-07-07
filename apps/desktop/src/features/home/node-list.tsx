@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { LoaderCircle, Search } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@voya/ui/components/badge";
+import { Input } from "@voya/ui/components/input";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { dataTableRowHover, dataTableRowSelected } from "@/components/app-shell/data-table-surface";
 import { useI18n } from "@voya/i18n/use-i18n";
 import type { ProfileListItem_Serialize } from "@/ipc/bindings";
 import { formatDelay } from "@voya/utils/formatting";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 import { getProtocolLabel } from "@/features/profiles/profile-constants";
 

@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Power, PowerOff, RotateCw, ShieldCheck, ShieldOff } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { Button } from "@voya/ui/components/button";
+import { Label } from "@voya/ui/components/label";
+import { Separator } from "@voya/ui/components/separator";
+import { Switch } from "@voya/ui/components/switch";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   connectActiveProfile,
@@ -23,7 +23,7 @@ import {
 } from "@/ipc";
 import type { SysProxyMode, TunChanged } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useToastStore } from "@/stores/toast-store";
 

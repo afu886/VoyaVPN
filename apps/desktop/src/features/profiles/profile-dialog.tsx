@@ -11,10 +11,10 @@ import type {
   UseFormSetValue,
 } from "react-hook-form";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   Dialog,
   DialogDescription,
@@ -22,23 +22,23 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogContent,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@voya/ui/components/dialog";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+} from "@voya/ui/components/select";
+import { Switch } from "@voya/ui/components/switch";
+import { Textarea } from "@voya/ui/components/textarea";
 import type { ProfileListItem_Serialize } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { calculateCertificateSha256, fetchCertificate } from "@/ipc";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { GroupBuilder } from "@/features/groups";
 
 import {

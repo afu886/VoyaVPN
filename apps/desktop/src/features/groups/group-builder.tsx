@@ -20,11 +20,11 @@ import {
   X,
 } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Card } from "@voya/ui/components/card";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   Dialog,
   DialogDescription,
@@ -32,17 +32,17 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogContent,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@voya/ui/components/dialog";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@voya/ui/components/select";
 import {
   listGroupChildCandidates,
   previewGroupProfile,
@@ -54,7 +54,7 @@ import type {
 } from "@/ipc/bindings";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 import { CONFIG_TYPES, getProtocolLabel, type ProfileProtocol } from "@/features/profiles/profile-constants";
 import {

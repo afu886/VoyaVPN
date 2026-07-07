@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog } from "@voya/ui/components/dialog";
 import { CheckUpdateDialog } from "@/features/updates/check-update-dialog";
 import { changeLocale } from "@voya/i18n";
 import type {

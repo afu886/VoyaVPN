@@ -60,13 +60,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Checkbox } from "@/components/ui/checkbox";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
+} from "@voya/ui/components/alert-dialog";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { buttonVariants } from "@voya/ui/components/button-variants";
+import { Checkbox } from "@voya/ui/components/checkbox";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { Input } from "@voya/ui/components/input";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -75,8 +75,8 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarTrigger,
-} from "@/components/ui/menubar";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@voya/ui/components/menubar";
+import { Skeleton } from "@voya/ui/components/skeleton";
 import {
   copyProfiles,
   cancelSpeedtest,
@@ -109,7 +109,7 @@ import type {
 import { useI18n } from "@voya/i18n/use-i18n";
 import { formatDelay, formatSpeed, formatTraffic } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useProfileColumnsStore } from "@/stores/profile-columns-store";
 

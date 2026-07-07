@@ -2,8 +2,8 @@ import type * as React from "react";
 import { TriangleAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { cn } from "@voya/ui/lib/utils";
 
 // The destructive banner that four screens (Profiles, Routing, Clash proxies,
 // Clash connections) each hand-rolled below their page header to surface an

@@ -6,21 +6,21 @@ import { Braces, Database, RefreshCw, RotateCcw, Save, ServerCog, ShieldCheck, T
 import { z } from "zod";
 
 import { PageHeader, PageHeaderHeading, PageSection } from "@/components/app-shell/page-section";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
+import { Checkbox } from "@voya/ui/components/checkbox";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@voya/ui/components/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@voya/ui/components/tabs";
+import { Textarea } from "@voya/ui/components/textarea";
 import { IpcCommandError, loadDnsSettings, saveDnsSettings } from "@/ipc";
 import type { DnsItem_Serialize, DnsSettings_Deserialize, DnsSettings_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 const STRATEGIES = ["", "AsIs", "UseIP", "UseIPv4", "UseIPv6", "ForceIPv4", "ForceIPv6"] as const;
 const EMPTY_SELECT_VALUE = "__voyavpn_empty_select_value__";

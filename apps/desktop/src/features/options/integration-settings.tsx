@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Activity, Keyboard, Power, Save } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Button } from "@voya/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { Switch } from "@voya/ui/components/switch";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   autostartStatus,

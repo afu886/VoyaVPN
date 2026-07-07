@@ -14,10 +14,10 @@ import {
 } from "@/components/app-shell/data-table-surface";
 import { InlinePageError } from "@/components/app-shell/inline-page-error";
 import { PageHeader, PageHeaderHeading, PageSection } from "@/components/app-shell/page-section";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { Input } from "@voya/ui/components/input";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -26,8 +26,8 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarTrigger,
-} from "@/components/ui/menubar";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@voya/ui/components/menubar";
+import { Skeleton } from "@voya/ui/components/skeleton";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   clashCloseConnection,
@@ -37,7 +37,7 @@ import {
 import type { ClashConnectionItem, ClashConnectionsSnapshot } from "@/ipc/bindings";
 import { formatBytes } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { useConnectionColumnsStore } from "@/stores/connection-columns-store";
 import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
 

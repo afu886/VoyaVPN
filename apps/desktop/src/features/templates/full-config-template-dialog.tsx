@@ -3,24 +3,24 @@ import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { AlertTriangle, Braces, FileJson2, Save } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Button } from "@voya/ui/components/button";
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@voya/ui/components/dialog";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { Switch } from "@voya/ui/components/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@voya/ui/components/tabs";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { loadFullConfigTemplates, saveFullConfigTemplate } from "@/ipc";
 import type { FullConfigTemplateItem_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 type TemplateTab = "singbox";
 

@@ -1,9 +1,9 @@
 import { AlertTriangle, CircleDot, LoaderCircle, PauseCircle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@voya/ui/components/badge";
 import { useI18n } from "@voya/i18n/use-i18n";
 import type { RuntimeClashMonitorStatus } from "@/ipc/runtime-event-store";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 type MonitorTone = "failed" | "live" | "starting" | "stale";
 

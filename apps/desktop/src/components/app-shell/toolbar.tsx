@@ -1,8 +1,8 @@
 import type * as React from "react";
 import { MoreHorizontal } from "lucide-react";
 
-import { Menubar, MenubarContent, MenubarMenu, MenubarTrigger } from "@/components/ui/menubar";
-import { cn } from "@/lib/utils";
+import { Menubar, MenubarContent, MenubarMenu, MenubarTrigger } from "@voya/ui/components/menubar";
+import { cn } from "@voya/ui/lib/utils";
 
 // Shared screen-toolbar vocabulary. Screens compose a `Toolbar` row out of one
 // or more `ToolbarGroup` clusters (separated by a hairline rule), spill the

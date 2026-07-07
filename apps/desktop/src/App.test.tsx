@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, vi } from "vitest";
 
 import { App } from "./App";
-import { fontToCss } from "./config/fonts";
+import { fontToCss } from "@voya/ui/config/fonts";
 import { changeLocale } from "@voya/i18n";
 import {
   clashCloseConnection,

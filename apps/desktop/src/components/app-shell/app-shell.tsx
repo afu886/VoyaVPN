@@ -10,7 +10,7 @@ import { TitleBar } from "@/components/app-shell/title-bar";
 import { Toaster } from "@/components/app-shell/toaster";
 import { useAcrylicWindow } from "@/components/app-shell/use-acrylic-window";
 import { useWindowChrome } from "@/components/app-shell/use-window-chrome";
-import { Button } from "@/components/ui/button";
+import { Button } from "@voya/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { fonts } from "@/config/fonts";
+} from "@voya/ui/components/dialog";
+import { fonts } from "@voya/ui/config/fonts";
 import { applyDocumentLocale } from "@voya/i18n";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { HomeScreen } from "@/features/home";

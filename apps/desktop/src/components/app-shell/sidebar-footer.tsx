@@ -1,14 +1,14 @@
 import { Database, Globe2, Moon, QrCode, RefreshCw, Settings, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@voya/ui/components/button";
 import {
   Menubar,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
   MenubarTrigger,
-} from "@/components/ui/menubar";
+} from "@voya/ui/components/menubar";
 import { useI18n } from "@voya/i18n/use-i18n";
 import type { PresetType } from "@/ipc/bindings";
 import { useModalStore } from "@/stores/modal-store";

@@ -3,14 +3,14 @@ import { ArrowDownToLine, ScrollText, Search, Trash2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { PageHeader, PageHeaderHeading, PageSection } from "@/components/app-shell/page-section";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { Input } from "@voya/ui/components/input";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { useRuntimeEventStore } from "@/ipc";
 import type { LogLevel } from "@/ipc/bindings";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 // Severity order; drives both the filter chips and their visual weight.
 const LOG_LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error"];

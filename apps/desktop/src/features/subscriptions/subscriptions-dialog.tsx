@@ -3,11 +3,11 @@ import type * as React from "react";
 import { Plus, RefreshCw, Rss, Save, Trash2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   Dialog,
   DialogDescription,
@@ -15,12 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogContent,
-} from "@/components/ui/dialog";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@voya/ui/components/dialog";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
+import { Skeleton } from "@voya/ui/components/skeleton";
 import {
   deleteSubscriptions,
   listSubscriptions,
@@ -30,7 +30,7 @@ import {
 import type { SubItem_Deserialize } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { redactOperationalError } from "@voya/utils/operational-redaction";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 type SubscriptionsDialogProps = {
   onChanged: () => void;

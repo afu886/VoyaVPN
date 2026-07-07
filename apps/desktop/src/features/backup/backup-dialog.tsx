@@ -12,21 +12,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from "@voya/ui/components/alert-dialog";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { buttonVariants } from "@voya/ui/components/button-variants";
+import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@voya/ui/components/dialog";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   backupCreateLocal,
@@ -41,7 +41,7 @@ import type { BackupOperationResult, BackupRemoteResult, BackupStatus_Serialize,
 import { formatBytes } from "@voya/utils/formatting";
 import { redactOperationalError } from "@voya/utils/operational-redaction";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 type WorkingAction = "localBackup" | "localRestore" | "save" | "webdavCheck" | "webdavPull" | "webdavPush";
 

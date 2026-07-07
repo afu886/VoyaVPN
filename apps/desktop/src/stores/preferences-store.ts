@@ -9,7 +9,7 @@ import {
   fontToCss,
   fontToFamilyString,
   isFont,
-} from "@/config/fonts";
+} from "@voya/ui/config/fonts";
 import type { UiItem_Serialize } from "@/ipc/bindings";
 
 export type ThemeMode = "system" | "light" | "dark";

@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { ClipboardPaste, FileUp, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Button } from "@voya/ui/components/button";
+import { Card, CardContent } from "@voya/ui/components/card";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -13,16 +13,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+} from "@voya/ui/components/dialog";
+import { Label } from "@voya/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@voya/ui/components/select";
+import { Textarea } from "@voya/ui/components/textarea";
 import { importProfilesFromText, listSubscriptions } from "@/ipc";
 import type { ImportProfilesResult } from "@/ipc/bindings";
 import { redactOperationalError } from "@voya/utils/operational-redaction";

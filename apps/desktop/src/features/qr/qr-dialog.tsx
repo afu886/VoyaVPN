@@ -2,17 +2,17 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import { AlertTriangle, CheckCircle2, ClipboardPaste, ImagePlus, Monitor, QrCode, ScanLine } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Button } from "@voya/ui/components/button";
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@voya/ui/components/dialog";
+import { Label } from "@voya/ui/components/label";
+import { Textarea } from "@voya/ui/components/textarea";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { generateQrCode, importProfilesFromText, scanScreenQr } from "@/ipc";
 import type { QrCodeImage } from "@/ipc/bindings";

@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 // A single sidebar destination row. Rendered as an ARIA `tab` (rather than a
 // plain button or link) so the shell's nav reads as a tablist and the existing

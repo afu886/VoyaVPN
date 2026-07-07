@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { ScrollText } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@voya/ui/components/badge";
 
 import { PageHeader, PageHeaderHeading, PageSection } from "./page-section";
 

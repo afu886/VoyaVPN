@@ -9,10 +9,10 @@ import {
 } from "@/components/app-shell/data-table-surface";
 import { InlinePageError } from "@/components/app-shell/inline-page-error";
 import { PageHeader, PageHeaderActions, PageHeaderHeading, PageSection } from "@/components/app-shell/page-section";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   clashListProxies,
@@ -30,7 +30,7 @@ import type {
 } from "@/ipc/bindings";
 import { formatBytesPerSecond, formatDelay } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
 
 const ruleModeOptions: Array<{ labelKey: string; value: RuleMode }> = [

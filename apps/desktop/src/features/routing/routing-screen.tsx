@@ -24,10 +24,10 @@ import {
   dataTableRowSelected,
 } from "@/components/app-shell/data-table-surface";
 import { PageHeader, PageHeaderHeading, PageSection } from "@/components/app-shell/page-section";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -36,18 +36,18 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogContent,
-} from "@/components/ui/dialog";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@voya/ui/components/dialog";
+import { EmptyState } from "@voya/ui/components/empty-state";
+import { Input } from "@voya/ui/components/input";
+import { Label } from "@voya/ui/components/label";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@voya/ui/components/select";
 import {
   Table,
   TableBody,
@@ -55,8 +55,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+} from "@voya/ui/components/table";
+import { Textarea } from "@voya/ui/components/textarea";
 import {
   deleteRoutingRules,
   deleteRoutings,
@@ -76,7 +76,7 @@ import type {
 } from "@/ipc/bindings";
 import { MOVE_ACTIONS } from "@/features/profiles/profile-constants";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 import { z } from "zod";
 
 const RULE_TYPES = {

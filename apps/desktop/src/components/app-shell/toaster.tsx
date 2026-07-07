@@ -5,7 +5,7 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-} from "@/components/ui/toast";
+} from "@voya/ui/components/toast";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { useToastStore } from "@/stores/toast-store";
 

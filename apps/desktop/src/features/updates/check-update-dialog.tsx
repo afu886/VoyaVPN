@@ -9,19 +9,19 @@ import {
 } from "lucide-react";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@voya/ui/components/alert";
+import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Checkbox } from "@voya/ui/components/checkbox";
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@voya/ui/components/dialog";
+import { Label } from "@voya/ui/components/label";
+import { ScrollArea } from "@voya/ui/components/scroll-area";
 import {
   Table,
   TableBody,
@@ -29,7 +29,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@voya/ui/components/table";
 import {
   checkAppUpdatePaths,
   installCheckedAppUpdate,
@@ -59,7 +59,7 @@ import type {
 import { redactOperationalMessage } from "@voya/utils/operational-redaction";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@/lib/utils";
+import { cn } from "@voya/ui/lib/utils";
 
 type CoreRunMode = "check" | "download";
 type RunMode = CoreRunMode | "app-check" | "app-install" | "app-restart";

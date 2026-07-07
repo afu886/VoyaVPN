@@ -1,8 +1,8 @@
 import type * as React from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@voya/ui/components/badge";
+import { cn } from "@voya/ui/lib/utils";
 
 // Shared page-shell primitives. Every feature screen used to hand-write the same
 // `flex h-full min-h-0 flex-col` section wrapped around a 56px header bar, and the
