@@ -1,4 +1,4 @@
-import { Database, Globe2, HelpCircle, Moon, QrCode, RefreshCw, Settings, Sun } from "lucide-react";
+import { Database, Globe2, Moon, QrCode, RefreshCw, Settings, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { resolveThemeMode, type ThemeMode, usePreferencesStore } from "@/stores/
 
 // The former Menubar Tools/Help actions now live as a row of icon actions pinned
 // to the bottom of the sidebar: the static app actions (Backup, Check updates,
-// QR, About), a one-tap theme toggle, and the Settings entry. Regional presets
+// QR), a one-tap theme toggle, and the Settings entry. Regional presets
 // keep their multi-choice picker via a small Menubar dropdown (the same pattern
 // the Columns menus already use) since picking a preset is a one-of-three choice.
 export type RegionalPresetOption = {
@@ -94,7 +94,6 @@ export function SidebarFooter({
         label={t("actions.settings")}
         onClick={() => openModal("settings")}
       />
-      <SidebarFooterAction icon={HelpCircle} label={t("menu.about")} onClick={() => openModal("about")} />
     </div>
   );
 }

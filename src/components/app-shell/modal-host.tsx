@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cpu, FileJson2, Info, Languages, Monitor, Moon, Settings, Sun, Type } from "lucide-react";
+import { Cpu, FileJson2, Languages, Monitor, Moon, Settings, Sun, Type } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -64,7 +64,6 @@ export function ModalHost() {
   return (
     <Dialog open={Boolean(modal)} onOpenChange={(open) => !open && closeTopModal()}>
       {modal?.kind === "settings" ? <SettingsDialog /> : null}
-      {modal?.kind === "about" ? <AboutDialog /> : null}
       {modal?.kind === "backup" ? <BackupDialog /> : null}
       {modal?.kind === "fullConfigTemplate" ? <FullConfigTemplateDialog /> : null}
       {modal?.kind === "qr" ? <QrDialog initialContent={modal.qrContent} key={modal.id} /> : null}
@@ -288,27 +287,6 @@ function SettingsDialog() {
           </div>
         </section>
       </div>
-    </DialogContent>
-  );
-}
-
-function AboutDialog() {
-  const { t } = useI18n();
-
-  return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <Info className="size-4" aria-hidden="true" />
-          {t("modal.about")}
-        </DialogTitle>
-        <DialogDescription className="sr-only">{t("modal.aboutDescription")}</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-2 text-sm">
-        <p className="font-medium">{t("app.name")}</p>
-        <p className="text-muted-foreground">{t("modal.version")}</p>
-      </div>
-      <DialogFooter />
     </DialogContent>
   );
 }
