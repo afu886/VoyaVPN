@@ -1,5 +1,19 @@
 packages:
-  - "."
+  - "apps/*"
+  - "packages/*"
+catalog:
+  react: ^19.2.6
+  react-dom: ^19.2.6
+  '@types/react': ^19.2.15
+  '@types/react-dom': ^19.2.3
+  typescript: ^6.0.3
+  tailwindcss: ^4.3.0
+  lucide-react: ^1.17.0
+  vitest: ^4.1.7
+  jsdom: ^29.1.1
+  '@testing-library/jest-dom': ^6.9.1
+  '@testing-library/react': ^16.3.2
+  '@testing-library/user-event': ^14.6.1
 allowBuilds:
   '@swc/core': true
 optimisticRepeatInstall: false
