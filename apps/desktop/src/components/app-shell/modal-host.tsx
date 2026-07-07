@@ -25,7 +25,7 @@ import { IntegrationSettings, RuntimeConfigSettings, SourceSettings } from "@/fe
 import { QrDialog } from "@/features/qr";
 import { FullConfigTemplateDialog } from "@/features/templates";
 import { CheckUpdateDialog } from "@/features/updates";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { connectActiveProfile, installCoreSeed } from "@/ipc";
 import {
   FONT_SIZE_MAX,

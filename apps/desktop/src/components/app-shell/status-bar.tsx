@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, Gauge, LoaderCircle, Power, WifiOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { listProfiles, runtimeStatus, useRuntimeEventStore } from "@/ipc";
 import type { CoreStateEvent, RuntimeStatusResponse } from "@/ipc/bindings";
 import { formatBytesPerSecond } from "@voya/utils/formatting";

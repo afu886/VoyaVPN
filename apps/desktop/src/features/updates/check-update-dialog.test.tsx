@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Dialog } from "@/components/ui/dialog";
 import { CheckUpdateDialog } from "@/features/updates/check-update-dialog";
-import { changeLocale } from "@/i18n";
+import { changeLocale } from "@voya/i18n";
 import type {
   AppUpdaterStatus,
   ManualAppUpdateLinks,

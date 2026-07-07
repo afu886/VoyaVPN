@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IntegrationSettings } from "@/features/options/integration-settings";
-import { changeLocale } from "@/i18n";
+import { changeLocale } from "@voya/i18n";
 import type { AutostartStatus, DiagnosticsStatus, HotkeyStatus_Serialize } from "@/ipc/bindings";
 
 const ipcMocks = vi.hoisted(() => ({

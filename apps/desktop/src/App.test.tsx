@@ -5,7 +5,7 @@ import { afterEach, vi } from "vitest";
 
 import { App } from "./App";
 import { fontToCss } from "./config/fonts";
-import { changeLocale } from "./i18n";
+import { changeLocale } from "@voya/i18n";
 import {
   clashCloseConnection,
   clashListConnections,

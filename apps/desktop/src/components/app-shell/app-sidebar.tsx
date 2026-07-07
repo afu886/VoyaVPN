@@ -5,7 +5,7 @@ import { BrandMark } from "@/assets/brand-mark";
 import { SidebarFooter, type RegionalPresetOption } from "@/components/app-shell/sidebar-footer";
 import { SidebarNavItem } from "@/components/app-shell/sidebar-nav-item";
 import { SidebarSectionHeader } from "@/components/app-shell/sidebar-section-header";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { type ShellTab, useShellStore } from "@/stores/shell-store";
 
 // `id` of the content `tabpanel` the nav controls. Exported so the shell can tag

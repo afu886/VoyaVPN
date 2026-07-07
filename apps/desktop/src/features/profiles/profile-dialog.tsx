@@ -35,7 +35,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { ProfileListItem_Serialize } from "@/ipc/bindings";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { calculateCertificateSha256, fetchCertificate } from "@/ipc";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@/lib/utils";

@@ -9,7 +9,7 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from "@/components/ui/menubar";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import type { PresetType } from "@/ipc/bindings";
 import { useModalStore } from "@/stores/modal-store";
 import { resolveThemeMode, type ThemeMode, usePreferencesStore } from "@/stores/preferences-store";

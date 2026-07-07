@@ -38,7 +38,7 @@ import {
   type AppUpdateInstallResult,
   type AppUpdatePaths,
 } from "@/features/updates/app-update-flow";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import {
   checkUpdates,
   downloadUpdates,

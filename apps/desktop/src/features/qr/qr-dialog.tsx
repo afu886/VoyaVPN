@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { generateQrCode, importProfilesFromText, scanScreenQr } from "@/ipc";
 import type { QrCodeImage } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";

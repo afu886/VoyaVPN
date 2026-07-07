@@ -106,7 +106,7 @@ import type {
   ProfileSortKey,
   SpeedActionType,
 } from "@/ipc/bindings";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { formatDelay, formatSpeed, formatTraffic } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@/lib/utils";

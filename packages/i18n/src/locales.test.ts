@@ -1,14 +1,15 @@
-import { changeLocale, getLocaleDirection, i18nResources, localeOptions, type Locale } from "@/i18n";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+import { changeLocale, getLocaleDirection, i18nResources, localeOptions, type Locale } from "./index";
 
 type LocaleTree = {
   [key: string]: LocaleTree | string;
 };
 
-const sourceModules = import.meta.glob("../**/*.{ts,tsx}", {
-  eager: true,
-  import: "default",
-  query: "?raw",
-}) as Record<string, string>;
+const desktopSourceRoot = resolve(findRepoRoot(process.cwd()), "apps/desktop/src");
+const sourceModules = readSourceModules(desktopSourceRoot);
 
 describe("i18n locales", () => {
   it("registers the full product locale set", () => {
@@ -107,12 +108,12 @@ describe("i18n locales", () => {
 
   it("applies RTL and LTR document metadata when language changes", async () => {
     await changeLocale("fa");
-    expect(document.documentElement).toHaveAttribute("lang", "fa");
-    expect(document.documentElement).toHaveAttribute("dir", "rtl");
+    expect(document.documentElement.lang).toBe("fa");
+    expect(document.documentElement.dir).toBe("rtl");
 
     await changeLocale("de");
-    expect(document.documentElement).toHaveAttribute("lang", "de");
-    expect(document.documentElement).toHaveAttribute("dir", "ltr");
+    expect(document.documentElement.lang).toBe("de");
+    expect(document.documentElement.dir).toBe("ltr");
   });
 });
 
@@ -150,8 +151,8 @@ function collectStaticTranslationKeys() {
   const keys = new Set<string>();
   const staticTranslationKey = /\bt\(\s*["']([^"'`]+)["']/g;
 
-  for (const [path, source] of Object.entries(sourceModules)) {
-    if (path.endsWith("/ipc/bindings.ts")) {
+  for (const [path, source] of sourceModules) {
+    if (path === "ipc/bindings.ts") {
       continue;
     }
 
@@ -164,4 +165,42 @@ function collectStaticTranslationKeys() {
   }
 
   return keys;
+}
+
+function readSourceModules(sourceRoot: string): Array<[string, string]> {
+  const modules: Array<[string, string]> = [];
+
+  visitSourceDir(sourceRoot, modules, sourceRoot);
+
+  return modules;
+}
+
+function visitSourceDir(sourceRoot: string, modules: Array<[string, string]>, dir: string) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = resolve(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      visitSourceDir(sourceRoot, modules, path);
+    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+      modules.push([relative(sourceRoot, path).replaceAll("\\", "/"), readFileSync(path, "utf8")]);
+    }
+  }
+}
+
+function findRepoRoot(start: string) {
+  let dir = resolve(start);
+
+  while (true) {
+    if (existsSync(resolve(dir, "pnpm-workspace.yaml"))) {
+      return dir;
+    }
+
+    const parent = dirname(dir);
+
+    if (parent === dir) {
+      throw new Error("Unable to locate pnpm-workspace.yaml");
+    }
+
+    dir = parent;
+  }
 }

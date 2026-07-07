@@ -20,8 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { fonts } from "@/config/fonts";
-import { applyDocumentLocale } from "@/i18n";
-import { useI18n } from "@/i18n/use-i18n";
+import { applyDocumentLocale } from "@voya/i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { HomeScreen } from "@/features/home";
 import { ProfilesScreen } from "@/features/profiles";
 import { RoutingScreen } from "@/features/routing";

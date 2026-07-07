@@ -1,6 +1,6 @@
 import { BrandMark } from "@/assets/brand-mark";
 import { WindowControls } from "@/components/app-shell/window-controls";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 /**
  * Windows-only self-drawn title bar for the borderless window: a brand mark, a

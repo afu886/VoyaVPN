@@ -28,7 +28,7 @@ import {
   MenubarTrigger,
 } from "@/components/ui/menubar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import {
   clashCloseConnection,
   clashListConnections,

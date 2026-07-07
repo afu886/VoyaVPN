@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { dataTableRowHover, dataTableRowSelected } from "@/components/app-shell/data-table-surface";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import type { ProfileListItem_Serialize } from "@/ipc/bindings";
 import { formatDelay } from "@voya/utils/formatting";
 import { cn } from "@/lib/utils";

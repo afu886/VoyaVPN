@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { loadAppConfig, saveAppConfig } from "@/ipc";
 import type { AppConfig_Serialize, SysProxyType } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";

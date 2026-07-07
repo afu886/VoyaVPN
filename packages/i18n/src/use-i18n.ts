@@ -6,7 +6,7 @@ import {
   i18next,
   localeOptions,
   type Locale,
-} from "@/i18n";
+} from "./index";
 
 function subscribe(listener: () => void) {
   i18next.on("languageChanged", listener);

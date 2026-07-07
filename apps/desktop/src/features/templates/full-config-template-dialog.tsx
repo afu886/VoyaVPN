@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useI18n } from "@/i18n/use-i18n";
+import { useI18n } from "@voya/i18n/use-i18n";
 import { loadFullConfigTemplates, saveFullConfigTemplate } from "@/ipc";
 import type { FullConfigTemplateItem_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
