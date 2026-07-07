@@ -205,18 +205,45 @@ macOS and Windows transparent TUN use native OS components instead of the
 desktop UI process owning routes directly.
 
 macOS release builds must stage and sign the PacketTunnel assets before the
-final package is signed and notarized:
+final package is signed. There are two separate distribution lanes.
+
+Developer ID lane for direct DMG / drag-to-Applications testing:
 
 ```sh
 pnpm native:macos:libbox
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
-export VOYAVPN_CODESIGN_IDENTITY="<Developer ID or Apple Distribution identity>"
-export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-App-Store-or-TestFlight>"
+export VOYAVPN_CODESIGN_IDENTITY="<Developer ID Application identity>"
+export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-Developer-ID>"
+export VOYAVPN_REQUIRE_PROVISIONING=1
+export VOYAVPN_REQUIRE_CODESIGN=1
+export VOYAVPN_REQUIRE_NOTARIZATION_READY=1
 pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
 pnpm native:macos:app:sign
+pnpm native:macos:tunnel:verify
 pnpm native:macos:app:notarize
 ```
+
+App Store/TestFlight lane:
+
+```sh
+pnpm native:macos:libbox
+export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
+export VOYAVPN_CODESIGN_IDENTITY="<3rd Party Mac Developer Application or Apple Distribution identity>"
+export VOYAVPN_MACOS_DISTRIBUTION=app-store
+export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-App-Store-or-TestFlight>"
+export VOYAVPN_REQUIRE_PROVISIONING=1
+pnpm native:macos:tunnel
+pnpm native:macos:tunnel:verify
+pnpm native:macos:app:sign
+```
+
+App Store/TestFlight artifacts are submitted through App Store Connect. They are
+not expected to pass `spctl` or launch by being copied directly into
+`/Applications`; direct distribution requires the Developer ID lane plus
+notarization and stapling. Developer ID artifacts are expected to pass
+Gatekeeper assessment after `pnpm native:macos:app:notarize` has accepted and
+stapled the app.
 
 `pnpm native:macos:libbox` builds sing-box's Apple `Libbox.xcframework` from the
 pinned sing-box source tag and places it at
@@ -263,6 +290,8 @@ For notarization, prefer a keychain profile stored on the signing machine:
 ```sh
 xcrun notarytool store-credentials "<profile-name>"
 export VOYAVPN_NOTARY_KEYCHAIN_PROFILE="<profile-name>"
+# Optional when the profile was stored in a specific keychain:
+export VOYAVPN_NOTARY_KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 ```
 
 The script also supports `VOYAVPN_NOTARY_APPLE_ID`,

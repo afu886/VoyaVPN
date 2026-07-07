@@ -10,6 +10,7 @@ const appBundle = resolve(
 const appContents = resolve(appBundle, "Contents");
 const appBundleIdentifier = "app.voyavpn.desktop";
 const packetTunnelBundleIdentifier = "app.voyavpn.desktop.PacketTunnel";
+const appInfoPlist = resolve(appContents, "Info.plist");
 const helper = resolve(appContents, "MacOS", "voyavpn-macos-tunnelctl");
 const appex = resolve(appContents, "PlugIns", "app.voyavpn.desktop.PacketTunnel.appex");
 const appexContents = resolve(appex, "Contents");
@@ -17,6 +18,9 @@ const appexBinary = resolve(appexContents, "MacOS", "VoyaPacketTunnel");
 const appProvisioningProfile = resolve(appContents, "embedded.provisionprofile");
 const packetTunnelProvisioningProfile = resolve(appexContents, "embedded.provisionprofile");
 const libbox = resolve(appexContents, "Frameworks", "Libbox.framework");
+const tunnelService = resolve(appContents, "MacOS", "voyavpn-tunnel-service");
+const exportBindings = resolve(appContents, "MacOS", "export-bindings");
+const singBoxCoreSeed = resolve(appContents, "Resources", "core-seeds", "sing_box", "sing-box");
 const libboxSymbols = ["_LibboxVersion", "_LibboxSetup", "_LibboxNewCommandServer", "_LibboxGetTunnelFileDescriptor"];
 
 function truthy(value) {
@@ -96,9 +100,16 @@ function decodeProvisioningProfile(profilePath) {
     bundleIdentifier,
     teamIdentifier,
     appGroups: parsePlistArray(plistBuddy(plistPath, ":Entitlements:com.apple.security.application-groups", true)),
+    appSandbox: plistBuddy(plistPath, ":Entitlements:com.apple.security.app-sandbox", true) === "true",
+    networkClient: plistBuddy(plistPath, ":Entitlements:com.apple.security.network.client", true) === "true",
     networkExtensions: parsePlistArray(
       plistBuddy(plistPath, ":Entitlements:com.apple.developer.networking.networkextension", true),
     ),
+    systemExtensionInstall: plistBuddy(
+      plistPath,
+      ":Entitlements:com.apple.developer.system-extension.install",
+      true,
+    ) === "true",
   };
 }
 
@@ -119,13 +130,30 @@ function verifyProvisioningProfile(path, label, bundleIdentifier) {
   if (!profile.appGroups.includes("group.app.voyavpn.desktop")) {
     throw new Error(`${label} provisioning profile does not include group.app.voyavpn.desktop.`);
   }
-  if (!profile.networkExtensions.includes("packet-tunnel-provider")) {
-    throw new Error(`${label} provisioning profile does not include packet-tunnel-provider.`);
+  if (!profile.networkExtensions.includes("packet-tunnel-provider") && !profile.networkExtensions.includes("packet-tunnel-provider-systemextension")) {
+    throw new Error(`${label} provisioning profile does not include packet-tunnel-provider or packet-tunnel-provider-systemextension.`);
   }
 
   console.log(`✓ ${label} provisioning profile: ${profile.name || profile.uuid || path}`);
   console.log(`✓ ${label} provisioning profile app id: ${profile.applicationIdentifier}`);
   return profile;
+}
+
+function profileRequiredEntitlements(profile) {
+  if (!profile) {
+    return ["packet-tunnel-provider"];
+  }
+  const required = [...profile.networkExtensions];
+  if (profile.systemExtensionInstall) {
+    required.push("com.apple.developer.system-extension.install");
+  }
+  if (profile.appSandbox) {
+    required.push("com.apple.security.app-sandbox");
+  }
+  if (profile.networkClient) {
+    required.push("com.apple.security.network.client");
+  }
+  return required;
 }
 
 function verifySignature(path, label, requiredEntitlements = []) {
@@ -140,6 +168,7 @@ function verifySignature(path, label, requiredEntitlements = []) {
   }
 
   console.log(`✓ ${label} signature is valid`);
+  verifyNotarizationReadySignature(path, label);
 
   if (!requiredEntitlements.length) {
     return "";
@@ -159,6 +188,26 @@ function verifySignature(path, label, requiredEntitlements = []) {
     }
   }
   return output;
+}
+
+function verifyNotarizationReadySignature(path, label) {
+  if (!truthy(process.env.VOYAVPN_REQUIRE_NOTARIZATION_READY)) {
+    return;
+  }
+
+  const details = run("codesign", ["-dv", "--verbose=4", path]);
+  const output = `${details.stdout ?? ""}\n${details.stderr ?? ""}`;
+  const checks = [
+    ["Developer ID Application authority", "Authority=Developer ID Application:"],
+    ["secure timestamp", "Timestamp="],
+    ["hardened runtime", "runtime"],
+  ];
+  for (const [description, token] of checks) {
+    if (!output.includes(token)) {
+      throw new Error(`${label} signature is not notarization-ready: missing ${description}.`);
+    }
+    console.log(`✓ ${label} signature includes ${description}`);
+  }
 }
 
 function verifyLibboxRuntime() {
@@ -183,9 +232,19 @@ function verifyLibboxRuntime() {
   console.warn(`! ${message}`);
 }
 
+function verifyLaunchServicesMetadata() {
+  requirePath(appInfoPlist, "macOS app Info.plist");
+  const carbonRequirement = plistBuddy(appInfoPlist, ":LSRequiresCarbon", true);
+  if (carbonRequirement) {
+    throw new Error("macOS app Info.plist must not include LSRequiresCarbon; LaunchServices may refuse to open modern Tauri apps.");
+  }
+  console.log("✓ macOS app Info.plist does not include LSRequiresCarbon");
+}
+
 function main() {
   requireDarwin();
   requirePath(appBundle, "macOS app bundle");
+  verifyLaunchServicesMetadata();
   requirePath(appex, "PacketTunnel appex");
   requirePath(appexBinary, "PacketTunnel binary");
   verifyLibboxRuntime();
@@ -199,7 +258,7 @@ function main() {
 
   verifySignature(appBundle, "macOS app bundle", [
     "com.apple.developer.networking.networkextension",
-    "packet-tunnel-provider",
+    ...profileRequiredEntitlements(appProfile),
     "com.apple.security.application-groups",
     "group.app.voyavpn.desktop",
     ...(appProfile ? [
@@ -214,9 +273,18 @@ function main() {
   } else {
     console.log("✓ Optional tunnel helper is not bundled; NetworkExtension is controlled in-process by the app");
   }
+  if (existsSync(tunnelService)) {
+    verifySignature(tunnelService, "Tunnel service binary");
+  }
+  if (existsSync(exportBindings)) {
+    verifySignature(exportBindings, "Export bindings binary");
+  }
+  if (existsSync(singBoxCoreSeed)) {
+    verifySignature(singBoxCoreSeed, "sing-box core seed binary");
+  }
   verifySignature(appex, "PacketTunnel appex", [
     "com.apple.developer.networking.networkextension",
-    "packet-tunnel-provider",
+    ...profileRequiredEntitlements(packetTunnelProfile),
     "com.apple.security.application-groups",
     "group.app.voyavpn.desktop",
     ...(packetTunnelProfile ? [

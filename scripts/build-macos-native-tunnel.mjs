@@ -71,6 +71,53 @@ function truthy(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
 }
 
+function normalizeDistribution(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized || normalized === "auto") {
+    return "auto";
+  }
+  if (["developer-id", "developerid", "notarized", "dmg"].includes(normalized)) {
+    return "developer-id";
+  }
+  if (["app-store", "appstore", "testflight", "mas"].includes(normalized)) {
+    return "app-store";
+  }
+  throw new Error("VOYAVPN_MACOS_DISTRIBUTION must be auto, developer-id, or app-store.");
+}
+
+function signingIdentityName(identity) {
+  if (!identity) {
+    return "";
+  }
+  const list = capture("security", ["find-identity", "-p", "codesigning"]);
+  for (const line of list.split(/\r?\n/)) {
+    const match = line.match(/^\s*\d+\)\s+([A-Fa-f0-9]+)\s+"(.+)"$/);
+    if (!match) {
+      continue;
+    }
+    const [, sha1, name] = match;
+    if (identity === sha1 || identity === name || name.includes(identity)) {
+      return name;
+    }
+  }
+  return identity;
+}
+
+function distributionMode(identity) {
+  const explicit = normalizeDistribution(process.env.VOYAVPN_MACOS_DISTRIBUTION);
+  if (explicit !== "auto") {
+    return explicit;
+  }
+  const name = signingIdentityName(identity);
+  if (name.includes("3rd Party Mac Developer") || name.includes("Apple Distribution")) {
+    return "app-store";
+  }
+  if (name.includes("Developer ID Application")) {
+    return "developer-id";
+  }
+  return "developer-id";
+}
+
 function requireDarwin() {
   if (process.platform !== "darwin") {
     throw new Error("macOS native tunnel build must run on macOS with Xcode command line tools.");
@@ -139,11 +186,45 @@ function plistBuddy(plistPath, keyPath, optional = false) {
   return result.stdout.trim();
 }
 
+function plistBuddyXml(plistPath, keyPath, optional = false) {
+  const result = spawnSync("/usr/libexec/PlistBuddy", ["-x", "-c", `Print ${keyPath}`, plistPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    if (optional) {
+      return "";
+    }
+    throw new Error(`Unable to read ${keyPath} from ${plistPath}: ${result.stderr || result.stdout}`);
+  }
+  return result.stdout.trim();
+}
+
 function parsePlistArray(output) {
   return output
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && line !== "Array {" && line !== "}");
+}
+
+function developerCertificateSubjects(plistPath) {
+  const subjects = [];
+  for (let index = 0; ; index += 1) {
+    const certificateXml = plistBuddyXml(plistPath, `:DeveloperCertificates:${index}`, true);
+    if (!certificateXml) {
+      break;
+    }
+    const dataMatch = certificateXml.match(/<data>\s*([\s\S]*?)\s*<\/data>/);
+    if (!dataMatch) {
+      continue;
+    }
+    const certificate = Buffer.from(dataMatch[1].replace(/\s+/g, ""), "base64");
+    const subject = capture("openssl", ["x509", "-inform", "DER", "-noout", "-subject"], {
+      input: certificate,
+    }).trim();
+    subjects.push(subject);
+  }
+  return subjects;
 }
 
 function decodeProvisioningProfile(profilePath) {
@@ -168,10 +249,18 @@ function decodeProvisioningProfile(profilePath) {
     bundleIdentifier,
     teamIdentifier,
     appGroups: parsePlistArray(plistBuddy(plistPath, ":Entitlements:com.apple.security.application-groups", true)),
+    appSandbox: plistBuddy(plistPath, ":Entitlements:com.apple.security.app-sandbox", true) === "true",
+    developerCertificateSubjects: developerCertificateSubjects(plistPath),
     keychainAccessGroups: parsePlistArray(plistBuddy(plistPath, ":Entitlements:keychain-access-groups", true)),
+    networkClient: plistBuddy(plistPath, ":Entitlements:com.apple.security.network.client", true) === "true",
     networkExtensions: parsePlistArray(
       plistBuddy(plistPath, ":Entitlements:com.apple.developer.networking.networkextension", true),
     ),
+    systemExtensionInstall: plistBuddy(
+      plistPath,
+      ":Entitlements:com.apple.developer.system-extension.install",
+      true,
+    ) === "true",
   };
 }
 
@@ -187,7 +276,23 @@ function resolveExplicitProfile(envName) {
   return decodeProvisioningProfile(profilePath);
 }
 
-function findProvisioningProfile(bundleIdentifier, envName) {
+function profileMatchesDistribution(profile, distribution) {
+  if (distribution === "developer-id") {
+    return profile.developerCertificateSubjects.some((subject) => subject.includes("CN=Developer ID Application:"));
+  }
+  if (distribution === "app-store") {
+    return profile.developerCertificateSubjects.some(
+      (subject) => subject.includes("CN=3rd Party Mac Developer Application:") || subject.includes("CN=Apple Distribution:"),
+    );
+  }
+  return true;
+}
+
+function distributionProfileLabel(distribution) {
+  return distribution === "developer-id" ? "Developer ID" : "App Store/TestFlight";
+}
+
+function findProvisioningProfile(bundleIdentifier, envName, distribution) {
   const explicitProfile = resolveExplicitProfile(envName);
   if (explicitProfile) {
     return explicitProfile;
@@ -195,7 +300,7 @@ function findProvisioningProfile(bundleIdentifier, envName) {
 
   for (const profilePath of collectProvisioningProfiles(provisioningProfileDir)) {
     const profile = decodeProvisioningProfile(profilePath);
-    if (profile.bundleIdentifier === bundleIdentifier) {
+    if (profile.bundleIdentifier === bundleIdentifier && profileMatchesDistribution(profile, distribution)) {
       return profile;
     }
   }
@@ -211,31 +316,38 @@ function requireProfileCapability(profile, label, capability, values) {
   }
 }
 
-function validateProvisioningProfile(profile, label, bundleIdentifier) {
+function validateProvisioningProfile(profile, label, bundleIdentifier, distribution) {
   if (profile.bundleIdentifier !== bundleIdentifier) {
     throw new Error(
       `${label} provisioning profile bundle id mismatch: expected ${bundleIdentifier}, got ${profile.bundleIdentifier}.`,
+    );
+  }
+  if (!profileMatchesDistribution(profile, distribution)) {
+    throw new Error(
+      `${label} provisioning profile ${profile.path} is not a ${distributionProfileLabel(distribution)} profile.`,
     );
   }
   if (profile.teamIdentifier && !profile.applicationIdentifier.startsWith(`${profile.teamIdentifier}.`)) {
     throw new Error(`${label} provisioning profile application identifier does not match its team identifier.`);
   }
   requireProfileCapability(profile, label, "appGroups", ["group.app.voyavpn.desktop"]);
-  requireProfileCapability(profile, label, "networkExtensions", ["packet-tunnel-provider"]);
+  requireProfileCapability(profile, label, "networkExtensions", [
+    distribution === "developer-id" ? "packet-tunnel-provider-systemextension" : "packet-tunnel-provider",
+  ]);
 }
 
-function profileOrWarn(bundleIdentifier, envName, label) {
-  const profile = findProvisioningProfile(bundleIdentifier, envName);
+function profileOrWarn(bundleIdentifier, envName, label, distribution) {
+  const profile = findProvisioningProfile(bundleIdentifier, envName, distribution);
   if (!profile) {
-    const message = `${label} provisioning profile was not found. Set ${envName} or VOYAVPN_PROVISIONING_PROFILE_DIR.`;
-    if (truthy(process.env.VOYAVPN_REQUIRE_PROVISIONING)) {
+    const message = `${label} ${distributionProfileLabel(distribution)} provisioning profile was not found. Set ${envName} or VOYAVPN_PROVISIONING_PROFILE_DIR.`;
+    if (truthy(process.env.VOYAVPN_REQUIRE_PROVISIONING) || process.env.VOYAVPN_CODESIGN_IDENTITY) {
       throw new Error(message);
     }
     console.warn(message);
     return null;
   }
 
-  validateProvisioningProfile(profile, label, bundleIdentifier);
+  validateProvisioningProfile(profile, label, bundleIdentifier, distribution);
   console.log(`Using ${label} provisioning profile ${profile.name || profile.uuid || profile.path}`);
   return profile;
 }
@@ -258,6 +370,7 @@ function writeProfileEntitlements(profile, destination) {
   const keychainAccessGroups = profile.keychainAccessGroups.length
     ? profile.keychainAccessGroups
     : [`${profile.teamIdentifier}.*`];
+  const appGroups = profile.appGroups.length ? profile.appGroups : ["group.app.voyavpn.desktop"];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -265,15 +378,14 @@ function writeProfileEntitlements(profile, destination) {
   <key>com.apple.application-identifier</key>
   <string>${escapeXml(profile.applicationIdentifier)}</string>
   <key>com.apple.developer.networking.networkextension</key>
-  ${plistStringArray(["packet-tunnel-provider"])}
+  ${plistStringArray(profile.networkExtensions)}
+  ${profile.systemExtensionInstall ? "<key>com.apple.developer.system-extension.install</key>\n  <true/>" : ""}
   <key>com.apple.developer.team-identifier</key>
   <string>${escapeXml(profile.teamIdentifier)}</string>
-  <key>com.apple.security.app-sandbox</key>
-  <true/>
+  ${profile.appSandbox ? "<key>com.apple.security.app-sandbox</key>\n  <true/>" : ""}
   <key>com.apple.security.application-groups</key>
-  ${plistStringArray(["group.app.voyavpn.desktop"])}
-  <key>com.apple.security.network.client</key>
-  <true/>
+  ${plistStringArray(appGroups)}
+  ${profile.networkClient ? "<key>com.apple.security.network.client</key>\n  <true/>" : ""}
   <key>keychain-access-groups</key>
   ${plistStringArray(keychainAccessGroups)}
 </dict>
@@ -291,15 +403,18 @@ function entitlementsForSigning(baseEntitlements, profile, name) {
 }
 
 function stageProvisioningProfiles() {
+  const distribution = distributionMode(process.env.VOYAVPN_CODESIGN_IDENTITY);
   const appProfile = profileOrWarn(
     appBundleIdentifier,
     "VOYAVPN_MACOS_APP_PROVISIONING_PROFILE",
     "macOS app",
+    distribution,
   );
   const packetTunnelProfile = profileOrWarn(
     packetTunnelBundleIdentifier,
     "VOYAVPN_PACKET_TUNNEL_PROVISIONING_PROFILE",
     "PacketTunnel",
+    distribution,
   );
 
   if (appProfile) {
@@ -527,8 +642,13 @@ function maybeCodesign(profiles) {
     return;
   }
 
+  const codesignArgs = ["--force", "--options", "runtime", "--sign", identity];
+  if (!truthy(process.env.VOYAVPN_DISABLE_CODESIGN_TIMESTAMP)) {
+    codesignArgs.push("--timestamp");
+  }
+
   if (existsSync(embeddedLibboxFramework)) {
-    run("codesign", ["--force", "--sign", identity, embeddedLibboxFramework]);
+    run("codesign", [...codesignArgs, embeddedLibboxFramework]);
   }
 
   const packetEntitlements = entitlementsForSigning(
@@ -536,10 +656,10 @@ function maybeCodesign(profiles) {
     profiles.packetTunnel,
     "packet-tunnel.plist",
   );
-  run("codesign", ["--force", "--sign", identity, "--entitlements", packetEntitlements, appexBundle]);
+  run("codesign", [...codesignArgs, "--entitlements", packetEntitlements, appexBundle]);
   if (existsSync(helperOut)) {
     const helperEntitlements = entitlementsForSigning(appEntitlements, profiles.app, "macos-helper.plist");
-    run("codesign", ["--force", "--sign", identity, "--entitlements", helperEntitlements, helperOut]);
+    run("codesign", [...codesignArgs, "--entitlements", helperEntitlements, helperOut]);
   }
 }
 

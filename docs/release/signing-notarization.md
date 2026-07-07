@@ -107,7 +107,10 @@ DMG path. `3rd Party Mac Developer Application` and `3rd Party Mac Developer
 Installer` certificates are for the Mac App Store/TestFlight path instead; that
 path must also embed matching provisioning profiles for the containing app and
 PacketTunnel extension, including the App Group and Network Extension
-entitlements.
+entitlements. A Mac App Store/TestFlight signed `.app` is not a direct
+drag-to-Applications artifact; local `spctl`/`syspolicy_check distribution`
+will reject it with the wrong certificate type until it is delivered through
+App Store Connect/TestFlight.
 
 | Checkpoint | Owner | System | Verification | Rollback notes |
 | --- | --- | --- | --- | --- |
@@ -116,14 +119,33 @@ entitlements.
 | Build and stage PacketTunnel runtime | macOS release owner | sing-box source, `Libbox.xcframework`, provisioning profiles, Tauri `.app` bundle | `pnpm native:macos:libbox`, `pnpm native:macos:tunnel`, and `pnpm native:macos:tunnel:verify` pass with `VOYAVPN_REQUIRE_LIBBOX=1`, `VOYAVPN_REQUIRE_CODESIGN=1`, and App Store/TestFlight lanes also set `VOYAVPN_REQUIRE_PROVISIONING=1`, proving static Libbox symbols or an embedded dynamic framework plus profiles and entitlements. | Do not notarize or publish. Rebuild libbox or fix provisioning/signing. |
 | Verify code signature | macOS release owner | `codesign` | `pnpm native:macos:app:sign` passes; `codesign --verify --deep --strict --verbose=2 <path-to-VoyaVPN.app>` passes and signer identity matches the release record. | Do not notarize or publish. Re-sign from clean artifacts. |
 | Submit and staple notarization | macOS release owner | `xcrun notarytool` and `xcrun stapler` | `pnpm native:macos:app:notarize` succeeds; notary submission is accepted, stapling succeeds, and `xcrun stapler validate <path>` passes for the distributed artifact. | Do not publish. Rebuild, re-sign, resubmit, or hold macOS beta. |
-| Gatekeeper launch smoke | macOS platform owner | Clean macOS machine | `spctl` assessment and first launch from DMG pass; PacketTunnel VPN authorization, terminal TUN traffic, proxy restore, and uninstall smoke are recorded in [os-smoke-matrix.md](os-smoke-matrix.md). | Pull macOS assets or keep them in staging until the issue is fixed. |
+| Gatekeeper launch smoke | macOS platform owner | Clean macOS machine | `spctl` assessment after notarization/stapling and first launch from DMG pass; PacketTunnel VPN authorization, terminal TUN traffic, proxy restore, and uninstall smoke are recorded in [os-smoke-matrix.md](os-smoke-matrix.md). | Pull macOS assets or keep them in staging until the issue is fixed. |
 
-Native tunnel release command shape:
+Developer ID native tunnel release command shape:
 
 ```sh
 pnpm native:macos:libbox
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 export VOYAVPN_CODESIGN_IDENTITY="<Developer ID Application identity>"
+export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-Developer-ID>"
+export VOYAVPN_REQUIRE_LIBBOX=1
+export VOYAVPN_REQUIRE_CODESIGN=1
+export VOYAVPN_REQUIRE_PROVISIONING=1
+export VOYAVPN_REQUIRE_NOTARIZATION_READY=1
+pnpm native:macos:tunnel
+pnpm native:macos:tunnel:verify
+pnpm native:macos:app:sign
+pnpm native:macos:tunnel:verify
+pnpm native:macos:app:notarize
+```
+
+App Store/TestFlight native tunnel command shape:
+
+```sh
+pnpm native:macos:libbox
+export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
+export VOYAVPN_CODESIGN_IDENTITY="<3rd Party Mac Developer Application or Apple Distribution identity>"
+export VOYAVPN_MACOS_DISTRIBUTION=app-store
 export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-App-Store-or-TestFlight>"
 export VOYAVPN_REQUIRE_LIBBOX=1
 export VOYAVPN_REQUIRE_CODESIGN=1
@@ -131,11 +153,11 @@ export VOYAVPN_REQUIRE_PROVISIONING=1
 pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
 pnpm native:macos:app:sign
-pnpm native:macos:app:notarize
 ```
 
-Use `VOYAVPN_NOTARY_KEYCHAIN_PROFILE` for notarization when possible. The
-fallback environment variables are `VOYAVPN_NOTARY_APPLE_ID`,
+Use `VOYAVPN_NOTARY_KEYCHAIN_PROFILE` for notarization when possible. If the
+profile was stored in a non-default keychain, also set `VOYAVPN_NOTARY_KEYCHAIN`.
+The fallback environment variables are `VOYAVPN_NOTARY_APPLE_ID`,
 `VOYAVPN_NOTARY_TEAM_ID`, and `VOYAVPN_NOTARY_PASSWORD`; keep them in the
 approved secret system only.
 

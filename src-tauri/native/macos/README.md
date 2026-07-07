@@ -82,9 +82,18 @@ pnpm native:macos:app:sign
 pnpm native:macos:app:notarize
 ```
 
-`native:macos:app:notarize` uses `VOYAVPN_NOTARY_KEYCHAIN_PROFILE` when set, or
-`VOYAVPN_NOTARY_APPLE_ID`, `VOYAVPN_NOTARY_TEAM_ID`, and
+`native:macos:app:notarize` uses `VOYAVPN_NOTARY_KEYCHAIN_PROFILE` when set.
+Set `VOYAVPN_NOTARY_KEYCHAIN` too when the profile lives in a specific keychain.
+Otherwise it uses `VOYAVPN_NOTARY_APPLE_ID`, `VOYAVPN_NOTARY_TEAM_ID`, and
 `VOYAVPN_NOTARY_PASSWORD`. Do not commit these values.
+
+Use a `Developer ID Application` identity plus notarization for a `.app` or
+DMG that users can copy directly to `/Applications`. `3rd Party Mac Developer`
+or Apple Distribution identities are for App Store/TestFlight submission; those
+artifacts should be installed through App Store Connect/TestFlight instead of
+launched directly from Finder. Because VoyaVPN uses Network Extension and App
+Group entitlements, Developer ID direct builds also need Developer ID
+provisioning profiles for the containing app and PacketTunnel extension.
 
 Provisioning requirements:
 

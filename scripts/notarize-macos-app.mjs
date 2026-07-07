@@ -21,6 +21,20 @@ function run(program, args, options = {}) {
   }
 }
 
+function capture(program, args, options = {}) {
+  const result = spawnSync(program, args, {
+    cwd: options.cwd ?? repoRoot,
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}: ${result.stderr || result.stdout}`);
+  }
+  return result.stdout;
+}
+
 function distributionMode() {
   const normalized = String(process.env.VOYAVPN_MACOS_DISTRIBUTION ?? "developer-id").trim().toLowerCase();
   if (["app-store", "appstore", "testflight", "mas"].includes(normalized)) {
@@ -34,7 +48,11 @@ function distributionMode() {
 
 function notaryCredentials() {
   if (process.env.VOYAVPN_NOTARY_KEYCHAIN_PROFILE) {
-    return ["--keychain-profile", process.env.VOYAVPN_NOTARY_KEYCHAIN_PROFILE];
+    const args = ["--keychain-profile", process.env.VOYAVPN_NOTARY_KEYCHAIN_PROFILE];
+    if (process.env.VOYAVPN_NOTARY_KEYCHAIN) {
+      args.push("--keychain", process.env.VOYAVPN_NOTARY_KEYCHAIN);
+    }
+    return args;
   }
 
   const appleId = process.env.VOYAVPN_NOTARY_APPLE_ID;
@@ -75,6 +93,29 @@ function stapleTarget(submittedArtifact) {
   return appBundle;
 }
 
+function submitForNotarization(submittedArtifact) {
+  const credentials = notaryCredentials();
+  const output = capture("xcrun", [
+    "notarytool",
+    "submit",
+    submittedArtifact,
+    "--wait",
+    "--output-format",
+    "json",
+    ...credentials,
+  ]);
+  const result = JSON.parse(output);
+  const id = result.id || result.jobId;
+  if (result.status !== "Accepted") {
+    if (id) {
+      const log = capture("xcrun", ["notarytool", "log", id, "--output-format", "json", ...credentials]);
+      console.error(log);
+    }
+    throw new Error(`notarization failed for ${submittedArtifact}: ${result.status || "unknown status"}`);
+  }
+  console.log(`macOS notarization accepted: ${id || submittedArtifact}`);
+}
+
 function main() {
   if (process.platform !== "darwin") {
     throw new Error("macOS notarization must run on macOS.");
@@ -84,7 +125,7 @@ function main() {
   }
 
   const submittedArtifact = prepareArtifact();
-  run("xcrun", ["notarytool", "submit", submittedArtifact, "--wait", ...notaryCredentials()]);
+  submitForNotarization(submittedArtifact);
 
   const target = stapleTarget(submittedArtifact);
   run("xcrun", ["stapler", "staple", target]);
