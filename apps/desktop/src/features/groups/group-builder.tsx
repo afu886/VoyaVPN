@@ -52,8 +52,9 @@ import type {
   GroupPreview,
   GroupPreviewRoute,
 } from "@/ipc/bindings";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 
 import { CONFIG_TYPES, getProtocolLabel, type ProfileProtocol } from "@/features/profiles/profile-constants";
 import {

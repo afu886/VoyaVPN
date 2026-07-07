@@ -28,8 +28,9 @@ import type {
   ClashProxyNode,
   RuleMode,
 } from "@/ipc/bindings";
-import { formatBytesPerSecond, formatDelay } from "@/lib/formatting";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { formatBytesPerSecond, formatDelay } from "@voya/utils/formatting";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
 
 const ruleModeOptions: Array<{ labelKey: string; value: RuleMode }> = [

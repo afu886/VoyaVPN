@@ -37,7 +37,8 @@ import {
 } from "@/stores/preferences-store";
 import { type MissingCorePayload, useModalStore } from "@/stores/modal-store";
 import { formatCoreType } from "@/lib/core-types";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 
 const themeOptions: Array<{ icon: typeof Monitor; labelKey: string; value: ThemeMode }> = [
   { icon: Monitor, labelKey: "menu.themeSystem", value: "system" },

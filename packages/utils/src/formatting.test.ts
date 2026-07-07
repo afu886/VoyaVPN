@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBytes, formatBytesPerSecond, formatDelay, formatSpeed, formatTraffic } from "@/lib/formatting";
+import { formatBytes, formatBytesPerSecond, formatDelay, formatSpeed, formatTraffic } from "./formatting";
 
 describe("formatting", () => {
   it("formats byte counts with shared binary units", () => {

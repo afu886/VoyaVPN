@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/use-i18n";
 import { generateQrCode, importProfilesFromText, scanScreenQr } from "@/ipc";
 import type { QrCodeImage } from "@/ipc/bindings";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
 
 export function QrDialog({ initialContent = "" }: { initialContent?: string }) {
   const { t } = useI18n();

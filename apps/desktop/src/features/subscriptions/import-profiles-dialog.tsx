@@ -25,7 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { importProfilesFromText, listSubscriptions } from "@/ipc";
 import type { ImportProfilesResult } from "@/ipc/bindings";
-import { redactOperationalError } from "@/lib/operational-redaction";
+import { redactOperationalError } from "@voya/utils/operational-redaction";
 
 type ImportProfilesDialogProps = {
   onImported: (result: ImportProfilesResult) => Promise<void> | void;

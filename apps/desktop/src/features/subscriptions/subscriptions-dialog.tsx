@@ -29,7 +29,7 @@ import {
 } from "@/ipc";
 import type { SubItem_Deserialize } from "@/ipc/bindings";
 import { useI18n } from "@/i18n/use-i18n";
-import { redactOperationalError } from "@/lib/operational-redaction";
+import { redactOperationalError } from "@voya/utils/operational-redaction";
 import { cn } from "@/lib/utils";
 
 type SubscriptionsDialogProps = {

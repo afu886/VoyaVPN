@@ -35,8 +35,9 @@ import {
   useRuntimeEventStore,
 } from "@/ipc";
 import type { ClashConnectionItem, ClashConnectionsSnapshot } from "@/ipc/bindings";
-import { formatBytes } from "@/lib/formatting";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { formatBytes } from "@voya/utils/formatting";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 import { useConnectionColumnsStore } from "@/stores/connection-columns-store";
 import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
 

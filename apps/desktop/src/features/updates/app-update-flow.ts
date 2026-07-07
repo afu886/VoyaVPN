@@ -7,7 +7,7 @@ import {
   recordAppUpdateDiagnostic,
 } from "@/ipc";
 import type { AppUpdaterStatus, ManualAppUpdateLinks } from "@/ipc/bindings";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
 
 export type AppUpdateInfo = {
   currentVersion: string;

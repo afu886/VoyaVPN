@@ -107,8 +107,9 @@ import type {
   SpeedActionType,
 } from "@/ipc/bindings";
 import { useI18n } from "@/i18n/use-i18n";
-import { formatDelay, formatSpeed, formatTraffic } from "@/lib/formatting";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { formatDelay, formatSpeed, formatTraffic } from "@voya/utils/formatting";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useProfileColumnsStore } from "@/stores/profile-columns-store";
 

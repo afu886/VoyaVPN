@@ -9,8 +9,8 @@ import type {
   TransientStreamEvent,
 } from "@/ipc/bindings";
 import { useRuntimeEventStore } from "@/ipc/runtime-event-store";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { getErrorMessage } from "@/lib/utils";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
 import { useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 

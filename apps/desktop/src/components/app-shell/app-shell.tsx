@@ -37,8 +37,8 @@ import {
   useRuntimeEventStore,
 } from "@/ipc";
 import type { AppConfig_Deserialize, ClashMonitorStatus } from "@/ipc/bindings";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { getErrorMessage } from "@/lib/utils";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
 import {
   type Font,
   fontToClassName,

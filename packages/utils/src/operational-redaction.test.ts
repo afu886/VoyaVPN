@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { redactOperationalError, redactOperationalMessage } from "@/lib/operational-redaction";
+import { redactOperationalError, redactOperationalMessage } from "./operational-redaction";
 
 describe("operational redaction", () => {
   it("redacts URLs, share links, and sensitive assignments", () => {

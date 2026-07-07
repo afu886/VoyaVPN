@@ -75,7 +75,8 @@ import type {
   RulesItem_Serialize,
 } from "@/ipc/bindings";
 import { MOVE_ACTIONS } from "@/features/profiles/profile-constants";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 
 const RULE_TYPES = {

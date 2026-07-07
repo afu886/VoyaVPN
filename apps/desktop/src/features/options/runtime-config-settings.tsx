@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/use-i18n";
 import { loadAppConfig, saveAppConfig } from "@/ipc";
 import type { AppConfig_Serialize, SysProxyType } from "@/ipc/bindings";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
 
 type ObjectSectionKey =
   | "CheckUpdateItem"

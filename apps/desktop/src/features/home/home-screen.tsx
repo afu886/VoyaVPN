@@ -22,7 +22,8 @@ import {
   useRuntimeEventStore,
 } from "@/ipc";
 import type { SysProxyMode, TunChanged } from "@/ipc/bindings";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useToastStore } from "@/stores/toast-store";
 

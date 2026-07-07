@@ -19,7 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IpcCommandError, loadDnsSettings, saveDnsSettings } from "@/ipc";
 import type { DnsItem_Serialize, DnsSettings_Deserialize, DnsSettings_Serialize } from "@/ipc/bindings";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 
 const STRATEGIES = ["", "AsIs", "UseIP", "UseIPv4", "UseIPv6", "ForceIPv4", "ForceIPv6"] as const;
 const EMPTY_SELECT_VALUE = "__voyavpn_empty_select_value__";

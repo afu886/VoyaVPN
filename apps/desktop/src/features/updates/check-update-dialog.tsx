@@ -56,9 +56,10 @@ import type {
   UpdateTarget,
   UpdateTargetKind,
 } from "@/ipc/bindings";
-import { redactOperationalMessage } from "@/lib/operational-redaction";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { redactOperationalMessage } from "@voya/utils/operational-redaction";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 
 type CoreRunMode = "check" | "download";
 type RunMode = CoreRunMode | "app-check" | "app-install" | "app-restart";

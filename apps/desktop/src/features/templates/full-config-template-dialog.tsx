@@ -19,7 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/use-i18n";
 import { loadFullConfigTemplates, saveFullConfigTemplate } from "@/ipc";
 import type { FullConfigTemplateItem_Serialize } from "@/ipc/bindings";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@voya/utils/error";
+import { cn } from "@/lib/utils";
 
 type TemplateTab = "singbox";
 

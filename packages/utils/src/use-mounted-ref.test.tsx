@@ -2,7 +2,7 @@ import { StrictMode, useEffect } from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useMountedRef } from "@/lib/use-mounted-ref";
+import { useMountedRef } from "./use-mounted-ref";
 
 describe("useMountedRef", () => {
   it("flips to false after unmount", () => {

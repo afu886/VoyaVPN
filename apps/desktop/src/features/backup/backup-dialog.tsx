@@ -38,9 +38,9 @@ import {
   backupWebdavPush,
 } from "@/ipc";
 import type { BackupOperationResult, BackupRemoteResult, BackupStatus_Serialize, WebDavItem_Deserialize } from "@/ipc/bindings";
-import { formatBytes } from "@/lib/formatting";
-import { redactOperationalError } from "@/lib/operational-redaction";
-import { useMountedRef } from "@/lib/use-mounted-ref";
+import { formatBytes } from "@voya/utils/formatting";
+import { redactOperationalError } from "@voya/utils/operational-redaction";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { cn } from "@/lib/utils";
 
 type WorkingAction = "localBackup" | "localRestore" | "save" | "webdavCheck" | "webdavPull" | "webdavPush";

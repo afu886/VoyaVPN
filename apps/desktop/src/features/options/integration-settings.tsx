@@ -23,9 +23,9 @@ import type {
   KeyEventItem_Deserialize,
   KeyEventItem_Serialize,
 } from "@/ipc/bindings";
-import { redactOperationalError } from "@/lib/operational-redaction";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { getErrorMessage } from "@/lib/utils";
+import { redactOperationalError } from "@voya/utils/operational-redaction";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
 
 type MutableKeyEventItem = Required<Pick<KeyEventItem_Deserialize, "Alt" | "Control" | "Shift">> & {
   EGlobalHotkey: GlobalHotkey;

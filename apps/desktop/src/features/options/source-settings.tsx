@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/i18n/use-i18n";
 import { loadRulesetGeoSources, saveRulesetGeoSources } from "@/ipc";
-import { useMountedRef } from "@/lib/use-mounted-ref";
-import { getErrorMessage } from "@/lib/utils";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { getErrorMessage } from "@voya/utils/error";
 
 type SourceForm = {
   geoSourceUrl: string;

@@ -1,4 +1,4 @@
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "./error";
 
 export type OperationalRedactionOptions = {
   redactedUrl?: string;

@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/i18n/use-i18n";
 import { listProfiles, runtimeStatus, useRuntimeEventStore } from "@/ipc";
 import type { CoreStateEvent, RuntimeStatusResponse } from "@/ipc/bindings";
-import { formatBytesPerSecond } from "@/lib/formatting";
-import { useMountedRef } from "@/lib/use-mounted-ref";
+import { formatBytesPerSecond } from "@voya/utils/formatting";
+import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { shellTabRoutes, useShellStore } from "@/stores/shell-store";
 
 const PROFILES_QUERY_KEY = ["profiles", { filter: "" }] as const;
