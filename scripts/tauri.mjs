@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 import { writeOptionalCoreSeedOverlay } from "./tauri-core-seeds.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = resolve(repoRoot, "apps", "desktop");
 const localTauriJs = resolve(
-  repoRoot,
+  desktopRoot,
   "node_modules",
   "@tauri-apps",
   "cli",
@@ -28,6 +29,7 @@ const commandArgs = existsSync(localTauriJs)
   : effectiveTauriArgs;
 
 const child = spawn(command, commandArgs, {
+  cwd: desktopRoot,
   env: process.env,
   shell: false,
   stdio: "inherit",

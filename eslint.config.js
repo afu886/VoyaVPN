@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "src-tauri/target", "target"] },
+  { ignores: ["**/dist", "**/node_modules", "target", "apps/desktop/src-tauri/gen"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -14,7 +14,9 @@ export default tseslint.config(
       ecmaVersion: 2022,
       globals: globals.browser,
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ["vitest.config.ts"],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -28,13 +30,20 @@ export default tseslint.config(
     },
   },
   {
-    files: ["vite.config.ts", "playwright.config.ts", "eslint.config.js", "scripts/**/*.mjs", "e2e/**/*.ts"],
+    files: [
+      "apps/desktop/vite.config.ts",
+      "apps/desktop/playwright.config.ts",
+      "**/vitest.config.ts",
+      "eslint.config.js",
+      "scripts/**/*.mjs",
+      "apps/desktop/e2e/**/*.ts",
+    ],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
   },
   {
-    files: ["src/ipc/bindings.ts"],
+    files: ["apps/desktop/src/ipc/bindings.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },

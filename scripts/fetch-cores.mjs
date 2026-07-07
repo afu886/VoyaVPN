@@ -1,4 +1,4 @@
-// Fetch & stage the sing-box proxy core into src-tauri/resources/core-seeds/sing_box/
+// Fetch & stage the sing-box proxy core into apps/desktop/src-tauri/resources/core-seeds/sing_box/
 // so that Tauri bundles it and the app's startup seed-copy installs it into app data.
 //
 // This script intentionally stages seed resources only. Use

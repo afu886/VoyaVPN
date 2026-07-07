@@ -9,7 +9,7 @@ describe("tauri core seed overlay", () => {
   it("requires the current platform executable before bundling sing-box seeds", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "voyavpn-tauri-seeds-"));
     try {
-      const singBoxDir = join(repoRoot, "src-tauri", "resources", "core-seeds", "sing_box");
+      const singBoxDir = join(repoRoot, "apps", "desktop", "src-tauri", "resources", "core-seeds", "sing_box");
       await mkdir(singBoxDir, { recursive: true });
       await writeFile(join(singBoxDir, "LICENSE"), "license");
 

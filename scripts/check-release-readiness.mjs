@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const defaultTauriConfig = "src-tauri/tauri.conf.json";
+const defaultTauriConfig = "apps/desktop/src-tauri/tauri.conf.json";
 
 const stableTargets = [
   { os: "windows", arch: "x64", updater: "windows-x86_64" },
@@ -33,7 +33,7 @@ const requiredDocs = [
 ];
 
 const blockerScanFiles = [
-  "src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/tauri.conf.json",
   ".github/workflows/release.yml",
   "docs/release/packaging.md",
   "docs/release/ci-secrets.md",
@@ -168,7 +168,7 @@ Options:
   --diagnostics-endpoint <url>  Approved diagnostics ingest endpoint. Stable defaults to
                                 VOYAVPN_DIAGNOSTICS_ENDPOINT; dry-run does not require one
   --tauri-config <file>         Tauri config or package-uploaded stable overlay to scan. Non-default
-                                paths are merged over src-tauri/tauri.conf.json
+                                paths are merged over apps/desktop/src-tauri/tauri.conf.json
 
 Dry-run mode uses fixture data and does not require signing secrets. Stable mode
 fails closed on missing production inputs, placeholder updater keys/signatures,

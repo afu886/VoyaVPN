@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const check = process.argv.includes("--check");
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const localesDir = resolve(repoRoot, "src/i18n/locales");
+const localesDir = resolve(repoRoot, "apps/desktop/src/i18n/locales");
 const referenceResxDir = resolve(
   process.env.VOYAVPN_V2RAYN_RESX_DIR ?? resolve(repoRoot, "../v2rayN/v2rayN/ServiceLib/Resx"),
 );

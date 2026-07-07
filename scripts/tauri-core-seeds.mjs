@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { singBoxExecutableName } from "./sing-box-core-installer.mjs";
 
 const requiredBundleResources = {
-  "../docs/release/THIRD_PARTY_NOTICES.md": "release/THIRD_PARTY_NOTICES.md",
+  "../../../docs/release/THIRD_PARTY_NOTICES.md": "release/THIRD_PARTY_NOTICES.md",
 };
 
 const optionalCoreSeedResources = [
@@ -27,7 +27,7 @@ export function hasExpectedSeedExecutable(seedDir, platform = process.platform) 
 }
 
 export function coreSeedBundleResources(repoRoot, { platform = process.platform } = {}) {
-  const seedRoot = join(repoRoot, "src-tauri", "resources", "core-seeds");
+  const seedRoot = join(repoRoot, "apps", "desktop", "src-tauri", "resources", "core-seeds");
   const resources = {};
 
   for (const seed of optionalCoreSeedResources) {

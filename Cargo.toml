@@ -6,7 +6,7 @@ members = [
     "crates/voya-net",
     "crates/voya-platform",
     "crates/voya-udptest",
-    "src-tauri",
+    "apps/desktop/src-tauri",
 ]
 resolver = "2"
 

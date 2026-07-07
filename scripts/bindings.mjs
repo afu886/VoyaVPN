@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const check = process.argv.includes("--check");
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const bindingsPath = resolve(repoRoot, "src/ipc/bindings.ts");
+const bindingsPath = resolve(repoRoot, "apps/desktop/src/ipc/bindings.ts");
 
 function runExport(outputPath) {
   const result = spawnSync("cargo", ["run", "-p", "voyavpn", "--bin", "export-bindings", "--", outputPath], {

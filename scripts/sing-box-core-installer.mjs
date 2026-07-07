@@ -66,7 +66,7 @@ export function isSingBoxPayloadFile(name) {
 }
 
 export function seedRoot(repoRoot) {
-  return join(repoRoot, "src-tauri", "resources", "core-seeds");
+  return join(repoRoot, "apps", "desktop", "src-tauri", "resources", "core-seeds");
 }
 
 export function singBoxSeedDir(repoRoot) {

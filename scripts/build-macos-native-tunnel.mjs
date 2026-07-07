@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const nativeRoot = resolve(repoRoot, "src-tauri", "native", "macos");
+const nativeRoot = resolve(repoRoot, "apps", "desktop", "src-tauri", "native", "macos");
 const outRoot = resolve(repoRoot, "target", "native", "macos");
 const appBundle = resolve(process.env.VOYAVPN_MACOS_APP_BUNDLE || resolve(outRoot, "VoyaVPN.app"));
 const appContents = resolve(appBundle, "Contents");
@@ -33,8 +33,8 @@ const packetTunnelProvisioningProfileDestination = resolve(appexContents, "embed
 const defaultLibboxXCFramework = resolve(nativeRoot, "Frameworks", "Libbox.xcframework");
 const libboxXCFramework = resolve(process.env.VOYAVPN_LIBBOX_XCFRAMEWORK || defaultLibboxXCFramework);
 const embeddedLibboxFramework = resolve(appexFrameworks, "Libbox.framework");
-const appEntitlements = resolve(repoRoot, "src-tauri", "entitlements", "macos-app.plist");
-const packetTunnelEntitlements = resolve(repoRoot, "src-tauri", "entitlements", "packet-tunnel.plist");
+const appEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "macos-app.plist");
+const packetTunnelEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "packet-tunnel.plist");
 const defaultProvisioningProfileDir = resolve(repoRoot, "..", "docs", "certs");
 const provisioningProfileDir = resolve(process.env.VOYAVPN_PROVISIONING_PROFILE_DIR || defaultProvisioningProfileDir);
 const generatedEntitlementsDir = resolve(outRoot, "generated-entitlements");

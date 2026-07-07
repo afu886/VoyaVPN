@@ -16,4 +16,4 @@
 # core.autocrlf=true a Windows checkout rewrites LF -> CRLF, which makes that
 # byte comparison fail even though the content is identical. Pin the generated
 # file to LF so the binding-drift gate stays stable across platforms.
-src/ipc/bindings.ts text eol=lf
+apps/desktop/src/ipc/bindings.ts text eol=lf

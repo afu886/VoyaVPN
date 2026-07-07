@@ -9,7 +9,7 @@ const sourceDir = resolve(process.env.VOYAVPN_SING_BOX_SOURCE_DIR || resolve(rep
 const singBoxRef = process.env.VOYAVPN_SING_BOX_REF || process.env.SING_BOX_VERSION || DEFAULT_SING_BOX_VERSION;
 const targetXCFramework = resolve(
   process.env.VOYAVPN_LIBBOX_XCFRAMEWORK ||
-    resolve(repoRoot, "src-tauri", "native", "macos", "Frameworks", "Libbox.xcframework"),
+    resolve(repoRoot, "apps", "desktop", "src-tauri", "native", "macos", "Frameworks", "Libbox.xcframework"),
 );
 
 function run(program, args, options = {}) {

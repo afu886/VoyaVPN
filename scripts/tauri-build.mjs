@@ -11,8 +11,9 @@ const writeStableConfigOnly = rawArgs.includes("--write-stable-updater-config");
 const tauriArgs = rawArgs.filter((arg) => arg !== "--write-stable-updater-config");
 const env = { ...process.env };
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = resolve(repoRoot, "apps", "desktop");
 const localTauriBin = resolve(
-  repoRoot,
+  desktopRoot,
   "node_modules",
   ".bin",
   process.platform === "win32" ? "tauri.cmd" : "tauri",
@@ -220,6 +221,7 @@ try {
 }
 
 const child = spawn(tauriBin, args, {
+  cwd: desktopRoot,
   env,
   shell: process.platform === "win32",
   stdio: "inherit",
