@@ -25,14 +25,12 @@ import { DEFAULT_FONT, DEFAULT_FONT_SIZE, usePreferencesStore } from "@/stores/p
 import { useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
-vi.mock("@tauri-apps/api/app", () => ({
-  getVersion: vi.fn(() => Promise.resolve("0.1.0")),
-}));
-vi.mock("@tauri-apps/plugin-process", () => ({
+vi.mock("@/ipc/process", () => ({
   relaunch: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@tauri-apps/plugin-updater", () => ({
+vi.mock("@/ipc/updater", () => ({
   check: vi.fn(() => Promise.resolve(null)),
+  getVersion: vi.fn(() => Promise.resolve("0.1.0")),
 }));
 
 type TestClashMonitorState = "starting" | "running" | "stopped" | "failed";

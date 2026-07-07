@@ -48,4 +48,21 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  {
+    files: ["apps/desktop/src/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+    ignores: ["apps/desktop/src/ipc/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@tauri-apps/api", "@tauri-apps/api/*", "@tauri-apps/plugin-*"],
+              message: "ADR-0002: only apps/desktop/src/ipc may import Tauri APIs.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

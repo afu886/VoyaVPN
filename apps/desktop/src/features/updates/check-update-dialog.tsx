@@ -7,7 +7,6 @@ import {
   PackageCheck,
   RefreshCw,
 } from "lucide-react";
-import { relaunch } from "@tauri-apps/plugin-process";
 
 import { Alert, AlertDescription } from "@voya/ui/components/alert";
 import { Badge } from "@voya/ui/components/badge";
@@ -38,6 +37,7 @@ import {
   type AppUpdateInstallResult,
   type AppUpdatePaths,
 } from "@/features/updates/app-update-flow";
+import { relaunch } from "@/ipc/process";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
   checkUpdates,

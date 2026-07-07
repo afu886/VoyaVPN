@@ -29,9 +29,11 @@ const tauriMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/ipc", () => ipcMocks);
-vi.mock("@tauri-apps/api/app", () => ({ getVersion: tauriMocks.getVersion }));
-vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: tauriMocks.relaunch }));
-vi.mock("@tauri-apps/plugin-updater", () => ({ check: tauriMocks.check }));
+vi.mock("@/ipc/process", () => ({ relaunch: tauriMocks.relaunch }));
+vi.mock("@/ipc/updater", () => ({
+  check: tauriMocks.check,
+  getVersion: tauriMocks.getVersion,
+}));
 
 describe("CheckUpdateDialog", () => {
   beforeEach(async () => {

@@ -1,12 +1,10 @@
-import { getVersion } from "@tauri-apps/api/app";
-import { check as checkForTauriUpdate, type Update as TauriUpdate } from "@tauri-apps/plugin-updater";
-
 import {
   appUpdateStatus,
   manualAppUpdateLinks,
   recordAppUpdateDiagnostic,
 } from "@/ipc";
 import type { AppUpdaterStatus, ManualAppUpdateLinks } from "@/ipc/bindings";
+import { check as checkForTauriUpdate, getVersion, type Update as TauriUpdate } from "@/ipc/updater";
 import { getErrorMessage } from "@voya/utils/error";
 
 export type AppUpdateInfo = {
