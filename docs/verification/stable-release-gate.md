@@ -42,7 +42,7 @@ Production stable may be exposed only when:
 
 - Release workflow and docs define CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, diagnostics smoke, legal approval, privacy approval, rollback, and monitoring.
 - Windows, macOS, and Linux coverage includes x64 and arm64.
-- Stable Tauri updater config is generated with `pnpm tauri:stable-updater-config` into `target/release-config/tauri.updater.stable.generated.json`; the generated overlay enables `bundle.createUpdaterArtifacts`, while the committed `src-tauri/tauri.conf.json` keeps `createUpdaterArtifacts` false with an empty credential-free updater config.
+- Stable Tauri updater config is generated with `pnpm tauri:stable-updater-config` into `target/release-config/tauri.updater.stable.generated.json`; the generated overlay enables `bundle.createUpdaterArtifacts`, while the committed `apps/desktop/src-tauri/tauri.conf.json` keeps `createUpdaterArtifacts` false with an empty credential-free updater config.
 - Rollback docs cover app updater pointer rollback, manual index rollback, core manifest rollback, diagnostics disablement, and bad artifact quarantine.
 - The stable external evidence checklist has matching owner, system, required evidence, stop or rollback condition, and artifact/hash fields for each stable gate entry.
 - Generated evidence contains no `voyavpn.example`, placeholder updater signatures, placeholder public keys, or production GitHub download URLs.

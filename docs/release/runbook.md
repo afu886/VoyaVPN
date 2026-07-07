@@ -77,7 +77,7 @@ pnpm tauri:stable-updater-config
 pnpm check:release:stable
 ```
 
-`pnpm tauri:stable-updater-config` writes `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` then scans that overlay merged over `src-tauri/tauri.conf.json` and validates stable environment inputs, generated release index input, signed updater input, core asset source input, diagnostics endpoint config, and production URL blockers.
+`pnpm tauri:stable-updater-config` writes `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` then scans that overlay merged over `apps/desktop/src-tauri/tauri.conf.json` and validates stable environment inputs, generated release index input, signed updater input, core asset source input, diagnostics endpoint config, and production URL blockers.
 
 Expected failures in an unprepared local shell are environment-only skips, not repository blockers: missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `VOYAVPN_DIAGNOSTICS_ENDPOINT`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing Apple or Windows signing inputs, missing real stable artifact directories, fixture paths used in stable mode, placeholder updater signatures, or forbidden example, `.test`, localhost, placeholder, or GitHub production download URLs.
 
@@ -90,7 +90,7 @@ export VOYAVPN_RELEASE_CHANNEL=stable
 pnpm tauri:stable-updater-config
 ```
 
-The generated overlay path is `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` scans that overlay merged over `src-tauri/tauri.conf.json`.
+The generated overlay path is `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` scans that overlay merged over `apps/desktop/src-tauri/tauri.conf.json`.
 
 The committed Tauri config intentionally keeps `bundle.createUpdaterArtifacts` disabled and leaves `plugins.updater` empty so repository-controlled builds do not contain updater credentials, endpoints, or generated release state. The stable overlay is the only release path that enables `createUpdaterArtifacts`; it is generated from environment variables, used by the package job through `--config`, and left uncommitted.
 

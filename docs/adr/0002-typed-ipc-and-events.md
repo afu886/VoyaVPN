@@ -37,3 +37,14 @@ Errors are exposed as a typed `AppError` union for TypeScript. Internal Rust err
 - Event names and payloads become stable integration contracts and need tests once the scaffold exists.
 - Frontend features are insulated from Tauri API details and can be tested with wrapper mocks.
 - Any direct `@tauri-apps/api` import outside `src/ipc` is an architectural violation.
+
+## Amendment (2026-07): Monorepo Path Contract
+
+The typed IPC decision remains unchanged. The monorepo migration remaps the paths used by this ADR:
+
+- `src/ipc/bindings.ts` is now `apps/desktop/src/ipc/bindings.ts`.
+- `src/ipc/**` is now `apps/desktop/src/ipc/**`.
+- The lint-enforced Tauri API boundary applies to `apps/desktop/src/**/*` and `packages/**/*`; only `apps/desktop/src/ipc/**` may import `@tauri-apps/api` or Tauri plugins.
+- Locale files referenced by frontend i18n now live in `packages/i18n/src/locales`.
+
+Generated bindings are still owned by Rust `specta`/`tauri-specta` and must not be edited by hand.

@@ -47,3 +47,14 @@ Persistence remains a fresh VoyaVPN schema. There is no platform-specific legacy
 - Future Linux/macOS/Windows fixes should usually touch `voya-platform` plus tests, not domain crates.
 - Tauri-specific code should not leak into `voya-core`, `voya-db`, or config generation.
 - Release and packaging work must document manual signing, notarization, elevation, and OS smoke evidence separately from deterministic unit/golden checks.
+
+## Amendment (2026-07): Monorepo Path Contract
+
+The platform boundary remains unchanged after the monorepo migration. Path references in this ADR map as follows:
+
+- Historical `src-tauri` references now map to `apps/desktop/src-tauri`.
+- Historical `src` references now map to `apps/desktop/src`.
+- Generated IPC bindings now live at `apps/desktop/src/ipc/bindings.ts`.
+- Locale JSON now lives at `packages/i18n/src/locales`.
+
+Tauri-specific platform integration still belongs in `apps/desktop/src-tauri`; reusable OS behavior remains in `voya-platform`.

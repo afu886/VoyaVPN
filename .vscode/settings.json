@@ -9,6 +9,5 @@
     }
   ],
   "java.configuration.updateBuildConfiguration": "automatic",
-  "gradle.nestedProjects": ["apps/meetin-mobile/android"],
   "java.compile.nullAnalysis.mode": "automatic"
 }

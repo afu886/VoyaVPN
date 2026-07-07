@@ -4,7 +4,7 @@ Batch: `08-01-tauri-packaging`
 
 ## Current Package Configuration
 
-Tauri packaging is configured in `src-tauri/tauri.conf.json` for the public beta bundle matrix:
+Tauri packaging is configured in `apps/desktop/src-tauri/tauri.conf.json` for the public beta bundle matrix:
 
 | Platform | Bundle targets | Signing posture |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ pnpm tauri:build --debug
 
 The package script runs through `scripts/tauri-build.mjs`, which forwards all Tauri CLI arguments and normalizes `CI=1`/`CI=0` to the boolean strings required by the Tauri 2 CLI. This keeps local and runner debug packaging deterministic without requiring signing credentials.
 
-`bundle.createUpdaterArtifacts` stays `false` in the committed config by design. The base `src-tauri/tauri.conf.json` is credential-free and safe for local debug builds, CI dry runs, and code review because it does not contain updater endpoints, updater public keys, private-key paths, or generated release state. Stable release jobs do not edit the committed config; `scripts/tauri-build.mjs` writes a generated overlay at `target/release-config/tauri.updater.stable.generated.json` when `VOYAVPN_RELEASE_CHANNEL=stable` or `VOYAVPN_TAURI_UPDATER_CONFIG=stable`.
+`bundle.createUpdaterArtifacts` stays `false` in the committed config by design. The base `apps/desktop/src-tauri/tauri.conf.json` is credential-free and safe for local debug builds, CI dry runs, and code review because it does not contain updater endpoints, updater public keys, private-key paths, or generated release state. Stable release jobs do not edit the committed config; `scripts/tauri-build.mjs` writes a generated overlay at `target/release-config/tauri.updater.stable.generated.json` when `VOYAVPN_RELEASE_CHANNEL=stable` or `VOYAVPN_TAURI_UPDATER_CONFIG=stable`.
 
 ## Release Workflow Matrix
 
@@ -133,7 +133,7 @@ Bundled sing-box seed assets are the only supported acquisition path for the pro
 
 ## Updater Metadata
 
-The Tauri updater plugin is registered in `src-tauri/src/lib.rs`. The committed `src-tauri/tauri.conf.json` keeps an empty `plugins.updater` block and keeps `bundle.createUpdaterArtifacts` disabled so local debug builds initialize the plugin without updater credentials or endpoints.
+The Tauri updater plugin is registered in `apps/desktop/src-tauri/src/lib.rs`. The committed `apps/desktop/src-tauri/tauri.conf.json` keeps an empty `plugins.updater` block and keeps `bundle.createUpdaterArtifacts` disabled so local debug builds initialize the plugin without updater credentials or endpoints.
 
 Stable packaging uses the generated overlay from `scripts/tauri-build.mjs`:
 
@@ -150,7 +150,7 @@ export VOYAVPN_RELEASE_CHANNEL=stable
 pnpm tauri:stable-updater-config
 ```
 
-The command writes only `target/release-config/tauri.updater.stable.generated.json`. Do not commit that generated file, copy it into `src-tauri/tauri.conf.json`, or commit private updater keys. Private signing input is supplied through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`; it is required so updater artifacts can be created, but it is not written to the overlay.
+The command writes only `target/release-config/tauri.updater.stable.generated.json`. Do not commit that generated file, copy it into `apps/desktop/src-tauri/tauri.conf.json`, or commit private updater keys. Private signing input is supplied through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`; it is required so updater artifacts can be created, but it is not written to the overlay.
 
 Before a real stable release:
 
@@ -247,7 +247,7 @@ stapled the app.
 
 `pnpm native:macos:libbox` builds sing-box's Apple `Libbox.xcframework` from the
 pinned sing-box source tag and places it at
-`src-tauri/native/macos/Frameworks/Libbox.xcframework`. Release owners may
+`apps/desktop/src-tauri/native/macos/Frameworks/Libbox.xcframework`. Release owners may
 instead provide an already-built framework through `VOYAVPN_LIBBOX_XCFRAMEWORK`.
 `VOYAVPN_MACOS_APP_BUNDLE` points the staging, verification, signing, and
 notarization helpers at the actual Tauri `.app`; when it is omitted, the scripts
@@ -276,8 +276,8 @@ framework in the extension bundle. `pnpm native:macos:tunnel:verify` accepts
 either static symbols or an embedded dynamic framework when
 `VOYAVPN_REQUIRE_LIBBOX=1` is set.
 
-The containing app uses `src-tauri/entitlements/macos-app.plist`; the extension
-uses `src-tauri/entitlements/packet-tunnel.plist`. App Store/TestFlight builds
+The containing app uses `apps/desktop/src-tauri/entitlements/macos-app.plist`; the extension
+uses `apps/desktop/src-tauri/entitlements/packet-tunnel.plist`. App Store/TestFlight builds
 must provision the matching App Group `group.app.voyavpn.desktop` and Network
 Extension entitlement for `packet-tunnel-provider`. Set
 `VOYAVPN_REQUIRE_LIBBOX=1`, `VOYAVPN_REQUIRE_CODESIGN=1`, and

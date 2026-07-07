@@ -116,7 +116,7 @@ Setting `dry_run` to `false` enables stricter validation:
 5. For `channel=stable`, `VOYAVPN_CORE_ASSETS_JSON` must be present so core staging metadata is generated from explicit release input instead of `tests/fixtures`.
 6. The workflow generates the stable updater overlay during preflight, builds the package matrix, generates CDN/updater/core metadata artifacts, then runs `scripts/check-release-readiness.mjs --mode stable` in the final readiness job against downloaded workflow artifacts and generated metadata.
 
-The current repository keeps `bundle.createUpdaterArtifacts` disabled by default in `src-tauri/tauri.conf.json`, so stable packages use the generated overlay at `target/release-config/tauri.updater.stable.generated.json`. The overlay contains only the public updater key and updater CDN endpoint; private signing material stays in the approved secret system or release machine.
+The current repository keeps `bundle.createUpdaterArtifacts` disabled by default in `apps/desktop/src-tauri/tauri.conf.json`, so stable packages use the generated overlay at `target/release-config/tauri.updater.stable.generated.json`. The overlay contains only the public updater key and updater CDN endpoint; private signing material stays in the approved secret system or release machine.
 
 ## Prepared Stable Environment Preflight
 

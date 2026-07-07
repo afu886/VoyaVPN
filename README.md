@@ -5,14 +5,22 @@ TypeScript, Tailwind v4, and shadcn/ui foundations.
 
 ## Workspace
 
+- `apps/desktop`: `@voya/desktop`, the Tauri desktop application.
+- `apps/desktop/src-tauri`: Tauri shell, commands, tray, capabilities, and packaging.
+- `apps/desktop/src`: React desktop frontend. Only `apps/desktop/src/ipc` may import `@tauri-apps/api`.
+- `apps/web`: `@voya/web`, placeholder for a future web management surface.
+- `apps/mobile`: `@voya/mobile`, placeholder for a future bare React Native app.
+- `packages/ui`: source-only shadcn/ui primitives, design tokens, CSS, fonts, and `cn()`.
+- `packages/i18n`: source-only i18next setup and locale JSON imported from v2rayN `.resx`.
+- `packages/utils`: source-only shared formatting, redaction, mounted-ref, and error helpers.
 - `crates/voya-core`: pure domain logic and future config generation.
 - `crates/voya-db`: SQLite repositories and migrations.
 - `crates/voya-platform`: OS-specific paths, process, proxy, TUN, and hotkey adapters.
 - `crates/voya-net`: downloads, updates, subscriptions, Clash API, and WebDAV clients.
 - `crates/voya-udptest`: UDP tester support.
 - `crates/voya-app`: application orchestration across the domain crates.
-- `src-tauri`: Tauri shell, commands, tray, capabilities, and packaging.
-- `src`: React frontend. Only `src/ipc` may import `@tauri-apps/api`.
+
+The root `package.json` `version` is the release-artifact version read by `scripts/release-artifacts.mjs`; keep app, Tauri, and Cargo versions aligned when intentionally bumping releases.
 
 ## Setup
 
@@ -36,6 +44,7 @@ Run the frontend-only Vite dev server:
 
 ```sh
 pnpm dev:web
+pnpm --filter @voya/desktop dev:web
 ```
 
 Regenerate Rust-to-TypeScript IPC bindings after command or event type changes:
@@ -51,6 +60,7 @@ Build the frontend bundle:
 
 ```sh
 pnpm build
+pnpm --filter @voya/desktop build
 ```
 
 Build unsigned debug Tauri packages without signing credentials:
@@ -77,10 +87,16 @@ Run the final gate checks individually:
 
 ```sh
 pnpm run check:rust:test
-pnpm typecheck
-pnpm test --run
-pnpm lint
+pnpm run check:frontend:typecheck
+pnpm run check:frontend:test
+pnpm run check:frontend:lint
 pnpm bindings:check
+```
+
+Run one desktop frontend test file:
+
+```sh
+pnpm --filter @voya/desktop test --run src/features/profiles/server-table.test.tsx
 ```
 
 `pnpm run check:rust:test` runs workspace all-target tests while excluding the Tauri shell library harness, then builds the shell binary test target. The shell library target keeps its lib test harness disabled because shell-level coverage lives in workspace crates and frontend tests; this avoids Windows WebView/Wry loader failures from an otherwise empty harness. Do not use bare `cargo test --workspace --all-targets` on Windows, because Cargo still forces explicitly disabled targets when `--all-targets` is passed.

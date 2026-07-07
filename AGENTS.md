@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -8,22 +8,37 @@ VoyaVPN is a greenfield rewrite of v2rayN using Tauri 2 (Rust backend) + React 1
 
 The package manager is **pnpm 11.5.0** (pinned via Corepack). Rust toolchain is 1.96.0 in CI (workspace MSRV 1.82).
 
+## Monorepo Layout
+
+- `apps/desktop/` — `@voya/desktop`, the Tauri desktop app. It owns `apps/desktop/src`, `apps/desktop/src-tauri`, `apps/desktop/public`, `apps/desktop/e2e`, Vite, Playwright, shadcn, and desktop tsconfigs.
+- `apps/web/` — `@voya/web`, placeholder for a future web management surface. Do not copy desktop IPC here; the current backend surface is Tauri IPC only.
+- `apps/mobile/` — `@voya/mobile`, placeholder for a future bare React Native app. It does not consume `@voya/ui`, which is DOM/Radix-specific.
+- `packages/ui/` — `@voya/ui`, source-only shadcn primitives, design tokens, shared CSS, fonts, and `cn()`.
+- `packages/i18n/` — `@voya/i18n`, source-only i18next setup and imported locale JSON.
+- `packages/utils/` — `@voya/utils`, source-only shared formatting/redaction/error helpers.
+- `crates/`, `tests/`, `docs/`, and `scripts/` remain rooted at the workspace.
+
+Package scope is always `@voya/*`. The `@/*` alias is desktop-private and resolves to `apps/desktop/src`; shared imports use `@voya/*`.
+
+Version authority: the root `package.json` `version` is the release-artifact version read by `scripts/release-artifacts.mjs`. Keep root, desktop package, Tauri config, and Cargo package versions aligned when doing an intentional version bump.
+
 ## Commands
 
 ```sh
 pnpm dev                 # Run full Tauri app (backend + frontend) in dev
-pnpm dev:web             # Frontend-only Vite dev server (127.0.0.1:1420)
-pnpm build               # tsc -b + vite build (frontend bundle only)
+pnpm dev:web             # Delegates to @voya/desktop frontend-only Vite dev server (127.0.0.1:1420)
+pnpm build               # Delegates to @voya/desktop build (tsc -b + vite build)
+pnpm --filter @voya/desktop build  # Build only the desktop app
 pnpm tauri:build --debug # Unsigned debug Tauri packages (no signing creds needed)
 
 pnpm run verify:ci       # Full local CI-parity suite — run this before declaring work done
 
 # Individual gates (mirror CI jobs):
 pnpm run check:rust:test # Workspace tests (see note below) + shell binary test target
-pnpm typecheck           # tsc -b --pretty false
-pnpm test --run          # Vitest (frontend) once; omit --run for watch mode
-pnpm test --run path/to/file.test.ts   # Single frontend test file
-pnpm lint                # ESLint
+pnpm run check:frontend:typecheck  # pnpm -r run typecheck
+pnpm run check:frontend:test       # Vitest once across configured projects
+pnpm --filter @voya/desktop test --run src/features/profiles/server-table.test.tsx  # Single desktop test file
+pnpm run check:frontend:lint       # ESLint
 pnpm run check:rust:fmt  # cargo fmt --all --check
 pnpm run check:rust:clippy   # clippy --workspace --all-targets -D warnings
 pnpm bindings:check      # Fail if generated IPC bindings drift (see IPC below)
@@ -36,7 +51,7 @@ Single Rust test: `cargo test -p voya-core <test_name>` (substitute the owning c
 
 ## Architecture
 
-A Rust workspace of layered crates plus the Tauri shell and React app. The dependency direction flows: `voya-core` (no deps on others) → `voya-app` (orchestration) → `src-tauri` (shell) → `src` (frontend, via generated IPC).
+A Rust workspace of layered crates plus the Tauri desktop shell, React app, and source-only frontend packages. The dependency direction flows: `voya-core` (no deps on others) → `voya-app` (orchestration) → `apps/desktop/src-tauri` (shell) → `apps/desktop/src` (frontend, via generated IPC). Shared frontend code flows through `packages/*` and must not depend on desktop-private IPC.
 
 ### Rust crates (`crates/`)
 
@@ -46,14 +61,15 @@ A Rust workspace of layered crates plus the Tauri shell and React app. The depen
 - **voya-net** — HTTP downloads, subscriptions, update checks, Clash REST/WebSocket, WebDAV, rulesets.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
 - **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `clash`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, `backup`, etc.) that combine the domain/db/net/platform crates. No Tauri wiring here.
-- **src-tauri** — Tauri bootstrap and the *only* place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `src-tauri/src/ipc/` (`commands.rs` has ~186 commands, `events.rs`).
+- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands.rs` has ~186 commands, `events.rs`).
 
-### Frontend (`src/`)
+### Frontend (`apps/desktop/src/` + `packages/`)
 
-- **`src/ipc/` is the only directory allowed to import `@tauri-apps/api`.** Features call typed wrappers (`commands.ts`) and use the single mounted `event-bridge.tsx`, never raw `invoke`/`listen`. This is an architectural rule (ADR 0002); a stray import elsewhere is a violation.
-- **`src/ipc/bindings.ts` is generated** from Rust `specta`/`tauri-specta` — never edit by hand, never hand-write DTOs mirroring backend types. It is regenerated automatically on every debug build (`run()` exports it). After changing any Rust command/event/DTO, run `pnpm bindings` and commit; `pnpm bindings:check` (a CI gate) fails on drift.
-- `src/features/<subsystem>/` — feature UIs (profiles, subscriptions, routing, dns, clash, groups, backup, options, logs, qr, templates, updates, home).
-- `src/components/ui/` — shadcn/ui primitives; `src/components/app-shell/` — shell. State via Zustand (`src/stores/`) + TanStack Query. Path alias `@/` → `src/`.
+- **`apps/desktop/src/ipc/` is the only frontend directory allowed to import `@tauri-apps/api` or Tauri plugins.** Features call typed wrappers (`commands.ts`, `updater.ts`, `process.ts`) and use the single mounted `event-bridge.tsx`, never raw `invoke`/`listen`. This is an architectural rule (ADR 0002) and is lint-enforced.
+- **`apps/desktop/src/ipc/bindings.ts` is generated** from Rust `specta`/`tauri-specta` — never edit by hand, never hand-write DTOs mirroring backend types. It is regenerated automatically on every debug build (`run()` exports it). After changing any Rust command/event/DTO, run `pnpm bindings` and commit; `pnpm bindings:check` (a CI gate) fails on drift.
+- `apps/desktop/src/features/<subsystem>/` — desktop feature UIs (profiles, subscriptions, routing, dns, clash, groups, backup, options, logs, qr, templates, updates, home).
+- `packages/ui/src/components/` — shared shadcn/ui primitives; `apps/desktop/src/components/app-shell/` — desktop shell. State via Zustand (`apps/desktop/src/stores/`) + TanStack Query.
+- `packages/i18n/src/locales/` — generated locale JSON imported from upstream v2rayN `.resx` files.
 
 ### IPC event model (three channels)
 
@@ -75,11 +91,11 @@ Config generation correctness is judged by the **generated sing-box JSON**, not 
 ## Cores and i18n
 
 - The sing-box core binary is **not redistributed by default** (GPL/AGPL). It is fetched on first run: `postinstall` runs `scripts/install-sing-box-core.mjs` (force re-fetch with `pnpm core:sing-box:install`).
-- Locale files (`src/i18n/locales/*.json`) are **imported from v2rayN `.resx` files**, not edited directly. Source dir defaults to `../v2rayN/v2rayN/ServiceLib/Resx` (override with `VOYAVPN_V2RAYN_RESX_DIR`). Run `pnpm i18n:import` to regenerate; `pnpm i18n:check` is a CI gate. `de` is a Voya-managed English fallback (no upstream German resx).
+- Locale files (`packages/i18n/src/locales/*.json`) are **imported from v2rayN `.resx` files**, not edited directly. Source dir defaults to `../v2rayN/v2rayN/ServiceLib/Resx` (override with `VOYAVPN_V2RAYN_RESX_DIR`). Run `pnpm i18n:import` to regenerate; `pnpm i18n:check` is a CI gate. `de` is a Voya-managed English fallback (no upstream German resx).
 
 ## Conventions
 
 - Clippy is strict: `unwrap_used`, `dbg_macro`, `todo`, and `all` are warnings, and CI runs clippy with `-D warnings` — avoid `.unwrap()`/`.expect()` outside tests and setup.
 - ADRs in `docs/adr/` (0001 architecture, 0002 typed IPC, 0003 config parity, 0004 platform boundaries) are the authoritative design record — consult them before changing crate boundaries or the IPC contract.
 - Commit messages in this repo are written in Chinese with `type:` prefixes (feat/fix/refactor/chore/docs); multiple changes are often combined in one message.
-- E2E smoke tests use Playwright + `tauri-driver` (`e2e/`, `pnpm smoke:frontend`). Release tooling and runbooks live in `scripts/release-*.mjs` and `docs/release/`.
+- E2E smoke tests use Playwright + `tauri-driver` (`apps/desktop/e2e/`, `pnpm smoke:frontend`). Release tooling and runbooks live in `scripts/release-*.mjs` and `docs/release/`.

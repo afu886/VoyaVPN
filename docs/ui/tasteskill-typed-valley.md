@@ -35,41 +35,41 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 - **虚拟化到位**：profiles / connections 用 TanStack Virtual 扛千行。
 - **connections 骨架屏**（`ConnectionSkeletonRows`）是全仓最佳加载态范本，应被推广。
 - **i18n 基建**：8 语（en/zh-Hans/zh-Hant/fr/fa/hu/ru/de）、833 leaf key、fa 走 RTL、localStorage 持久化。
-- **typed IPC 边界**（ADR 0002）：前端只经 `src/ipc/bindings.ts` 调后端，不写业务逻辑。
+- **typed IPC 边界**（ADR 0002）：前端只经 `apps/desktop/src/ipc/bindings.ts` 调后端，不写业务逻辑。
 
 ## 确认发现（按主题；每条带 `file:line` + 严重度）
 
 ### ① 连接体验无「英雄」(P0，最高杠杆) ✅
 - 连接/断开/重启是 `size-7`(28px) 图标按钮，与 PID badge、代理模式 4 段切换、TUN、上下行速度 ~10 个控件挤在
-  44px footer：[status-bar.tsx:196-264](../../src/components/app-shell/status-bar.tsx#L196-L264)。
+  44px footer：[status-bar.tsx:196-264](../../apps/desktop/src/components/app-shell/status-bar.tsx#L196-L264)。
 - `profilesLabel = t("status.profiles", { count: 0 })` —— **count 硬编码 0**，永不反映真实档案数：
-  [status-bar.tsx:108](../../src/components/app-shell/status-bar.tsx#L108)。
+  [status-bar.tsx:108](../../apps/desktop/src/components/app-shell/status-bar.tsx#L108)。
 - 全应用**无任何视图回答 VPN 客户端最该一眼回答的三件事**：是否受保护 / 连到哪个节点·地区 / 现在多快、连了多久。
   应用读起来像「配置管理器」而非「VPN 客户端」。
 
 ### ② 观感模板化、无品牌 signature (P1) ✅
 - 配色纯 shadcn neutral/slate：`--primary` ≈ `#0f172b`、neutrals 全 slate、`--chart-1..5` 是 shadcn 默认
-  chart 调色板，**无品牌强调色**：[globals.css:7-70](../../src/styles/globals.css#L7-L70)。
+  chart 调色板，**无品牌强调色**：[globals.css:7-70](../../packages/ui/src/styles/globals.css#L7-L70)。
 - 三个「字体」是 Inter/Manrope/system 三个**可互换 sans**，无 display/body/mono 角色分工；字阶仅 xs/sm/base/lg；
   阴影仅 `shadow-xs/sm`，层次扁平。典型「shadcn baseline，工程好但没设计」。
 
 ### ③ 信息密度过载、缺渐进披露 (P1) ✅📋
-- profiles 表 14 列、强制横向滚动、重度截断、**无列可见性控制**：[server-table.tsx](../../src/features/profiles/server-table.tsx)。
-- connections 表 9 列、**只能过滤不能排序**：[clash-connections-screen.tsx](../../src/features/clash/clash-connections-screen.tsx)。
+- profiles 表 14 列、强制横向滚动、重度截断、**无列可见性控制**：[server-table.tsx](../../apps/desktop/src/features/profiles/server-table.tsx)。
+- connections 表 9 列、**只能过滤不能排序**：[clash-connections-screen.tsx](../../apps/desktop/src/features/clash/clash-connections-screen.tsx)。
 
 ### ④ 质量地板有洞 (P1–P2) ✅
 - **加载/空/错误态参差**：connections 有骨架屏，profiles 等多数屏仅居中裸文字。
 - **反馈不一致**：成功时而 inline `<span>` 时而 toast，无统一心智。
-- **破坏性操作无二次确认**：删除档案、还原备份直接执行；`src/components/ui/` 内**无 AlertDialog**。
+- **破坏性操作无二次确认**：删除档案、还原备份直接执行；`packages/ui/src/components/` 内**无 AlertDialog**。
 - **无 `prefers-reduced-motion`**：✅ 全仓 grep 为 0；动效对所有用户无条件播放。
-- **logs 未虚拟化**、无时间戳、无搜索/级别过滤：[logs-screen.tsx](../../src/features/logs/logs-screen.tsx)。
+- **logs 未虚拟化**、无时间戳、无搜索/级别过滤：[logs-screen.tsx](../../apps/desktop/src/features/logs/logs-screen.tsx)。
 - **modal-in-modal**：group-builder 嵌在 profile-dialog 内。
 - **断点过激**：代理模式/TUN/核心信息在 `md:`(768px) 以下 `hidden`，小窗口丢关键控件。
 
 ### ⑤ 本地化零散硬编码 + 一致性未系统化 (P2) ✅
-- profiles 子域硬编码英文：表单标签 [profile-dialog.tsx:139](../../src/features/profiles/profile-dialog.tsx#L139)
+- profiles 子域硬编码英文：表单标签 [profile-dialog.tsx:139](../../apps/desktop/src/features/profiles/profile-dialog.tsx#L139)
   （Remarks/Protocol/Core/Port/Group…）、右键菜单与测速按钮
-  [server-table.tsx:372-407](../../src/features/profiles/server-table.tsx#L372-L407)（Fast/TCP/Real/UDP/Speed/Mixed、
+  [server-table.tsx:372-407](../../apps/desktop/src/features/profiles/server-table.tsx#L372-L407)（Fast/TCP/Real/UDP/Speed/Mixed、
   Activate/Edit/Copy/Delete/Move…）、多处 `aria-label="…"` 未走 i18n；zh-Hans 等有英文泄漏。
 - 各屏重复手写 `<section className="flex h-full min-h-0 flex-col"> + 12px header`，无共享页头原语；
   间距尺度 gap-1/1.5/2/3/4 自由混用，卡片底色 `bg-background` vs `bg-muted/30` 不成文。
@@ -93,20 +93,20 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
   ≈ `oklch(0.78 0.13 185)`（"受保护"色，**克制使用**：连接态/主连接键辉光/活动节点）；`--beacon` 暖琥珀
   （connecting/warning，可复用现 chart 暖色）；neutrals 沿用 slate；destructive 留红。浅色模式 `--signal` 取更深一档保对比度。
 - **字（角色化）**：`display`=Manrope（Hero 计时/速率大字，tabular-nums）、`body`=Inter、**新增 `--font-mono`**
-  （logs/connections/codemirror/数据单元格）。在 [fonts.ts](../../src/config/fonts.ts) 与 `@theme` 建立 display/body/mono 三角色。
+  （logs/connections/codemirror/数据单元格）。在 [fonts.ts](../../packages/ui/src/config/fonts.ts) 与 `@theme` 建立 display/body/mono 三角色。
 - **深度/动效**：新增 `--shadow-sm/md/lg` 阶梯 + `--glow-signal`（连接灯标辉光）；一切动效置于
   `prefers-reduced-motion: reduce` 守卫下（reduce 时辉光脉动关闭）。
-- 落点：`src/styles/globals.css` 的 `:root`/`.dark`/`@supports oklch`/`@theme inline` **四块同步改**；
+- 落点：`packages/ui/src/styles/globals.css` 的 `:root`/`.dark`/`@supports oklch`/`@theme inline` **四块同步改**；
   按需扩 `button.tsx`(signal/glow variant)、`card.tsx`(elevation)。
 
 ## 优化方案 B —— 连接主页 Hero（新默认视图）
 
-新增 `src/features/home/home-screen.tsx`：首屏「英雄」= 大号连接/断开主键 + 连接状态灯标（点亮 signature）+
+新增 `apps/desktop/src/features/home/home-screen.tsx`：首屏「英雄」= 大号连接/断开主键 + 连接状态灯标（点亮 signature）+
 当前节点·地区·核心 + 实时上下行 + 已连时长 + 一眼「受保护 / 未保护」。接进 shell
-（[app-shell.tsx](../../src/components/app-shell/app-shell.tsx) 的 `shellTabs` 增 `home` 并设默认；
-`src/stores/shell-store.ts` 默认 `activeTab`）。**复用**既有 runtime 动作/状态
+（[app-shell.tsx](../../apps/desktop/src/components/app-shell/app-shell.tsx) 的 `shellTabs` 增 `home` 并设默认；
+`apps/desktop/src/stores/shell-store.ts` 默认 `activeTab`）。**复用**既有 runtime 动作/状态
 （`connectActiveProfile/disconnectCore/restartCore/useRuntimeEventStore`，见
-[status-bar.tsx:20-32](../../src/components/app-shell/status-bar.tsx#L20-L32)），**不重写 IPC**。底栏
+[status-bar.tsx:20-32](../../apps/desktop/src/components/app-shell/status-bar.tsx#L20-L32)），**不重写 IPC**。底栏
 `StatusBar` 瘦身为次级状态条，并修 `profilesLabel` count:0 真缺陷（接真实档案数）。
 
 ## 改进路线图（映射到 rollout 各 phase）

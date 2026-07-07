@@ -40,3 +40,14 @@ Persistence is a fresh VoyaVPN schema only. There is no v2rayN data migration pa
 - `voya-app` coordinates side effects but must not become a direct port of the C# monolith.
 - Database compatibility favors correctness for the new app over migration from v2rayN installations.
 - Later batches must keep generated TypeScript contracts and DB migrations aligned with these boundaries.
+
+## Amendment (2026-07): Monorepo Path Contract
+
+The ownership boundaries above remain accepted. The repository layout moved to a pnpm monorepo without changing those responsibilities:
+
+- Historical `src-tauri` references now map to `apps/desktop/src-tauri`.
+- Historical `src` references now map to `apps/desktop/src`.
+- Historical `src/ipc/bindings.ts` references now map to `apps/desktop/src/ipc/bindings.ts`.
+- Locale files now live in `packages/i18n/src/locales`.
+
+Shared frontend code lives in source-only `packages/*` modules. Desktop-private code keeps the `@/*` alias to `apps/desktop/src`; shared imports use `@voya/*`.
