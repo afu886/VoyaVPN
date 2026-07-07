@@ -6,6 +6,7 @@ use tauri_specta::Event;
 use voya_app::{
     clash::{ClashConnectionsSnapshot, ClashMonitorStatus, ClashTrafficEvent},
     speedtest::SpeedTestResult,
+    tun::{TunBackend, TunProviderState},
 };
 use voya_core::{CoreType, ServerStatItem};
 
@@ -115,6 +116,10 @@ pub struct SysProxyChanged {
 #[serde(rename_all = "camelCase")]
 pub struct TunChanged {
     pub enabled: bool,
+    pub backend: TunBackend,
+    pub provider_state: TunProviderState,
+    pub native_component_ready: bool,
+    pub last_provider_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Type, Event)]

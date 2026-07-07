@@ -43,7 +43,15 @@ impl SystemProxyManager {
     }
 
     pub fn status(&self, config: &AppConfig) -> Result<SystemProxyStatus, SystemProxyManagerError> {
-        let request = self.request(config, false)?;
+        self.status_with_force_disable(config, false)
+    }
+
+    pub fn status_with_force_disable(
+        &self,
+        config: &AppConfig,
+        force_disable: bool,
+    ) -> Result<SystemProxyStatus, SystemProxyManagerError> {
+        let request = self.request(config, force_disable)?;
         voya_platform::sysproxy::plan_system_proxy(&request)
             .map(|plan| plan.status)
             .map_err(Into::into)

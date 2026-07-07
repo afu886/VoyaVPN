@@ -321,14 +321,14 @@ export async function importProfilesFromFile(
 
 export async function updateSubscriptions(
   subid: string | null = null,
-  preferProxy = false,
+  preferProxy = true,
   proxyUrl: string | null = null,
 ): Promise<SubscriptionUpdateResult> {
   return unwrapCommandResult(await commands.updateSubscriptions(subid, preferProxy, proxyUrl));
 }
 
 export async function runDueSubscriptionUpdates(
-  preferProxy = false,
+  preferProxy = true,
   proxyUrl: string | null = null,
 ): Promise<SubscriptionUpdateResult> {
   return unwrapCommandResult(await commands.runDueSubscriptionUpdates(preferProxy, proxyUrl));
@@ -378,7 +378,7 @@ export async function moveRoutingRule(
 }
 
 export async function importRoutingTemplates(
-  preferProxy = false,
+  preferProxy = true,
   proxyUrl: string | null = null,
   importAdvancedRules = false,
 ): Promise<RoutingItem_Serialize[]> {

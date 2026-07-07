@@ -401,7 +401,7 @@ describe("ProfilesScreen", () => {
     // aria-hidden, so "Update subs" must be exercised before importing.
     await userEvent.click(await screen.findByRole("menuitem", { name: "More actions" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Update subs" }));
-    expect(ipcMocks.updateSubscriptions).toHaveBeenCalledWith(null, false, null);
+    expect(ipcMocks.updateSubscriptions).toHaveBeenCalledWith(null, true, null);
 
     await userEvent.click(screen.getByRole("menuitem", { name: "More actions" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Import" }));

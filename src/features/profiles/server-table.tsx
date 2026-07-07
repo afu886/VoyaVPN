@@ -608,7 +608,7 @@ export function ProfilesScreen() {
               <Rss className="size-4" aria-hidden="true" />
               {t("panes.profiles.toolbar.subscriptions")}
             </MenubarItem>
-            <MenubarItem onSelect={() => void runOperation(() => updateSubscriptions(null, false, null))}>
+            <MenubarItem onSelect={() => void runOperation(() => updateSubscriptions(null, true, null))}>
               <RefreshCw className="size-4" aria-hidden="true" />
               {t("panes.profiles.toolbar.updateSubs")}
             </MenubarItem>

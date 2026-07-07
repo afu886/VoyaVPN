@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
 use std::process::Command;
@@ -263,12 +266,51 @@ fn platform_native_tun_status(backend: TunBackend) -> NativeTunStatus {
 }
 
 fn platform_native_tun_start(request: NativeTunStartRequest) -> Result<(), NativeTunError> {
+    if request.backend.is_native() {
+        ensure_native_tun_config_has_tun_inbound(request.backend, &request.main_config_path)?;
+    }
+
     match request.backend {
         TunBackend::Process => Ok(()),
         TunBackend::MacosPacketTunnel => start_macos_packet_tunnel(&request),
         TunBackend::WindowsService => start_windows_tun_service(&request),
         TunBackend::Unsupported => Err(NativeTunError::UnsupportedBackend(request.backend)),
     }
+}
+
+fn ensure_native_tun_config_has_tun_inbound(
+    backend: TunBackend,
+    config_path: &Path,
+) -> Result<(), NativeTunError> {
+    let config_text =
+        fs::read_to_string(config_path).map_err(|source| NativeTunError::Command {
+            action: "read native TUN config",
+            source,
+        })?;
+    let config: serde_json::Value =
+        serde_json::from_str(&config_text).map_err(|source| NativeTunError::InvalidRequest {
+            backend,
+            message: format!("native TUN config is not valid JSON: {source}"),
+        })?;
+
+    let has_tun_inbound = config
+        .get("inbounds")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|inbounds| {
+            inbounds.iter().any(|inbound| {
+                inbound.get("type").and_then(serde_json::Value::as_str) == Some("tun")
+            })
+        });
+
+    if has_tun_inbound {
+        return Ok(());
+    }
+
+    Err(NativeTunError::InvalidRequest {
+        backend,
+        message: "native TUN config does not contain a tun inbound; reconnect from the TUN toggle or regenerate runtime config"
+            .to_string(),
+    })
 }
 
 fn platform_native_tun_stop(backend: TunBackend) -> Result<(), NativeTunError> {
@@ -785,6 +827,45 @@ mod tests {
     }
 
     #[test]
+    fn native_tun_config_validation_requires_tun_inbound() {
+        let path = temp_config_path("native-tun-missing.json");
+        fs::write(
+            &path,
+            r#"{"inbounds":[{"type":"mixed","listen":"127.0.0.1","listen_port":10808}]}"#,
+        )
+        .expect("write temp config");
+
+        let error =
+            ensure_native_tun_config_has_tun_inbound(TunBackend::MacosPacketTunnel, path.as_path())
+                .expect_err("missing tun inbound should fail");
+
+        assert!(matches!(
+            error,
+            NativeTunError::InvalidRequest {
+                backend: TunBackend::MacosPacketTunnel,
+                ref message,
+            } if message.contains("does not contain a tun inbound")
+        ));
+
+        fs::remove_file(path).expect("remove temp config");
+    }
+
+    #[test]
+    fn native_tun_config_validation_accepts_tun_inbound() {
+        let path = temp_config_path("native-tun-valid.json");
+        fs::write(
+            &path,
+            r#"{"inbounds":[{"type":"mixed"},{"type":"tun","auto_route":true}]}"#,
+        )
+        .expect("write temp config");
+
+        ensure_native_tun_config_has_tun_inbound(TunBackend::WindowsService, path.as_path())
+            .expect("tun inbound should pass");
+
+        fs::remove_file(path).expect("remove temp config");
+    }
+
+    #[test]
     fn process_windows_tun_cleanup_failure_is_returned() {
         let error = windows_cleanup_result(
             &WINDOWS_TUN_DEVICES[0],
@@ -860,5 +941,9 @@ mod tests {
         assert_eq!(linux_ready.state, TunPreflightState::Ready);
         assert!(linux_ready.allow_enable_tun);
         assert!(linux_ready.route_restore_note.contains("sudo kill"));
+    }
+
+    fn temp_config_path(file_name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("voyavpn-{file_name}-{}", std::process::id()))
     }
 }

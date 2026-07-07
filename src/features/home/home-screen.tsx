@@ -21,7 +21,7 @@ import {
   tunStatus,
   useRuntimeEventStore,
 } from "@/ipc";
-import type { SysProxyMode } from "@/ipc/bindings";
+import type { SysProxyMode, TunChanged } from "@/ipc/bindings";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useToastStore } from "@/stores/toast-store";
@@ -129,6 +129,7 @@ export function HomeScreen() {
   const runningId = connected ? (coreState?.activeProfileId ?? null) : null;
   const requestedProxyMode = sysProxy?.requestedMode ?? "forcedClear";
   const tunEnabled = tun?.enabled ?? false;
+  const tunProviderSummary = tun ? tunProviderLabel(tun) : null;
 
   // Seed the local selection from the persisted active profile and re-sync it
   // whenever the active profile changes (e.g. after a switch). Adjusting state
@@ -377,9 +378,14 @@ export function HomeScreen() {
           </div>
           <Separator />
           <div className="flex items-center justify-between gap-3 py-2.5">
-            <Label className="text-sm font-medium text-foreground" htmlFor="home-tun-switch">
-              {t("status.tun")}
-            </Label>
+            <div className="min-w-0">
+              <Label className="text-sm font-medium text-foreground" htmlFor="home-tun-switch">
+                {t("status.tun")}
+              </Label>
+              {tunProviderSummary ? (
+                <p className="mt-0.5 truncate text-xs text-subtlest">{tunProviderSummary}</p>
+              ) : null}
+            </div>
             <Switch
               checked={tunEnabled}
               disabled={tunPending}
@@ -423,5 +429,52 @@ function runtimeActionLabel(action: RuntimeAction, t: ReturnType<typeof useI18n>
       return t("actions.disconnect");
     case "restart":
       return t("actions.restart");
+  }
+}
+
+function tunProviderLabel(tun: TunChanged) {
+  const backend = tunBackendLabel(tun.backend);
+  const providerState = tunProviderStateLabel(tun.providerState);
+  if (tun.lastProviderError) {
+    return `${backend}: ${providerState}: ${tun.lastProviderError}`;
+  }
+  if (!tun.nativeComponentReady) {
+    return `${backend}: ${providerState}`;
+  }
+
+  return `${backend}: ${providerState}`;
+}
+
+function tunBackendLabel(backend: TunChanged["backend"]) {
+  switch (backend) {
+    case "macosPacketTunnel":
+      return "macOS PacketTunnel";
+    case "windowsService":
+      return "Windows Service";
+    case "process":
+      return "Process TUN";
+    case "unsupported":
+    default:
+      return "Unsupported TUN";
+  }
+}
+
+function tunProviderStateLabel(state: TunChanged["providerState"]) {
+  switch (state) {
+    case "running":
+      return "Running";
+    case "starting":
+      return "Starting";
+    case "stopped":
+      return "Stopped";
+    case "permissionRequired":
+      return "Permission required";
+    case "missingComponent":
+      return "Missing component";
+    case "error":
+      return "Error";
+    case "notApplicable":
+    default:
+      return "Not applicable";
   }
 }

@@ -108,7 +108,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
 
   async function handleUpdate(id: string | null) {
     await run(async () => {
-      const result = await updateSubscriptions(id, false, null);
+      const result = await updateSubscriptions(id, true, null);
 
       return `${result.updated ?? 0} updated, ${result.imported ?? 0} profiles imported`;
     });

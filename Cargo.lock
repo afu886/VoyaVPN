@@ -5245,6 +5245,7 @@ name = "voya-platform"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "serde_json",
  "thiserror 2.0.18",
  "tracing",
  "voya-core",

@@ -6,7 +6,8 @@ use std::{
 use thiserror::Error;
 use voya_core::{
     generate_singbox_config_json, AppConfig, ContextBuildError, CoreConfigContext,
-    CoreConfigContextBuilder, CoreGenPlatform, CoreType, SingboxConfigError,
+    CoreConfigContextBuilder, CoreConfigContextBuilderAllResult, CoreGenPlatform, CoreType,
+    SingboxConfigError,
 };
 use voya_db::{Database, DbError};
 use voya_platform::{
@@ -15,6 +16,7 @@ use voya_platform::{
         CoreInfoError, CoreLaunch, CoreSeedCopyOutcome, TargetOs,
     },
     paths::{AppPaths, PathError},
+    tun::{tun_backend, TunBackend},
 };
 
 use crate::coregen::{SnapshotCoreGenData, SnapshotCoreGenEnv};
@@ -100,7 +102,7 @@ impl<'runtime> RuntimeManager<'runtime> {
 
         let env =
             load_runtime_core_gen_env(self.database, &self.paths, config, self.target_os).await?;
-        let contexts = CoreConfigContextBuilder::new(&env).build_all(config, &active_profile);
+        let contexts = runtime_config_contexts(&env, config, &active_profile, self.target_os);
         if !contexts.success() {
             let validation = contexts.combined_validator_result();
             return Err(RuntimeError::Validation {
@@ -188,6 +190,31 @@ impl<'runtime> RuntimeManager<'runtime> {
             .map(Some)
             .map_err(Into::into)
     }
+}
+
+fn runtime_config_contexts(
+    env: &SnapshotCoreGenEnv,
+    config: &AppConfig,
+    active_profile: &voya_core::ProfileItem,
+    target_os: TargetOs,
+) -> CoreConfigContextBuilderAllResult {
+    let builder = CoreConfigContextBuilder::new(env);
+    if should_use_single_native_tun_config(config, target_os) {
+        return CoreConfigContextBuilderAllResult {
+            main_result: builder.build(config, active_profile),
+            pre_socks_result: None,
+        };
+    }
+
+    builder.build_all(config, active_profile)
+}
+
+fn should_use_single_native_tun_config(config: &AppConfig, target_os: TargetOs) -> bool {
+    config.tun_mode_item.enable_tun
+        && matches!(
+            tun_backend(target_os),
+            TunBackend::MacosPacketTunnel | TunBackend::WindowsService
+        )
 }
 
 fn write_runtime_config(
@@ -306,6 +333,10 @@ mod tests {
         coreinfo::{core_type_dir_name, executable_name_for_current_os},
         paths::{core_seed_resources_dir, AppPaths, StorageMode},
         test_support::RecordingRunner,
+        tun::{
+            NativeTunController, NativeTunError, NativeTunProviderState, NativeTunStartRequest,
+            NativeTunStatus, TunBackend,
+        },
     };
 
     use super::*;
@@ -427,6 +458,68 @@ mod tests {
         assert!(!paths.bin_config_file(MAIN_CONFIG_FILE_NAME).exists());
         assert_eq!(runner.stops().as_slice(), [10]);
         config.index_id.clear();
+    }
+
+    #[tokio::test]
+    async fn runtime_macos_native_tun_writes_single_tun_config() {
+        let database = Database::connect_in_memory()
+            .await
+            .expect("runtime test operation should succeed");
+        let paths = temp_paths();
+        paths
+            .ensure_dirs()
+            .expect("runtime test operation should succeed");
+        write_fake_core_executable(&paths, CoreType::sing_box);
+        let runner = RecordingRunner::default();
+        let supervisor = CoreSupervisor::spawn(
+            SupervisorDeps::new(
+                Arc::new(runner.clone()),
+                Arc::new(voya_platform::privilege::ElevationState::new()),
+            )
+            .with_target_os(TargetOs::Macos)
+            .with_native_tun_controller(Arc::new(TestNativeTunController)),
+        );
+        let manager =
+            RuntimeManager::with_target_os(&database, paths.clone(), supervisor, TargetOs::Macos);
+        let config = AppConfig {
+            index_id: "active".to_string(),
+            tun_mode_item: voya_core::TunModeItem {
+                enable_tun: true,
+                ..voya_core::TunModeItem::default()
+            },
+            ..AppConfig::default()
+        };
+        database
+            .profiles()
+            .upsert(&active_singbox_profile("active"))
+            .await
+            .expect("runtime test operation should succeed");
+
+        let connected = manager
+            .connect(&config)
+            .await
+            .expect("runtime test operation should succeed");
+
+        assert_eq!(
+            connected.state,
+            crate::supervisor::SupervisorConnectionState::Connected
+        );
+        assert_eq!(connected.main_pid, None);
+        assert!(runner.spawns().is_empty());
+        assert!(!paths.bin_config_file(PRE_CONFIG_FILE_NAME).exists());
+
+        let generated = fs::read_to_string(paths.bin_config_file(MAIN_CONFIG_FILE_NAME))
+            .expect("runtime test operation should succeed");
+        let json: serde_json::Value =
+            serde_json::from_str(&generated).expect("runtime test operation should succeed");
+        assert!(
+            json["inbounds"]
+                .as_array()
+                .expect("inbounds")
+                .iter()
+                .any(|inbound| inbound["type"] == "tun"),
+            "native macOS TUN must pass a tun inbound to PacketTunnel"
+        );
     }
 
     #[tokio::test]
@@ -629,6 +722,27 @@ mod tests {
             password: "00000000-0000-0000-0000-000000000000".to_string(),
             network: "tcp".to_string(),
             ..ProfileItem::default()
+        }
+    }
+
+    struct TestNativeTunController;
+
+    impl NativeTunController for TestNativeTunController {
+        fn status(&self, backend: TunBackend) -> NativeTunStatus {
+            NativeTunStatus {
+                backend,
+                provider_state: NativeTunProviderState::Stopped,
+                component_ready: true,
+                message: None,
+            }
+        }
+
+        fn start(&self, _request: NativeTunStartRequest) -> Result<(), NativeTunError> {
+            Ok(())
+        }
+
+        fn stop(&self, _backend: TunBackend) -> Result<(), NativeTunError> {
+            Ok(())
         }
     }
 }

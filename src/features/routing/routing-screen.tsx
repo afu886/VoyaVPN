@@ -204,7 +204,7 @@ export function RoutingScreen() {
     setTemplateUrlError(null);
     await runOperation(async () => {
       await saveTemplateUrl(configQuery.data, parsedTemplateUrl.data);
-      await importRoutingTemplates(false, null, false);
+      await importRoutingTemplates(true, null, false);
     });
   }
 

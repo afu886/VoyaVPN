@@ -1479,6 +1479,10 @@ export type TunBackend = "process" | "macosPacketTunnel" | "windowsService" | "u
 
 export type TunChanged = {
 	enabled: boolean,
+	backend: TunBackend,
+	providerState: TunProviderState,
+	nativeComponentReady: boolean,
+	lastProviderError: string | null,
 };
 
 export type TunModeItem = {

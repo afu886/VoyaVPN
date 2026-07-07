@@ -9,7 +9,7 @@ macro_rules! collect_ipc_commands {
         collect_commands![
             commands::app_health,
             commands::load_app_config,
-            commands::save_app_config,
+            commands::save_app_config::<tauri::Wry>,
             commands::diagnostics_status,
             commands::set_diagnostics_enabled,
             commands::autostart_status,

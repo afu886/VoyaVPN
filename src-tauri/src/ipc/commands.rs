@@ -248,20 +248,30 @@ pub fn load_app_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, A
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_app_config(
+pub async fn save_app_config<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
     config: AppConfig,
 ) -> Result<AppConfig, AppError> {
-    state
-        .config_store()
-        .save(&config)
-        .map_err(|error| AppError::ConfigSave(error.to_string()))?;
-    let mut guard = state
-        .config()
-        .write()
-        .map_err(|_| AppError::State("app config lock is poisoned".to_string()))?;
+    let original = current_config(&state)?;
+    let runtime_changed = saved_config_requires_runtime_restart(&original, &config);
+    let system_proxy_changed = original.system_proxy_item != config.system_proxy_item;
+    let tun_enabled_changed = original.tun_mode_item.enable_tun != config.tun_mode_item.enable_tun;
 
-    *guard = config.clone();
+    persist_config_if_changed(&state, &original, &config)?;
+
+    if original != config {
+        if tun_enabled_changed {
+            let status = tun_manager(&state).status(&config).map_err(tun_error)?;
+            emit_tun_changed(&app, &status)?;
+        }
+        if runtime_changed {
+            restart_if_connected_after_config_change(&app, &state, &config, "Config saved").await?;
+        } else if system_proxy_changed {
+            apply_system_proxy_if_connected_after_config_change(&app, &state, &config).await?;
+        }
+        crate::refresh_tray_menu(&app).map_err(|error| AppError::State(error.to_string()))?;
+    }
 
     Ok(config)
 }
@@ -481,6 +491,7 @@ pub async fn connect_active_profile<R: tauri::Runtime>(
                     &format!("System proxy apply failed: {error}"),
                 )?,
             }
+            emit_current_tun_status(&app, &state)?;
             Ok(runtime_status_response(snapshot))
         }
         Err(error) => {
@@ -515,6 +526,7 @@ pub async fn disconnect_core<R: tauri::Runtime>(
             }
             emit_runtime_log(&app, LogLevel::Info, "Core supervisor stopped")?;
             emit_core_state(&app, CoreState::Disconnected, None, Some(&snapshot))?;
+            emit_current_tun_status(&app, &state)?;
             emit_statistics_zero(&app)?;
             Ok(runtime_status_response(snapshot))
         }
@@ -571,6 +583,7 @@ pub async fn restart_core<R: tauri::Runtime>(
                     &format!("System proxy apply failed: {error}"),
                 )?,
             }
+            emit_current_tun_status(&app, &state)?;
             Ok(runtime_status_response(snapshot))
         }
         Err(error) => {
@@ -601,10 +614,11 @@ pub fn system_proxy_status(
     state: tauri::State<'_, AppState>,
 ) -> Result<SystemProxyStatusResponse, AppError> {
     let config = current_config(&state)?;
+    let runtime_config = runtime_system_proxy_config(&config, false);
 
     state
         .system_proxy_manager()
-        .status(&config)
+        .status_with_force_disable(&runtime_config.config, runtime_config.force_disable)
         .map(system_proxy_status_response)
         .map_err(sysproxy_error)
 }
@@ -618,10 +632,15 @@ pub fn set_system_proxy_mode<R: tauri::Runtime>(
 ) -> Result<SystemProxyStatusResponse, AppError> {
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let status = state
-        .system_proxy_manager()
-        .set_mode(&mut config, mode)
-        .map_err(sysproxy_error)?;
+    let target_os = TargetOs::current();
+    if mode == SysProxyType::Pac && !matches!(target_os, TargetOs::Windows | TargetOs::Macos) {
+        return Err(sysproxy_error(SystemProxyManagerError::PacUnavailable(
+            target_os,
+        )));
+    }
+
+    config.system_proxy_item.sys_proxy_type = mode;
+    let status = apply_system_proxy(&app, &state, &config, false).map_err(sysproxy_error)?;
 
     persist_config_if_changed(&state, &original, &config)?;
     emit_sysproxy_changed(&app, &status)?;
@@ -652,7 +671,7 @@ pub async fn set_tun_enabled<R: tauri::Runtime>(
         .map_err(tun_error)?;
 
     persist_config_if_changed(&state, &original, &config)?;
-    emit_tun_changed(&app, status.enabled)?;
+    emit_tun_changed(&app, &status)?;
     restart_if_connected_after_config_change(&app, &state, &config, "TUN changed").await?;
 
     Ok(status)
@@ -1275,6 +1294,7 @@ pub async fn update_subscriptions<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
     let result = SubscriptionManager::new(state.database())
         .update_subscriptions(
             &mut config,
@@ -1308,6 +1328,7 @@ pub async fn run_due_subscription_updates<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
     let result = SubscriptionManager::new(state.database())
         .run_due_updates(
             &mut config,
@@ -1527,6 +1548,7 @@ pub async fn import_routing_templates<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
     let imported = RoutingManager::new(state.database())
         .import_routing_templates(
             &mut config,
@@ -1569,6 +1591,7 @@ pub async fn apply_regional_preset<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
     let result = PresetManager::new(state.database())
         .apply(
             &mut config,
@@ -1993,6 +2016,7 @@ pub async fn check_updates(
     let manager = update_manager(&state);
     manager.save_preferences(&mut config, pre_release, selected_target_ids.clone());
     persist_config_if_changed(&state, &original, &config)?;
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
 
     let result = manager
         .check_updates(
@@ -2054,6 +2078,7 @@ pub async fn download_updates(
     let manager = update_manager(&state);
     manager.save_preferences(&mut config, pre_release, selected_target_ids.clone());
     persist_config_if_changed(&state, &original, &config)?;
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
 
     let result = manager
         .download_updates(
@@ -2104,6 +2129,7 @@ pub async fn manual_app_update_links(
         AppError::Update,
     )?;
     let config = current_config(&state)?;
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
 
     update_manager(&state)
         .manual_app_update_links(
@@ -2830,10 +2856,19 @@ where
     let runtime_config = runtime_system_proxy_config(config, force_disable);
     state
         .system_proxy_manager()
-        .apply_config(&runtime_config, force_disable)
+        .apply_config(&runtime_config.config, runtime_config.force_disable)
 }
 
-fn runtime_system_proxy_config(config: &AppConfig, force_disable: bool) -> AppConfig {
+#[derive(Debug, Clone)]
+struct RuntimeSystemProxyConfig {
+    config: AppConfig,
+    force_disable: bool,
+}
+
+fn runtime_system_proxy_config(
+    config: &AppConfig,
+    force_disable: bool,
+) -> RuntimeSystemProxyConfig {
     runtime_system_proxy_config_for_os(config, force_disable, TargetOs::current())
 }
 
@@ -2841,20 +2876,82 @@ fn runtime_system_proxy_config_for_os(
     config: &AppConfig,
     force_disable: bool,
     target_os: TargetOs,
-) -> AppConfig {
-    if force_disable || !should_apply_tun_system_proxy_fallback(config, target_os) {
-        return config.clone();
+) -> RuntimeSystemProxyConfig {
+    let mut runtime = RuntimeSystemProxyConfig {
+        config: config.clone(),
+        force_disable,
+    };
+
+    if force_disable {
+        return runtime;
     }
 
-    let mut adjusted = config.clone();
-    adjusted.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
-    adjusted
+    if should_disable_native_tun_system_proxy(config, target_os) {
+        runtime.force_disable = true;
+        return runtime;
+    }
+
+    if should_apply_tun_system_proxy_fallback(config, target_os) {
+        runtime.config.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
+    }
+
+    runtime
+}
+
+fn should_disable_native_tun_system_proxy(config: &AppConfig, target_os: TargetOs) -> bool {
+    config.tun_mode_item.enable_tun && tun_backend(target_os).is_native()
 }
 
 fn should_apply_tun_system_proxy_fallback(config: &AppConfig, target_os: TargetOs) -> bool {
     config.tun_mode_item.enable_tun
         && config.system_proxy_item.sys_proxy_type == SysProxyType::ForcedClear
         && tun_backend(target_os) == PlatformTunBackend::Process
+}
+
+fn runtime_proxy_url(
+    prefer_proxy: bool,
+    proxy_url: Option<String>,
+    config: &AppConfig,
+) -> Option<String> {
+    runtime_proxy_url_for_os(prefer_proxy, proxy_url, config, TargetOs::current())
+}
+
+fn runtime_proxy_url_for_os(
+    prefer_proxy: bool,
+    proxy_url: Option<String>,
+    config: &AppConfig,
+    target_os: TargetOs,
+) -> Option<String> {
+    let explicit = proxy_url.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    });
+
+    if !prefer_proxy {
+        return explicit;
+    }
+
+    explicit.or_else(|| runtime_default_proxy_url_for_os(config, target_os))
+}
+
+fn runtime_default_proxy_url_for_os(config: &AppConfig, target_os: TargetOs) -> Option<String> {
+    if config.tun_mode_item.enable_tun && tun_backend(target_os).is_native() {
+        return None;
+    }
+
+    let port = config
+        .inbound
+        .first()
+        .map_or(voya_core::DEFAULT_LOCAL_PORT, |inbound| inbound.local_port);
+    if !(1..=65535).contains(&port) {
+        return None;
+    }
+
+    Some(format!("http://127.0.0.1:{port}"))
 }
 
 pub(crate) fn restore_system_proxy<R>(
@@ -3493,13 +3590,28 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-fn emit_tun_changed<R>(app: &tauri::AppHandle<R>, enabled: bool) -> Result<(), AppError>
+fn emit_tun_changed<R>(app: &tauri::AppHandle<R>, status: &TunStatus) -> Result<(), AppError>
 where
     R: tauri::Runtime,
 {
-    TransientStreamEvent::TunChanged(super::events::TunChanged { enabled })
-        .emit(app)
-        .map_err(|error| AppError::EventEmit(error.to_string()))
+    TransientStreamEvent::TunChanged(super::events::TunChanged {
+        enabled: status.enabled,
+        backend: status.backend,
+        provider_state: status.provider_state,
+        native_component_ready: status.native_component_ready,
+        last_provider_error: status.last_provider_error.clone(),
+    })
+    .emit(app)
+    .map_err(|error| AppError::EventEmit(error.to_string()))
+}
+
+fn emit_current_tun_status<R>(app: &tauri::AppHandle<R>, state: &AppState) -> Result<(), AppError>
+where
+    R: tauri::Runtime,
+{
+    let config = current_config(state)?;
+    let status = tun_manager(state).status(&config).map_err(tun_error)?;
+    emit_tun_changed(app, &status)
 }
 
 async fn restart_if_connected_after_routing_change<R>(
@@ -3554,6 +3666,7 @@ where
                     &format!("System proxy apply failed: {error}"),
                 )?,
             }
+            emit_current_tun_status(app, state)?;
             Ok(())
         }
         Err(error) => {
@@ -3564,6 +3677,52 @@ where
             Err(runtime_error(error))
         }
     }
+}
+
+async fn apply_system_proxy_if_connected_after_config_change<R>(
+    app: &tauri::AppHandle<R>,
+    state: &AppState,
+    config: &AppConfig,
+) -> Result<(), AppError>
+where
+    R: tauri::Runtime,
+{
+    let status = runtime_manager(state)
+        .status()
+        .await
+        .map_err(runtime_error)?;
+    if status.state != SupervisorConnectionState::Connected {
+        return Ok(());
+    }
+
+    match apply_system_proxy(app, state, config, false) {
+        Ok(status) => emit_sysproxy_changed(app, &status),
+        Err(error) => {
+            emit_runtime_log(
+                app,
+                LogLevel::Warn,
+                &format!("System proxy apply failed: {error}"),
+            )?;
+            Ok(())
+        }
+    }
+}
+
+fn saved_config_requires_runtime_restart(original: &AppConfig, updated: &AppConfig) -> bool {
+    original.index_id != updated.index_id
+        || original.sub_index_id != updated.sub_index_id
+        || original.core_basic_item != updated.core_basic_item
+        || original.tun_mode_item != updated.tun_mode_item
+        || original.kcp_item != updated.kcp_item
+        || original.grpc_item != updated.grpc_item
+        || original.routing_basic_item != updated.routing_basic_item
+        || original.mux4_ray_item != updated.mux4_ray_item
+        || original.mux4_sbox_item != updated.mux4_sbox_item
+        || original.hysteria_item != updated.hysteria_item
+        || original.clash_ui_item != updated.clash_ui_item
+        || original.fragment4_ray_item != updated.fragment4_ray_item
+        || original.inbound != updated.inbound
+        || original.simple_dns_item != updated.simple_dns_item
 }
 
 fn emit_sysproxy_changed<R>(
@@ -3633,9 +3792,10 @@ mod tests {
         let adjusted = runtime_system_proxy_config_for_os(&config, false, TargetOs::Linux);
 
         assert_eq!(
-            adjusted.system_proxy_item.sys_proxy_type,
+            adjusted.config.system_proxy_item.sys_proxy_type,
             SysProxyType::ForcedChange
         );
+        assert!(!adjusted.force_disable);
         assert_eq!(
             config.system_proxy_item.sys_proxy_type,
             SysProxyType::ForcedClear
@@ -3655,7 +3815,8 @@ mod tests {
 
             let adjusted = runtime_system_proxy_config_for_os(&config, false, TargetOs::Linux);
 
-            assert_eq!(adjusted.system_proxy_item.sys_proxy_type, mode);
+            assert_eq!(adjusted.config.system_proxy_item.sys_proxy_type, mode);
+            assert!(!adjusted.force_disable);
         }
 
         let mut config = AppConfig::default();
@@ -3665,9 +3826,10 @@ mod tests {
         let adjusted = runtime_system_proxy_config_for_os(&config, true, TargetOs::Linux);
 
         assert_eq!(
-            adjusted.system_proxy_item.sys_proxy_type,
+            adjusted.config.system_proxy_item.sys_proxy_type,
             SysProxyType::ForcedClear
         );
+        assert!(adjusted.force_disable);
     }
 
     #[test]
@@ -3680,9 +3842,102 @@ mod tests {
             let adjusted = runtime_system_proxy_config_for_os(&config, false, os);
 
             assert_eq!(
-                adjusted.system_proxy_item.sys_proxy_type,
+                adjusted.config.system_proxy_item.sys_proxy_type,
                 SysProxyType::ForcedClear
             );
+            assert!(adjusted.force_disable);
         }
+    }
+
+    #[test]
+    fn runtime_system_proxy_config_disables_native_tun_proxy_without_mutating_request_mode() {
+        for mode in [SysProxyType::ForcedChange, SysProxyType::Pac] {
+            let mut config = AppConfig::default();
+            config.tun_mode_item.enable_tun = true;
+            config.system_proxy_item.sys_proxy_type = mode;
+
+            let adjusted = runtime_system_proxy_config_for_os(&config, false, TargetOs::Macos);
+
+            assert_eq!(adjusted.config.system_proxy_item.sys_proxy_type, mode);
+            assert!(adjusted.force_disable);
+        }
+    }
+
+    #[test]
+    fn runtime_proxy_url_uses_local_port_when_proxy_is_preferred() {
+        let mut config = AppConfig::default();
+        config.inbound[0].local_port = 11888;
+
+        assert_eq!(
+            runtime_proxy_url_for_os(true, None, &config, TargetOs::Macos).as_deref(),
+            Some("http://127.0.0.1:11888")
+        );
+        assert_eq!(
+            runtime_proxy_url_for_os(
+                true,
+                Some("  socks5://127.0.0.1:2080  ".to_string()),
+                &config,
+                TargetOs::Macos,
+            )
+            .as_deref(),
+            Some("socks5://127.0.0.1:2080")
+        );
+    }
+
+    #[test]
+    fn runtime_proxy_url_skips_host_port_for_native_tun() {
+        let mut config = AppConfig::default();
+        config.tun_mode_item.enable_tun = true;
+
+        assert_eq!(
+            runtime_proxy_url_for_os(true, None, &config, TargetOs::Macos),
+            None
+        );
+        assert_eq!(
+            runtime_proxy_url_for_os(true, None, &config, TargetOs::Windows),
+            None
+        );
+        assert_eq!(
+            runtime_proxy_url_for_os(true, None, &config, TargetOs::Linux).as_deref(),
+            Some("http://127.0.0.1:10808")
+        );
+    }
+
+    #[test]
+    fn saved_config_restart_scope_ignores_ui_only_changes() {
+        let original = AppConfig::default();
+        let mut updated = original.clone();
+        updated.ui_item.current_language = "zh-Hans".to_string();
+        updated.gui_item.enable_log = !updated.gui_item.enable_log;
+
+        assert!(!saved_config_requires_runtime_restart(&original, &updated));
+    }
+
+    #[test]
+    fn saved_config_restart_scope_detects_tun_and_inbound_changes() {
+        let original = AppConfig::default();
+
+        let mut tun_updated = original.clone();
+        tun_updated.tun_mode_item.enable_tun = true;
+        assert!(saved_config_requires_runtime_restart(
+            &original,
+            &tun_updated
+        ));
+
+        let mut inbound_updated = original.clone();
+        inbound_updated.inbound[0].local_port += 1;
+        assert!(saved_config_requires_runtime_restart(
+            &original,
+            &inbound_updated
+        ));
+    }
+
+    #[test]
+    fn saved_config_restart_scope_leaves_system_proxy_for_reapply_only() {
+        let original = AppConfig::default();
+        let mut updated = original.clone();
+        updated.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
+
+        assert!(!saved_config_requires_runtime_restart(&original, &updated));
     }
 }

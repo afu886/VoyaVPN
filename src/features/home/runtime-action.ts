@@ -64,7 +64,11 @@ export function statusToSysProxyChanged(status: SystemProxyStatusResponse): SysP
 
 export function statusToTunChanged(status: TunStatus): TunChanged {
   return {
+    backend: status.backend,
     enabled: status.enabled,
+    lastProviderError: status.lastProviderError,
+    nativeComponentReady: status.nativeComponentReady,
+    providerState: status.providerState,
   };
 }
 
