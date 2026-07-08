@@ -23,13 +23,13 @@ use voya_app::{
         SharedAppConfigSource, StatisticsEventSink, StatisticsManager,
         StatisticsSnapshot as AppStatisticsSnapshot,
     },
-    supervisor::{CoreSupervisor, SupervisorDeps},
+    supervisor::{CoreSupervisor, NativeTunExitEvent, SupervisorDeps, SupervisorEventSink},
     sysproxy::SystemProxyManager,
 };
 use voya_core::{AppConfig, ProfileItem, SysProxyType};
 use voya_db::{AppConfigStore, Database, DATABASE_NAME};
 use voya_platform::{
-    coreinfo::copy_seed_core_assets,
+    coreinfo::{copy_seed_core_assets, TargetOs},
     paths::{core_seed_resources_dir, AppPaths, StorageMode},
     process::{ProcessLogSink, ProcessOutputStream, ProcessRole, StdProcessRunner},
     sysproxy::{platform_pac_manager, SystemProxyService},
@@ -185,13 +185,19 @@ pub fn run() {
                 voya_app::profiles::ProfileExManager::new(&database).init(),
             )?;
             let core_seed_resource_dir = Some(core_seed_resources_dir(app.path().resource_dir()?));
-            if let Some(seed_dir) = &core_seed_resource_dir {
-                if let Err(error) = copy_seed_core_assets(&runtime_paths, seed_dir) {
-                    tracing::warn!(
-                        ?error,
-                        "failed to copy packaged core seed assets at startup"
-                    );
+            match (TargetOs::current(), core_seed_resource_dir.as_ref()) {
+                (TargetOs::Macos, _) => {
+                    tracing::debug!("skipped packaged core seed copy at startup on macOS");
                 }
+                (_, Some(seed_dir)) => {
+                    if let Err(error) = copy_seed_core_assets(&runtime_paths, seed_dir) {
+                        tracing::warn!(
+                            ?error,
+                            "failed to copy packaged core seed assets at startup"
+                        );
+                    }
+                }
+                (_, None) => {}
             }
             let runner: Arc<dyn voya_platform::process::ProcessRunner> = Arc::new(
                 StdProcessRunner::with_log_sink(Arc::new(TauriProcessLogSink {
@@ -208,10 +214,15 @@ pub fn run() {
             }));
             let runtime_handle = tauri::async_runtime::handle();
             let runtime_guard = runtime_handle.inner().enter();
-            let supervisor = CoreSupervisor::spawn(SupervisorDeps::platform_with_runner(
-                Arc::clone(&runner),
-                elevation_manager.state(),
-            ));
+            let supervisor = CoreSupervisor::spawn(
+                SupervisorDeps::platform_with_runner(
+                    Arc::clone(&runner),
+                    elevation_manager.state(),
+                )
+                .with_event_sink(Arc::new(TauriSupervisorEventSink {
+                    app: app.handle().clone(),
+                })),
+            );
             let statistics_manager = StatisticsManager::spawn(
                 database.clone(),
                 supervisor.clone(),
@@ -490,6 +501,57 @@ struct TauriStatisticsEventSink {
 
 struct TauriClashEventSink {
     app: tauri::AppHandle,
+}
+
+struct TauriSupervisorEventSink {
+    app: tauri::AppHandle,
+}
+
+impl SupervisorEventSink for TauriSupervisorEventSink {
+    fn native_tun_exited(&self, event: NativeTunExitEvent) {
+        let app = self.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            let config = match state.config().read() {
+                Ok(guard) => guard.clone(),
+                Err(_) => AppConfig::default(),
+            };
+            let message = format!("Native TUN provider exited: {}", event.message);
+            if let Err(error) =
+                ipc::commands::emit_runtime_log(&app, ipc::events::LogLevel::Error, &message)
+            {
+                tracing::warn!(?error, "failed to emit native TUN exit log");
+            }
+            if let Err(error) = ipc::commands::emit_core_state(
+                &app,
+                ipc::events::CoreState::Disconnected,
+                event.active_profile_id.clone(),
+                None,
+            ) {
+                tracing::warn!(?error, "failed to emit native TUN disconnected state");
+            }
+            if let Err(error) = ipc::commands::restore_system_proxy_after_native_tun_failure(
+                &app,
+                &state,
+                &config,
+                "provider exit",
+            ) {
+                tracing::warn!(
+                    ?error,
+                    "failed to restore system proxy after native TUN provider exit"
+                );
+            }
+            if let Err(error) = ipc::commands::emit_current_tun_status(&app, &state) {
+                tracing::warn!(?error, "failed to emit native TUN status after exit");
+            }
+            if let Err(error) = ipc::commands::emit_statistics_zero(&app) {
+                tracing::warn!(
+                    ?error,
+                    "failed to emit zero statistics after native TUN exit"
+                );
+            }
+        });
+    }
 }
 
 impl StatisticsEventSink for TauriStatisticsEventSink {

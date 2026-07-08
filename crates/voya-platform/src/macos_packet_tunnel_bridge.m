@@ -1,12 +1,16 @@
 #import <Foundation/Foundation.h>
 #import <NetworkExtension/NetworkExtension.h>
+#import <SystemExtensions/SystemExtensions.h>
 #import <dispatch/dispatch.h>
+#import <stdint.h>
 #import <stdlib.h>
 #import <string.h>
 
 static NSString *const VoyaAppGroupIdentifier = @"group.app.voyavpn.desktop";
 static NSString *const VoyaProviderBundleIdentifier = @"app.voyavpn.desktop.PacketTunnel";
 static NSString *const VoyaRuntimeConfigRelativePath = @"Library/Application Support/VoyaVPN/packet-tunnel-runtime.json";
+static NSString *const VoyaProviderStatusRelativePath = @"Library/Application Support/VoyaVPN/packet-tunnel-status.json";
+static NSString *const VoyaProviderLogRelativePath = @"Library/Application Support/VoyaVPN/provider.log";
 static NSString *const VoyaLocalizedDescription = @"VoyaVPN";
 
 static char *VoyaCopyCString(NSString *string) {
@@ -40,6 +44,110 @@ static void VoyaWait(dispatch_semaphore_t semaphore) {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:limit];
         }
     }
+}
+
+static BOOL VoyaWaitWithTimeout(dispatch_semaphore_t semaphore, NSTimeInterval timeoutSeconds) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeoutSeconds];
+    while ([[NSDate date] compare:deadline] == NSOrderedAscending) {
+        if (dispatch_semaphore_wait(semaphore, DISPATCH_TIME_NOW) == 0) {
+            return YES;
+        }
+        if ([NSThread isMainThread]) {
+            NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:0.05];
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:limit];
+        } else {
+            [NSThread sleepForTimeInterval:0.05];
+        }
+    }
+    return NO;
+}
+
+@interface VoyaSystemExtensionActivationDelegate : NSObject <OSSystemExtensionRequestDelegate>
+@property(nonatomic) dispatch_semaphore_t semaphore;
+@property(nonatomic, copy) NSString *result;
+@end
+
+@implementation VoyaSystemExtensionActivationDelegate
+
+- (instancetype)init {
+    self = [super init];
+    if (self != nil) {
+        _semaphore = dispatch_semaphore_create(0);
+    }
+    return self;
+}
+
+- (void)completeWithResult:(NSString *)result {
+    if (self.result.length == 0) {
+        self.result = result;
+        dispatch_semaphore_signal(self.semaphore);
+    }
+}
+
+- (OSSystemExtensionReplacementAction)request:(OSSystemExtensionRequest *)request
+               actionForReplacingExtension:(OSSystemExtensionProperties *)existing
+                              withExtension:(OSSystemExtensionProperties *)extension {
+    (void)request;
+    (void)existing;
+    (void)extension;
+    return OSSystemExtensionReplacementActionReplace;
+}
+
+- (void)requestNeedsUserApproval:(OSSystemExtensionRequest *)request {
+    (void)request;
+    [self completeWithResult:@"permissionRequired:Approve the VoyaVPN PacketTunnel system extension in System Settings, then enable TUN again."];
+}
+
+- (void)request:(OSSystemExtensionRequest *)request didFailWithError:(NSError *)error {
+    (void)request;
+    NSString *message = error.localizedDescription ?: @"unknown System Extension activation error";
+    [self completeWithResult:[@"error:" stringByAppendingString:message]];
+}
+
+- (void)request:(OSSystemExtensionRequest *)request didFinishWithResult:(OSSystemExtensionRequestResult)result {
+    (void)request;
+    switch (result) {
+        case OSSystemExtensionRequestCompleted:
+            [self completeWithResult:@"ok"];
+            break;
+        case OSSystemExtensionRequestWillCompleteAfterReboot:
+            [self completeWithResult:@"error:VoyaVPN PacketTunnel system extension update will complete after reboot."];
+            break;
+    }
+}
+
+@end
+
+static NSURL *VoyaSystemExtensionBundleURL(void) {
+    return [[[NSBundle mainBundle] bundleURL]
+        URLByAppendingPathComponent:@"Contents/Library/SystemExtensions/app.voyavpn.desktop.PacketTunnel.systemextension"
+                        isDirectory:YES];
+}
+
+static BOOL VoyaSystemExtensionIsBundled(void) {
+    NSURL *url = VoyaSystemExtensionBundleURL();
+    return url != nil && [[NSFileManager defaultManager] fileExistsAtPath:url.path];
+}
+
+static NSString *VoyaEnsureSystemExtensionActivated(void) {
+    if (!VoyaSystemExtensionIsBundled()) {
+        return nil;
+    }
+
+    VoyaSystemExtensionActivationDelegate *delegate = [[VoyaSystemExtensionActivationDelegate alloc] init];
+    OSSystemExtensionRequest *request =
+        [OSSystemExtensionRequest activationRequestForExtension:VoyaProviderBundleIdentifier
+                                                          queue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)];
+    request.delegate = delegate;
+    [[OSSystemExtensionManager sharedManager] submitRequest:request];
+
+    if (!VoyaWaitWithTimeout(delegate.semaphore, 20.0)) {
+        return @"error:Timed out waiting for VoyaVPN PacketTunnel system extension activation.";
+    }
+    if ([delegate.result isEqualToString:@"ok"]) {
+        return nil;
+    }
+    return delegate.result ?: @"error:unknown System Extension activation result";
 }
 
 static NSArray<NETunnelProviderManager *> *VoyaLoadAllManagers(NSError **outError) {
@@ -142,7 +250,60 @@ static BOOL VoyaReloadManager(NETunnelProviderManager *manager, NSError **outErr
     return loadError == nil;
 }
 
-static NSURL *VoyaRuntimeConfigURL(NSError **outError) {
+static NSString *VoyaFetchLastDisconnectError(NETunnelProviderSession *session) {
+    if (@available(macOS 13.0, *)) {
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+        __block NSError *disconnectError = nil;
+        [session fetchLastDisconnectErrorWithCompletionHandler:^(NSError *error) {
+            disconnectError = error;
+            dispatch_semaphore_signal(semaphore);
+        }];
+        VoyaWait(semaphore);
+        return disconnectError.localizedDescription ?: @"";
+    }
+
+    return @"";
+}
+
+static char *VoyaCopySessionTerminalError(NETunnelProviderSession *session, NSString *fallback) {
+    NSString *lastError = VoyaFetchLastDisconnectError(session);
+    if (lastError.length > 0) {
+        return VoyaCopyCString([@"error:" stringByAppendingString:lastError]);
+    }
+    return VoyaCopyCString([@"error:" stringByAppendingString:fallback]);
+}
+
+static char *VoyaWaitForConnected(NETunnelProviderSession *session, int64_t timeoutMs) {
+    int64_t effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : 20000;
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:(NSTimeInterval)effectiveTimeoutMs / 1000.0];
+
+    while ([[NSDate date] compare:deadline] == NSOrderedAscending) {
+        switch (session.status) {
+            case NEVPNStatusConnected:
+                return VoyaCopyCString(@"ok");
+            case NEVPNStatusDisconnected:
+                return VoyaCopySessionTerminalError(session, @"VoyaVPN PacketTunnel disconnected before it became ready.");
+            case NEVPNStatusInvalid:
+                return VoyaCopySessionTerminalError(session, @"VoyaVPN PacketTunnel became invalid before it became ready.");
+            case NEVPNStatusConnecting:
+            case NEVPNStatusReasserting:
+            case NEVPNStatusDisconnecting:
+                break;
+        }
+
+        if ([NSThread isMainThread]) {
+            NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:0.2];
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:limit];
+        } else {
+            [NSThread sleepForTimeInterval:0.2];
+        }
+    }
+
+    [session stopVPNTunnel];
+    return VoyaCopyCString(@"error:Timed out waiting for VoyaVPN PacketTunnel to connect.");
+}
+
+static NSURL *VoyaAppGroupURL(NSString *relativePath, NSError **outError) {
     NSURL *container = [[NSFileManager defaultManager]
         containerURLForSecurityApplicationGroupIdentifier:VoyaAppGroupIdentifier];
     if (container == nil) {
@@ -151,15 +312,19 @@ static NSURL *VoyaRuntimeConfigURL(NSError **outError) {
         }
         return nil;
     }
-    return [container URLByAppendingPathComponent:VoyaRuntimeConfigRelativePath];
+    return [container URLByAppendingPathComponent:relativePath];
 }
 
-static BOOL VoyaWriteRuntimeConfig(NSString *configPath, NSString *profileId, NSError **outError) {
+static NSURL *VoyaRuntimeConfigURL(NSError **outError) {
+    return VoyaAppGroupURL(VoyaRuntimeConfigRelativePath, outError);
+}
+
+static NSData *VoyaCreateRuntimeConfigData(NSString *configPath, NSString *profileId, NSError **outError) {
     if (![configPath hasPrefix:@"/"]) {
         if (outError != NULL) {
             *outError = VoyaMakeError(@"config path must be absolute");
         }
-        return NO;
+        return nil;
     }
 
     NSError *readError = nil;
@@ -170,18 +335,24 @@ static BOOL VoyaWriteRuntimeConfig(NSString *configPath, NSString *profileId, NS
         if (outError != NULL) {
             *outError = readError;
         }
-        return NO;
+        return nil;
     }
 
-    NSURL *destination = VoyaRuntimeConfigURL(outError);
-    if (destination == nil) {
-        return NO;
+    NSURL *statusURL = VoyaAppGroupURL(VoyaProviderStatusRelativePath, outError);
+    if (statusURL == nil) {
+        return nil;
+    }
+    NSURL *logURL = VoyaAppGroupURL(VoyaProviderLogRelativePath, outError);
+    if (logURL == nil) {
+        return nil;
     }
 
     NSDictionary *runtimeConfig = @{
         @"version": @1,
         @"activeProfileId": profileId ?: [NSNull null],
         @"mainConfigPath": configPath,
+        @"statusPath": statusURL.path ?: @"",
+        @"logPath": logURL.path ?: @"",
         @"singboxConfigJson": singboxConfigJson ?: @"",
     };
 
@@ -191,6 +362,14 @@ static BOOL VoyaWriteRuntimeConfig(NSString *configPath, NSString *profileId, NS
         if (outError != NULL) {
             *outError = encodeError;
         }
+        return nil;
+    }
+    return data;
+}
+
+static BOOL VoyaWriteRuntimeConfigData(NSData *data, NSError **outError) {
+    NSURL *destination = VoyaRuntimeConfigURL(outError);
+    if (destination == nil) {
         return NO;
     }
 
@@ -240,7 +419,7 @@ char *voya_macos_packet_tunnel_status(void) {
     }
 }
 
-char *voya_macos_packet_tunnel_start(const char *config_path, const char *profile_id) {
+char *voya_macos_packet_tunnel_start(const char *config_path, const char *profile_id, int64_t timeout_ms) {
     @autoreleasepool {
         if (config_path == NULL) {
             return VoyaCopyCString(@"error:missing config path");
@@ -256,8 +435,17 @@ char *voya_macos_packet_tunnel_start(const char *config_path, const char *profil
         }
 
         NSError *error = nil;
-        if (!VoyaWriteRuntimeConfig(configPath, profileId, &error)) {
+        NSData *runtimeConfigData = VoyaCreateRuntimeConfigData(configPath, profileId, &error);
+        if (runtimeConfigData == nil) {
             return VoyaCopyError(error);
+        }
+        if (!VoyaWriteRuntimeConfigData(runtimeConfigData, &error)) {
+            return VoyaCopyError(error);
+        }
+
+        NSString *activationResult = VoyaEnsureSystemExtensionActivated();
+        if (activationResult.length > 0) {
+            return VoyaCopyCString(activationResult);
         }
 
         NETunnelProviderManager *manager = VoyaLoadManager(YES, &error);
@@ -280,10 +468,11 @@ char *voya_macos_packet_tunnel_start(const char *config_path, const char *profil
             return VoyaCopyCString(@"error:VoyaVPN PacketTunnel session is unavailable.");
         }
         NETunnelProviderSession *session = (NETunnelProviderSession *)manager.connection;
-        if (![session startTunnelWithOptions:nil andReturnError:&error]) {
+        NSDictionary<NSString *, NSObject *> *options = @{@"runtimeConfigJson": runtimeConfigData};
+        if (![session startTunnelWithOptions:options andReturnError:&error]) {
             return VoyaCopyError(error);
         }
-        return VoyaCopyCString(@"ok");
+        return VoyaWaitForConnected(session, timeout_ms);
     }
 }
 
@@ -298,6 +487,31 @@ char *voya_macos_packet_tunnel_stop(void) {
             [manager.connection stopVPNTunnel];
         }
         return VoyaCopyCString(@"ok");
+    }
+}
+
+char *voya_macos_packet_tunnel_last_error(void) {
+    @autoreleasepool {
+        NSError *error = nil;
+        NETunnelProviderManager *manager = VoyaLoadManager(NO, &error);
+        if (error != nil) {
+            return VoyaCopyError(error);
+        }
+        if (manager == nil || ![manager.connection isKindOfClass:[NETunnelProviderSession class]]) {
+            return VoyaCopyCString(@"");
+        }
+        return VoyaCopyCString(VoyaFetchLastDisconnectError((NETunnelProviderSession *)manager.connection));
+    }
+}
+
+char *voya_macos_packet_tunnel_container_path(void) {
+    @autoreleasepool {
+        NSURL *container = [[NSFileManager defaultManager]
+            containerURLForSecurityApplicationGroupIdentifier:VoyaAppGroupIdentifier];
+        if (container == nil) {
+            return VoyaCopyCString(@"error:VoyaVPN App Group container is unavailable.");
+        }
+        return VoyaCopyCString(container.path ?: @"");
     }
 }
 

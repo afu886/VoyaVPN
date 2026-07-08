@@ -92,6 +92,7 @@ export {
   systemProxyStatus,
   tunRequestElevation,
   tunRevokeElevation,
+  tunProviderDiagnostics,
   tunStatus,
   updateSubscriptions,
   updateStatus,

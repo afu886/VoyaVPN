@@ -12,8 +12,9 @@ use voya_core::{
 use voya_db::{Database, DbError};
 use voya_platform::{
     coreinfo::{
-        all_core_infos, copy_seed_core_asset, discover_executable, get_core_info, CoreInfo,
-        CoreInfoError, CoreLaunch, CoreSeedCopyOutcome, TargetOs,
+        all_core_infos, copy_seed_core_asset, discover_executable,
+        discover_packaged_seed_executable, get_core_info, CoreInfo, CoreInfoError, CoreLaunch,
+        CoreSeedCopyOutcome, TargetOs,
     },
     paths::{AppPaths, PathError},
     tun::{tun_backend, TunBackend},
@@ -167,8 +168,7 @@ impl<'runtime> RuntimeManager<'runtime> {
     ) -> Result<CoreProcessSpec, RuntimeError> {
         let core_type = context.run_core_type;
         let core_info = get_core_info(core_type).ok_or(RuntimeError::MissingCoreInfo(core_type))?;
-        self.copy_seed_core_asset(core_type)?;
-        let executable = discover_executable(&self.paths, core_info)?;
+        let executable = self.core_executable(core_type, core_info)?;
         let launch = core_launch_plan(core_type, executable, &self.paths, config_file_name)
             .ok_or(RuntimeError::MissingCoreInfo(core_type))?;
 
@@ -176,6 +176,35 @@ impl<'runtime> RuntimeManager<'runtime> {
             .with_config_path(self.paths.bin_config_file(config_file_name))
             .with_display_log(context.node.display_log)
             .with_may_need_sudo(true))
+    }
+
+    fn core_executable(
+        &self,
+        core_type: CoreType,
+        core_info: &CoreInfo,
+    ) -> Result<PathBuf, RuntimeError> {
+        if let Some(executable) = self.packaged_seed_executable(core_info)? {
+            return Ok(executable);
+        }
+
+        self.copy_seed_core_asset(core_type)?;
+        discover_executable(&self.paths, core_info).map_err(Into::into)
+    }
+
+    fn packaged_seed_executable(
+        &self,
+        core_info: &CoreInfo,
+    ) -> Result<Option<PathBuf>, RuntimeError> {
+        if self.target_os != TargetOs::Macos {
+            return Ok(None);
+        }
+
+        let Some(seed_resource_dir) = &self.core_seed_resource_dir else {
+            return Ok(None);
+        };
+
+        discover_packaged_seed_executable(seed_resource_dir, core_info, self.target_os)
+            .map_err(Into::into)
     }
 
     fn copy_seed_core_asset(
@@ -561,6 +590,50 @@ mod tests {
         assert_eq!(spawns.len(), 1);
         assert_eq!(spawns[0].executable, app_data_exe);
         assert_ne!(spawns[0].executable, seed_exe);
+    }
+
+    #[tokio::test]
+    async fn coreinfo_runtime_connect_uses_packaged_seed_directly_on_macos() {
+        let database = Database::connect_in_memory()
+            .await
+            .expect("runtime test operation should succeed");
+        let paths = temp_paths();
+        let seed_root = core_seed_resources_dir(paths.app_dir().join("resources"));
+        let seed_exe = write_seed_core_executable(&seed_root, CoreType::sing_box, b"seed-sing-box");
+        let runner = RecordingRunner::default();
+        let supervisor = CoreSupervisor::spawn(
+            SupervisorDeps::new(
+                Arc::new(runner.clone()),
+                Arc::new(voya_platform::privilege::ElevationState::new()),
+            )
+            .with_target_os(TargetOs::Macos),
+        );
+        let manager =
+            RuntimeManager::with_target_os(&database, paths.clone(), supervisor, TargetOs::Macos)
+                .with_core_seed_resource_dir(seed_root);
+        let config = AppConfig {
+            index_id: "active".to_string(),
+            ..AppConfig::default()
+        };
+        database
+            .profiles()
+            .upsert(&active_singbox_profile("active"))
+            .await
+            .expect("runtime test operation should succeed");
+
+        manager
+            .connect(&config)
+            .await
+            .expect("runtime test operation should succeed");
+
+        let app_data_exe = paths.core_bin_file(
+            core_type_dir_name(CoreType::sing_box),
+            executable_name_for_current_os("sing-box"),
+        );
+        let spawns = runner.spawns();
+        assert_eq!(spawns.len(), 1);
+        assert_eq!(spawns[0].executable, seed_exe);
+        assert!(!app_data_exe.exists());
     }
 
     #[tokio::test]

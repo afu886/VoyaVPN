@@ -46,6 +46,7 @@ fn build_macos_packet_tunnel_bridge() {
     println!("cargo:rustc-link-lib=static=voya_macos_packet_tunnel_bridge");
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=framework=NetworkExtension");
+    println!("cargo:rustc-link-lib=framework=SystemExtensions");
 }
 
 fn path_arg(path: &std::path::Path) -> String {

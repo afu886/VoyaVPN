@@ -21,7 +21,7 @@ import {
   tunStatus,
   useRuntimeEventStore,
 } from "@/ipc";
-import type { SysProxyMode, TunChanged } from "@/ipc/bindings";
+import type { SysProxyMode, TunChanged, TunStatus } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
@@ -256,6 +256,13 @@ export function HomeScreen() {
           });
           return;
         }
+        if (current.providerPathMismatch) {
+          pushToast({
+            description: tunProviderPathMismatchDescription(current),
+            title: t("status.tunEnableFailed"),
+          });
+          return;
+        }
         if (current.requiresElevation && !current.elevationGranted) {
           const granted = await tunRequestElevation();
           if (!granted.elevationGranted) {
@@ -444,6 +451,20 @@ function tunProviderLabel(tun: TunChanged) {
   }
 
   return `${backend}: ${providerState}`;
+}
+
+function tunProviderPathMismatchDescription(status: TunStatus) {
+  const expected = status.expectedProviderPath ? `Expected: ${status.expectedProviderPath}.` : "";
+  const resolved = status.resolvedProviderPath ? `PlugInKit elected: ${status.resolvedProviderPath}.` : "";
+
+  return [
+    "macOS is using a stale PacketTunnel provider.",
+    expected,
+    resolved,
+    "Quit VoyaVPN, run `pnpm native:macos:ne:doctor --fix`, then launch the /Applications copy.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function tunBackendLabel(backend: TunChanged["backend"]) {

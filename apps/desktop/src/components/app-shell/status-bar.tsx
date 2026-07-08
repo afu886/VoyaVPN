@@ -1,14 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Gauge, LoaderCircle, Power, WifiOff } from "lucide-react";
+import { Activity, ClipboardCopy, Gauge, LoaderCircle, Power, WifiOff } from "lucide-react";
 
 import { Badge } from "@voya/ui/components/badge";
+import { Button } from "@voya/ui/components/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@voya/ui/components/tooltip";
 import { useI18n } from "@voya/i18n/use-i18n";
-import { listProfiles, runtimeStatus, useRuntimeEventStore } from "@/ipc";
-import type { CoreStateEvent, RuntimeStatusResponse } from "@/ipc/bindings";
+import { listProfiles, runtimeStatus, tunProviderDiagnostics, useRuntimeEventStore } from "@/ipc";
+import type { CoreStateEvent, RuntimeStatusResponse, TunProviderDiagnostics } from "@/ipc/bindings";
+import { getErrorMessage } from "@voya/utils/error";
 import { formatBytesPerSecond } from "@voya/utils/formatting";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { shellTabRoutes, useShellStore } from "@/stores/shell-store";
+import { useToastStore } from "@/stores/toast-store";
 
 const PROFILES_QUERY_KEY = ["profiles", { filter: "" }] as const;
 
@@ -18,8 +22,10 @@ export function StatusBar() {
   const setCoreState = useRuntimeEventStore((state) => state.setCoreState);
   const statistics = useRuntimeEventStore((state) => state.statistics);
   const activeTab = useShellStore((state) => state.activeTab);
+  const pushToast = useToastStore((state) => state.pushToast);
   const initialStatusGenerationRef = useRef(0);
   const mountedRef = useMountedRef();
+  const [copyingTunDiagnostics, setCopyingTunDiagnostics] = useState(false);
   const profilesQuery = useQuery({
     queryFn: () => listProfiles(null, null),
     queryKey: PROFILES_QUERY_KEY,
@@ -50,6 +56,36 @@ export function StatusBar() {
   const downloadLabel = t("status.download", { speed: formatBytesPerSecond(statistics?.downloadBytesPerSecond ?? 0) });
   const profilesLabel = t("status.profiles", { count: profilesQuery.data?.length ?? 0 });
   const routeLabel = t("status.route", { route: shellTabRoutes[activeTab] });
+  const copyTunDiagnosticsLabel = t("status.copyTunDiagnostics");
+
+  async function copyTunDiagnostics() {
+    if (copyingTunDiagnostics) {
+      return;
+    }
+
+    setCopyingTunDiagnostics(true);
+    try {
+      if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+        throw new Error(t("status.copyTunDiagnosticsClipboardUnavailable"));
+      }
+
+      const diagnostics = await tunProviderDiagnostics();
+      await navigator.clipboard.writeText(formatTunDiagnosticsForClipboard(diagnostics));
+      pushToast({
+        description: t("status.copyTunDiagnosticsCopied"),
+        title: copyTunDiagnosticsLabel,
+      });
+    } catch (error) {
+      pushToast({
+        description: getErrorMessage(error),
+        title: t("status.copyTunDiagnosticsFailed"),
+      });
+    } finally {
+      if (mountedRef.current) {
+        setCopyingTunDiagnostics(false);
+      }
+    }
+  }
 
   return (
     <footer
@@ -104,8 +140,58 @@ export function StatusBar() {
           <Gauge className="size-3.5" aria-hidden="true" />
           <span className="min-w-0 truncate font-mono tabular-nums">{downloadLabel}</span>
         </Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={copyTunDiagnosticsLabel}
+              className="size-6 text-muted-foreground hover:text-foreground"
+              disabled={copyingTunDiagnostics}
+              onClick={() => void copyTunDiagnostics()}
+              size="icon-xs"
+              title={copyTunDiagnosticsLabel}
+              type="button"
+              variant="ghost"
+            >
+              {copyingTunDiagnostics ? (
+                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <ClipboardCopy className="size-3.5" aria-hidden="true" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{copyTunDiagnosticsLabel}</TooltipContent>
+        </Tooltip>
       </div>
     </footer>
+  );
+}
+
+function formatTunDiagnosticsForClipboard(diagnostics: TunProviderDiagnostics) {
+  return JSON.stringify(
+    {
+      type: "voya.tunProviderDiagnostics",
+      backend: diagnostics.backend,
+      packagingMode: diagnostics.packagingMode,
+      systemExtensionState: diagnostics.systemExtensionState,
+      status: {
+        state: diagnostics.statusState,
+        lastError: diagnostics.lastError,
+        message: diagnostics.message,
+      },
+      paths: {
+        container: diagnostics.containerPath,
+        status: diagnostics.statusPath,
+        log: diagnostics.logPath,
+        providerBundle: diagnostics.providerBundlePath,
+        expectedProvider: diagnostics.expectedProviderPath,
+      },
+      registrationPaths: diagnostics.registrationPaths,
+      breadcrumbs: diagnostics.breadcrumbs,
+      providerLogTail: diagnostics.providerLogTail,
+      hostLogTail: diagnostics.hostLogTail,
+    },
+    null,
+    2,
   );
 }
 

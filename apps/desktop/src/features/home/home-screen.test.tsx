@@ -99,8 +99,11 @@ const tunStatusResponse: TunStatus = {
     state: "ready",
     windowsCleanupDevices: [],
   },
+  expectedProviderPath: null,
+  providerPathMismatch: false,
   providerState: "notApplicable",
   requiresElevation: false,
+  resolvedProviderPath: null,
   restoreOnDisconnect: true,
 };
 
@@ -402,6 +405,30 @@ describe("HomeScreen", () => {
     expect(ipcMock.setTunEnabled).not.toHaveBeenCalled();
     expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
       description: "PacketTunnel extension is not bundled in this build",
+      title: "Failed to enable TUN",
+    });
+  });
+
+  it("blocks native TUN enable when PlugInKit elected a stale provider path", async () => {
+    const user = userEvent.setup();
+    ipcMock.tunStatus.mockResolvedValue({
+      ...tunStatusResponse,
+      backend: "macosPacketTunnel",
+      expectedProviderPath:
+        "/Applications/VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex",
+      providerPathMismatch: true,
+      resolvedProviderPath:
+        "/Users/afu/Dev/VoyaVPN/target/native/macos/runtime-kill-tests/profile-only.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex",
+    });
+
+    renderHome();
+
+    await user.click(screen.getByRole("switch", { name: "TUN" }));
+
+    await waitFor(() => expect(ipcMock.tunStatus).toHaveBeenCalled());
+    expect(ipcMock.setTunEnabled).not.toHaveBeenCalled();
+    expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+      description: expect.stringContaining("pnpm native:macos:ne:doctor --fix"),
       title: "Failed to enable TUN",
     });
   });

@@ -126,7 +126,7 @@ Keep these release assets separate in manifests, package resources, and evidence
 
 | Distribution class | Contents | Host or package location | Release gate |
 | --- | --- | --- | --- |
-| Bundled core seed assets | The approved sing-box seed generated during `pnpm install` or stable build preparation. At runtime it is copied from `core-seeds/sing_box/` into app data `bin/sing_box/` before execution. | Stable package resources only; never `bundle.externalBin`, and never executed from the read-only app bundle. | Requires the core redistribution approval record in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), including source URL, license name, SHA-256, byte size, and source availability evidence for the seed file. |
+| Bundled core seed assets | The approved sing-box seed generated during `pnpm install` or stable build preparation. At runtime Linux and Windows copy it from `core-seeds/sing_box/` into app data `bin/sing_box/` before execution; macOS executes the signed packaged seed directly from the app bundle so App Sandbox does not quarantine an app-created executable. | Stable package resources only; never `bundle.externalBin`. macOS seed binaries must be signed as nested code before the containing app is signed. | Requires the core redistribution approval record in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), including source URL, license name, SHA-256, byte size, and source availability evidence for the seed file. |
 | App updater payloads | Signed Tauri application update archives, matching `.sig` files, and `latest.json` metadata. They update the VoyaVPN app package, not proxy cores, geo data, or SRS rulesets. | Approved updater CDN base URL from `VOYAVPN_UPDATES_BASE_URL`. | Requires updater key provisioning, signed payload evidence, app artifact checksums, and OS smoke. |
 
 Bundled sing-box seed assets are the only supported acquisition path for the proxy core. They are updated by shipping a new application package, not by the in-app update manager. Downloadable core CDN assets are not published in this rollout; adding any redistributed core requires a separate release profile and legal notice update.
@@ -211,6 +211,7 @@ Developer ID lane for direct DMG / drag-to-Applications testing:
 
 ```sh
 pnpm native:macos:libbox
+pnpm tauri:build --bundles app
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 export VOYAVPN_CODESIGN_IDENTITY="<Developer ID Application identity>"
 export VOYAVPN_PROVISIONING_PROFILE_DIR="<profile-dir-for-Developer-ID>"
@@ -221,6 +222,7 @@ pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
 pnpm native:macos:app:sign
 pnpm native:macos:tunnel:verify
+pnpm native:macos:dmg
 pnpm native:macos:app:notarize
 ```
 
@@ -228,6 +230,7 @@ App Store/TestFlight lane:
 
 ```sh
 pnpm native:macos:libbox
+pnpm tauri:build --bundles app
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 export VOYAVPN_CODESIGN_IDENTITY="<3rd Party Mac Developer Application or Apple Distribution identity>"
 export VOYAVPN_MACOS_DISTRIBUTION=app-store
@@ -236,6 +239,7 @@ export VOYAVPN_REQUIRE_PROVISIONING=1
 pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
 pnpm native:macos:app:sign
+pnpm native:macos:dmg
 ```
 
 App Store/TestFlight artifacts are submitted through App Store Connect. They are
@@ -259,10 +263,21 @@ profiles and derive `com.apple.application-identifier`,
 `com.apple.developer.team-identifier`, and keychain access group entitlements
 from them.
 
-The staged assets are:
+Use `pnpm tauri:build --bundles app` for macOS native tunnel lanes. The
+PacketTunnel extension is staged after Tauri creates the `.app`; `pnpm
+native:macos:dmg` then creates the DMG from that final signed bundle and mounts
+the image to verify the embedded PacketTunnel before the artifact is accepted.
+Set `VOYAVPN_NOTARY_ARTIFACT` to the generated DMG before
+`pnpm native:macos:app:notarize` when the release artifact itself should be
+submitted and stapled.
 
-- `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
-- `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex/Contents/Frameworks/Libbox.framework`
+The staged PacketTunnel provider depends on the macOS distribution lane:
+
+- Developer ID direct distribution:
+  `VoyaVPN.app/Contents/Library/SystemExtensions/app.voyavpn.desktop.PacketTunnel.systemextension`
+- App Store/TestFlight and unsigned development:
+  `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
+- `Contents/Frameworks/Libbox.framework` under the selected provider bundle
   only when the selected Libbox slice is dynamic.
 
 The macOS app controls `NETunnelProviderManager` in-process. A loose
@@ -270,16 +285,28 @@ The macOS app controls `NETunnelProviderManager` in-process. A loose
 carry a matching embedded provisioning profile for App Store/TestFlight
 NetworkExtension entitlements.
 
+After launching local macOS bundles that contain the PacketTunnel provider,
+check registration health with `pnpm native:macos:ne:doctor`. Stale PlugInKit
+registrations can make app-extension builds start an old appex with the same
+bundle id, while Developer ID System Extension builds must show an activated
+entry in `systemextensionsctl list`. See
+`docs/release/macos-networkextension-troubleshooting.md` for detection and
+repair steps.
+
 If the selected `Libbox.framework` slice is static, `pnpm native:macos:tunnel`
 links the required Libbox symbols into `VoyaPacketTunnel` and does not embed a
 framework in the extension bundle. `pnpm native:macos:tunnel:verify` accepts
 either static symbols or an embedded dynamic framework when
 `VOYAVPN_REQUIRE_LIBBOX=1` is set.
 
-The containing app uses `apps/desktop/src-tauri/entitlements/macos-app.plist`; the extension
-uses `apps/desktop/src-tauri/entitlements/packet-tunnel.plist`. App Store/TestFlight builds
-must provision the matching App Group `group.app.voyavpn.desktop` and Network
-Extension entitlement for `packet-tunnel-provider`. Set
+The containing app uses `apps/desktop/src-tauri/entitlements/macos-app.plist`;
+the provider uses `apps/desktop/src-tauri/entitlements/packet-tunnel.plist`.
+Developer ID direct builds must provision `packet-tunnel-provider-systemextension`
+and package PacketTunnel as `.systemextension`; signing that entitlement into an
+`.appex` causes macOS to reject the provider before `startTunnel` runs. App
+Store/TestFlight builds must provision the matching App Group
+`group.app.voyavpn.desktop` and Network Extension entitlement for
+`packet-tunnel-provider`. Set
 `VOYAVPN_REQUIRE_LIBBOX=1`, `VOYAVPN_REQUIRE_CODESIGN=1`, and
 `VOYAVPN_REQUIRE_PROVISIONING=1` in release lanes so missing libbox, unsigned
 native tunnel assets, or missing profiles fail the build instead of becoming a

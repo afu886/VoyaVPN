@@ -57,6 +57,7 @@ import type {
   SubscriptionUpdateResult,
   SysProxyType,
   SystemProxyStatusResponse,
+  TunProviderDiagnostics,
   TunStatus,
   UpdateRunResult,
   UpdateStatus,
@@ -159,6 +160,10 @@ export async function setSystemProxyMode(mode: SysProxyType): Promise<SystemProx
 
 export async function tunStatus(): Promise<TunStatus> {
   return unwrapCommandResult(await commands.tunStatus());
+}
+
+export async function tunProviderDiagnostics(): Promise<TunProviderDiagnostics> {
+  return unwrapCommandResult(await commands.tunProviderDiagnostics());
 }
 
 export async function setTunEnabled(enabled: boolean): Promise<TunStatus> {

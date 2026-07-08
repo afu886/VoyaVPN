@@ -21,6 +21,7 @@ Build commands:
 pnpm native:macos:libbox
 pnpm native:macos:tunnel
 pnpm native:macos:tunnel:verify
+pnpm native:macos:dmg
 ```
 
 `pnpm native:macos:libbox` clones the pinned sing-box source tag and builds the
@@ -33,10 +34,13 @@ destination with:
 - `VOYAVPN_SING_BOX_SOURCE_DIR`: local sing-box source checkout.
 - `VOYAVPN_LIBBOX_XCFRAMEWORK`: existing or target `Libbox.xcframework` path.
 
-`pnpm native:macos:tunnel` stages:
+`pnpm native:macos:tunnel` stages one PacketTunnel provider shape:
 
-- `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
-- `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex/Contents/Frameworks/Libbox.framework`
+- Developer ID direct distribution:
+  `VoyaVPN.app/Contents/Library/SystemExtensions/app.voyavpn.desktop.PacketTunnel.systemextension`
+- App Store/TestFlight or unsigned development:
+  `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
+- `Contents/Frameworks/Libbox.framework` under the selected provider bundle
   only when the selected `Libbox.xcframework` slice is a dynamic framework.
 
 `voyavpn-macos-tunnelctl` is no longer bundled by default because App
@@ -56,6 +60,12 @@ bundle, set:
 export VOYAVPN_MACOS_APP_BUNDLE="$PWD/target/release/bundle/macos/VoyaVPN.app"
 pnpm native:macos:tunnel
 ```
+
+For release or local TUN-test packaging, build the Tauri macOS bundle with
+`pnpm tauri:build --bundles app`, then run the tunnel staging, signing, and
+`pnpm native:macos:dmg`. The DMG helper copies the final signed `.app` into the
+image and mounts it to verify that the selected PacketTunnel provider bundle
+and `VoyaPacketTunnel` are present before the DMG is accepted.
 
 Set `VOYAVPN_CODESIGN_IDENTITY` to codesign the staged dynamic Libbox framework
 when present and the extension. The final App Store/TestFlight lane must sign
@@ -87,21 +97,26 @@ Set `VOYAVPN_NOTARY_KEYCHAIN` too when the profile lives in a specific keychain.
 Otherwise it uses `VOYAVPN_NOTARY_APPLE_ID`, `VOYAVPN_NOTARY_TEAM_ID`, and
 `VOYAVPN_NOTARY_PASSWORD`. Do not commit these values.
 
-Use a `Developer ID Application` identity plus notarization for a `.app` or
-DMG that users can copy directly to `/Applications`. `3rd Party Mac Developer`
-or Apple Distribution identities are for App Store/TestFlight submission; those
-artifacts should be installed through App Store Connect/TestFlight instead of
-launched directly from Finder. Because VoyaVPN uses Network Extension and App
-Group entitlements, Developer ID direct builds also need Developer ID
-provisioning profiles for the containing app and PacketTunnel extension.
+Use a `Developer ID Application` identity plus notarization and stapling for a
+`.app` or DMG that users can copy directly to `/Applications`. Developer ID
+Network Extension builds must package PacketTunnel as a System Extension and use
+`packet-tunnel-provider-systemextension`; signing that entitlement into an
+`.appex` causes macOS to reject the provider before `startTunnel` runs. `3rd
+Party Mac Developer` or Apple Distribution identities are for App
+Store/TestFlight submission; those artifacts keep the `.appex` shape and should
+be installed through App Store Connect/TestFlight instead of launched directly
+from Finder. Because VoyaVPN uses Network Extension and App Group entitlements,
+Developer ID direct builds also need Developer ID provisioning profiles for the
+containing app and PacketTunnel provider.
 
 Provisioning requirements:
 
 - App ID: `app.voyavpn.desktop`
-- Extension App ID: `app.voyavpn.desktop.PacketTunnel`
+- PacketTunnel App ID: `app.voyavpn.desktop.PacketTunnel`
 - App Group: `group.app.voyavpn.desktop`
-- Network Extension capability with `packet-tunnel-provider` for the containing
-  app and the PacketTunnel extension.
+- Network Extension capability with `packet-tunnel-provider-systemextension`
+  for Developer ID direct distribution, or `packet-tunnel-provider` for App
+  Store/TestFlight and unsigned development.
 
 `pnpm native:macos:tunnel:verify` checks the staged app and PacketTunnel
 extension, either static Libbox symbols or an embedded dynamic
@@ -115,3 +130,34 @@ If `Libbox.xcframework` is absent, the PacketTunnel provider still builds but
 fails closed at runtime with a clear "requires the sing-box Apple/libbox
 runtime" error. It does not report a connected VPN without an active sing-box
 runtime.
+
+## Provider Registration Hygiene
+
+macOS elects app-extension PacketTunnel providers globally by bundle id through
+PlugInKit. Developer ID System Extension builds are tracked through
+`systemextensionsctl` and must be approved by the user the first time they are
+activated.
+
+Check the elected provider with:
+
+```sh
+pnpm native:macos:ne:doctor
+```
+
+After launching local app bundles with the PacketTunnel provider, quit VoyaVPN
+and repair registration state with:
+
+```sh
+pnpm native:macos:ne:doctor --fix
+```
+
+For repo release-bundle tests:
+
+```sh
+pnpm native:macos:ne:doctor --fix --app "$PWD/target/release/bundle/macos/VoyaVPN.app" --dev
+```
+
+Fixtures that do not exercise NetworkExtension should remove both
+`Contents/PlugIns` and `Contents/Library/SystemExtensions` before launch. See
+`docs/release/macos-networkextension-troubleshooting.md` for symptoms, raw
+registration commands, and manual VPN-profile cleanup steps.

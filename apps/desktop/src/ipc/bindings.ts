@@ -35,6 +35,7 @@ export const commands = {
 	systemProxyStatus: () => typedError<SystemProxyStatusResponse, AppError>(__TAURI_INVOKE("system_proxy_status")),
 	setSystemProxyMode: (mode: SysProxyType) => typedError<SystemProxyStatusResponse, AppError>(__TAURI_INVOKE("set_system_proxy_mode", { mode })),
 	tunStatus: () => typedError<TunStatus, AppError>(__TAURI_INVOKE("tun_status")),
+	tunProviderDiagnostics: () => typedError<TunProviderDiagnostics, AppError>(__TAURI_INVOKE("tun_provider_diagnostics")),
 	setTunEnabled: (enabled: boolean) => typedError<TunStatus, AppError>(__TAURI_INVOKE("set_tun_enabled", { enabled })),
 	loadDnsSettings: () => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("load_dns_settings")),
 	saveDnsSettings: (settings: DnsSettings_Deserialize) => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("save_dns_settings", { settings })),
@@ -1508,6 +1509,24 @@ export type TunPreflight = {
 
 export type TunPreflightState = "ready" | "needsElevation" | "manualCheck" | "unsupported";
 
+export type TunProviderDiagnostics = {
+	backend: TunBackend,
+	containerPath: string | null,
+	statusPath: string | null,
+	logPath: string | null,
+	packagingMode: string | null,
+	expectedProviderPath: string | null,
+	systemExtensionState: string | null,
+	registrationPaths: string[],
+	statusState: string | null,
+	lastError: string | null,
+	providerBundlePath: string | null,
+	breadcrumbs: string[],
+	providerLogTail: string[],
+	hostLogTail: string[],
+	message: string | null,
+};
+
 export type TunProviderState = "notApplicable" | "missingComponent" | "permissionRequired" | "stopped" | "starting" | "running" | "error";
 
 export type TunStatus = {
@@ -1521,6 +1540,9 @@ export type TunStatus = {
 	needsServiceInstall: boolean,
 	nativeComponentReady: boolean,
 	lastProviderError: string | null,
+	providerPathMismatch: boolean,
+	resolvedProviderPath: string | null,
+	expectedProviderPath: string | null,
 	restoreOnDisconnect: boolean,
 	preflight: TunPreflight,
 };

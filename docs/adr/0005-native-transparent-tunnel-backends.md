@@ -48,6 +48,10 @@ shared through `voya-core`.
 - Native component absence is reported as an explicit provider state so users
   see "missing PacketTunnel extension" or "missing Windows service" instead of
   a misleading connected state.
+- macOS PacketTunnel registration health must be checked when local `.app`
+  bundles or test fixtures are launched, because PlugInKit elects providers by
+  extension bundle id globally. Use `pnpm native:macos:ne:doctor`; see
+  `docs/release/macos-networkextension-troubleshooting.md`.
 - The temporary system-proxy fallback is only used for the process TUN backend.
   Native backends are expected to capture terminal and app traffic at the OS
   tunnel layer.

@@ -93,6 +93,23 @@ Config generation correctness is judged by the **generated sing-box JSON**, not 
 - The sing-box core binary is **not redistributed by default** (GPL/AGPL). It is fetched on first run: `postinstall` runs `scripts/install-sing-box-core.mjs` (force re-fetch with `pnpm core:sing-box:install`).
 - Locale files (`packages/i18n/src/locales/*.json`) are **imported from v2rayN `.resx` files**, not edited directly. Source dir defaults to `../v2rayN/v2rayN/ServiceLib/Resx` (override with `VOYAVPN_V2RAYN_RESX_DIR`). Run `pnpm i18n:import` to regenerate; `pnpm i18n:check` is a CI gate. `de` is a Voya-managed English fallback (no upstream German resx).
 
+## macOS NetworkExtension hygiene
+
+macOS chooses PacketTunnel providers globally by bundle id through PlugInKit,
+not by the currently launched VoyaVPN app path. Any copied or launched `.app`
+that contains `Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex` can
+become the elected provider for `app.voyavpn.desktop.PacketTunnel`.
+
+- After copying, launching, or testing any `.app` with the PacketTunnel appex,
+  quit VoyaVPN and run `pnpm native:macos:ne:doctor --fix` (add `--app <path>`
+  for a non-`/Applications` bundle and `--dev` for the repo release bundle).
+- Fixtures that do not test NetworkExtension behavior must remove
+  `Contents/PlugIns` before launching the app.
+- Entitlement/provisioning fixtures may keep the production extension id, but
+  cleanup is mandatory before deleting the fixture directories.
+- Do not add `pnpm native:macos:ne:doctor --fix` to CI or broad verification
+  scripts; it intentionally mutates machine-global PlugInKit state.
+
 ## Conventions
 
 - Clippy is strict: `unwrap_used`, `dbg_macro`, `todo`, and `all` are warnings, and CI runs clippy with `-D warnings` — avoid `.unwrap()`/`.expect()` outside tests and setup.

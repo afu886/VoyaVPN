@@ -116,6 +116,7 @@ pub(crate) fn generated_value_for_case(case: &GoldenCase) -> Value {
         "singbox.dns.fakeip_typed" => singbox_fakeip_typed_dns(),
         "singbox.route.rulesets_from_dns" => singbox_rulesets_from_dns(),
         "singbox.inbounds.tun" => singbox_tun_inbounds(),
+        "singbox.inbounds.tun_macos" => singbox_tun_inbounds_macos(),
         "singbox.route.tun" => singbox_tun_route(),
         "singbox.outbound.tuic_tls" => singbox_tuic_tls_outbound(),
         "singbox.outbound.anytls_tls" => singbox_anytls_tls_outbound(),
@@ -432,6 +433,22 @@ fn singbox_tun_inbounds() -> Value {
     let (_, tun_context) = singbox_routing_dns_contexts();
     let generated = generate_singbox_config(&tun_context).expect("sing-box config should generate");
     serde_json::to_value(generated.inbounds).expect("sing-box inbounds serialize")
+}
+
+fn singbox_tun_inbounds_macos() -> Value {
+    let mut tun_config = AppConfig::default();
+    tun_config.tun_mode_item.enable_tun = true;
+    tun_config.tun_mode_item.mtu = 9000;
+    tun_config.tun_mode_item.stack = String::new();
+    tun_config.tun_mode_item.strict_route = true;
+    tun_config.simple_dns_item.add_common_hosts = Some(false);
+    tun_config.simple_dns_item.block_binding_query = Some(false);
+    let mut tun_context = singbox_context(tun_config, singbox_base_remote_node());
+    tun_context.is_tun_enabled = true;
+    tun_context.platform = CoreGenPlatform::MacOS;
+
+    let generated = generate_singbox_config(&tun_context).expect("sing-box config should generate");
+    serde_json::to_value(generated.inbounds).expect("sing-box macOS inbounds serialize")
 }
 
 fn singbox_tun_route() -> Value {

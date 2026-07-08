@@ -53,7 +53,7 @@ use voya_app::subscriptions::{SubscriptionManager, SubscriptionManagerError};
 use voya_app::supervisor::{SupervisorConnectionState, SupervisorError, SupervisorSnapshot};
 use voya_app::sysproxy::SystemProxyManagerError;
 use voya_app::templates::{FullConfigTemplateManager, FullConfigTemplateManagerError};
-use voya_app::tun::{TunManager, TunManagerError, TunStatus};
+use voya_app::tun::{TunManager, TunManagerError, TunProviderDiagnostics, TunStatus};
 use voya_app::updates::{
     ManualAppUpdateLinks, RulesetGeoSourceSettings, UpdateManager, UpdateManagerError,
     UpdateRequestOptions, UpdateResultStatus, UpdateRunResult, UpdateStatus,
@@ -66,7 +66,8 @@ use voya_core::{
 };
 use voya_platform::{
     coreinfo::{
-        copy_seed_core_asset, CoreInfoError, CoreSeedCopyOutcome, CoreSeedCopyStatus, TargetOs,
+        copy_seed_core_asset, discover_packaged_seed_executable, get_core_info, CoreInfoError,
+        CoreSeedCopyOutcome, CoreSeedCopyStatus, TargetOs,
     },
     sysproxy::SystemProxyStatus,
     tun::{tun_backend, TunBackend as PlatformTunBackend},
@@ -498,6 +499,12 @@ pub async fn connect_active_profile<R: tauri::Runtime>(
             let message = error.to_string();
             emit_runtime_log(&app, LogLevel::Error, &message)?;
             emit_core_state(&app, CoreState::Disconnected, None, None)?;
+            restore_system_proxy_after_native_tun_failure(
+                &app,
+                &state,
+                &config,
+                "connect failure",
+            )?;
             record_runtime_start_failure_diagnostics(&state, &config, &error);
             Err(runtime_error(error))
         }
@@ -590,6 +597,12 @@ pub async fn restart_core<R: tauri::Runtime>(
             let message = error.to_string();
             emit_runtime_log(&app, LogLevel::Error, &message)?;
             emit_core_state(&app, CoreState::Disconnected, None, None)?;
+            restore_system_proxy_after_native_tun_failure(
+                &app,
+                &state,
+                &config,
+                "restart failure",
+            )?;
             record_runtime_start_failure_diagnostics(&state, &config, &error);
             Err(runtime_error(error))
         }
@@ -655,6 +668,16 @@ pub fn tun_status(state: tauri::State<'_, AppState>) -> Result<TunStatus, AppErr
     let config = current_config(&state)?;
 
     tun_manager(&state).status(&config).map_err(tun_error)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn tun_provider_diagnostics(
+    state: tauri::State<'_, AppState>,
+) -> Result<TunProviderDiagnostics, AppError> {
+    tun_manager(&state)
+        .provider_diagnostics()
+        .map_err(tun_error)
 }
 
 #[tauri::command]
@@ -2163,6 +2186,21 @@ pub fn install_core_seed(
         });
     };
 
+    if TargetOs::current() == TargetOs::Macos {
+        let core_info = get_core_info(core_type)
+            .ok_or_else(|| core_seed_install_error(CoreInfoError::MissingCoreInfo(core_type)))?;
+        if let Some(executable) =
+            discover_packaged_seed_executable(seed_dir, core_info, TargetOs::Macos)
+                .map_err(core_seed_install_error)?
+        {
+            return Ok(CoreSeedInstallResult {
+                core_type,
+                status: CoreSeedInstallStatus::AlreadyInstalled,
+                installed_files: vec![executable.to_string_lossy().into_owned()],
+            });
+        }
+    }
+
     let outcome = copy_seed_core_asset(state.runtime_paths(), seed_dir, core_type)
         .map_err(core_seed_install_error)?;
 
@@ -2969,6 +3007,32 @@ where
         .map_err(sysproxy_error)
 }
 
+pub(crate) fn restore_system_proxy_after_native_tun_failure<R>(
+    app: &tauri::AppHandle<R>,
+    state: &AppState,
+    config: &AppConfig,
+    reason: &str,
+) -> Result<(), AppError>
+where
+    R: tauri::Runtime,
+{
+    if !should_disable_native_tun_system_proxy(config, TargetOs::current()) {
+        return Ok(());
+    }
+
+    match restore_system_proxy(app, state) {
+        Ok(status) => emit_sysproxy_changed(app, &status),
+        Err(error) => {
+            emit_runtime_log(
+                app,
+                LogLevel::Warn,
+                &format!("System proxy restore after native TUN {reason} failed: {error:?}"),
+            )?;
+            Ok(())
+        }
+    }
+}
+
 fn runtime_status_response(snapshot: SupervisorSnapshot) -> RuntimeStatusResponse {
     RuntimeStatusResponse {
         state: match snapshot.state {
@@ -3000,7 +3064,7 @@ fn system_proxy_status_response(status: SystemProxyStatus) -> SystemProxyStatusR
     }
 }
 
-fn emit_runtime_log<R>(
+pub(crate) fn emit_runtime_log<R>(
     app: &tauri::AppHandle<R>,
     level: LogLevel,
     line: &str,
@@ -3017,7 +3081,7 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-fn emit_core_state<R>(
+pub(crate) fn emit_core_state<R>(
     app: &tauri::AppHandle<R>,
     state: CoreState,
     active_profile_id: Option<String>,
@@ -3031,7 +3095,7 @@ where
         .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-fn emit_statistics_zero<R>(app: &tauri::AppHandle<R>) -> Result<(), AppError>
+pub(crate) fn emit_statistics_zero<R>(app: &tauri::AppHandle<R>) -> Result<(), AppError>
 where
     R: tauri::Runtime,
 {
@@ -3276,7 +3340,9 @@ fn sysproxy_error(error: SystemProxyManagerError) -> AppError {
 fn tun_error(error: TunManagerError) -> AppError {
     match error {
         TunManagerError::ElevationRequired => AppError::Sudo(error.to_string()),
-        TunManagerError::UnsupportedPlatform => AppError::Tun(error.to_string()),
+        TunManagerError::UnsupportedPlatform | TunManagerError::ProviderPathMismatch { .. } => {
+            AppError::Tun(error.to_string())
+        }
     }
 }
 
@@ -3590,7 +3656,10 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-fn emit_tun_changed<R>(app: &tauri::AppHandle<R>, status: &TunStatus) -> Result<(), AppError>
+pub(crate) fn emit_tun_changed<R>(
+    app: &tauri::AppHandle<R>,
+    status: &TunStatus,
+) -> Result<(), AppError>
 where
     R: tauri::Runtime,
 {
@@ -3605,7 +3674,10 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-fn emit_current_tun_status<R>(app: &tauri::AppHandle<R>, state: &AppState) -> Result<(), AppError>
+pub(crate) fn emit_current_tun_status<R>(
+    app: &tauri::AppHandle<R>,
+    state: &AppState,
+) -> Result<(), AppError>
 where
     R: tauri::Runtime,
 {
@@ -3673,6 +3745,12 @@ where
             let message = error.to_string();
             emit_runtime_log(app, LogLevel::Error, &message)?;
             emit_core_state(app, CoreState::Disconnected, None, None)?;
+            restore_system_proxy_after_native_tun_failure(
+                app,
+                state,
+                config,
+                "config-change restart failure",
+            )?;
             record_runtime_start_failure_diagnostics(state, config, &error);
             Err(runtime_error(error))
         }

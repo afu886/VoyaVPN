@@ -314,6 +314,47 @@ pub fn discover_executable(
     })
 }
 
+pub fn discover_packaged_seed_executable(
+    seed_resources_dir: impl AsRef<Path>,
+    core_info: &CoreInfo,
+    target_os: TargetOs,
+) -> Result<Option<PathBuf>, CoreInfoError> {
+    let search_dir =
+        core_seed_resource_dir(seed_resources_dir, core_type_dir_name(core_info.core_type));
+
+    match search_dir.try_exists() {
+        Ok(false) => return Ok(None),
+        Ok(true) => {}
+        Err(source) => {
+            return Err(CoreInfoError::InspectCoreSeed {
+                path: search_dir,
+                source,
+            });
+        }
+    }
+
+    if !search_dir.is_dir() {
+        return Err(CoreInfoError::InvalidCoreSeedDir { path: search_dir });
+    }
+
+    for name in core_info.executable_names_for_os(target_os) {
+        let executable_name = executable_name_for_os(name, target_os);
+        let candidate = search_dir.join(executable_name);
+        match candidate.try_exists() {
+            Ok(true) if candidate.is_file() => return Ok(Some(candidate)),
+            Ok(_) => {}
+            Err(source) => {
+                return Err(CoreInfoError::InspectExecutable {
+                    path: candidate,
+                    source,
+                });
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 pub fn copy_seed_core_assets(
     paths: &AppPaths,
     seed_resources_dir: impl AsRef<Path>,
@@ -670,6 +711,26 @@ mod tests {
         assert!(!paths
             .core_bin_dir(core_type_dir_name(CoreType::sing_box))
             .exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn coreinfo_discovers_packaged_seed_executable_without_copying() {
+        let root = unique_temp_root("seed-discover");
+        let seed_root = core_seed_resources_dir(root.join("resources"));
+        let sing_box = get_core_info(CoreType::sing_box).expect("sing-box core info");
+        let seed_exe = seed_root
+            .join(core_type_dir_name(CoreType::sing_box))
+            .join(executable_name_for_current_os("sing-box"));
+        fs::create_dir_all(seed_exe.parent().expect("seed exe parent")).expect("create seed dir");
+        fs::write(&seed_exe, b"seed-sing-box").expect("write seed exe");
+
+        let discovered =
+            discover_packaged_seed_executable(&seed_root, sing_box, TargetOs::current())
+                .expect("discover packaged seed executable");
+
+        assert_eq!(discovered, Some(seed_exe));
 
         let _ = fs::remove_dir_all(root);
     }

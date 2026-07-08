@@ -15,7 +15,7 @@
   <key>CFBundleName</key>
   <string>VoyaVPN PacketTunnel</string>
   <key>CFBundlePackageType</key>
-  <string>XPC!</string>
+  <string>$(BUNDLE_PACKAGE_TYPE)</string>
   <key>CFBundleShortVersionString</key>
   <string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key>

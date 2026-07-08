@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,7 +9,9 @@ import type {
   ProfileListItem_Serialize,
   RuntimeStatusResponse,
   StatisticsSnapshot,
+  TunProviderDiagnostics,
 } from "@/ipc/bindings";
+import { useToastStore } from "@/stores/toast-store";
 
 import { StatusBar } from "./status-bar";
 
@@ -43,11 +46,37 @@ const disconnectedStatus: RuntimeStatusResponse = {
 vi.mock("@/ipc", () => ({
   listProfiles: vi.fn(() => Promise.resolve([])),
   runtimeStatus: vi.fn(() => Promise.resolve(disconnectedStatus)),
+  tunProviderDiagnostics: vi.fn(),
   useRuntimeEventStore: runtimeMock.useRuntimeEventStore,
 }));
 
-import { listProfiles, runtimeStatus } from "@/ipc";
+import { listProfiles, runtimeStatus, tunProviderDiagnostics } from "@/ipc";
 import { useShellStore } from "@/stores/shell-store";
+
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+const packetTunnelDiagnostics: TunProviderDiagnostics = {
+  backend: "macosPacketTunnel",
+  breadcrumbs: ["startTunnel entered", "startTunnel failed: The VPN session failed."],
+  containerPath: "/Users/test/Library/Group Containers/group.app.voyavpn.desktop",
+  lastError: "The VPN session failed because an internal error occurred.",
+  logPath:
+    "/Users/test/Library/Group Containers/group.app.voyavpn.desktop/Library/Application Support/VoyaVPN/provider.log",
+  message: null,
+  expectedProviderPath:
+    "/Applications/VoyaVPN.app/Contents/Library/SystemExtensions/app.voyavpn.desktop.PacketTunnel.systemextension",
+  hostLogTail: ["nesessionmanager: Validation failed - no audit tokens"],
+  packagingMode: "systemExtension",
+  providerBundlePath: "/Applications/VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex",
+  providerLogTail: ["2026-07-08T10:00:00Z failed: The VPN session failed."],
+  registrationPaths: [
+    "4LUKJ56532 app.voyavpn.desktop.PacketTunnel (0.1.0/1) VoyaVPN PacketTunnel [activated enabled]",
+  ],
+  statusPath:
+    "/Users/test/Library/Group Containers/group.app.voyavpn.desktop/Library/Application Support/VoyaVPN/packet-tunnel-status.json",
+  statusState: "failed",
+  systemExtensionState: "activated enabled",
+};
 
 function profilesOfLength(count: number) {
   return Array.from({ length: count }) as unknown as ProfileListItem_Serialize[];
@@ -130,12 +159,16 @@ describe("StatusBar", () => {
     runtimeMock.state.statistics = null;
     vi.mocked(runtimeMock.state.setCoreState).mockClear();
     useShellStore.setState({ activeTab: "home" });
+    useToastStore.setState({ toasts: [] });
     vi.mocked(listProfiles).mockResolvedValue([]);
     vi.mocked(runtimeStatus).mockResolvedValue(disconnectedStatus);
+    vi.mocked(tunProviderDiagnostics).mockReset();
+    vi.mocked(tunProviderDiagnostics).mockResolvedValue(packetTunnelDiagnostics);
   });
 
   afterEach(() => {
     cleanup();
+    restoreClipboard();
   });
 
   it("renders the real profile count from the profiles query", async () => {
@@ -215,4 +248,82 @@ describe("StatusBar", () => {
     expect(screen.getByTestId("status-bar")).not.toHaveTextContent("sing-box");
     expect(screen.getByTestId("status-bar")).toHaveTextContent("PID 100");
   });
+
+  it("copies TUN provider diagnostics from the status bar", async () => {
+    const user = userEvent.setup();
+    const writeText = mockClipboardWriteText();
+
+    renderStatusBar();
+
+    await user.click(screen.getByRole("button", { name: "Copy TUN diagnostics" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const payload = JSON.parse(String(writeText.mock.calls[0]?.[0]));
+
+    expect(tunProviderDiagnostics).toHaveBeenCalledTimes(1);
+    expect(payload).toMatchObject({
+      backend: "macosPacketTunnel",
+      packagingMode: "systemExtension",
+      paths: {
+        expectedProvider:
+          "/Applications/VoyaVPN.app/Contents/Library/SystemExtensions/app.voyavpn.desktop.PacketTunnel.systemextension",
+        providerBundle: "/Applications/VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex",
+      },
+      status: {
+        lastError: "The VPN session failed because an internal error occurred.",
+        state: "failed",
+      },
+      type: "voya.tunProviderDiagnostics",
+    });
+    expect(payload.providerLogTail).toEqual(["2026-07-08T10:00:00Z failed: The VPN session failed."]);
+    expect(payload.hostLogTail).toEqual(["nesessionmanager: Validation failed - no audit tokens"]);
+    expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+      description: "TUN diagnostics copied to clipboard.",
+      title: "Copy TUN diagnostics",
+    });
+  });
+
+  it("shows a toast when TUN diagnostics cannot be copied", async () => {
+    const user = userEvent.setup();
+    mockClipboardUnavailable();
+
+    renderStatusBar();
+
+    await user.click(screen.getByRole("button", { name: "Copy TUN diagnostics" }));
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+        description: "Clipboard write is unavailable in this context.",
+        title: "Failed to copy TUN diagnostics",
+      }),
+    );
+    expect(tunProviderDiagnostics).not.toHaveBeenCalled();
+  });
 });
+
+function mockClipboardWriteText() {
+  const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+
+  return writeText;
+}
+
+function mockClipboardUnavailable() {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: undefined,
+  });
+}
+
+function restoreClipboard() {
+  if (originalClipboardDescriptor) {
+    Object.defineProperty(navigator, "clipboard", originalClipboardDescriptor);
+    return;
+  }
+
+  Reflect.deleteProperty(navigator, "clipboard");
+}

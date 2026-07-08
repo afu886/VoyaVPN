@@ -29,6 +29,7 @@ macro_rules! collect_ipc_commands {
             commands::system_proxy_status,
             commands::set_system_proxy_mode::<tauri::Wry>,
             commands::tun_status,
+            commands::tun_provider_diagnostics,
             commands::set_tun_enabled::<tauri::Wry>,
             commands::load_dns_settings,
             commands::save_dns_settings::<tauri::Wry>,
@@ -176,6 +177,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_core::SpeedActionType>()
         .typ::<voya_app::tun::TunStatus>()
         .typ::<voya_app::tun::TunPreflight>()
+        .typ::<voya_app::tun::TunProviderDiagnostics>()
         .typ::<voya_core::ProfileExItem>()
         .typ::<voya_core::ProfileListItem>()
         .typ::<voya_core::ProfileDedupeResult>()

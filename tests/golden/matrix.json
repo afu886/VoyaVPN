@@ -163,6 +163,24 @@
       "volatile_fields": []
     },
     {
+      "id": "singbox-tun-inbounds-macos",
+      "core": "sing-box",
+      "fixture": "singbox/inbounds/tun_macos.json",
+      "generated": "singbox.inbounds.tun_macos",
+      "summary": "sing-box macOS PacketTunnel inbound shape with utun allocation, IPv6 address, safe MTU, gVisor default stack, and platform HTTP proxy.",
+      "hotspots": [
+        "tun",
+        "inbounds",
+        "macos"
+      ],
+      "reference_paths": [
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxInboundService.cs",
+        "ServiceLib/Sample/tun_singbox_inbound"
+      ],
+      "core_acceptance": false,
+      "volatile_fields": []
+    },
+    {
       "id": "singbox-tun-route",
       "core": "sing-box",
       "fixture": "singbox/route/tun.json",

@@ -13,26 +13,35 @@ import {
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import {
+  appBundleIdentifier,
+  incompatiblePacketTunnelBundle,
+  packetTunnelBundleIdentifier,
+  packetTunnelLayout,
+  requiredNetworkExtensionValue,
+  distributionFromIdentityName,
+} from "./macos-native-tunnel-layout.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const nativeRoot = resolve(repoRoot, "apps", "desktop", "src-tauri", "native", "macos");
 const outRoot = resolve(repoRoot, "target", "native", "macos");
 const appBundle = resolve(process.env.VOYAVPN_MACOS_APP_BUNDLE || resolve(outRoot, "VoyaVPN.app"));
 const appContents = resolve(appBundle, "Contents");
-const appBundleIdentifier = "app.voyavpn.desktop";
-const packetTunnelBundleIdentifier = "app.voyavpn.desktop.PacketTunnel";
 const helperSource = resolve(nativeRoot, "TunnelHelper", "VoyaPacketTunnelManager.swift");
 const providerSource = resolve(nativeRoot, "PacketTunnel", "PacketTunnelProvider.swift");
 const helperOut = resolve(appContents, "MacOS", "voyavpn-macos-tunnelctl");
-const appexContents = resolve(appContents, "PlugIns", "app.voyavpn.desktop.PacketTunnel.appex", "Contents");
-const appexBundle = resolve(appexContents, "..");
-const appexBinary = resolve(appexContents, "MacOS", "VoyaPacketTunnel");
-const appexFrameworks = resolve(appexContents, "Frameworks");
+const macosDistribution = distributionMode(process.env.VOYAVPN_CODESIGN_IDENTITY);
+const tunnelLayout = packetTunnelLayout(appContents, macosDistribution);
+const incompatibleTunnelBundle = incompatiblePacketTunnelBundle(appContents, macosDistribution);
+const appexContents = tunnelLayout.contents;
+const appexBundle = tunnelLayout.bundle;
+const appexBinary = tunnelLayout.binary;
+const appexFrameworks = tunnelLayout.frameworks;
 const appProvisioningProfileDestination = resolve(appContents, "embedded.provisionprofile");
-const packetTunnelProvisioningProfileDestination = resolve(appexContents, "embedded.provisionprofile");
+const packetTunnelProvisioningProfileDestination = tunnelLayout.provisioningProfile;
 const defaultLibboxXCFramework = resolve(nativeRoot, "Frameworks", "Libbox.xcframework");
 const libboxXCFramework = resolve(process.env.VOYAVPN_LIBBOX_XCFRAMEWORK || defaultLibboxXCFramework);
-const embeddedLibboxFramework = resolve(appexFrameworks, "Libbox.framework");
+const embeddedLibboxFramework = tunnelLayout.embeddedLibboxFramework;
 const appEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "macos-app.plist");
 const packetTunnelEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "packet-tunnel.plist");
 const defaultProvisioningProfileDir = resolve(repoRoot, "..", "docs", "certs");
@@ -71,20 +80,6 @@ function truthy(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
 }
 
-function normalizeDistribution(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (!normalized || normalized === "auto") {
-    return "auto";
-  }
-  if (["developer-id", "developerid", "notarized", "dmg"].includes(normalized)) {
-    return "developer-id";
-  }
-  if (["app-store", "appstore", "testflight", "mas"].includes(normalized)) {
-    return "app-store";
-  }
-  throw new Error("VOYAVPN_MACOS_DISTRIBUTION must be auto, developer-id, or app-store.");
-}
-
 function signingIdentityName(identity) {
   if (!identity) {
     return "";
@@ -104,18 +99,7 @@ function signingIdentityName(identity) {
 }
 
 function distributionMode(identity) {
-  const explicit = normalizeDistribution(process.env.VOYAVPN_MACOS_DISTRIBUTION);
-  if (explicit !== "auto") {
-    return explicit;
-  }
-  const name = signingIdentityName(identity);
-  if (name.includes("3rd Party Mac Developer") || name.includes("Apple Distribution")) {
-    return "app-store";
-  }
-  if (name.includes("Developer ID Application")) {
-    return "developer-id";
-  }
-  return "developer-id";
+  return distributionFromIdentityName(signingIdentityName(identity), process.env.VOYAVPN_MACOS_DISTRIBUTION);
 }
 
 function requireDarwin() {
@@ -331,9 +315,7 @@ function validateProvisioningProfile(profile, label, bundleIdentifier, distribut
     throw new Error(`${label} provisioning profile application identifier does not match its team identifier.`);
   }
   requireProfileCapability(profile, label, "appGroups", ["group.app.voyavpn.desktop"]);
-  requireProfileCapability(profile, label, "networkExtensions", [
-    distribution === "developer-id" ? "packet-tunnel-provider-systemextension" : "packet-tunnel-provider",
-  ]);
+  requireProfileCapability(profile, label, "networkExtensions", [requiredNetworkExtensionValue(distribution)]);
 }
 
 function profileOrWarn(bundleIdentifier, envName, label, distribution) {
@@ -365,12 +347,21 @@ function plistStringArray(values) {
   return `<array>\n${values.map((value) => `    <string>${escapeXml(value)}</string>`).join("\n")}\n  </array>`;
 }
 
-function writeProfileEntitlements(profile, destination) {
+function baseEntitlementEnabled(baseEntitlements, keyPath) {
+  return plistBuddy(baseEntitlements, keyPath, true) === "true";
+}
+
+function writeProfileEntitlements(profile, destination, baseEntitlements) {
   mkdirSync(dirname(destination), { recursive: true });
   const keychainAccessGroups = profile.keychainAccessGroups.length
     ? profile.keychainAccessGroups
     : [`${profile.teamIdentifier}.*`];
   const appGroups = profile.appGroups.length ? profile.appGroups : ["group.app.voyavpn.desktop"];
+  const appSandbox = profile.appSandbox || baseEntitlementEnabled(baseEntitlements, ":com.apple.security.app-sandbox");
+  const networkClient = profile.networkClient || baseEntitlementEnabled(baseEntitlements, ":com.apple.security.network.client");
+  const systemExtensionInstall =
+    profile.systemExtensionInstall ||
+    baseEntitlementEnabled(baseEntitlements, ":com.apple.developer.system-extension.install");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -379,13 +370,13 @@ function writeProfileEntitlements(profile, destination) {
   <string>${escapeXml(profile.applicationIdentifier)}</string>
   <key>com.apple.developer.networking.networkextension</key>
   ${plistStringArray(profile.networkExtensions)}
-  ${profile.systemExtensionInstall ? "<key>com.apple.developer.system-extension.install</key>\n  <true/>" : ""}
+  ${systemExtensionInstall ? "<key>com.apple.developer.system-extension.install</key>\n  <true/>" : ""}
   <key>com.apple.developer.team-identifier</key>
   <string>${escapeXml(profile.teamIdentifier)}</string>
-  ${profile.appSandbox ? "<key>com.apple.security.app-sandbox</key>\n  <true/>" : ""}
+  ${appSandbox ? "<key>com.apple.security.app-sandbox</key>\n  <true/>" : ""}
   <key>com.apple.security.application-groups</key>
   ${plistStringArray(appGroups)}
-  ${profile.networkClient ? "<key>com.apple.security.network.client</key>\n  <true/>" : ""}
+  ${networkClient ? "<key>com.apple.security.network.client</key>\n  <true/>" : ""}
   <key>keychain-access-groups</key>
   ${plistStringArray(keychainAccessGroups)}
 </dict>
@@ -399,7 +390,7 @@ function entitlementsForSigning(baseEntitlements, profile, name) {
   if (!profile) {
     return baseEntitlements;
   }
-  return writeProfileEntitlements(profile, resolve(generatedEntitlementsDir, name));
+  return writeProfileEntitlements(profile, resolve(generatedEntitlementsDir, name), baseEntitlements);
 }
 
 function stageProvisioningProfiles() {
@@ -554,6 +545,7 @@ function buildPacketTunnel() {
     console.warn(message);
   }
 
+  rmSync(incompatibleTunnelBundle, { force: true, recursive: true });
   mkdirSync(dirname(appexBinary), { recursive: true });
   const args = [
     "swiftc",
@@ -609,6 +601,7 @@ function buildPacketTunnel() {
       "$(EXECUTABLE_NAME)": "VoyaPacketTunnel",
       "$(MARKETING_VERSION)": "0.1.0",
       "$(CURRENT_PROJECT_VERSION)": "1",
+      "$(BUNDLE_PACKAGE_TYPE)": tunnelLayout.infoPackageType,
     },
   );
 
@@ -675,7 +668,9 @@ function main() {
   buildPacketTunnel();
   const profiles = stageProvisioningProfiles();
   maybeCodesign(profiles);
-  console.log(`macOS native tunnel staged in ${appBundle}`);
+  console.log(
+    `macOS native tunnel staged for ${macosDistribution} as ${tunnelLayout.label}: ${appexBundle}`,
+  );
 }
 
 try {

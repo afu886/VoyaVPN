@@ -2,24 +2,30 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  appBundleIdentifier,
+  packetTunnelBundleIdentifier,
+  packetTunnelLayout,
+  requiredNetworkExtensionValue,
+  distributionFromIdentityName,
+} from "./macos-native-tunnel-layout.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outRoot = resolve(repoRoot, "target", "native", "macos");
 const appBundle = resolve(process.env.VOYAVPN_MACOS_APP_BUNDLE || resolve(repoRoot, "target", "native", "macos", "VoyaVPN.app"));
 const appContents = resolve(appBundle, "Contents");
 const appInfoPlist = resolve(appContents, "Info.plist");
-const appBundleIdentifier = "app.voyavpn.desktop";
-const packetTunnelBundleIdentifier = "app.voyavpn.desktop.PacketTunnel";
 const legacyTunnelHelper = resolve(appContents, "MacOS", "voyavpn-macos-tunnelctl");
-const packetTunnelBundle = resolve(appContents, "PlugIns", "app.voyavpn.desktop.PacketTunnel.appex");
-const packetTunnelProvisioningProfileDestination = resolve(packetTunnelBundle, "Contents", "embedded.provisionprofile");
-const embeddedLibboxFramework = resolve(packetTunnelBundle, "Contents", "Frameworks", "Libbox.framework");
 const appProvisioningProfileDestination = resolve(appContents, "embedded.provisionprofile");
 const appEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "macos-app.plist");
 const packetTunnelEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "packet-tunnel.plist");
 const defaultProvisioningProfileDir = resolve(repoRoot, "..", "docs", "certs");
 const provisioningProfileDir = resolve(process.env.VOYAVPN_PROVISIONING_PROFILE_DIR || defaultProvisioningProfileDir);
 const generatedEntitlementsDir = resolve(outRoot, "generated-entitlements");
+let tunnelLayout;
+let packetTunnelBundle;
+let packetTunnelProvisioningProfileDestination;
+let embeddedLibboxFramework;
 
 function truthy(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
@@ -60,20 +66,6 @@ function capture(program, args, options = {}) {
   return result.stdout;
 }
 
-function normalizeDistribution(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (!normalized || normalized === "auto") {
-    return "auto";
-  }
-  if (["developer-id", "developerid", "notarized", "dmg"].includes(normalized)) {
-    return "developer-id";
-  }
-  if (["app-store", "appstore", "testflight", "mas"].includes(normalized)) {
-    return "app-store";
-  }
-  throw new Error("VOYAVPN_MACOS_DISTRIBUTION must be auto, developer-id, or app-store.");
-}
-
 function signingIdentityName(identity) {
   const list = capture("security", ["find-identity", "-p", "codesigning"]);
   const lines = list.split(/\r?\n/);
@@ -91,19 +83,7 @@ function signingIdentityName(identity) {
 }
 
 function distributionMode(identity) {
-  const explicit = normalizeDistribution(process.env.VOYAVPN_MACOS_DISTRIBUTION);
-  if (explicit !== "auto") {
-    return explicit;
-  }
-
-  const name = signingIdentityName(identity);
-  if (name.includes("3rd Party Mac Developer")) {
-    return "app-store";
-  }
-  if (name.includes("Developer ID Application")) {
-    return "developer-id";
-  }
-  return "developer-id";
+  return distributionFromIdentityName(signingIdentityName(identity), process.env.VOYAVPN_MACOS_DISTRIBUTION);
 }
 
 function plistBuddy(plistPath, keyPath, optional = false) {
@@ -266,7 +246,7 @@ function validateProvisioningProfile(profile, distribution, label, bundleIdentif
     throw new Error(`${label} provisioning profile does not include group.app.voyavpn.desktop.`);
   }
   if (!profile.networkExtensions.includes("packet-tunnel-provider")) {
-    const requiredValue = distribution === "developer-id" ? "packet-tunnel-provider-systemextension" : "packet-tunnel-provider";
+    const requiredValue = requiredNetworkExtensionValue(distribution);
     if (!profile.networkExtensions.includes(requiredValue)) {
       throw new Error(`${label} provisioning profile does not include ${requiredValue}.`);
     }
@@ -286,13 +266,22 @@ function plistStringArray(values) {
   return `<array>\n${values.map((value) => `    <string>${escapeXml(value)}</string>`).join("\n")}\n  </array>`;
 }
 
-function writeProfileEntitlements(profile, name) {
+function baseEntitlementEnabled(baseEntitlements, keyPath) {
+  return plistBuddy(baseEntitlements, keyPath, true) === "true";
+}
+
+function writeProfileEntitlements(profile, name, baseEntitlements) {
   mkdirSync(generatedEntitlementsDir, { recursive: true });
   const destination = resolve(generatedEntitlementsDir, name);
   const keychainAccessGroups = profile.keychainAccessGroups.length
     ? profile.keychainAccessGroups
     : [`${profile.teamIdentifier}.*`];
   const appGroups = profile.appGroups.length ? profile.appGroups : ["group.app.voyavpn.desktop"];
+  const appSandbox = profile.appSandbox || baseEntitlementEnabled(baseEntitlements, ":com.apple.security.app-sandbox");
+  const networkClient = profile.networkClient || baseEntitlementEnabled(baseEntitlements, ":com.apple.security.network.client");
+  const systemExtensionInstall =
+    profile.systemExtensionInstall ||
+    baseEntitlementEnabled(baseEntitlements, ":com.apple.developer.system-extension.install");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -301,13 +290,13 @@ function writeProfileEntitlements(profile, name) {
   <string>${escapeXml(profile.applicationIdentifier)}</string>
   <key>com.apple.developer.networking.networkextension</key>
   ${plistStringArray(profile.networkExtensions)}
-  ${profile.systemExtensionInstall ? "<key>com.apple.developer.system-extension.install</key>\n  <true/>" : ""}
+  ${systemExtensionInstall ? "<key>com.apple.developer.system-extension.install</key>\n  <true/>" : ""}
   <key>com.apple.developer.team-identifier</key>
   <string>${escapeXml(profile.teamIdentifier)}</string>
-  ${profile.appSandbox ? "<key>com.apple.security.app-sandbox</key>\n  <true/>" : ""}
+  ${appSandbox ? "<key>com.apple.security.app-sandbox</key>\n  <true/>" : ""}
   <key>com.apple.security.application-groups</key>
   ${plistStringArray(appGroups)}
-  ${profile.networkClient ? "<key>com.apple.security.network.client</key>\n  <true/>" : ""}
+  ${networkClient ? "<key>com.apple.security.network.client</key>\n  <true/>" : ""}
   <key>keychain-access-groups</key>
   ${plistStringArray(keychainAccessGroups)}
 </dict>
@@ -341,10 +330,10 @@ function signNestedCode(identity, packetTunnelProfile) {
 
   if (existsSync(packetTunnelBundle)) {
     const entitlements = packetTunnelProfile
-      ? writeProfileEntitlements(packetTunnelProfile, "packet-tunnel.plist")
+      ? writeProfileEntitlements(packetTunnelProfile, "packet-tunnel.plist", packetTunnelEntitlements)
       : packetTunnelEntitlements;
     run("codesign", [...codesignBaseArgs(identity), "--entitlements", entitlements, packetTunnelBundle]);
-    console.log("Signed nested app extension: PacketTunnel");
+    console.log(`Signed nested ${tunnelLayout.label}: PacketTunnel`);
   }
 
   signPlainExecutable(identity, resolve(appContents, "MacOS", "voyavpn-tunnel-service"), "voyavpn-tunnel-service");
@@ -380,6 +369,10 @@ function main() {
   }
 
   const distribution = distributionMode(identity);
+  tunnelLayout = packetTunnelLayout(appContents, distribution);
+  packetTunnelBundle = tunnelLayout.bundle;
+  packetTunnelProvisioningProfileDestination = tunnelLayout.provisioningProfile;
+  embeddedLibboxFramework = tunnelLayout.embeddedLibboxFramework;
   removeUnsupportedLaunchServicesKeys();
   if (existsSync(legacyTunnelHelper) && !truthy(process.env.VOYAVPN_PRESERVE_MACOS_TUNNEL_HELPER)) {
     rmSync(legacyTunnelHelper, { force: true });
@@ -393,7 +386,9 @@ function main() {
   const packetTunnelProfile = existsSync(packetTunnelBundle)
     ? provisioningProfile(packetTunnelBundleIdentifier, "VOYAVPN_PACKET_TUNNEL_PROVISIONING_PROFILE", distribution)
     : null;
-  const entitlements = appProfile ? writeProfileEntitlements(appProfile, "macos-app.plist") : appEntitlements;
+  const entitlements = appProfile
+    ? writeProfileEntitlements(appProfile, "macos-app.plist", appEntitlements)
+    : appEntitlements;
   if (appProfile) {
     validateProvisioningProfile(appProfile, distribution, "macOS app", appBundleIdentifier);
     cpSync(appProfile.path, appProvisioningProfileDestination);

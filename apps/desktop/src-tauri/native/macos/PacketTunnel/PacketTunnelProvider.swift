@@ -9,10 +9,14 @@ import os.log
 
 private let appGroupIdentifier = "group.app.voyavpn.desktop"
 private let runtimeConfigRelativePath = "Library/Application Support/VoyaVPN/packet-tunnel-runtime.json"
+private let providerStatusRelativePath = "Library/Application Support/VoyaVPN/packet-tunnel-status.json"
+private let providerLogRelativePath = "Library/Application Support/VoyaVPN/provider.log"
+private let providerLogMaxBytes = 512 * 1024
 
-@objc(PacketTunnelProvider)
 public final class PacketTunnelProvider: NEPacketTunnelProvider {
     private static let logger = Logger(subsystem: "app.voyavpn.desktop.PacketTunnel", category: "PacketTunnelProvider")
+    private static var providerStatusURLOverride: URL?
+    private static var providerLogURLOverride: URL?
 
     #if canImport(Libbox)
         private var commandServer: LibboxCommandServer?
@@ -25,11 +29,19 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) {
         Task.detached(priority: .userInitiated) {
             do {
-                let runtimeConfig = try Self.loadRuntimeConfig()
+                let runtimeConfig = try Self.loadRuntimeConfig(options: options)
+                Self.configureDiagnostics(runtimeConfig)
+                Self.writeStatus(state: "starting", breadcrumb: "startTunnel entered")
                 try await self.startSingBox(runtimeConfig)
+                Self.writeStatus(state: "running", breadcrumb: "sing-box service started")
                 completionHandler(nil)
             } catch {
                 Self.logger.error("startTunnel failed: \(error.localizedDescription, privacy: .public)")
+                Self.writeStatus(
+                    state: "failed",
+                    lastError: error.localizedDescription,
+                    breadcrumb: "startTunnel failed: \(error.localizedDescription)"
+                )
                 completionHandler(error)
             }
         }
@@ -49,6 +61,7 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
             commandServer?.close()
             commandServer = nil
         #endif
+        Self.writeStatus(state: "stopped", breadcrumb: "stopTunnel reason \(reason.rawValue)")
         completionHandler()
     }
 
@@ -61,11 +74,17 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
             try Self.validate(runtimeConfig)
             #if canImport(Libbox)
                 try commandServer?.startOrReloadService(runtimeConfig.singboxConfigJson, options: LibboxOverrideOptions())
+                Self.writeStatus(state: "running", breadcrumb: "service reloaded from app message")
                 completionHandler?(nil)
             #else
                 throw PacketTunnelProviderError.singBoxRuntimeUnavailable
             #endif
         } catch {
+            Self.writeStatus(
+                state: "failed",
+                lastError: error.localizedDescription,
+                breadcrumb: "app message failed: \(error.localizedDescription)"
+            )
             completionHandler?(error.localizedDescription.data(using: .utf8))
         }
     }
@@ -109,6 +128,7 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
 
             commandServer = server
             server.writeMessage(2, message: "VoyaVPN PacketTunnel started.")
+            Self.appendProviderLog("VoyaVPN PacketTunnel started.")
         #else
             throw PacketTunnelProviderError.singBoxRuntimeUnavailable
         #endif
@@ -123,9 +143,30 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
-    private static func loadRuntimeConfig() throws -> PacketTunnelRuntimeConfig {
+    private static func loadRuntimeConfig(options: [String: NSObject]? = nil) throws -> PacketTunnelRuntimeConfig {
+        if let data = options?["runtimeConfigJson"] as? Data {
+            return try JSONDecoder().decode(PacketTunnelRuntimeConfig.self, from: data)
+        }
+        if let text = options?["runtimeConfigJson"] as? String,
+           let data = text.data(using: .utf8)
+        {
+            return try JSONDecoder().decode(PacketTunnelRuntimeConfig.self, from: data)
+        }
         let data = try Data(contentsOf: runtimeConfigURL())
         return try JSONDecoder().decode(PacketTunnelRuntimeConfig.self, from: data)
+    }
+
+    private static func configureDiagnostics(_ runtimeConfig: PacketTunnelRuntimeConfig) {
+        if let statusPath = runtimeConfig.statusPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !statusPath.isEmpty
+        {
+            providerStatusURLOverride = URL(fileURLWithPath: statusPath)
+        }
+        if let logPath = runtimeConfig.logPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !logPath.isEmpty
+        {
+            providerLogURLOverride = URL(fileURLWithPath: logPath)
+        }
     }
 
     private static func runtimePaths() throws -> PacketTunnelRuntimePaths {
@@ -148,6 +189,91 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
 
         return containerURL.appendingPathComponent(runtimeConfigRelativePath)
     }
+
+    private static func providerStatusURL() throws -> URL {
+        if let providerStatusURLOverride {
+            return providerStatusURLOverride
+        }
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            throw PacketTunnelProviderError.missingAppGroupContainer
+        }
+
+        return containerURL.appendingPathComponent(providerStatusRelativePath)
+    }
+
+    private static func providerLogURL() throws -> URL {
+        if let providerLogURLOverride {
+            return providerLogURLOverride
+        }
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            throw PacketTunnelProviderError.missingAppGroupContainer
+        }
+
+        return containerURL.appendingPathComponent(providerLogRelativePath)
+    }
+
+    private static func writeStatus(
+        state: String,
+        lastError: String? = nil,
+        breadcrumb: String
+    ) {
+        do {
+            let url = try providerStatusURL()
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let breadcrumbs = providerBreadcrumbs(from: url, appending: breadcrumb)
+            var object: [String: Any] = [
+                "state": state,
+                "providerBundlePath": Bundle.main.bundleURL.path,
+                "breadcrumbs": breadcrumbs,
+                "updatedAt": ISO8601DateFormatter().string(from: Date()),
+            ]
+            if let lastError, !lastError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                object["lastError"] = lastError
+            }
+            let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: url, options: .atomic)
+            appendProviderLog("\(state): \(breadcrumb)")
+        } catch {
+            logger.error("failed to write PacketTunnel status: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func providerBreadcrumbs(from url: URL, appending breadcrumb: String) -> [String] {
+        var breadcrumbs: [String] = []
+        if let data = try? Data(contentsOf: url),
+           let object = try? JSONSerialization.jsonObject(with: data),
+           let dictionary = object as? [String: Any],
+           let existing = dictionary["breadcrumbs"] as? [String]
+        {
+            breadcrumbs = existing
+        }
+        breadcrumbs.append(breadcrumb)
+        return Array(breadcrumbs.suffix(20))
+    }
+
+    fileprivate static func appendProviderLog(_ message: String) {
+        do {
+            let url = try providerLogURL()
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let line = "\(ISO8601DateFormatter().string(from: Date())) \(message)\n"
+            var data = (try? Data(contentsOf: url)) ?? Data()
+            if let lineData = line.data(using: .utf8) {
+                data.append(lineData)
+            }
+            if data.count > providerLogMaxBytes {
+                data = Data(data.suffix(providerLogMaxBytes))
+            }
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error("failed to write PacketTunnel log: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 }
 
 private struct PacketTunnelRuntimePaths {
@@ -160,6 +286,8 @@ private struct PacketTunnelRuntimeConfig: Codable {
     let version: Int
     let activeProfileId: String?
     let mainConfigPath: String
+    let statusPath: String?
+    let logPath: String?
     let singboxConfigJson: String
 }
 
@@ -526,6 +654,7 @@ private enum PacketTunnelProviderError: LocalizedError {
                 return
             }
             os_log("%{public}@", log: .default, type: .debug, message)
+            PacketTunnelProvider.appendProviderLog(message)
         }
 
         func send(_ notification: LibboxNotification?) throws {}
@@ -552,6 +681,7 @@ private enum PacketTunnelProviderError: LocalizedError {
     private extension PacketTunnelProvider {
         func writeLog(_ message: String) {
             commandServer?.writeMessage(2, message: message)
+            Self.appendProviderLog(message)
         }
 
         func closeService() throws {
@@ -563,6 +693,7 @@ private enum PacketTunnelProviderError: LocalizedError {
             let runtimeConfig = try Self.loadRuntimeConfig()
             try Self.validate(runtimeConfig)
             try commandServer?.startOrReloadService(runtimeConfig.singboxConfigJson, options: LibboxOverrideOptions())
+            Self.writeStatus(state: "running", breadcrumb: "service reloaded")
         }
 
         func setTunnelNetworkSettingsAsync(_ settings: NEPacketTunnelNetworkSettings?) async throws {

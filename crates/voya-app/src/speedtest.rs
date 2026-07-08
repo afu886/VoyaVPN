@@ -28,7 +28,10 @@ use voya_core::{
 };
 use voya_db::{Database, DbError};
 use voya_platform::{
-    coreinfo::{copy_seed_core_asset, discover_executable, get_core_info, CoreInfoError, TargetOs},
+    coreinfo::{
+        copy_seed_core_asset, discover_executable, discover_packaged_seed_executable,
+        get_core_info, CoreInfo, CoreInfoError, TargetOs,
+    },
     paths::{AppPaths, PathError, StorageMode},
     process::{ProcessError, ProcessHandle, ProcessRole, ProcessRunner, ProcessSpawn},
 };
@@ -363,6 +366,7 @@ pub struct ProcessSpeedtestCoreBackend {
     paths: AppPaths,
     core_seed_resource_dir: Option<PathBuf>,
     runner: Arc<dyn ProcessRunner>,
+    target_os: TargetOs,
 }
 
 impl ProcessSpeedtestCoreBackend {
@@ -376,7 +380,14 @@ impl ProcessSpeedtestCoreBackend {
             paths,
             core_seed_resource_dir,
             runner,
+            target_os: TargetOs::current(),
         }
+    }
+
+    #[must_use]
+    pub fn with_target_os(mut self, target_os: TargetOs) -> Self {
+        self.target_os = target_os;
+        self
     }
 }
 
@@ -390,6 +401,7 @@ impl SpeedtestCoreBackend for ProcessSpeedtestCoreBackend {
         let paths = self.paths.clone();
         let core_seed_resource_dir = self.core_seed_resource_dir.clone();
         let runner = Arc::clone(&self.runner);
+        let target_os = self.target_os;
         Box::pin(async move {
             check_cancelled(&cancel)?;
             let config_file_name =
@@ -403,10 +415,19 @@ impl SpeedtestCoreBackend for ProcessSpeedtestCoreBackend {
             };
             let core_info =
                 get_core_info(core_type).ok_or(SpeedtestError::MissingCoreInfo(core_type))?;
-            if let Some(seed_dir) = &core_seed_resource_dir {
-                let _ = copy_seed_core_asset(&paths, seed_dir, core_type)?;
-            }
-            let executable = discover_executable(&paths, core_info)?;
+            let executable = match packaged_seed_executable(
+                core_seed_resource_dir.as_ref(),
+                core_info,
+                target_os,
+            )? {
+                Some(executable) => executable,
+                None => {
+                    if let Some(seed_dir) = &core_seed_resource_dir {
+                        let _ = copy_seed_core_asset(&paths, seed_dir, core_type)?;
+                    }
+                    discover_executable(&paths, core_info)?
+                }
+            };
             let launch = core_launch_plan(core_type, executable, &paths, &config_file_name)
                 .ok_or(SpeedtestError::MissingCoreInfo(core_type))?;
             let spawn = ProcessSpawn::from_core_launch(ProcessRole::Probe, &launch, true)?;
@@ -417,6 +438,22 @@ impl SpeedtestCoreBackend for ProcessSpeedtestCoreBackend {
             Ok(Box::new(session) as Box<dyn SpeedtestCoreSession>)
         })
     }
+}
+
+fn packaged_seed_executable(
+    core_seed_resource_dir: Option<&PathBuf>,
+    core_info: &CoreInfo,
+    target_os: TargetOs,
+) -> Result<Option<PathBuf>> {
+    if target_os != TargetOs::Macos {
+        return Ok(None);
+    }
+
+    let Some(seed_dir) = core_seed_resource_dir else {
+        return Ok(None);
+    };
+
+    discover_packaged_seed_executable(seed_dir, core_info, target_os).map_err(Into::into)
 }
 
 struct ProcessSpeedtestCoreSession {
@@ -1477,6 +1514,11 @@ mod tests {
 
     use voya_core::{ProfileExItem, ProtocolExtraItem};
     use voya_db::Database;
+    use voya_platform::{
+        coreinfo::{core_type_dir_name, executable_name_for_current_os},
+        paths::core_seed_resources_dir,
+        test_support::RecordingRunner,
+    };
 
     use super::*;
 
@@ -1646,6 +1688,42 @@ mod tests {
         assert_eq!(SpeedActionType::Speedtest.as_i32(), 3);
         assert_eq!(SpeedActionType::Mixedtest.as_i32(), 4);
         assert_eq!(SpeedActionType::FastRealping.as_i32(), 5);
+    }
+
+    #[tokio::test]
+    async fn process_speedtest_core_backend_uses_packaged_seed_directly_on_macos() {
+        let paths = test_paths();
+        let seed_root = core_seed_resources_dir(paths.app_dir().join("resources"));
+        let executable_name = executable_name_for_current_os("sing-box");
+        let seed_exe = seed_root
+            .join(core_type_dir_name(CoreType::sing_box))
+            .join(&executable_name);
+        fs::create_dir_all(seed_exe.parent().expect("seed core dir"))
+            .expect("speedtest test operation should succeed");
+        fs::write(&seed_exe, b"seed-sing-box").expect("speedtest test operation should succeed");
+        let runner = RecordingRunner::default();
+        let backend = ProcessSpeedtestCoreBackend::new(
+            paths.clone(),
+            Some(seed_root),
+            Arc::new(runner.clone()),
+        )
+        .with_target_os(TargetOs::Macos);
+
+        backend
+            .start(
+                CoreType::sing_box,
+                Vec::new(),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await
+            .expect("speedtest test operation should succeed");
+
+        let app_data_exe =
+            paths.core_bin_file(core_type_dir_name(CoreType::sing_box), executable_name);
+        let spawns = runner.spawns();
+        assert_eq!(spawns.len(), 1);
+        assert_eq!(spawns[0].executable, seed_exe);
+        assert!(!app_data_exe.exists());
     }
 
     #[tokio::test]

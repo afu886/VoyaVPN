@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
@@ -16,8 +16,8 @@ use voya_platform::{
         ProcessRole, ProcessRunner, ProcessSpawn, StdProcessRunner,
     },
     tun::{
-        tun_backend, NativeTunController, NativeTunError, NativeTunStartRequest,
-        NoopNativeTunController, PlatformNativeTunController, TunBackend,
+        tun_backend, NativeTunController, NativeTunError, NativeTunProviderState,
+        NativeTunStartRequest, NoopNativeTunController, PlatformNativeTunController, TunBackend,
     },
     tun::{NoopTunCleaner, PlatformTunCleaner, TunCleaner, TunCleanupError},
 };
@@ -87,6 +87,24 @@ pub struct SupervisorSnapshot {
     pub running_core_type: Option<CoreType>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeTunExitEvent {
+    pub active_profile_id: Option<String>,
+    pub backend: TunBackend,
+    pub message: String,
+}
+
+pub trait SupervisorEventSink: Send + Sync {
+    fn native_tun_exited(&self, event: NativeTunExitEvent);
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopSupervisorEventSink;
+
+impl SupervisorEventSink for NoopSupervisorEventSink {
+    fn native_tun_exited(&self, _event: NativeTunExitEvent) {}
+}
+
 impl SupervisorSnapshot {
     #[must_use]
     pub const fn disconnected() -> Self {
@@ -107,6 +125,8 @@ pub struct SupervisorDeps {
     pub job_factory: Arc<dyn ProcessJobFactory>,
     pub tun_cleaner: Arc<dyn TunCleaner>,
     pub native_tun_controller: Arc<dyn NativeTunController>,
+    pub native_tun_health_interval: Duration,
+    pub event_sink: Arc<dyn SupervisorEventSink>,
     pub target_os: TargetOs,
 }
 
@@ -119,6 +139,8 @@ impl SupervisorDeps {
             job_factory: Arc::new(NoopProcessJobFactory),
             tun_cleaner: Arc::new(NoopTunCleaner),
             native_tun_controller: Arc::new(NoopNativeTunController),
+            native_tun_health_interval: Duration::from_secs(3),
+            event_sink: Arc::new(NoopSupervisorEventSink),
             target_os: TargetOs::current(),
         }
     }
@@ -131,6 +153,8 @@ impl SupervisorDeps {
             job_factory: Arc::new(PlatformProcessJobFactory),
             tun_cleaner: Arc::new(PlatformTunCleaner),
             native_tun_controller: Arc::new(PlatformNativeTunController),
+            native_tun_health_interval: Duration::from_secs(3),
+            event_sink: Arc::new(NoopSupervisorEventSink),
             target_os: TargetOs::current(),
         }
     }
@@ -146,6 +170,8 @@ impl SupervisorDeps {
             job_factory: Arc::new(PlatformProcessJobFactory),
             tun_cleaner: Arc::new(PlatformTunCleaner),
             native_tun_controller: Arc::new(PlatformNativeTunController),
+            native_tun_health_interval: Duration::from_secs(3),
+            event_sink: Arc::new(NoopSupervisorEventSink),
             target_os: TargetOs::current(),
         }
     }
@@ -172,6 +198,18 @@ impl SupervisorDeps {
     }
 
     #[must_use]
+    pub const fn with_native_tun_health_interval(mut self, interval: Duration) -> Self {
+        self.native_tun_health_interval = interval;
+        self
+    }
+
+    #[must_use]
+    pub fn with_event_sink(mut self, event_sink: Arc<dyn SupervisorEventSink>) -> Self {
+        self.event_sink = event_sink;
+        self
+    }
+
+    #[must_use]
     pub const fn with_target_os(mut self, target_os: TargetOs) -> Self {
         self.target_os = target_os;
         self
@@ -194,7 +232,7 @@ impl CoreSupervisor {
                 runtime: tokio::runtime::Handle::current(),
             })));
         tokio::spawn(async move {
-            let mut actor = SupervisorActor::new(deps);
+            let mut actor = SupervisorActor::new(deps, tx.downgrade());
             while let Some(command) = rx.recv().await {
                 actor.handle(command);
             }
@@ -300,18 +338,26 @@ enum SupervisorCommand {
         exit_code: Option<i32>,
         reply: oneshot::Sender<Result<SupervisorSnapshot, SupervisorError>>,
     },
+    NativeTunExited {
+        generation: u64,
+        message: String,
+    },
 }
 
 struct SupervisorActor {
     deps: SupervisorDeps,
+    tx: mpsc::WeakSender<SupervisorCommand>,
     running: RunningCore,
+    native_tun_generation: u64,
 }
 
 impl SupervisorActor {
-    fn new(deps: SupervisorDeps) -> Self {
+    fn new(deps: SupervisorDeps, tx: mpsc::WeakSender<SupervisorCommand>) -> Self {
         Self {
             deps,
+            tx,
             running: RunningCore::empty(),
+            native_tun_generation: 0,
         }
     }
 
@@ -335,6 +381,12 @@ impl SupervisorActor {
                 reply,
             } => {
                 let _ = reply.send(self.process_exited(process_id, exit_code));
+            }
+            SupervisorCommand::NativeTunExited {
+                generation,
+                message,
+            } => {
+                self.native_tun_exited(generation, message);
             }
         }
     }
@@ -416,6 +468,8 @@ impl SupervisorActor {
     ) -> Result<SupervisorSnapshot, SupervisorError> {
         let native_request = native_tun_start_request(&request, backend)?;
         self.deps.native_tun_controller.start(native_request)?;
+        self.native_tun_generation = self.native_tun_generation.wrapping_add(1);
+        let generation = self.native_tun_generation;
 
         let running_core_type = request
             .pre
@@ -425,12 +479,16 @@ impl SupervisorActor {
             active_profile_id: request.active_profile_id.clone(),
             main: None,
             pre: None,
-            native_tun: Some(RunningNativeTun { backend }),
+            native_tun: Some(RunningNativeTun {
+                backend,
+                generation,
+            }),
             elevated: Vec::new(),
             job: None,
             last_request: Some(request),
             running_core_type: Some(running_core_type),
         };
+        self.spawn_native_tun_health_watcher(generation, backend);
 
         Ok(self.running.snapshot())
     }
@@ -510,6 +568,70 @@ impl SupervisorActor {
         } else {
             Ok(SupervisorSnapshot::disconnected())
         }
+    }
+
+    fn native_tun_exited(&mut self, generation: u64, message: String) {
+        let Some(native_tun) = &self.running.native_tun else {
+            return;
+        };
+        if native_tun.generation != generation {
+            return;
+        }
+
+        let backend = native_tun.backend;
+        let active_profile_id = self.running.active_profile_id.clone();
+        let running = std::mem::replace(&mut self.running, RunningCore::empty());
+        if let Err(error) = self.stop_running(&running) {
+            tracing::warn!(
+                ?error,
+                "failed to stop native TUN after provider terminal state"
+            );
+        }
+        self.deps.event_sink.native_tun_exited(NativeTunExitEvent {
+            active_profile_id,
+            backend,
+            message,
+        });
+    }
+
+    fn spawn_native_tun_health_watcher(&self, generation: u64, backend: TunBackend) {
+        let controller = Arc::clone(&self.deps.native_tun_controller);
+        let tx = self.tx.clone();
+        let interval = self.deps.native_tun_health_interval;
+        tokio::spawn(async move {
+            loop {
+                if tx.upgrade().is_none() {
+                    return;
+                }
+                tokio::time::sleep(interval).await;
+                let status = match tokio::task::spawn_blocking({
+                    let controller = Arc::clone(&controller);
+                    move || controller.status(backend)
+                })
+                .await
+                {
+                    Ok(status) => status,
+                    Err(error) => {
+                        tracing::warn!(?error, "native TUN health watcher status task failed");
+                        return;
+                    }
+                };
+
+                let Some(message) = terminal_native_tun_message(&status) else {
+                    continue;
+                };
+                let Some(tx) = tx.upgrade() else {
+                    return;
+                };
+                let _ = tx
+                    .send(SupervisorCommand::NativeTunExited {
+                        generation,
+                        message,
+                    })
+                    .await;
+                return;
+            }
+        });
     }
 
     fn spawn_process(
@@ -643,6 +765,7 @@ struct RunningCore {
 
 struct RunningNativeTun {
     backend: TunBackend,
+    generation: u64,
 }
 
 impl RunningCore {
@@ -698,6 +821,25 @@ impl RunningCore {
             running_core_type: self.running_core_type,
         }
     }
+}
+
+fn terminal_native_tun_message(status: &voya_platform::tun::NativeTunStatus) -> Option<String> {
+    if !matches!(
+        status.provider_state,
+        NativeTunProviderState::Stopped
+            | NativeTunProviderState::Error
+            | NativeTunProviderState::PermissionRequired
+            | NativeTunProviderState::MissingComponent
+    ) {
+        return None;
+    }
+
+    Some(status.message.clone().unwrap_or_else(|| {
+        format!(
+            "native TUN provider ended with state {:?}",
+            status.provider_state
+        )
+    }))
 }
 
 fn ensure_sudo_kill_success(pid: u32, output: ProcessOutput) -> Result<(), SupervisorError> {
@@ -897,7 +1039,7 @@ mod tests {
         fn status(&self, backend: TunBackend) -> voya_platform::tun::NativeTunStatus {
             voya_platform::tun::NativeTunStatus {
                 backend,
-                provider_state: voya_platform::tun::NativeTunProviderState::Stopped,
+                provider_state: NativeTunProviderState::Stopped,
                 component_ready: true,
                 message: None,
             }
@@ -916,6 +1058,72 @@ mod tests {
         fn stop(&self, backend: TunBackend) -> Result<(), NativeTunError> {
             self.events.push(format!("native:stop:{backend:?}"));
             Ok(())
+        }
+    }
+
+    #[derive(Clone)]
+    struct FlippableNativeTunController {
+        events: SharedEvents,
+        status: Arc<Mutex<voya_platform::tun::NativeTunStatus>>,
+    }
+
+    impl FlippableNativeTunController {
+        fn new(events: SharedEvents, backend: TunBackend) -> Self {
+            Self {
+                events,
+                status: Arc::new(Mutex::new(voya_platform::tun::NativeTunStatus {
+                    backend,
+                    provider_state: NativeTunProviderState::Running,
+                    component_ready: true,
+                    message: None,
+                })),
+            }
+        }
+
+        fn set_provider_state(
+            &self,
+            provider_state: NativeTunProviderState,
+            message: Option<String>,
+        ) {
+            let mut status = self.status.lock().expect("native tun status");
+            status.provider_state = provider_state;
+            status.message = message;
+        }
+    }
+
+    impl NativeTunController for FlippableNativeTunController {
+        fn status(&self, _backend: TunBackend) -> voya_platform::tun::NativeTunStatus {
+            self.status.lock().expect("native tun status").clone()
+        }
+
+        fn start(&self, request: NativeTunStartRequest) -> Result<(), NativeTunError> {
+            self.events
+                .push(format!("native:start:{:?}", request.backend));
+            self.set_provider_state(NativeTunProviderState::Running, None);
+            Ok(())
+        }
+
+        fn stop(&self, backend: TunBackend) -> Result<(), NativeTunError> {
+            self.events.push(format!("native:stop:{backend:?}"));
+            self.set_provider_state(NativeTunProviderState::Stopped, None);
+            Ok(())
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingSupervisorEventSink {
+        events: Arc<Mutex<Vec<NativeTunExitEvent>>>,
+    }
+
+    impl RecordingSupervisorEventSink {
+        fn events(&self) -> Vec<NativeTunExitEvent> {
+            self.events.lock().expect("supervisor events").clone()
+        }
+    }
+
+    impl SupervisorEventSink for RecordingSupervisorEventSink {
+        fn native_tun_exited(&self, event: NativeTunExitEvent) {
+            self.events.lock().expect("supervisor events").push(event);
         }
     }
 
@@ -1116,7 +1324,8 @@ mod tests {
             .with_target_os(TargetOs::Linux);
 
         {
-            let mut actor = SupervisorActor::new(deps);
+            let (tx, _rx) = mpsc::channel(1);
+            let mut actor = SupervisorActor::new(deps, tx.downgrade());
             actor
                 .start(SupervisorStartRequest {
                     active_profile_id: Some("active".to_string()),
@@ -1391,6 +1600,71 @@ sleep 30
                 "native:start:WindowsService:main=/tmp/voya/config.json:pre=true",
                 "native:stop:WindowsService"
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn supervisor_native_tun_health_disconnects_once_without_restart() {
+        let events = SharedEvents::default();
+        let elevation = Arc::new(ElevationState::new());
+        let controller = Arc::new(FlippableNativeTunController::new(
+            events.clone(),
+            TunBackend::WindowsService,
+        ));
+        let sink = RecordingSupervisorEventSink::default();
+        let deps = SupervisorDeps::new(Arc::new(FakeRunner::new(events.clone())), elevation)
+            .with_target_os(TargetOs::Windows)
+            .with_native_tun_controller(controller.clone())
+            .with_native_tun_health_interval(Duration::from_millis(10))
+            .with_event_sink(Arc::new(sink.clone()));
+        let supervisor = CoreSupervisor::spawn(deps);
+
+        let snapshot = supervisor
+            .start(SupervisorStartRequest {
+                active_profile_id: Some("active".to_string()),
+                main: CoreProcessSpec::new(
+                    CoreType::sing_box,
+                    launch("/tmp/sing-box", "run -c config.json --disable-color"),
+                )
+                .with_config_path("/tmp/voya/config.json"),
+                pre: None,
+                tun_enabled: true,
+                sudo_script_dir: "/tmp/voya/scripts".into(),
+                restart_on_crash: true,
+            })
+            .await
+            .expect("native tun start");
+        assert_eq!(snapshot.state, SupervisorConnectionState::Connected);
+
+        controller.set_provider_state(
+            NativeTunProviderState::Error,
+            Some("PacketTunnel provider exited".to_string()),
+        );
+
+        for _ in 0..50 {
+            if supervisor.status().await.expect("status").state
+                == SupervisorConnectionState::Disconnected
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        assert_eq!(
+            supervisor.status().await.expect("status").state,
+            SupervisorConnectionState::Disconnected
+        );
+        assert_eq!(
+            events.lock().as_slice(),
+            ["native:start:WindowsService", "native:stop:WindowsService"]
+        );
+        assert_eq!(
+            sink.events(),
+            [NativeTunExitEvent {
+                active_profile_id: Some("active".to_string()),
+                backend: TunBackend::WindowsService,
+                message: "PacketTunnel provider exited".to_string(),
+            }]
         );
     }
 

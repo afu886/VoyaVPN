@@ -92,20 +92,28 @@ function main() {
   console.log("Building local macOS TUN test app. Apple notarization is intentionally skipped.");
   console.log(`Output: ${appBundle}`);
 
-  run("pnpm", ["tauri:build"], commonEnv);
+  run("pnpm", ["tauri:build", "--bundles", "app"], commonEnv);
   run("pnpm", ["native:macos:tunnel"], tunnelEnv);
   run("pnpm", ["native:macos:app:sign"], commonEnv);
   run("pnpm", ["native:macos:tunnel:verify"], verifyEnv);
+  run("pnpm", ["native:macos:dmg"], verifyEnv);
   runOptional("xattr", ["-dr", "com.apple.quarantine", appBundle], commonEnv);
+  run(
+    "node",
+    ["scripts/macos-ne-doctor.mjs", "--fix", "--app", appBundle, "--dev"],
+    commonEnv,
+  );
 
   console.log("");
   console.log("macOS TUN test app is ready:");
   console.log(`  ${appBundle}`);
+  console.log(`  ${resolve(repoRoot, "target", "release", "bundle", "dmg")}`);
+  console.log("  PacketTunnel system extension is staged for Developer ID distribution.");
   console.log("");
   console.log("Open it with:");
   console.log(`  open -n ${JSON.stringify(appBundle)}`);
   console.log("");
-  console.log("Do not use pnpm dev for macOS TUN testing; it does not bundle PacketTunnel.appex.");
+  console.log("Do not use pnpm dev for macOS TUN testing; it does not bundle the PacketTunnel provider.");
 }
 
 try {
