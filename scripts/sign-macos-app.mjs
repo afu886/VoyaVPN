@@ -203,7 +203,11 @@ function profileMatchesDistribution(profile, distribution) {
   }
   if (distribution === "app-store") {
     return profile.developerCertificateSubjects.some(
-      (subject) => subject.includes("CN=3rd Party Mac Developer Application:") || subject.includes("CN=Apple Distribution:"),
+      (subject) =>
+        subject.includes("CN=3rd Party Mac Developer Application:")
+        || subject.includes("CN=Apple Distribution:")
+        || (truthy(process.env.VOYAVPN_ALLOW_DEVELOPMENT_PROVISIONING)
+          && (subject.includes("CN=Apple Development:") || subject.includes("CN=Mac Developer:"))),
     );
   }
   return true;
