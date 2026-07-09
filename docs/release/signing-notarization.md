@@ -112,6 +112,13 @@ drag-to-Applications artifact; local `spctl`/`syspolicy_check distribution`
 will reject it with the wrong certificate type until it is delivered through
 App Store Connect/TestFlight.
 
+For local TUN testing without notarization, `pnpm build:mac:local` signs the
+App-Store-shaped `.appex` lane with an Apple Development certificate and
+development provisioning profiles and installs the result into
+`/Applications`; see
+[macos-local-tun-testing.md](macos-local-tun-testing.md). That lane is
+this-Mac-only and never distributable.
+
 | Checkpoint | Owner | System | Verification | Rollback notes |
 | --- | --- | --- | --- | --- |
 | Import Developer ID identity | macOS release owner | macOS keychain or signing runner | The signing identity is visible to `codesign` and access is restricted to the build process. | Delete the keychain item or ephemeral keychain, revoke if exposed, and stop macOS publication. |

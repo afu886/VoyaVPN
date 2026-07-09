@@ -44,6 +44,7 @@
     "native:macos:tunnel:verify": "node scripts/verify-macos-native-tunnel.mjs",
     "native:macos:app:sign": "node scripts/sign-macos-app.mjs",
     "native:macos:ne:doctor": "node scripts/macos-ne-doctor.mjs",
+    "native:macos:preflight": "node scripts/macos-local-preflight.mjs",
     "native:macos:dmg": "node scripts/create-macos-dmg.mjs",
     "native:macos:app:notarize": "node scripts/notarize-macos-app.mjs",
     "native:windows:tunnel:build": "node scripts/windows-tunnel-service.mjs build",

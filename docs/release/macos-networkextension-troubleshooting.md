@@ -35,6 +35,15 @@ development builds keep the `.appex` shape and use `packet-tunnel-provider`.
   tokens`. This usually means a Developer ID `*-systemextension` entitlement was
   signed into an `.appex` instead of packaging PacketTunnel as a System
   Extension.
+- Provider status/log shows `listen unix ... command.sock: bind: invalid
+  argument`. The libbox command-socket path exceeds the macOS 104-byte
+  `sun_path` limit; providers built before the base dir moved to `PT/` at the
+  App Group container root do this. Rebuild and reinstall the app.
+- Provider status/log shows `listen tcp 127.0.0.1:<port>: bind: operation not
+  permitted`. The sandboxed process lacks the
+  `com.apple.security.network.server` entitlement, so sing-box cannot open its
+  local mixed/socks inbound; bundles signed before that key was added to the
+  entitlement plists do this. Rebuild and reinstall the app.
 
 ## Check Registration Health
 

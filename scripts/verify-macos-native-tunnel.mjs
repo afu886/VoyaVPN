@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   appBundleIdentifier,
@@ -11,6 +11,7 @@ import {
   distributionFromIdentityName,
   normalizeDistribution,
 } from "./macos-native-tunnel-layout.mjs";
+import { decodeProvisioningProfile as decodeProfileWithDir } from "./macos-provisioning.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appBundle = resolve(
@@ -43,17 +44,6 @@ function run(program, args) {
   });
 }
 
-function capture(program, args) {
-  const result = run(program, args);
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}: ${result.stderr || result.stdout}`);
-  }
-  return result.stdout;
-}
-
 function requireDarwin() {
   if (process.platform !== "darwin") {
     throw new Error("macOS native tunnel verification must run on macOS.");
@@ -81,45 +71,9 @@ function plistBuddy(plistPath, keyPath, optional = false) {
   return result.stdout.trim();
 }
 
-function parsePlistArray(output) {
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && line !== "Array {" && line !== "}");
-}
-
 function decodeProvisioningProfile(profilePath) {
-  const decoded = capture("security", ["cms", "-D", "-i", profilePath]);
   const decodedDir = resolve(repoRoot, "target", "native", "macos", "verify-provisioning-profiles");
-  mkdirSync(decodedDir, { recursive: true });
-  const plistPath = resolve(decodedDir, `${basename(profilePath)}.plist`);
-  writeFileSync(plistPath, decoded);
-
-  const applicationIdentifier = plistBuddy(plistPath, ":Entitlements:com.apple.application-identifier");
-  const teamIdentifier = plistBuddy(plistPath, ":Entitlements:com.apple.developer.team-identifier", true)
-    || plistBuddy(plistPath, ":TeamIdentifier:0", true);
-  const bundleIdentifier = teamIdentifier && applicationIdentifier.startsWith(`${teamIdentifier}.`)
-    ? applicationIdentifier.slice(teamIdentifier.length + 1)
-    : applicationIdentifier.replace(/^[^.]+\./, "");
-
-  return {
-    name: plistBuddy(plistPath, ":Name", true),
-    uuid: plistBuddy(plistPath, ":UUID", true),
-    applicationIdentifier,
-    bundleIdentifier,
-    teamIdentifier,
-    appGroups: parsePlistArray(plistBuddy(plistPath, ":Entitlements:com.apple.security.application-groups", true)),
-    appSandbox: plistBuddy(plistPath, ":Entitlements:com.apple.security.app-sandbox", true) === "true",
-    networkClient: plistBuddy(plistPath, ":Entitlements:com.apple.security.network.client", true) === "true",
-    networkExtensions: parsePlistArray(
-      plistBuddy(plistPath, ":Entitlements:com.apple.developer.networking.networkextension", true),
-    ),
-    systemExtensionInstall: plistBuddy(
-      plistPath,
-      ":Entitlements:com.apple.developer.system-extension.install",
-      true,
-    ) === "true",
-  };
+  return decodeProfileWithDir(profilePath, decodedDir);
 }
 
 function verifyProvisioningProfile(path, label, bundleIdentifier) {
@@ -315,6 +269,7 @@ function main() {
     ...profileRequiredEntitlements(appProfile),
     "com.apple.security.application-groups",
     "group.app.voyavpn.desktop",
+    "com.apple.security.network.server",
     ...(appProfile ? [
       "com.apple.application-identifier",
       appProfile.applicationIdentifier,
@@ -341,6 +296,7 @@ function main() {
     ...profileRequiredEntitlements(packetTunnelProfile),
     "com.apple.security.application-groups",
     "group.app.voyavpn.desktop",
+    "com.apple.security.network.server",
     ...(packetTunnelProfile ? [
       "com.apple.application-identifier",
       packetTunnelProfile.applicationIdentifier,

@@ -1,13 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveSigningIdentity } from "./macos-provisioning.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
 const appBundle = resolve(repoRoot, "target", "release", "bundle", "macos", "VoyaVPN.app");
 const appContents = resolve(appBundle, "Contents");
 const dmgDir = resolve(repoRoot, "target", "release", "bundle", "dmg");
+const installedAppBundle = "/Applications/VoyaVPN.app";
 
 function truthy(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
@@ -63,22 +65,12 @@ function withoutEnv(env, names) {
 
 function signingIdentity(pattern, label) {
   const explicit = process.env.VOYAVPN_CODESIGN_IDENTITY?.trim();
-  if (explicit) {
-    return explicit;
+  try {
+    return resolveSigningIdentity(explicit || pattern, label).sha1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message}\nSet VOYAVPN_CODESIGN_IDENTITY and retry.`, { cause: error });
   }
-
-  const identities = capture("security", ["find-identity", "-p", "codesigning"]);
-  for (const line of identities.split(/\r?\n/)) {
-    const match = line.match(/^\s*\d+\)\s+([A-Fa-f0-9]+)\s+"([^"]+)"$/);
-    if (match) {
-      const [, sha1, name] = match;
-      if (pattern.test(name)) {
-        return sha1;
-      }
-    }
-  }
-
-  throw new Error(`No ${label} signing identity found. Set VOYAVPN_CODESIGN_IDENTITY and retry.`);
 }
 
 function developerIdIdentity() {
@@ -127,6 +119,76 @@ function appExecutablePath() {
   return resolve(appContents, "MacOS", executable);
 }
 
+function installedExecutableName() {
+  const infoPlist = resolve(installedAppBundle, "Contents", "Info.plist");
+  if (!existsSync(infoPlist)) {
+    return "VoyaVPN";
+  }
+  try {
+    return plistValue(infoPlist, ":CFBundleExecutable") || "VoyaVPN";
+  } catch {
+    return "VoyaVPN";
+  }
+}
+
+function assertAppNotRunning() {
+  const running = [];
+  for (const executable of new Set([installedExecutableName(), "VoyaPacketTunnel"])) {
+    const result = spawnSync("pgrep", ["-x", executable], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    if (result.status === 0) {
+      running.push(executable);
+    }
+  }
+  if (running.length) {
+    throw new Error(
+      `VoyaVPN is still running (${running.join(", ")}). Quit the app and disable TUN before pnpm build:mac:local replaces ${installedAppBundle}.`,
+    );
+  }
+}
+
+function installToApplications() {
+  assertAppNotRunning();
+  console.log(`Installing ${appBundle} into ${installedAppBundle}`);
+  try {
+    rmSync(installedAppBundle, { recursive: true, force: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Unable to replace ${installedAppBundle}: ${message}\nRemove it manually (sudo rm -rf "${installedAppBundle}") and re-run pnpm build:mac:local.`,
+      { cause: error },
+    );
+  }
+  run("ditto", [appBundle, installedAppBundle]);
+  runOptional("xattr", ["-dr", "com.apple.quarantine", installedAppBundle]);
+}
+
+function stripLeftoverPacketTunnelCopies() {
+  const leftovers = [
+    resolve(appContents, "PlugIns"),
+    resolve(repoRoot, "target", "native", "macos", "dmg-staging", "VoyaVPN.app", "Contents", "PlugIns"),
+  ];
+  for (const path of leftovers) {
+    if (!existsSync(path)) {
+      continue;
+    }
+    rmSync(path, { recursive: true, force: true });
+    console.log(`Removed leftover PacketTunnel PlugIns copy so it cannot win PlugInKit election: ${path}`);
+  }
+}
+
+function runNetworkExtensionDoctor(appPath, env, extraArgs = []) {
+  const args = ["scripts/macos-ne-doctor.mjs", "--fix", "--app", appPath, ...extraArgs];
+  if (runOptional("node", args, env) === 0) {
+    return;
+  }
+  console.warn("PlugInKit election can lag right after registration; retrying the NetworkExtension doctor once...");
+  run("sleep", ["3"], env);
+  run("node", args, env);
+}
+
 function archSuffix() {
   const explicit = process.env.VOYAVPN_MACOS_DMG_ARCH?.trim();
   if (explicit) {
@@ -160,6 +222,11 @@ function main() {
   requireMacos();
   requireNotaryCredentials();
   const notarizationSkipped = skipNotarization();
+
+  if (notarizationSkipped) {
+    assertAppNotRunning();
+    run("node", ["scripts/macos-local-preflight.mjs"]);
+  }
 
   const identity = notarizationSkipped ? localAppExtensionIdentity() : developerIdIdentity();
   const macosDistribution = notarizationSkipped ? "app-store" : "developer-id";
@@ -218,24 +285,30 @@ function main() {
   }
 
   runOptional("xattr", ["-dr", "com.apple.quarantine", appBundle], commonEnv);
-  run(
-    "node",
-    ["scripts/macos-ne-doctor.mjs", "--fix", "--app", appBundle, "--dev"],
-    commonEnv,
-  );
+  if (notarizationSkipped) {
+    installToApplications();
+    stripLeftoverPacketTunnelCopies();
+    runNetworkExtensionDoctor(installedAppBundle, commonEnv);
+  } else {
+    runNetworkExtensionDoctor(appBundle, commonEnv, ["--dev"]);
+  }
 
+  const launchBundle = notarizationSkipped ? installedAppBundle : appBundle;
   console.log("");
   console.log(notarizationSkipped ? "Local macOS TUN test app is ready:" : "Notarized macOS app is ready:");
-  console.log(`  ${appBundle}`);
+  console.log(`  ${launchBundle}`);
   console.log(`  ${finalDmgPath}`);
-  console.log(
-    notarizationSkipped
-      ? "  PacketTunnel appex is staged and signed for local testing only."
-      : "  PacketTunnel system extension is staged, signed, notarized, and ready for first-run approval.",
-  );
+  if (notarizationSkipped) {
+    console.log("  PacketTunnel appex is staged and signed for local testing only.");
+    console.log(
+      "  The target/ build copies had Contents/PlugIns removed (PlugInKit hygiene); launch the installed app, and reinstall from the DMG if you need a pristine bundle.",
+    );
+  } else {
+    console.log("  PacketTunnel system extension is staged, signed, notarized, and ready for first-run approval.");
+  }
   console.log("");
   console.log("Open it with:");
-  console.log(`  open -n ${JSON.stringify(appBundle)}`);
+  console.log(`  open -n ${JSON.stringify(launchBundle)}`);
   console.log("");
   console.log("Do not use pnpm dev for macOS TUN testing; it does not bundle the PacketTunnel provider.");
 }

@@ -103,6 +103,9 @@ become the elected provider for `app.voyavpn.desktop.PacketTunnel`.
 - After copying, launching, or testing any `.app` with the PacketTunnel appex,
   quit VoyaVPN and run `pnpm native:macos:ne:doctor --fix` (add `--app <path>`
   for a non-`/Applications` bundle and `--dev` for the repo release bundle).
+- `pnpm build:mac:local` installs the built app into `/Applications`, strips
+  `Contents/PlugIns` from the leftover `target/` copies, and runs the doctor
+  itself; see `docs/release/macos-local-tun-testing.md`.
 - Fixtures that do not test NetworkExtension behavior must remove
   `Contents/PlugIns` before launching the app.
 - Entitlement/provisioning fixtures may keep the production extension id, but

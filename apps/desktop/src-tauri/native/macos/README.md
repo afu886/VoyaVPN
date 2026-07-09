@@ -9,6 +9,11 @@ Runtime shape:
 - PacketTunnel extension bundle id: `app.voyavpn.desktop.PacketTunnel`
 - App Group: `group.app.voyavpn.desktop`
 - Runtime config file: `Library/Application Support/VoyaVPN/packet-tunnel-runtime.json`
+- libbox base dir: `PT/` at the App Group container root. libbox binds
+  `<base>/command.sock`, and macOS caps unix-socket paths (`sun_path`) at 104
+  bytes, so this directory must stay short — a base under
+  `Library/Application Support/...` already exceeds the limit and makes
+  `bind()` fail with `invalid argument`.
 
 The Tauri app writes the generated sing-box JSON into the App Group container
 and starts the VPN profile in-process through NetworkExtension. The extension
@@ -66,6 +71,12 @@ For release or local TUN-test packaging, build the Tauri macOS bundle with
 `pnpm native:macos:dmg`. The DMG helper copies the final signed `.app` into the
 image and mounts it to verify that the selected PacketTunnel provider bundle
 and `VoyaPacketTunnel` are present before the DMG is accepted.
+
+Local TUN testing: `pnpm build:mac:local` runs the whole chain without Apple
+notarization — Apple Development signing, development provisioning profiles,
+`.appex` packaging, install into `/Applications`, and PlugInKit repair. Run
+`pnpm native:macos:preflight` first; the full runbook is
+[docs/release/macos-local-tun-testing.md](../../../../../docs/release/macos-local-tun-testing.md).
 
 Set `VOYAVPN_CODESIGN_IDENTITY` to codesign the staged dynamic Libbox framework
 when present and the extension. The final App Store/TestFlight lane must sign

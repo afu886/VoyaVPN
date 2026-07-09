@@ -174,7 +174,22 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
             throw PacketTunnelProviderError.missingAppGroupContainer
         }
 
-        let baseURL = containerURL.appendingPathComponent("Library/Application Support/VoyaVPN/PacketTunnel", isDirectory: true)
+        // libbox binds a unix socket at "<basePath>/command.sock"; macOS caps
+        // sockaddr_un.sun_path at 104 bytes (incl. NUL), so the base directory
+        // must stay short. The container root plus "PT" keeps it well below
+        // the limit, unlike Library/Application Support/... which exceeds it.
+        let baseURL = containerURL.appendingPathComponent("PT", isDirectory: true)
+        let commandSocketPath = baseURL.path + "/command.sock"
+        guard commandSocketPath.utf8.count <= 103 else {
+            throw PacketTunnelProviderError.libboxBasePathTooLong(commandSocketPath)
+        }
+
+        let legacyBaseURL = containerURL.appendingPathComponent(
+            "Library/Application Support/VoyaVPN/PacketTunnel",
+            isDirectory: true
+        )
+        try? FileManager.default.removeItem(at: legacyBaseURL)
+
         return PacketTunnelRuntimePaths(
             baseURL: baseURL,
             workingURL: baseURL.appendingPathComponent("Working", isDirectory: true),
@@ -296,6 +311,7 @@ private enum PacketTunnelProviderError: LocalizedError {
     case emptyRuntimeConfig
     case unsupportedRuntimeConfig(Int)
     case singBoxRuntimeUnavailable
+    case libboxBasePathTooLong(String)
     case libboxSetupFailed(String)
     case libboxCommandServerFailed(String)
     case libboxServiceFailed(String)
@@ -310,6 +326,8 @@ private enum PacketTunnelProviderError: LocalizedError {
             return "VoyaVPN PacketTunnel runtime config version \(version) is not supported."
         case .singBoxRuntimeUnavailable:
             return "VoyaVPN PacketTunnel requires the sing-box Apple/libbox runtime. Build it with `pnpm native:macos:libbox` or set VOYAVPN_LIBBOX_XCFRAMEWORK."
+        case .libboxBasePathTooLong(let path):
+            return "VoyaVPN PacketTunnel libbox command socket path exceeds the macOS 104-byte sun_path limit: \(path)"
         case .libboxSetupFailed(let message):
             return "VoyaVPN PacketTunnel failed to set up libbox: \(message)"
         case .libboxCommandServerFailed(let message):

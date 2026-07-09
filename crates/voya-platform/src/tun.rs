@@ -643,6 +643,11 @@ fn macos_packet_tunnel_host_log_tail() -> Vec<String> {
     let Ok(output) = output else {
         return Vec::new();
     };
+    // The sandboxed host app cannot run the `log` CLI ("Cannot run while
+    // sandboxed" on stderr); surface nothing instead of the denial text.
+    if !output.status.success() {
+        return Vec::new();
+    }
     tail_lines(
         &command_output_text(&output.stdout, &output.stderr),
         PROVIDER_LOG_TAIL_LINES,
