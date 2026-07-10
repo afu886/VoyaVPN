@@ -23,11 +23,6 @@ export function closeWindow(): Promise<void> {
   return getCurrentWindow().close();
 }
 
-/** Begin an interactive window drag (called from the self-drawn drag region). */
-export function startWindowDragging(): Promise<void> {
-  return getCurrentWindow().startDragging();
-}
-
 export function isWindowMaximized(): Promise<boolean> {
   return getCurrentWindow().isMaximized();
 }

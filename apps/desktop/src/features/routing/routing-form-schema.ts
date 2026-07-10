@@ -118,10 +118,11 @@ function validateNetworkExpression(value: string | null | undefined, context: z.
   }
 
   const allowed = new Set(["tcp", "udp"]);
-  const values = value
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  const values = value.split(",").flatMap((item) => {
+    const normalized = item.trim().toLowerCase();
+
+    return normalized ? [normalized] : [];
+  });
   if (values.length === 0 || values.some((item) => !allowed.has(item))) {
     context.addIssue({ code: "custom", message: "Network must be tcp, udp, or tcp,udp" });
   }

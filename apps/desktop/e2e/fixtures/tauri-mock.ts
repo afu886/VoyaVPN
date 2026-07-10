@@ -761,7 +761,7 @@ export async function installTauriSmokeMock(page: Page) {
     }
 
     function clone<T>(value: T): T {
-      return value === undefined ? value : JSON.parse(JSON.stringify(value));
+      return value === undefined ? value : structuredClone(value);
     }
 
     function cloneRecord(value: unknown) {

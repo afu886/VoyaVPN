@@ -155,7 +155,7 @@ function sortConnections(connections: ClashConnectionItem[], sort: ConnectionSor
   const getValue = column.sortValue;
   const direction = sort.ascending ? 1 : -1;
 
-  return [...connections].sort((a, b) => {
+  return connections.toSorted((a, b) => {
     const left = getValue(a);
     const right = getValue(b);
 
@@ -214,6 +214,12 @@ export function ClashConnectionsScreen() {
   const selectedConnection = selectedId
     ? (sortedConnections.find((connection) => connection.id === selectedId) ?? null)
     : null;
+  // A connection that leaves the current snapshot or filter must not become
+  // selected again if it later reappears. Reset during render so every result
+  // set follows the invariant without an effect-driven synchronization pass.
+  if (selectedId && !selectedConnection) {
+    setSelectedId(null);
+  }
   const effectiveSelectedId = selectedConnection?.id ?? null;
 
   const closeMutation = useMutation({
@@ -247,12 +253,6 @@ export function ClashConnectionsScreen() {
 
     return () => window.cancelAnimationFrame(frame);
   }, []);
-
-  useEffect(() => {
-    if (selectedId && !sortedConnections.some((connection) => connection.id === selectedId)) {
-      setSelectedId(null);
-    }
-  }, [sortedConnections, selectedId]);
 
   function toggleSort(id: string) {
     setSort((current) =>

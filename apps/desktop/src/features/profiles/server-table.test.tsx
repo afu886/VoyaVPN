@@ -159,6 +159,7 @@ describe("ProfilesScreen", () => {
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveAttribute("aria-rowcount", "5001");
     expect(screen.getAllByTestId("server-row").length).toBeLessThan(60);
     expect(screen.queryByText("Server 4999")).not.toBeInTheDocument();
   });

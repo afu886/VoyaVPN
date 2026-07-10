@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import { AlertTriangle, CheckCircle2, ClipboardPaste, ImagePlus, Monitor, QrCode, ScanLine } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Alert, AlertDescription } from "@voya/ui/components/alert";
 import { Button } from "@voya/ui/components/button";
@@ -27,22 +28,29 @@ export function QrDialog({ initialContent = "" }: { initialContent?: string }) {
   const [generated, setGenerated] = useState<QrCodeImage | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const initialQrCodeQuery = useQuery({
+    enabled: initialContent.trim().length > 0,
+    gcTime: 0,
+    queryFn: () => generateQrCode(initialContent),
+    queryKey: ["qr-code", initialContent],
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const displayedQrCode = generated ?? initialQrCodeQuery.data ?? null;
+  const displayedError =
+    error ??
+    (displayedQrCode === null && !working && initialQrCodeQuery.isError
+      ? getErrorMessage(initialQrCodeQuery.error)
+      : null);
 
   const imageSource = useMemo(() => {
-    if (!generated) {
+    if (!displayedQrCode) {
       return null;
     }
 
-    return `data:${generated.mimeType};utf8,${encodeURIComponent(generated.svg)}`;
-  }, [generated]);
-
-  useEffect(() => {
-    if (initialContent.trim()) {
-      void generateQrCode(initialContent).then(setGenerated).catch((error: unknown) => {
-        setError(getErrorMessage(error));
-      });
-    }
-  }, [initialContent]);
+    return `data:${displayedQrCode.mimeType};utf8,${encodeURIComponent(displayedQrCode.svg)}`;
+  }, [displayedQrCode]);
 
   async function generate() {
     setWorking(true);
@@ -253,10 +261,10 @@ export function QrDialog({ initialContent = "" }: { initialContent?: string }) {
             <AlertDescription className="text-current">{importMessage}</AlertDescription>
           </Alert>
         ) : null}
-        {error ? (
+        {displayedError ? (
           <Alert variant="destructive">
             <AlertTriangle aria-hidden="true" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{displayedError}</AlertDescription>
           </Alert>
         ) : null}
       </div>

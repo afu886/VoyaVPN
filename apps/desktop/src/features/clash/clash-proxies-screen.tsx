@@ -94,7 +94,13 @@ export function ClashProxiesScreen() {
   }
 
   function runSelectedDelayTest() {
-    runDelayTest(selectedNodes.filter((node) => node.testable).map((node) => node.name));
+    const testableNodeNames: string[] = [];
+    for (const node of selectedNodes) {
+      if (node.testable) {
+        testableNodeNames.push(node.name);
+      }
+    }
+    runDelayTest(testableNodeNames);
   }
 
   function selectNode(node: ClashProxyNode) {

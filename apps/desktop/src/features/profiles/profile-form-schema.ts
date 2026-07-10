@@ -180,9 +180,26 @@ function parsedProfileToIpcPayload(parsed: ParsedProfileFormValues): ProfileItem
     ...parsed,
     ConfigVersion: 4,
     Port: Number(parsed.Port ?? 0),
-    ProtocolExtra: scrubEmptyStrings(parsed.ProtocolExtra ?? {}),
+    ProtocolExtra: scrubEmptyStrings(canonicalizeGroupType(parsed.ConfigType, parsed.ProtocolExtra ?? {})),
     TransportExtra: scrubEmptyStrings(parsed.TransportExtra ?? {}),
   }) as ProfileItem_Deserialize;
+}
+
+function canonicalizeGroupType(
+  configType: ProfileProtocol,
+  protocolExtra: NonNullable<ParsedProfileFormValues["ProtocolExtra"]>,
+) {
+  const normalized = { ...protocolExtra };
+
+  if (configType === CONFIG_TYPES.PolicyGroup) {
+    normalized.GroupType = "PolicyGroup";
+  } else if (configType === CONFIG_TYPES.ProxyChain) {
+    normalized.GroupType = "ProxyChain";
+  } else {
+    delete normalized.GroupType;
+  }
+
+  return normalized;
 }
 
 function createBaseProfile(configType: ProfileProtocol): ProfileItem_Deserialize {

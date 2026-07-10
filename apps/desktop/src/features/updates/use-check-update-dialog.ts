@@ -50,7 +50,7 @@ export function useCheckUpdateDialog() {
     preRelease: false,
     selectedIds: [],
   });
-  const preferenceSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const preferenceSaveChainRef = useRef<Promise<void> | null>(null);
   const latestPreferenceRequestRef = useRef(0);
   const latestPreferenceSaveRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const lastPersistedPreferenceKeyRef = useRef<string | null>(null);
@@ -133,7 +133,8 @@ export function useCheckUpdateDialog() {
     latestPreferenceRequestRef.current = requestId;
     pendingPreferenceSaveCountRef.current += 1;
 
-    const request = preferenceSaveChainRef.current
+    const previousRequest = preferenceSaveChainRef.current ?? Promise.resolve();
+    const request = previousRequest
       .catch(() => undefined)
       .then(async () => {
         const nextStatus = await saveUpdatePreferences(snapshot.preRelease, snapshot.selectedIds);
@@ -164,7 +165,7 @@ export function useCheckUpdateDialog() {
   }
 
   async function waitForPendingPreferenceSaves() {
-    await preferenceSaveChainRef.current;
+    await (preferenceSaveChainRef.current ?? Promise.resolve());
   }
 
   async function run(mode: CoreRunMode) {

@@ -14,9 +14,16 @@ export function clonePreferenceSnapshot(snapshot: PreferenceSnapshot): Preferenc
 }
 
 export function preferenceSnapshotFromStatus(status: UpdateStatus): PreferenceSnapshot {
+  const selectedIds: string[] = [];
+  for (const target of status.targets) {
+    if (target.selected) {
+      selectedIds.push(target.id);
+    }
+  }
+
   return {
     preRelease: status.preRelease,
-    selectedIds: status.targets.filter((target) => target.selected).map((target) => target.id),
+    selectedIds,
   };
 }
 

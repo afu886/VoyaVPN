@@ -108,6 +108,7 @@ export function GroupBuilder({
     [candidates],
   );
   const isProxyChain = configType === CONFIG_TYPES.ProxyChain;
+  const groupType = isProxyChain ? "ProxyChain" : "PolicyGroup";
   const [pickerDraftIds, setPickerDraftIds] = useState<string[]>(selectedIds);
 
   useEffect(() => {
@@ -115,13 +116,6 @@ export function GroupBuilder({
       previewRequestId.current += 1;
     };
   }, []);
-
-  useEffect(() => {
-    const groupType = isProxyChain ? "ProxyChain" : "PolicyGroup";
-    if (values.ProtocolExtra?.GroupType !== groupType) {
-      setValue("ProtocolExtra.GroupType", groupType, { shouldDirty: true });
-    }
-  }, [isProxyChain, setValue, values.ProtocolExtra?.GroupType]);
 
   function setSelectedIds(ids: string[]) {
     setValue("ProtocolExtra.ChildItems", ids.join(","), {
@@ -174,7 +168,10 @@ export function GroupBuilder({
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr_10rem]">
-        <LabeledField label={isProxyChain ? "Chain marker" : "Group marker"} {...register("ProtocolExtra.GroupType")} />
+        <GroupTypeField
+          groupType={groupType}
+          label={isProxyChain ? "Chain marker" : "Group marker"}
+        />
         <LabeledField label="Subscription child group" {...register("ProtocolExtra.SubChildItems")} />
         <div className="grid gap-1.5">
           <Label htmlFor={multipleLoadId}>Load mode</Label>
@@ -241,7 +238,7 @@ export function GroupBuilder({
               const candidate = candidatesById.get(indexId);
 
               return (
-                <div className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-2 rounded-lg border bg-card px-3 py-2" key={`${indexId}-${index}`}>
+                <div className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-2 rounded-lg border bg-card px-3 py-2" key={indexId}>
                   <span className="text-xs tabular-nums text-muted-foreground">{index + 1}</span>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">
@@ -315,6 +312,7 @@ function ServerPickerDialog({
   const [filter, setFilter] = useState("");
   const searchId = useId();
   const pickerId = useId();
+  const draftIdSet = useMemo(() => new Set(draftIds), [draftIds]);
   const filtered = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     if (!needle) {
@@ -384,7 +382,7 @@ function ServerPickerDialog({
           ) : (
             <div className="divide-y">
               {filtered.map((candidate) => {
-                const checked = draftIds.includes(candidate.indexId);
+                const checked = draftIdSet.has(candidate.indexId);
                 const checkboxId = `${pickerId}-${toDomId(candidate.indexId)}`;
 
                 return (
@@ -567,6 +565,23 @@ function LabeledField({
   );
 }
 
+function GroupTypeField({
+  groupType,
+  label,
+}: {
+  groupType: "PolicyGroup" | "ProxyChain";
+  label: string;
+}) {
+  const inputId = useId();
+
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={inputId}>{label}</Label>
+      <Input id={inputId} readOnly value={groupType} />
+    </div>
+  );
+}
+
 function IconButton({
   children,
   disabled,
@@ -594,10 +609,16 @@ function IconButton({
 }
 
 function splitIds(value?: string | null) {
-  return (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const ids = new Set<string>();
+
+  for (const item of (value ?? "").split(",")) {
+    const indexId = item.trim();
+    if (indexId) {
+      ids.add(indexId);
+    }
+  }
+
+  return [...ids];
 }
 
 function optionalNumber(value: unknown) {

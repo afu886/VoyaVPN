@@ -123,10 +123,11 @@ function listToText(values: string[] | null | undefined) {
 }
 
 function textToList(value: string) {
-  const list = value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const list = value.split(/[\n,]/).flatMap((item) => {
+    const trimmed = item.trim();
+
+    return trimmed ? [trimmed] : [];
+  });
 
   return list.length > 0 ? list : null;
 }

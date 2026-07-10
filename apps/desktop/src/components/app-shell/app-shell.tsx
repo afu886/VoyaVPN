@@ -242,7 +242,7 @@ function usePersistedPreferences(language: string) {
   const lastPersistedKeyRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
   const mountedRef = useMountedRef();
-  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const persistQueueRef = useRef<Promise<void> | null>(null);
   const persistSequenceRef = useRef(0);
   const preferenceSnapshot = useMemo<PreferenceConfigSnapshot>(
     () => ({ font, fontSize, language, themeMode }),
@@ -289,7 +289,8 @@ function usePersistedPreferences(language: string) {
 
     const sequence = ++persistSequenceRef.current;
     const timeout = window.setTimeout(() => {
-      persistQueueRef.current = persistQueueRef.current
+      const queuedPersistence = persistQueueRef.current ?? Promise.resolve();
+      persistQueueRef.current = queuedPersistence
         .catch(() => undefined)
         .then(() => persistPreferenceConfig(preferenceSnapshot))
         .then(() => {

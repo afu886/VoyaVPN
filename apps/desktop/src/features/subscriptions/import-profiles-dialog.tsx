@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ClipboardPaste, FileUp, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -35,12 +35,18 @@ type ImportProfilesDialogProps = {
 
 const EMPTY_SELECT_VALUE = "__voyavpn_manual_import__";
 
+type ResultMessage = {
+  id: string;
+  text: string;
+};
+
 export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportProfilesDialogProps) {
   const [error, setError] = useState<string | null>(null);
-  const [resultMessages, setResultMessages] = useState<string[]>([]);
+  const [resultMessages, setResultMessages] = useState<ResultMessage[]>([]);
   const [resultText, setResultText] = useState<string | null>(null);
   const [selectedSubid, setSelectedSubid] = useState("");
   const [text, setText] = useState("");
+  const nextResultMessageIdRef = useRef(0);
   const subscriptionsQuery = useQuery({
     enabled: open,
     queryFn: listSubscriptions,
@@ -64,7 +70,12 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
     try {
       const result = await importProfilesFromText(text, selectedSubid || null, Boolean(selectedSubid));
       setResultText(formatImportResult(result, targetLabel));
-      setResultMessages(result.messages ?? []);
+      setResultMessages(
+        (result.messages ?? []).map((message) => ({
+          id: `import-message-${++nextResultMessageIdRef.current}`,
+          text: message,
+        })),
+      );
       setText("");
       await onImported(result);
       if ((result.imported ?? 0) > 0) {
@@ -177,6 +188,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                 </Label>
               </Button>
               <input
+                aria-label="Import payload file"
                 className="sr-only"
                 id="import-payload-file"
                 onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
@@ -206,8 +218,8 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                   <div>{resultText}</div>
                   {resultMessages.length > 0 ? (
                     <ul className="mt-2 list-disc space-y-1 ps-5">
-                      {resultMessages.map((message, index) => (
-                        <li key={`${index}-${message}`}>{message}</li>
+                      {resultMessages.map((message) => (
+                        <li key={message.id}>{message.text}</li>
                       ))}
                     </ul>
                   ) : null}
