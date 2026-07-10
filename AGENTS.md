@@ -55,13 +55,13 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 
 ### Rust crates (`crates/`)
 
-- **voya-core** — Pure, OS-free, deterministic domain logic. Owns models/enums, share-link parsers, routing/DNS logic, and **sing-box config generation** (`coregen` modules: `config.rs`, `context.rs`, `singbox.rs`, `groups.rs`). Must contain **no** `#[cfg(target_os)]`, OS/Tauri/filesystem/network/process APIs. Clocks, randomness, ports, and platform facts are *injected*.
+- **voya-core** — Pure, OS-free, deterministic domain logic. Owns models/enums, share-link parsers, routing/DNS logic, and **sing-box config generation** (the generation-related modules are flat in `crates/voya-core/src/`: `config.rs`, `context.rs`, `singbox.rs`, and `groups.rs`; ADR 0003 refers to them as `coregen::`, while the file actually named `coregen.rs` is `crates/voya-app/src/coregen.rs`). Must contain **no** `#[cfg(target_os)]`, OS/Tauri/filesystem/network/process APIs. Clocks, randomness, ports, and platform facts are *injected*.
 - **voya-db** — Fresh sqlx SQLite schema, migrations, repositories. The **only** typed-blob persistence boundary (`ProtocolExtraItem`/`TransportExtraItem` serialize to TEXT only here).
 - **voya-platform** — All OS-specific code: `paths`, `process`, `elevation`, `tun`, `sysproxy`/PAC, `autostart`, `hotkeys`, `coreinfo`, `privilege`. Domain crates reach platform side effects through traits/adapters defined here.
 - **voya-net** — HTTP downloads, subscriptions, update checks, Clash REST/WebSocket, WebDAV, rulesets.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
 - **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `clash`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, `backup`, etc.) that combine the domain/db/net/platform crates. No Tauri wiring here.
-- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands.rs` has ~186 commands, `events.rs`).
+- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands.rs` has 94 `#[tauri::command]` functions, `ipc/window.rs` has 2 more, and the fixed `collect_commands!` list registers 95 commands; debug builds add `ipc_demo_round_trip` for 96; events live in `events.rs`).
 
 ### Frontend (`apps/desktop/src/` + `packages/`)
 
@@ -83,7 +83,7 @@ Command-boundary errors are converted into a typed `AppError` union exposed to T
 
 Config generation correctness is judged by the **generated sing-box JSON**, not entity snapshots. Golden testing is the parity contract:
 
-- Golden fixtures live in `tests/golden/` (`singbox/`, `groups/`, driven by `matrix.json`); `voya-core` canonicalizes JSON and diffs against this corpus.
+- Golden fixtures live in `tests/golden/`: `singbox/` is driven by `matrix.json`, while `groups/` is loaded directly via `include_str!` in `crates/voya-core/src/groups.rs`; `voya-core` canonicalizes JSON and diffs against this corpus.
 - Fixtures must cover policy-group ordering, proxy chains, DNS final/direct detection, TUN, pre-socks, templates, and per-rule outbounds.
 - Where the `sing-box` binary exists, generated configs must pass `sing-box check -c`; when absent, acceptance is skipped with explicit evidence but JSON golden parity still runs.
 - Raw JSON is allowed only at defined template/raw-config boundaries — normal profile/DNS/routing/transport/protocol data must be typed.
@@ -116,6 +116,6 @@ become the elected provider for `app.voyavpn.desktop.PacketTunnel`.
 ## Conventions
 
 - Clippy is strict: `unwrap_used`, `dbg_macro`, `todo`, and `all` are warnings, and CI runs clippy with `-D warnings` — avoid `.unwrap()`/`.expect()` outside tests and setup.
-- ADRs in `docs/adr/` (0001 architecture, 0002 typed IPC, 0003 config parity, 0004 platform boundaries) are the authoritative design record — consult them before changing crate boundaries or the IPC contract.
+- The ADRs indexed in `docs/adr/README.md` are the authoritative design record — consult them before changing crate boundaries or the IPC contract.
 - Commit messages in this repo are written in Chinese with `type:` prefixes (feat/fix/refactor/chore/docs); multiple changes are often combined in one message.
 - E2E smoke tests use Playwright + `tauri-driver` (`apps/desktop/e2e/`, `pnpm smoke:frontend`). Release tooling and runbooks live in `scripts/release-*.mjs` and `docs/release/`.
