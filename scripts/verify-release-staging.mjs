@@ -20,7 +20,6 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stableUpdaterTargets = stableTargets
   .map((target) => target.updater)
   .sort((left, right) => left.localeCompare(right));
-const stableUpdaterTargetSet = new Set(stableUpdaterTargets);
 const releaseTargetNames = stableTargets
   .map((target) => target.releaseTarget)
   .sort((left, right) => left.localeCompare(right));
