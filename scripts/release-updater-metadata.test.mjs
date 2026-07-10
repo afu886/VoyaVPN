@@ -5,18 +5,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const updatesBaseUrl = "https://updates.voyavpn.dev/stable";
-const stableTargets = [
-  "darwin-aarch64",
-  "darwin-x86_64",
-  "linux-aarch64",
-  "linux-x86_64",
-  "windows-aarch64",
-  "windows-x86_64",
-];
+const expectedStableUpdaterTargets = stableTargets
+  .map((target) => target.updater)
+  .sort((left, right) => left.localeCompare(right));
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -56,7 +52,7 @@ describe("release updater metadata", () => {
 
       const latest = await readJson(latestPath);
       const evidence = await readJson(join(workDir, "latest.evidence.json"));
-      expect(Object.keys(latest.platforms).sort()).toEqual(stableTargets);
+      expect(Object.keys(latest.platforms).sort()).toEqual(expectedStableUpdaterTargets);
       expect(evidence.validations).toMatchObject({
         updaterPublicKeyApproved: true,
         updaterSignaturesVerified: true,

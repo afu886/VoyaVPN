@@ -1,20 +1,18 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stableTargets as stableTargetMatrix } from "./release-matrix.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stableChannel = "stable";
-const stableTargets = new Set(["windows", "macos", "linux"]);
-const stableArchs = new Set(["x64", "arm64"]);
-const stableReleaseTargets = [
-  { releaseTarget: "darwin-x86_64", target: "macos", arch: "x64" },
-  { releaseTarget: "darwin-aarch64", target: "macos", arch: "arm64" },
-  { releaseTarget: "windows-x86_64", target: "windows", arch: "x64" },
-  { releaseTarget: "windows-aarch64", target: "windows", arch: "arm64" },
-  { releaseTarget: "linux-x86_64", target: "linux", arch: "x64" },
-  { releaseTarget: "linux-aarch64", target: "linux", arch: "arm64" },
-];
-const stableReleaseTargetSet = new Set(stableReleaseTargets.map((target) => target.releaseTarget));
+const stableOs = new Set(stableTargetMatrix.map((target) => target.os));
+const stableArchs = new Set(stableTargetMatrix.map((target) => target.arch));
+const releaseTargetEntries = stableTargetMatrix.map(({ releaseTarget, os, arch }) => ({
+  releaseTarget,
+  target: os,
+  arch,
+}));
+const stableReleaseTargetSet = new Set(releaseTargetEntries.map((target) => target.releaseTarget));
 
 function parseArgs(argv) {
   const options = {
@@ -272,15 +270,15 @@ function stableReleaseTargetFor(artifact) {
     return artifact.releaseTarget;
   }
 
-  const stableTarget = stableReleaseTargets.find(
+  const stableTarget = releaseTargetEntries.find(
     (target) => target.target === artifact.target && target.arch === artifact.arch,
   );
   return stableTarget?.releaseTarget ?? `${artifact.target}-${artifact.arch}`;
 }
 
 function stableReleaseTargetRank(releaseTarget) {
-  const index = stableReleaseTargets.findIndex((target) => target.releaseTarget === releaseTarget);
-  return index === -1 ? stableReleaseTargets.length : index;
+  const index = releaseTargetEntries.findIndex((target) => target.releaseTarget === releaseTarget);
+  return index === -1 ? releaseTargetEntries.length : index;
 }
 
 function requiredString(value, field, context) {
@@ -306,7 +304,7 @@ function requiredBytes(value, context) {
 }
 
 function stableFieldCheck(entry, context) {
-  if (!stableTargets.has(entry.target)) {
+  if (!stableOs.has(entry.target)) {
     throw new Error(`${context} has unsupported stable target: ${entry.target}`);
   }
   if (!stableArchs.has(entry.arch)) {
@@ -445,7 +443,7 @@ function buildTargetEvidence(artifacts) {
 
 function assertStableTargetMatrix(artifacts) {
   const present = new Set(artifacts.map(stableReleaseTargetFor));
-  const missing = stableReleaseTargets
+  const missing = releaseTargetEntries
     .map((target) => target.releaseTarget)
     .filter((releaseTarget) => !present.has(releaseTarget));
 

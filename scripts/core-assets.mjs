@@ -1,23 +1,21 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stableCoreTypes, stableTargets } from "./release-matrix.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stableChannel = "stable";
 
 const coreTypes = new Map();
 
-const stableCoreTypes = [];
-const stableOs = ["windows", "macos", "linux"];
-const stableArchs = ["x64", "arm64"];
-const stableTargetMatrix = [
-  { target: "windows-x64", releaseTarget: "windows-x86_64", os: "windows", arch: "x64" },
-  { target: "windows-arm64", releaseTarget: "windows-aarch64", os: "windows", arch: "arm64" },
-  { target: "macos-x64", releaseTarget: "darwin-x86_64", os: "macos", arch: "x64" },
-  { target: "macos-arm64", releaseTarget: "darwin-aarch64", os: "macos", arch: "arm64" },
-  { target: "linux-x64", releaseTarget: "linux-x86_64", os: "linux", arch: "x64" },
-  { target: "linux-arm64", releaseTarget: "linux-aarch64", os: "linux", arch: "arm64" },
-];
+const stableOs = [...new Set(stableTargets.map((target) => target.os))];
+const stableArchs = [...new Set(stableTargets.map((target) => target.arch))];
+const stableCoreTargetMatrix = stableTargets.map(({ os, arch, releaseTarget }) => ({
+  target: `${os}-${arch}`,
+  releaseTarget,
+  os,
+  arch,
+}));
 const archiveFormats = new Set(["zip", "tar.gz", "gz"]);
 
 function parseArgs(argv) {
@@ -449,7 +447,7 @@ function coreVersions(assets) {
 }
 
 function stableTargetForAsset(asset) {
-  return stableTargetMatrix.find((target) => target.os === asset.os && target.arch === asset.arch) ?? {
+  return stableCoreTargetMatrix.find((target) => target.os === asset.os && target.arch === asset.arch) ?? {
     target: `${asset.os}-${asset.arch}`,
     releaseTarget: null,
     os: asset.os,
@@ -458,8 +456,8 @@ function stableTargetForAsset(asset) {
 }
 
 function stableTargetRank(targetName) {
-  const index = stableTargetMatrix.findIndex((target) => target.target === targetName);
-  return index === -1 ? stableTargetMatrix.length : index;
+  const index = stableCoreTargetMatrix.findIndex((target) => target.target === targetName);
+  return index === -1 ? stableCoreTargetMatrix.length : index;
 }
 
 function buildTargetEvidence(assets) {
@@ -562,7 +560,7 @@ async function main() {
   const targetEvidence = buildTargetEvidence(assets);
   const firstStableTargets = targetEvidence
     .map((target) => target.target)
-    .filter((target) => stableTargetMatrix.some((stableTarget) => stableTarget.target === target));
+    .filter((target) => stableCoreTargetMatrix.some((stableTarget) => stableTarget.target === target));
   const evidence = {
     productName: options.product,
     manifestVersion: manifest.manifestVersion,

@@ -7,28 +7,24 @@ import {
   verifyTauriUpdaterSignature,
   verifyTauriUpdaterSignatureFile,
 } from "./updater-signatures.mjs";
+import { stableCoreTypes, stableTargets } from "./release-matrix.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const stableTargets = [
-  "darwin-aarch64",
-  "darwin-x86_64",
-  "linux-aarch64",
-  "linux-x86_64",
-  "windows-aarch64",
-  "windows-x86_64",
-];
-const stableTargetSet = new Set(stableTargets);
-const stableCoreTypes = [];
-const stableOs = ["windows", "macos", "linux"];
-const stableArchs = ["x64", "arm64"];
-const targetMatrix = [
-  { releaseTarget: "darwin-x86_64", target: "macos", arch: "x64" },
-  { releaseTarget: "darwin-aarch64", target: "macos", arch: "arm64" },
-  { releaseTarget: "windows-x86_64", target: "windows", arch: "x64" },
-  { releaseTarget: "windows-aarch64", target: "windows", arch: "arm64" },
-  { releaseTarget: "linux-x86_64", target: "linux", arch: "x64" },
-  { releaseTarget: "linux-aarch64", target: "linux", arch: "arm64" },
-];
+const stableUpdaterTargets = stableTargets
+  .map((target) => target.updater)
+  .sort((left, right) => left.localeCompare(right));
+const stableUpdaterTargetSet = new Set(stableUpdaterTargets);
+const releaseTargetNames = stableTargets
+  .map((target) => target.releaseTarget)
+  .sort((left, right) => left.localeCompare(right));
+const releaseTargetSet = new Set(releaseTargetNames);
+const stableOs = [...new Set(stableTargets.map((target) => target.os))];
+const stableArchs = [...new Set(stableTargets.map((target) => target.arch))];
+const releaseTargetEntries = stableTargets.map(({ releaseTarget, os, arch }) => ({
+  releaseTarget,
+  target: os,
+  arch,
+}));
 
 class StagingValidationError extends Error {
   constructor(label, failures) {
@@ -324,13 +320,13 @@ function requiredBytes(value, label, failures) {
 function releaseTargetFor(target, arch) {
   const normalizedTarget = String(target ?? "").toLowerCase();
   const normalizedArch = String(arch ?? "").toLowerCase();
-  const match = targetMatrix.find((entry) => entry.target === normalizedTarget && entry.arch === normalizedArch);
+  const match = releaseTargetEntries.find((entry) => entry.target === normalizedTarget && entry.arch === normalizedArch);
   return match?.releaseTarget ?? null;
 }
 
 function releaseTargetForArtifact(artifact) {
   const explicit = String(artifact.releaseTarget ?? artifact.target ?? "").toLowerCase();
-  if (stableTargetSet.has(explicit)) {
+  if (releaseTargetSet.has(explicit)) {
     return explicit;
   }
   return releaseTargetFor(artifact.target, artifact.arch);
@@ -459,7 +455,7 @@ async function verifyUpdaterMetadataSignatures(latest, rawOptions = {}) {
     throw new StagingValidationError("updater signatures", [error.message]);
   }
 
-  for (const target of stableTargets) {
+  for (const target of stableUpdaterTargets) {
     const platform = latest.platforms?.[target];
     if (!platform || typeof platform !== "object") {
       continue;
@@ -520,8 +516,8 @@ async function verifyUpdaterMetadataSignatures(latest, rawOptions = {}) {
   };
 }
 
-function assertStableMatrix(label, present, failures) {
-  const missing = stableTargets.filter((target) => !present.has(target));
+function assertStableMatrix(label, present, expectedTargets, failures) {
+  const missing = expectedTargets.filter((target) => !present.has(target));
   if (missing.length > 0) {
     failures.push(`${label} is missing stable targets: ${missing.join(", ")}`);
   }
@@ -589,12 +585,12 @@ function validateReleaseIndex(index, rawOptions = {}) {
       candidates.push({ label, url: parsed.toString(), bytes, sha256 });
     }
   }
-  assertStableMatrix("release-index", presentTargets, failures);
+  assertStableMatrix("release-index", presentTargets, releaseTargetNames, failures);
   assertNoFailures("release index", failures);
 
   return {
     artifactCount: index.artifacts.length,
-    targets: stableTargets.filter((target) => presentTargets.has(target)),
+    targets: releaseTargetNames.filter((target) => presentTargets.has(target)),
     candidates,
   };
 }
@@ -624,10 +620,10 @@ function validateUpdaterMetadata(latest, rawOptions = {}) {
   }
 
   const presentTargets = new Set(Object.keys(latest.platforms ?? {}));
-  assertStableMatrix("latest.json", presentTargets, failures);
+  assertStableMatrix("latest.json", presentTargets, stableUpdaterTargets, failures);
 
   const candidates = [];
-  for (const target of stableTargets) {
+  for (const target of stableUpdaterTargets) {
     const platform = latest.platforms?.[target];
     const label = `latest.json platforms.${target}`;
     if (!platform || typeof platform !== "object") {
@@ -647,7 +643,7 @@ function validateUpdaterMetadata(latest, rawOptions = {}) {
 
   return {
     platformCount: Object.keys(latest.platforms).length,
-    targets: stableTargets.filter((target) => presentTargets.has(target)),
+    targets: stableUpdaterTargets.filter((target) => presentTargets.has(target)),
     candidates,
   };
 }

@@ -4,17 +4,11 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const stableTargets = [
-  "darwin-x86_64",
-  "darwin-aarch64",
-  "windows-x86_64",
-  "windows-aarch64",
-  "linux-x86_64",
-  "linux-aarch64",
-];
+const recordReleaseTargets = stableTargets.map((target) => target.releaseTarget);
 const gateRows = [
   ["Automated regression evidence handoff", "Release engineer"],
   ["CDN staging", "CDN owner"],
@@ -153,7 +147,7 @@ function checkbox(label) {
 }
 
 function isStableTarget(target) {
-  return stableTargets.includes(target);
+  return recordReleaseTargets.includes(target);
 }
 
 function sha256Bytes(bytes) {
@@ -427,25 +421,7 @@ function releaseTargetForIndexArtifact(artifact) {
 
   const target = String(artifact.target ?? "").toLowerCase();
   const arch = String(artifact.arch ?? "").toLowerCase();
-  if (target === "macos" && arch === "x64") {
-    return "darwin-x86_64";
-  }
-  if (target === "macos" && arch === "arm64") {
-    return "darwin-aarch64";
-  }
-  if (target === "windows" && arch === "x64") {
-    return "windows-x86_64";
-  }
-  if (target === "windows" && arch === "arm64") {
-    return "windows-aarch64";
-  }
-  if (target === "linux" && arch === "x64") {
-    return "linux-x86_64";
-  }
-  if (target === "linux" && arch === "arm64") {
-    return "linux-aarch64";
-  }
-  return null;
+  return stableTargets.find((entry) => entry.os === target && entry.arch === arch)?.releaseTarget ?? null;
 }
 
 async function loadReleaseIndexEntries(releaseIndexPath) {
@@ -508,7 +484,7 @@ function compareRecordArtifact(failures, sourceLabel, index, target, name, hash)
 function validateArtifactEvidenceRows(rows, manifestEvidence, releaseIndexEvidence) {
   const failures = [];
   const presentTargets = new Set(rows.map((row) => String(row.Target ?? "").trim()).filter(Boolean));
-  const missingTargets = stableTargets.filter((target) => !presentTargets.has(target));
+  const missingTargets = recordReleaseTargets.filter((target) => !presentTargets.has(target));
   if (missingTargets.length > 0) {
     failures.push(`Artifact Evidence: missing stable target row(s): ${missingTargets.join(", ")}`);
   }
@@ -588,7 +564,7 @@ async function validateReleaseRecordFile(options) {
 }
 
 function stableTargetRows() {
-  return stableTargets
+  return recordReleaseTargets
     .map((target) => `| ${target} |  |  |  |  |  |  |  |  |`)
     .join("\n");
 }

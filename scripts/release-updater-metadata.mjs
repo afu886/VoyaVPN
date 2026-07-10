@@ -4,18 +4,14 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveApprovedUpdaterPublicKey, verifyTauriUpdaterSignatureFile } from "./updater-signatures.mjs";
+import { stableTargets } from "./release-matrix.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stableChannel = "stable";
-const stableTargets = [
-  "darwin-aarch64",
-  "darwin-x86_64",
-  "linux-aarch64",
-  "linux-x86_64",
-  "windows-aarch64",
-  "windows-x86_64",
-];
-const stableTargetSet = new Set(stableTargets);
+const stableUpdaterTargets = stableTargets
+  .map((target) => target.updater)
+  .sort((left, right) => left.localeCompare(right));
+const stableUpdaterTargetSet = new Set(stableUpdaterTargets);
 
 function parseArgs(argv) {
   const options = {
@@ -234,14 +230,7 @@ function uniqueSorted(values) {
 }
 
 function describeStableTarget(target) {
-  const details = {
-    "darwin-aarch64": { os: "macos", arch: "arm64" },
-    "darwin-x86_64": { os: "macos", arch: "x64" },
-    "linux-aarch64": { os: "linux", arch: "arm64" },
-    "linux-x86_64": { os: "linux", arch: "x64" },
-    "windows-aarch64": { os: "windows", arch: "arm64" },
-    "windows-x86_64": { os: "windows", arch: "x64" },
-  }[target];
+  const details = stableTargets.find((entry) => entry.updater === target);
 
   return {
     target,
@@ -392,7 +381,7 @@ function assertStableArtifactMetadata(artifact, target, version, channel, contex
 
 function assertStableTargetNames(platformKeys) {
   const keys = [...platformKeys].sort((left, right) => left.localeCompare(right));
-  const unsupported = keys.filter((target) => !stableTargetSet.has(target));
+  const unsupported = keys.filter((target) => !stableUpdaterTargetSet.has(target));
   if (unsupported.length > 0) {
     throw new Error(`Stable updater metadata contains unsupported target(s): ${unsupported.join(", ")}`);
   }
@@ -400,7 +389,7 @@ function assertStableTargetNames(platformKeys) {
 
 function assertStableTargetMatrix(platformKeys) {
   const keys = [...platformKeys].sort((left, right) => left.localeCompare(right));
-  const missing = stableTargets.filter((target) => !keys.includes(target));
+  const missing = stableUpdaterTargets.filter((target) => !keys.includes(target));
   if (missing.length > 0) {
     throw new Error(`Stable updater metadata is missing signed payloads for target(s): ${missing.join(", ")}`);
   }
@@ -644,7 +633,7 @@ async function main() {
   const targetEvidence = buildTargetEvidence(evidence);
   const firstStableTargets = targetEvidence
     .map((target) => target.target)
-    .filter((target) => stableTargetSet.has(target));
+    .filter((target) => stableUpdaterTargetSet.has(target));
   const evidenceDocument = {
     channel: options.channel,
     version,

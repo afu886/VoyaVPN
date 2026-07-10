@@ -5,21 +5,11 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { stableCoreTypes, stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultTauriConfig = "apps/desktop/src-tauri/tauri.conf.json";
-
-const stableTargets = [
-  { os: "windows", arch: "x64", updater: "windows-x86_64" },
-  { os: "windows", arch: "arm64", updater: "windows-aarch64" },
-  { os: "macos", arch: "x64", updater: "darwin-x86_64" },
-  { os: "macos", arch: "arm64", updater: "darwin-aarch64" },
-  { os: "linux", arch: "x64", updater: "linux-x86_64" },
-  { os: "linux", arch: "arm64", updater: "linux-aarch64" },
-];
-
-const stableCoreTypes = [];
 const requiredDocs = [
   "docs/release/packaging.md",
   "docs/release/ci-secrets.md",

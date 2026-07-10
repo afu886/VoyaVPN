@@ -11,6 +11,7 @@ import {
   validateUpdaterMetadata,
   verifyUpdaterMetadataSignatures,
 } from "./verify-release-staging.mjs";
+import { stableTargets } from "./release-matrix.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cdnBaseUrl = "https://cdn.voyavpn.dev/stable";
@@ -18,14 +19,9 @@ const updatesBaseUrl = "https://updates.voyavpn.dev/stable";
 const updaterArtifacts = "tests/fixtures/release/signed-updater";
 const updaterPublicKey = readFileSync(resolve(repoRoot, "tests/fixtures/release/updater-signing/public.key"), "utf8").trim();
 const version = "0.1.0";
-const releaseTargets = [
-  ["darwin-aarch64", "macos", "arm64"],
-  ["darwin-x86_64", "macos", "x64"],
-  ["linux-aarch64", "linux", "arm64"],
-  ["linux-x86_64", "linux", "x64"],
-  ["windows-aarch64", "windows", "arm64"],
-  ["windows-x86_64", "windows", "x64"],
-];
+const releaseTargets = stableTargets
+  .map((target) => [target.releaseTarget, target.os, target.arch])
+  .sort(([left], [right]) => left.localeCompare(right));
 
 function sha(seed) {
   return seed.padEnd(64, seed).slice(0, 64);

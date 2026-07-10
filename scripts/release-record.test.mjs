@@ -5,28 +5,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { validateReleaseRecordText } from "./release-record.mjs";
+import { stableTargets } from "./release-matrix.mjs";
+import { buildReleaseRecord, validateReleaseRecordText } from "./release-record.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const version = "0.1.0";
-const stableTargets = [
-  "darwin-x86_64",
-  "darwin-aarch64",
-  "windows-x86_64",
-  "windows-aarch64",
-  "linux-x86_64",
-  "linux-aarch64",
-];
+const recordTargets = stableTargets.map((target) => target.releaseTarget);
 
 function targetPlatform(releaseTarget) {
-  return {
-    "darwin-x86_64": ["macos", "x64"],
-    "darwin-aarch64": ["macos", "arm64"],
-    "windows-x86_64": ["windows", "x64"],
-    "windows-aarch64": ["windows", "arm64"],
-    "linux-x86_64": ["linux", "x64"],
-    "linux-aarch64": ["linux", "arm64"],
-  }[releaseTarget];
+  const target = stableTargets.find((entry) => entry.releaseTarget === releaseTarget);
+  return target ? [target.os, target.arch] : null;
 }
 
 function table(headers, rows) {
@@ -43,10 +31,10 @@ async function readManifest(root, target) {
 
 async function buildFixtureRecord(workDir) {
   const packageManifests = await Promise.all(
-    stableTargets.map((target) => readManifest("tests/fixtures/release/artifacts", target)),
+    recordTargets.map((target) => readManifest("tests/fixtures/release/artifacts", target)),
   );
   const updaterManifests = await Promise.all(
-    stableTargets.map((target) => readManifest("tests/fixtures/release/signed-updater", target)),
+    recordTargets.map((target) => readManifest("tests/fixtures/release/signed-updater", target)),
   );
   const releaseIndexArtifacts = [...packageManifests, ...updaterManifests].flatMap((manifest) =>
     manifest.artifacts.map((artifact) => {
@@ -75,7 +63,7 @@ async function buildFixtureRecord(workDir) {
   await writeFile(releaseIndexPath, releaseIndexText);
   const releaseIndexSha = createHash("sha256").update(releaseIndexText).digest("hex");
 
-  const artifactRows = stableTargets.map((target, index) => {
+  const artifactRows = recordTargets.map((target, index) => {
     const packageArtifact = packageManifests[index].artifacts[0];
     const updaterPayload = updaterManifests[index].artifacts.find((artifact) => artifact.kind === "updater");
     const signature = updaterManifests[index].artifacts.find((artifact) => artifact.kind === "signature");
@@ -249,6 +237,26 @@ ${table(["Step", "Operator", "Timestamp", "Result", "Evidence"], [
 }
 
 describe("release record validation", () => {
+  it("renders artifact evidence rows in stable matrix order", async () => {
+    const markdown = await buildReleaseRecord({
+      version,
+      channel: "stable",
+      workflowUrl: "",
+      evidenceTracker: "",
+      previousStable: "",
+    });
+    const artifactEvidence = markdown.slice(
+      markdown.indexOf("## Artifact Evidence"),
+      markdown.indexOf("## CDN Pointer Evidence"),
+    );
+    const targets = artifactEvidence
+      .split("\n")
+      .filter((line) => recordTargets.some((target) => line.startsWith(`| ${target} |`)))
+      .map((line) => line.split("|")[1].trim());
+
+    expect(targets).toEqual(recordTargets);
+  });
+
   it("compares completed record artifact hashes against manifests and release-index", async () => {
     const workDir = await mkdtemp(join(tmpdir(), "voyavpn-release-record-"));
 
