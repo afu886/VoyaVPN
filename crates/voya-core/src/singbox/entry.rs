@@ -1,0 +1,168 @@
+use super::*;
+
+pub fn generate_singbox_config(
+    context: &CoreConfigContext,
+) -> Result<SingboxConfig, SingboxConfigError> {
+    validate_proxy_ports(context)?;
+    validate_active_wireguard(context)?;
+    let mut config = SingboxConfig::sample();
+    gen_log(&mut config, context);
+    gen_inbounds(&mut config, context);
+    gen_outbounds(&mut config, context);
+    gen_routing(&mut config, context);
+    gen_dns(&mut config, context);
+    gen_experimental(&mut config, context);
+    convert_geo_to_ruleset(&mut config, context)?;
+    apply_outbound_bind_interface(&mut config, context);
+    apply_outbound_send_through(&mut config, context);
+    Ok(config)
+}
+
+pub fn generate_singbox_config_value(
+    context: &CoreConfigContext,
+) -> Result<Value, SingboxConfigError> {
+    let config = generate_singbox_config(context)?;
+    Ok(apply_full_config_template(context, &config))
+}
+
+pub fn generate_singbox_config_json(
+    context: &CoreConfigContext,
+) -> Result<String, SingboxConfigError> {
+    let value = generate_singbox_config_value(context)?;
+    serde_json::to_string_pretty(&value).map_err(SingboxConfigError::Serialize)
+}
+
+pub fn generate_singbox_speedtest_config_json(
+    entries: &[SpeedtestConfigEntry],
+) -> Result<String, SingboxConfigError> {
+    serde_json::to_string_pretty(&generate_singbox_speedtest_config(entries))
+        .map_err(SingboxConfigError::Serialize)
+}
+
+#[must_use]
+pub fn generate_singbox_speedtest_config(entries: &[SpeedtestConfigEntry]) -> SingboxConfig {
+    let mut config = SingboxConfig::sample();
+    config.inbounds.clear();
+    config.outbounds.clear();
+    config.endpoints.clear();
+    config.route.rules.clear();
+    config.route.rule_set = None;
+    config.route.final_outbound = None;
+    config.route.default_domain_resolver = Some(SingboxRule {
+        server: Some(SINGBOX_DIRECT_DNS_TAG.to_string()),
+        ..SingboxRule::default()
+    });
+    config.dns = Some(SingboxDns {
+        servers: vec![SingboxDnsServer {
+            r#type: "udp".to_string(),
+            tag: SINGBOX_DIRECT_DNS_TAG.to_string(),
+            server: Some(DEFAULT_DIRECT_DNS.to_string()),
+            ..SingboxDnsServer::default()
+        }],
+        final_server: Some(SINGBOX_DIRECT_DNS_TAG.to_string()),
+        ..SingboxDns::default()
+    });
+
+    for entry in entries {
+        let inbound_tag = speedtest_inbound_tag(entry.port);
+        let proxy_tag = speedtest_proxy_tag(entry.port);
+        config
+            .inbounds
+            .push(build_mixed_inbound_with(inbound_tag.as_str(), entry.port));
+
+        append_servers(
+            &mut config,
+            build_all_proxy_servers(&entry.context, &entry.context.node, &proxy_tag, true),
+        );
+        config.route.rules.push(SingboxRule {
+            inbound: Some(vec![inbound_tag]),
+            outbound: Some(proxy_tag),
+            ..SingboxRule::default()
+        });
+    }
+
+    apply_common_config_settings(&mut config, entries);
+
+    config
+}
+
+fn apply_common_config_settings(config: &mut SingboxConfig, entries: &[SpeedtestConfigEntry]) {
+    let Some(entry) = entries.first() else {
+        return;
+    };
+    gen_log(config, &entry.context);
+    apply_outbound_bind_interface(config, &entry.context);
+    apply_outbound_send_through(config, &entry.context);
+}
+
+fn speedtest_inbound_tag(port: i32) -> String {
+    format!("mixed{port}")
+}
+
+fn speedtest_proxy_tag(port: i32) -> String {
+    format!("{PROXY_TAG}{port}")
+}
+
+fn validate_active_wireguard(context: &CoreConfigContext) -> Result<(), SingboxConfigError> {
+    if context.node.config_type == ConfigType::WireGuard
+        && wireguard_public_key(&context.node.protocol_extra).is_none()
+    {
+        return Err(SingboxConfigError::MissingWireGuardPublicKey {
+            remarks: context.node.remarks.clone(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_proxy_ports(context: &CoreConfigContext) -> Result<(), SingboxConfigError> {
+    let mut pending = vec![context.node.clone()];
+    let mut seen = BTreeSet::new();
+
+    while let Some(node) = pending.pop() {
+        if !node.index_id.is_empty() && !seen.insert(node.index_id.clone()) {
+            continue;
+        }
+        if node.config_type == ConfigType::Custom {
+            continue;
+        }
+        if node.config_type.is_group_type() {
+            if let Some(child_ids) = split_list(
+                node.protocol_extra
+                    .child_items
+                    .as_deref()
+                    .unwrap_or_default(),
+            ) {
+                pending.extend(
+                    child_ids
+                        .into_iter()
+                        .filter_map(|node_id| context.all_proxies_map.get(&node_id).cloned()),
+                );
+            }
+            continue;
+        }
+        if !(1..=65535).contains(&node.port) {
+            return Err(SingboxConfigError::InvalidNodePort {
+                remarks: node.remarks,
+                port: node.port,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn gen_log(config: &mut SingboxConfig, context: &CoreConfigContext) {
+    let mut log = config.log.clone().unwrap_or_default();
+    log.level = match context.app_config.core_basic_item.loglevel.as_str() {
+        "debug" | "info" | "error" => context.app_config.core_basic_item.loglevel.clone(),
+        "warning" => "warn".to_string(),
+        _ => log.level,
+    };
+    if context.app_config.core_basic_item.loglevel == "none" {
+        log.disabled = Some(true);
+    }
+    if context.app_config.core_basic_item.log_enabled {
+        log.output = Some("sbox.log".to_string());
+    }
+    config.log = Some(log);
+}

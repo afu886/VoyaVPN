@@ -1,0 +1,168 @@
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::IpAddr,
+};
+
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use thiserror::Error;
+
+use crate::{
+    protocol_common::{
+        first_list_value, inbound_port, inbound_protocol_tag, nonempty_str, parse_i32,
+        parse_pem_chain, parse_wireguard_reserved, protocol_name, raw_http_user_agent, split_list,
+        trimmed, wireguard_allowed_ips, wireguard_public_key, DEFAULT_NETWORK, DEFAULT_SECURITY,
+        WIREGUARD_DEFAULT_ADDRESS, WIREGUARD_DEFAULT_MTU,
+    },
+    AppConfig, ConfigType, CoreConfigContext, InItem, InboundProtocol, MultipleLoad, ProfileItem,
+    ProtocolExtraItem, RuleType, RulesItem, SpeedtestConfigEntry, TransportExtraItem, BLOCK_TAG,
+    DEFAULT_BOOTSTRAP_DNS, DEFAULT_DIRECT_DNS, DEFAULT_REMOTE_DNS, DIRECT_TAG, LOOPBACK, PROXY_TAG,
+};
+
+const RAW_HEADER_HTTP: &str = "http";
+const STREAM_SECURITY_TLS: &str = "tls";
+const STREAM_SECURITY_REALITY: &str = "reality";
+const USER_AGENT_HEADER: &str = "Sec-WebSocket-Protocol";
+const DEFAULT_HYSTERIA2_HOP_INTERVAL: i32 = 30;
+const DEFAULT_TUN_STACK: &str = "gvisor";
+const MACOS_TUN_SAFE_MTU: i32 = 1500;
+const SINGBOX_TUN_INBOUND_TAG: &str = "tun";
+const SINGBOX_DIRECT_DNS_TAG: &str = "direct_dns";
+const SINGBOX_REMOTE_DNS_TAG: &str = "remote_dns";
+const SINGBOX_LOCAL_DNS_TAG: &str = "local_local";
+const SINGBOX_HOSTS_DNS_TAG: &str = "hosts_dns";
+const SINGBOX_FAKE_DNS_TAG: &str = "fake_dns";
+const SINGBOX_FAKEIP_INET4_RANGE: &str = "198.18.0.0/15";
+const SINGBOX_FAKEIP_INET6_RANGE: &str = "fc00::/18";
+const PRIORITY_PROXY_DOMAIN_SUFFIXES: &[&str] = &[
+    "anthropic.com",
+    "claude.ai",
+    "claudeusercontent.com",
+    "openai.com",
+    "chatgpt.com",
+    "oaistatic.com",
+    "oaiusercontent.com",
+    "openai.azure.com",
+    "githubcopilot.com",
+    "copilot-proxy.githubusercontent.com",
+    "copilot-telemetry.githubusercontent.com",
+    "cursor.com",
+    "cursor.sh",
+    "codeium.com",
+    "windsurf.com",
+    "sourcegraph.com",
+    "perplexity.ai",
+    "generativelanguage.googleapis.com",
+    "aistudio.google.com",
+    "gemini.google.com",
+    "ai.google.dev",
+    "poe.com",
+    "x.ai",
+    "grok.com",
+    "cohere.ai",
+    "mistral.ai",
+    "huggingface.co",
+];
+const SINGBOX_RULESET_URL: &str =
+    "https://raw.githubusercontent.com/2dust/sing-box-rules/rule-set-{0}/{1}.srs";
+const GEOIP_PREFIX: &str = "geoip:";
+const GEOSITE_PREFIX: &str = "geosite:";
+const IP_IF_NON_MATCH: &str = "IPIfNonMatch";
+const IP_ON_DEMAND: &str = "IPOnDemand";
+pub const DEFAULT_SINGBOX_DNS_NORMAL: &str = r#"{
+  "servers": [
+    {
+      "tag": "remote",
+      "type": "tcp",
+      "server": "8.8.8.8",
+      "detour": "proxy"
+    },
+    {
+      "tag": "local",
+      "type": "udp",
+      "server": "223.5.5.5"
+    }
+  ],
+  "rules": [
+    {
+      "rule_set": [
+        "geosite-google"
+      ],
+      "server": "remote",
+      "strategy": "prefer_ipv4"
+    },
+    {
+      "rule_set": [
+        "geosite-cn"
+      ],
+      "server": "local",
+      "strategy": "prefer_ipv4"
+    }
+  ],
+  "final": "remote",
+  "strategy": "prefer_ipv4"
+}"#;
+
+const VMESS_SECURITIES: &[&str] = &[
+    "aes-128-gcm",
+    "chacha20-poly1305",
+    DEFAULT_SECURITY,
+    "none",
+    "zero",
+];
+const SINGBOX_UTLS_FINGERPRINTS: &[&str] = &[
+    "chrome",
+    "firefox",
+    "safari",
+    "ios",
+    "android",
+    "edge",
+    "360",
+    "qq",
+    "random",
+    "randomized",
+];
+
+const SS_SECURITIES_IN_SINGBOX: &[&str] = &[
+    "aes-256-gcm",
+    "aes-192-gcm",
+    "aes-128-gcm",
+    "chacha20-ietf-poly1305",
+    "xchacha20-ietf-poly1305",
+    "none",
+    "2022-blake3-aes-128-gcm",
+    "2022-blake3-aes-256-gcm",
+    "2022-blake3-chacha20-poly1305",
+    "aes-128-ctr",
+    "aes-192-ctr",
+    "aes-256-ctr",
+    "aes-128-cfb",
+    "aes-192-cfb",
+    "aes-256-cfb",
+    "rc4-md5",
+    "chacha20-ietf",
+    "xchacha20",
+];
+
+mod dns;
+mod entry;
+mod experimental;
+mod inbounds;
+mod outbounds;
+mod routing;
+mod schema;
+mod support;
+
+#[cfg(test)]
+mod tests;
+
+pub use entry::*;
+pub use schema::*;
+
+use dns::*;
+use experimental::*;
+use inbounds::*;
+use outbounds::*;
+use routing::*;
+use support::*;
