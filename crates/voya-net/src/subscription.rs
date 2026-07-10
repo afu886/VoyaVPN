@@ -1,0 +1,604 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
+use crate::{
+    is_denied_local_host, DownloadClient, DownloadError, DownloadRequest, DownloadResponse, Result,
+    DEFAULT_TEXT_RESPONSE_LIMIT_BYTES,
+};
+
+pub const DEFAULT_SUB_CONVERT_URL: &str = "https://sub.xeton.dev/sub?url={0}";
+pub const DEFAULT_SUB_CONVERT_CONFIG: &str =
+    "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini";
+pub const RUSSIA_GEO_SOURCE_URL: &str =
+    "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/{0}.dat";
+pub const IRAN_GEO_SOURCE_URL: &str =
+    "https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/{0}.dat";
+pub const RUSSIA_SRS_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box/rule-set-{0}/{1}.srs";
+pub const IRAN_SRS_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/chocolate4u/Iran-sing-box-rules/rule-set/{1}.srs";
+pub const RUSSIA_ROUTING_RULES_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-custom-routing-list/main/v2rayN/template.json";
+pub const IRAN_ROUTING_RULES_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/main/v2rayN/template.json";
+pub const RUSSIA_DNS_TEMPLATE_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-custom-routing-list/main/v2rayN/";
+pub const IRAN_DNS_TEMPLATE_SOURCE_URL: &str =
+    "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/main/v2rayN/";
+
+const SUBSCRIPTION_RESPONSE_LIMIT_BYTES: usize = DEFAULT_TEXT_RESPONSE_LIMIT_BYTES;
+const PRESET_DNS_TEMPLATE_RESPONSE_LIMIT_BYTES: usize = 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegionalPreset {
+    Russia,
+    Iran,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionalPresetSources {
+    pub geo_source_url: String,
+    pub srs_source_url: String,
+    pub route_rules_template_source_url: String,
+    pub dns_template_source_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionalPresetCatalog {
+    pub russia: RegionalPresetSources,
+    pub iran: RegionalPresetSources,
+}
+
+impl Default for RegionalPresetCatalog {
+    fn default() -> Self {
+        Self {
+            russia: RegionalPresetSources {
+                geo_source_url: RUSSIA_GEO_SOURCE_URL.to_string(),
+                srs_source_url: RUSSIA_SRS_SOURCE_URL.to_string(),
+                route_rules_template_source_url: RUSSIA_ROUTING_RULES_SOURCE_URL.to_string(),
+                dns_template_source_url: RUSSIA_DNS_TEMPLATE_SOURCE_URL.to_string(),
+            },
+            iran: RegionalPresetSources {
+                geo_source_url: IRAN_GEO_SOURCE_URL.to_string(),
+                srs_source_url: IRAN_SRS_SOURCE_URL.to_string(),
+                route_rules_template_source_url: IRAN_ROUTING_RULES_SOURCE_URL.to_string(),
+                dns_template_source_url: IRAN_DNS_TEMPLATE_SOURCE_URL.to_string(),
+            },
+        }
+    }
+}
+
+impl RegionalPresetCatalog {
+    #[must_use]
+    pub fn sources(&self, preset: RegionalPreset) -> &RegionalPresetSources {
+        match preset {
+            RegionalPreset::Russia => &self.russia,
+            RegionalPreset::Iran => &self.iran,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PresetDnsTemplateFetchOptions {
+    pub prefer_proxy: bool,
+    pub proxy_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PresetDnsTemplates {
+    pub singbox_template: Option<String>,
+    pub simple_template: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PresetDnsTemplateClient {
+    download: DownloadClient,
+}
+
+impl PresetDnsTemplateClient {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            download: DownloadClient::new(),
+        }
+    }
+
+    pub async fn fetch(
+        &self,
+        source_url: &str,
+        options: &PresetDnsTemplateFetchOptions,
+    ) -> PresetDnsTemplates {
+        let source_url = source_url.trim();
+        if source_url.is_empty() {
+            return PresetDnsTemplates::default();
+        }
+
+        let singbox_url = join_url_path(source_url, "sing_box.json");
+        let simple_url = join_url_path(source_url, "simple_dns.json");
+
+        PresetDnsTemplates {
+            singbox_template: self.fetch_optional(&singbox_url, options).await,
+            simple_template: self.fetch_optional(&simple_url, options).await,
+        }
+    }
+
+    pub async fn fetch_optional(
+        &self,
+        url: &str,
+        options: &PresetDnsTemplateFetchOptions,
+    ) -> Option<String> {
+        match self
+            .download
+            .download_text(DownloadRequest {
+                url: url.to_string(),
+                user_agent: None,
+                prefer_proxy: options.prefer_proxy,
+                proxy_url: options.proxy_url.clone(),
+                response_body_limit: Some(PRESET_DNS_TEMPLATE_RESPONSE_LIMIT_BYTES),
+            })
+            .await
+        {
+            Ok(response) => Some(response.body),
+            Err(error) => {
+                tracing::warn!(?error, %url, "preset DNS template fetch failed");
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubscriptionFetchSource {
+    pub url: String,
+    pub more_url: String,
+    pub user_agent: String,
+    pub convert_target: Option<String>,
+    pub sub_convert_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubscriptionFetchOptions {
+    pub prefer_proxy: bool,
+    pub proxy_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubscriptionFetchResult {
+    pub content: String,
+    pub downloads: Vec<DownloadResponse>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SubscriptionClient {
+    download: DownloadClient,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubscriptionUrlPolicy {
+    DenyLocal,
+    #[cfg(any(test, feature = "test-utils"))]
+    AllowLocalForTests,
+}
+
+impl SubscriptionClient {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            download: DownloadClient::new(),
+        }
+    }
+
+    pub async fn fetch(
+        &self,
+        source: &SubscriptionFetchSource,
+        options: &SubscriptionFetchOptions,
+    ) -> Result<SubscriptionFetchResult> {
+        self.fetch_with_url_policy(source, options, SubscriptionUrlPolicy::DenyLocal)
+            .await
+    }
+
+    #[cfg(any(test, feature = "test-utils"))]
+    pub async fn fetch_allowing_local_for_tests(
+        &self,
+        source: &SubscriptionFetchSource,
+        options: &SubscriptionFetchOptions,
+    ) -> Result<SubscriptionFetchResult> {
+        self.fetch_with_url_policy(source, options, SubscriptionUrlPolicy::AllowLocalForTests)
+            .await
+    }
+
+    async fn fetch_with_url_policy(
+        &self,
+        source: &SubscriptionFetchSource,
+        options: &SubscriptionFetchOptions,
+        url_policy: SubscriptionUrlPolicy,
+    ) -> Result<SubscriptionFetchResult> {
+        let raw_url = source.url.trim();
+        validate_subscription_url(raw_url, url_policy)?;
+        let main_url = build_subscription_url(
+            raw_url,
+            source.convert_target.as_deref(),
+            source.sub_convert_url.as_deref(),
+        );
+        if main_url.trim() != raw_url {
+            validate_subscription_url(&main_url, url_policy)?;
+        }
+        let mut downloads = Vec::new();
+        let main = self
+            .download
+            .download_text(DownloadRequest {
+                url: main_url,
+                user_agent: nonempty(source.user_agent.clone()),
+                prefer_proxy: options.prefer_proxy,
+                proxy_url: options.proxy_url.clone(),
+                response_body_limit: Some(SUBSCRIPTION_RESPONSE_LIMIT_BYTES),
+            })
+            .await?;
+        let mut content = if source
+            .convert_target
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            main.body.clone()
+        } else {
+            decode_base64_payload(&main.body).unwrap_or_else(|| main.body.clone())
+        };
+        downloads.push(main);
+
+        if source
+            .convert_target
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return Ok(SubscriptionFetchResult { content, downloads });
+        }
+
+        for url in source
+            .more_url
+            .split(',')
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+        {
+            validate_subscription_url(url, url_policy)?;
+            let additional = self
+                .download
+                .download_text(DownloadRequest {
+                    url: url.to_string(),
+                    user_agent: nonempty(source.user_agent.clone()),
+                    prefer_proxy: options.prefer_proxy,
+                    proxy_url: options.proxy_url.clone(),
+                    response_body_limit: Some(SUBSCRIPTION_RESPONSE_LIMIT_BYTES),
+                })
+                .await?;
+            let body =
+                decode_base64_payload(&additional.body).unwrap_or_else(|| additional.body.clone());
+            if !body.is_empty() {
+                if !content.ends_with('\n') && !content.is_empty() {
+                    content.push('\n');
+                }
+                content.push_str(&body);
+            }
+            downloads.push(additional);
+        }
+
+        Ok(SubscriptionFetchResult { content, downloads })
+    }
+}
+
+fn validate_subscription_url(url: &str, policy: SubscriptionUrlPolicy) -> Result<()> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err(forbidden_subscription_url(trimmed, "URL is empty"));
+    }
+
+    let parsed = reqwest::Url::parse(trimmed)
+        .map_err(|source| forbidden_subscription_url(trimmed, format!("invalid URL: {source}")))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(forbidden_subscription_url(
+            trimmed,
+            "scheme must be http or https",
+        ));
+    }
+    let Some(host) = parsed.host_str() else {
+        return Err(forbidden_subscription_url(trimmed, "host is required"));
+    };
+
+    if policy == SubscriptionUrlPolicy::DenyLocal && is_denied_local_host(host) {
+        return Err(forbidden_subscription_url(
+            trimmed,
+            "loopback and link-local hosts are not allowed",
+        ));
+    }
+
+    Ok(())
+}
+
+fn forbidden_subscription_url(url: &str, reason: impl Into<String>) -> DownloadError {
+    DownloadError::ForbiddenSubscriptionUrl {
+        url: url.to_string(),
+        reason: reason.into(),
+    }
+}
+
+#[must_use]
+pub fn build_subscription_url(
+    raw_url: &str,
+    convert_target: Option<&str>,
+    sub_convert_url: Option<&str>,
+) -> String {
+    let Some(target) = convert_target
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return raw_url.trim().to_string();
+    };
+
+    let template = sub_convert_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_SUB_CONVERT_URL);
+    let encoded_url = utf8_percent_encode(raw_url.trim(), NON_ALPHANUMERIC).to_string();
+    let mut url = if template.contains("{0}") {
+        template.replace("{0}", &encoded_url)
+    } else {
+        format!("{template}{encoded_url}")
+    };
+
+    if !url.contains("target=") {
+        url.push_str("&target=");
+        url.push_str(target);
+    }
+    if !url.contains("config=") {
+        url.push_str("&config=");
+        url.push_str(DEFAULT_SUB_CONVERT_CONFIG);
+    }
+
+    url
+}
+
+#[must_use]
+pub fn decode_base64_payload(input: &str) -> Option<String> {
+    let mut normalized = input
+        .trim()
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>();
+    if normalized.is_empty()
+        || !normalized
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '/' | '_' | '-' | '='))
+    {
+        return None;
+    }
+
+    normalized = normalized.replace('_', "/").replace('-', "+");
+    if normalized.len() % 4 != 0 {
+        normalized.extend(std::iter::repeat_n('=', 4 - normalized.len() % 4));
+    }
+
+    let bytes = STANDARD.decode(normalized.as_bytes()).ok()?;
+    let decoded = String::from_utf8(bytes).ok()?;
+    let trimmed = decoded.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn nonempty(value: String) -> Option<String> {
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn join_url_path(base: &str, file_name: &str) -> String {
+    if base.ends_with('/') {
+        format!("{base}{file_name}")
+    } else {
+        format!("{base}/{file_name}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, sync::Arc};
+
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use tokio::sync::Mutex;
+
+    use super::*;
+    use crate::{test_support::spawn_http_fixture, USER_AGENT_PREFIX};
+
+    #[test]
+    fn subscription_url_guard_rejects_loopback_and_link_local() {
+        for url in [
+            "http://127.0.0.1/sub",
+            "https://localhost/sub",
+            "http://169.254.1.10/sub",
+            "https://[::1]/sub",
+            "http://[fe80::1]/sub",
+        ] {
+            let error = validate_subscription_url(url, SubscriptionUrlPolicy::DenyLocal)
+                .expect_err("local subscription URL should fail");
+            assert!(
+                matches!(error, DownloadError::ForbiddenSubscriptionUrl { .. }),
+                "{error:?}"
+            );
+        }
+
+        validate_subscription_url("https://example.com/sub", SubscriptionUrlPolicy::DenyLocal)
+            .expect("public HTTPS subscription URL");
+        validate_subscription_url("http://192.168.1.10/sub", SubscriptionUrlPolicy::DenyLocal)
+            .expect("private non-loopback subscription URL remains allowed");
+    }
+
+    #[tokio::test]
+    async fn subscription_fetch_rejects_loopback_main_url() {
+        let error = SubscriptionClient::new()
+            .fetch(
+                &SubscriptionFetchSource {
+                    url: "http://127.0.0.1/sub".to_string(),
+                    more_url: String::new(),
+                    user_agent: String::new(),
+                    convert_target: None,
+                    sub_convert_url: None,
+                },
+                &SubscriptionFetchOptions {
+                    prefer_proxy: false,
+                    proxy_url: None,
+                },
+            )
+            .await
+            .expect_err("loopback subscription URL should fail");
+
+        assert!(
+            matches!(error, DownloadError::ForbiddenSubscriptionUrl { .. }),
+            "{error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn subscription_fetch_decodes_base64_and_merges_more_urls() {
+        let main = STANDARD.encode("vless://id-a@example.test:443#A");
+        let extra = STANDARD.encode("trojan://secret@example.test:443#B");
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([("/main".to_string(), main), ("/extra".to_string(), extra)]),
+            2,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+
+        let result = SubscriptionClient::new()
+            .fetch_with_url_policy(
+                &SubscriptionFetchSource {
+                    url: format!("{base}/main"),
+                    more_url: format!("{base}/extra"),
+                    user_agent: "SubUA/2".to_string(),
+                    convert_target: None,
+                    sub_convert_url: None,
+                },
+                &SubscriptionFetchOptions {
+                    prefer_proxy: false,
+                    proxy_url: None,
+                },
+                SubscriptionUrlPolicy::AllowLocalForTests,
+            )
+            .await
+            .expect("subscription content");
+
+        assert_eq!(
+            result.content,
+            "vless://id-a@example.test:443#A\ntrojan://secret@example.test:443#B"
+        );
+        assert_eq!(result.downloads.len(), 2);
+        assert_eq!(
+            seen_user_agents.lock().await.as_slice(),
+            ["SubUA/2", "SubUA/2"]
+        );
+    }
+
+    #[tokio::test]
+    async fn conversion_target_rewrites_main_url_and_skips_more_urls() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([(
+                "/convert".to_string(),
+                "mixed-converted-subscription".to_string(),
+            )]),
+            1,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+        let source_url = format!("{base}/raw-sub");
+
+        let result = SubscriptionClient::new()
+            .fetch_with_url_policy(
+                &SubscriptionFetchSource {
+                    url: source_url.clone(),
+                    more_url: format!("{base}/should-not-fetch"),
+                    user_agent: String::new(),
+                    convert_target: Some("clash".to_string()),
+                    sub_convert_url: Some(format!("{base}/convert?url={{0}}")),
+                },
+                &SubscriptionFetchOptions {
+                    prefer_proxy: false,
+                    proxy_url: None,
+                },
+                SubscriptionUrlPolicy::AllowLocalForTests,
+            )
+            .await
+            .expect("converted subscription content");
+
+        assert_eq!(result.content, "mixed-converted-subscription");
+        assert_eq!(result.downloads.len(), 1);
+
+        let rewritten = build_subscription_url(
+            &source_url,
+            Some("clash"),
+            Some(&format!("{base}/convert?url={{0}}")),
+        );
+        assert!(rewritten.contains("/convert?url=http%3A%2F%2F127%2E0%2E0%2E1"));
+        assert!(rewritten.contains("&target=clash"));
+        assert!(rewritten.contains("&config="));
+    }
+
+    #[tokio::test]
+    async fn preset_dns_template_client_fetches_regional_templates() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([
+                (
+                    "/preset/sing_box.json".to_string(),
+                    r#"{"NormalDNS":"sing-box"}"#.to_string(),
+                ),
+                (
+                    "/preset/simple_dns.json".to_string(),
+                    r#"{"DirectDNS":"1.1.1.1"}"#.to_string(),
+                ),
+            ]),
+            2,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+
+        let templates = PresetDnsTemplateClient::new()
+            .fetch(
+                &format!("{base}/preset"),
+                &PresetDnsTemplateFetchOptions::default(),
+            )
+            .await;
+
+        assert_eq!(
+            templates.singbox_template.as_deref(),
+            Some(r#"{"NormalDNS":"sing-box"}"#)
+        );
+        assert_eq!(
+            templates.simple_template.as_deref(),
+            Some(r#"{"DirectDNS":"1.1.1.1"}"#)
+        );
+        assert_eq!(
+            seen_user_agents.lock().await.as_slice(),
+            [USER_AGENT_PREFIX, USER_AGENT_PREFIX]
+        );
+    }
+
+    #[tokio::test]
+    async fn preset_dns_template_client_returns_none_for_missing_templates() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(HashMap::new(), 2, Arc::clone(&seen_user_agents)).await;
+
+        let templates = PresetDnsTemplateClient::new()
+            .fetch(
+                &format!("{base}/missing/"),
+                &PresetDnsTemplateFetchOptions::default(),
+            )
+            .await;
+
+        assert_eq!(templates, PresetDnsTemplates::default());
+        assert_eq!(seen_user_agents.lock().await.len(), 2);
+    }
+}

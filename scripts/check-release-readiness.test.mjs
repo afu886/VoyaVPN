@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 
-import { findProductionBlockersInText, validateStableUpdaterConfigMetadata } from "./check-release-readiness.mjs";
+import {
+  blockerScanFiles,
+  findProductionBlockersInText,
+  validateStableUpdaterConfigMetadata,
+} from "./check-release-readiness.mjs";
 
 describe("release readiness production blocker scan", () => {
+  it("scans the split voya-net download and subscription modules", () => {
+    expect(blockerScanFiles).toEqual(
+      expect.arrayContaining(["crates/voya-net/src/download.rs", "crates/voya-net/src/subscription.rs"]),
+    );
+  });
+
   it("blocks GitHub URLs in production manifest URL fields", () => {
     const matches = findProductionBlockersInText(
       "dist/release/core-assets.json",
@@ -67,7 +77,7 @@ describe("release readiness production blocker scan", () => {
 
   it("allows source URL constants that preserve upstream acquisition evidence", () => {
     const matches = findProductionBlockersInText(
-      "crates/voya-net/src/lib.rs",
+      "crates/voya-net/src/subscription.rs",
       `pub const RUSSIA_GEO_SOURCE_URL: &str =
     "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/{0}.dat";`,
     );

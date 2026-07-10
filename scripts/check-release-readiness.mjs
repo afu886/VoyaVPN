@@ -32,7 +32,7 @@ const requiredDocs = [
   "docs/verification/stable-release-gate.md",
 ];
 
-const blockerScanFiles = [
+export const blockerScanFiles = [
   "apps/desktop/src-tauri/tauri.conf.json",
   ".github/workflows/release.yml",
   "docs/release/packaging.md",
@@ -45,6 +45,8 @@ const blockerScanFiles = [
   "docs/release/THIRD_PARTY_NOTICES.md",
   "docs/verification/stable-release-gate.md",
   "crates/voya-net/src/lib.rs",
+  "crates/voya-net/src/download.rs",
+  "crates/voya-net/src/subscription.rs",
   "crates/voya-net/src/update.rs",
 ];
 
