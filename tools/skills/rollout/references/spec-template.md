@@ -135,7 +135,7 @@ Describe the concrete engineering or product problem to solve.
 - Required env vars:
 - Local development assumptions:
 - Deployment constraints:
-- Claude Code CLI assumptions: `claude -p` is on PATH, `--dangerously-skip-permissions` is acceptable for the target repo, model id is set when overriding the default.
+- Agent CLI assumptions: the selected `claude` or `codex` adapter is on PATH, its unattended default flags are acceptable for the target repo, and a model id is set when overriding the default.
 
 ## 9. External Dependencies And Coordination
 

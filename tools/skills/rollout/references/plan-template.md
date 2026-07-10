@@ -10,7 +10,7 @@ If prose and YAML disagree, the YAML block wins.
 ## Planning Heuristics
 
 - One phase = one milestone.
-- One batch = one Claude Code invocation worth of end-to-end work.
+- One batch = one selected-agent invocation worth of end-to-end work.
 - Prefer 2-6 batches per phase.
 - Prefer local verification commands for runnable batches.
 - Order batches exactly as they should run.
@@ -23,11 +23,12 @@ If prose and YAML disagree, the YAML block wins.
 ```yaml
 rollout:
   name: "<initiative-name>"
+  agent: "codex" # Or "claude"; omit only when --agent is passed to the generator.
   repo_root: "/absolute/path/to/repo"
   spec_path: ".agents/rollouts/<initiative-name>/spec.md"
   # workdir defaults to .agents/rollouts/{rollout.name}/logs; uncomment to override.
   # workdir: ".agents/rollouts/<initiative-name>/logs"
-  claude_cmd: null
+  agent_cmd: null
   model: null
   max_fix_attempts: 1
   allow_dirty: false
@@ -63,7 +64,7 @@ phases:
       - id: "01-01-scaffold"
         title: "Scaffold"
         kind: "code"
-        execution: "claude"
+        execution: "agent"
         goal: "Create the initial structure and make the baseline checks pass."
         depends_on: []
         deliverables:
@@ -81,7 +82,7 @@ phases:
       - id: "01-02-follow-up"
         title: "Follow-up"
         kind: "docs"
-        execution: "claude"
+        execution: "agent"
         goal: "Capture the next phase gate in-repo and verify that the baseline still holds."
         depends_on:
           - "01-01-scaffold"
@@ -113,7 +114,7 @@ phases:
       - id: "02-01-feature"
         title: "Feature"
         kind: "code"
-        execution: "claude"
+        execution: "agent"
         goal: "Implement the first user-visible slice."
         depends_on: []
         deliverables:
@@ -137,9 +138,10 @@ phases:
 - `rollout.repo_root`: Prefer an absolute path because the generated `rollout.py` is standalone.
 - `rollout.spec_path`: Required upstream spec for this plan. Relative paths are resolved from `repo_root`; the generator verifies that the file exists and injects it into every batch prompt's sources of truth.
 - `rollout.workdir`: Relative paths are resolved from `repo_root`. Defaults to `.agents/rollouts/{rollout.name}/logs` so runtime state lives alongside that rollout's spec, plan, and runner.
-- `rollout.claude_cmd`: Optional override for the Claude Code CLI command template. Use `{repo}` as a placeholder. Defaults to `claude -p --dangerously-skip-permissions --output-format text`.
-- `rollout.model`: Optional Claude model id (e.g. `claude-opus-4-7`). The runner appends `--model <id>` automatically when set.
-- `rollout.max_fix_attempts`: Auto-fix budget for each batch. When Claude Code exits non-zero or a verification command fails, the runner feeds the error output back into a follow-up Claude Code invocation up to this many times before declaring the batch `failed`. Defaults to `1`. Set to `0` to fail fast on the first error.
+- `rollout.agent`: Selects `claude` or `codex`; pass the same selection through `--agent` when generating, or omit this field and provide `--agent` explicitly.
+- `rollout.agent_cmd`: Optional override for the selected agent CLI command template. Use `{repo}` as a placeholder. The selected adapter supplies the default.
+- `rollout.model`: Optional model id. Claude appends `--model <id>`; Codex inserts it before the stdin marker (`-`) and ensures that marker is present.
+- `rollout.max_fix_attempts`: Auto-fix budget for each batch. When the selected agent exits non-zero or a verification command fails, the runner feeds the error output back into a follow-up invocation up to this many times before declaring the batch `failed`. Defaults to `1`. Set to `0` to fail fast on the first error.
 - `rollout.commit_per_batch`: Commits after each successful batch. Defaults to `true`; set to `false` to keep all changes uncommitted.
 - `rollout.sources_of_truth`: Additional references injected into every batch prompt after `rollout.spec_path`.
 - `rollout.planning_notes`: Shared planning context such as baseline metrics, migration shape, or cross-team constraints.
@@ -151,7 +153,7 @@ phases:
 - `phase.entry_criteria` / `phase.exit_criteria`: Use these for complex migrations or convergence work where gating matters.
 - `phase.risks`: Short list of the main things that could invalidate the plan.
 - `batch.kind`: Freeform label such as `analysis`, `code`, `docs`, or `verification`.
-- `batch.execution`: Keep this as `claude`. The generated runner is fully automatic and does not support manual pause points.
+- `batch.execution`: Keep this as `agent`. The generated runner is fully automatic and does not support manual pause points. Legacy plans may use the matching selected-agent value (`claude` or `codex`).
 - `batch.depends_on`: Optional extra dependencies on specific batch ids. Batch order is still authoritative.
 - `batch.evidence_to_capture`: Evidence that should exist when the batch is complete.
 - `batch.files_to_touch`: Optional hint list. It does not restrict the runner.
@@ -168,7 +170,7 @@ phases:
 - Separate repo work from external or manual work.
 - Keep non-automated work in prose or an external checklist, not in the generated runner's YAML batches.
 - If a batch would be painful to rerun after a failed verify step, split it.
-- Confirm the repo is safe to run with `--dangerously-skip-permissions`. The runner sets that flag by default so Claude Code can complete each batch without prompting.
+- Confirm the repo is safe for the selected adapter's unattended command. The adapter's default flags let the selected agent complete each batch without prompting.
 
 ## Phase Notes
 

@@ -62,7 +62,7 @@ When a step touches cloud consoles, Kubernetes clusters, gateways, DNS, third-pa
 - keep it in prose or a separate ops checklist instead of a generated runner batch
 - record owner, execution system, verification step, and rollback note
 - do not generate an automated runner until those prerequisites are already satisfied or moved fully in-repo
-- avoid pretending Codex can finish the real-world action if it cannot
+- avoid pretending the selected agent can finish the real-world action if it cannot
 
 ## Metrics And Evidence
 
@@ -71,16 +71,17 @@ For large initiatives, include both:
 - baseline metrics: current counts, scan outputs, inventory snapshots
 - end-state evidence: commands, dashboards, screenshots, or validation docs proving the rollout worked
 
-## Codex Specific Considerations
+## Agent Adapter Considerations
 
-- The runner runs `codex exec` in non-interactive mode. Anything that requires
-  Codex to stop and ask the user for approval or input will block the batch;
-  keep batches free of those triggers.
-- `--dangerously-bypass-approvals-and-sandbox` is set by default. Audit
-  `hard_rules` and `batch_prompt_suffix` for guardrails because Codex will not
-  be prompting.
-- Custom command flags can be appended to `rollout.codex_cmd`. The runner
-  passes the template through verbatim except for model injection and ensuring
-  the stdin marker (`-`) is present.
-- The default command sets `--cd {repo}`. If you override `rollout.codex_cmd`,
-  keep the command rooted in the rollout repo and preserve stdin piping.
+- Select `claude` or `codex` with `--agent`, or set `rollout.agent` in the
+  plan. Keep `execution: agent` for every automated batch.
+- The runner invokes the selected CLI in non-interactive mode. Keep batches
+  free of authentication, permission, confirmation, or user-input triggers.
+- Audit `hard_rules` and `batch_prompt_suffix` carefully because the selected
+  adapter is configured for unattended execution.
+- Add custom flags through `rollout.agent_cmd`. Preserve stdin piping and keep
+  the command rooted in the rollout repo; use `{repo}` when the CLI supports a
+  repository-directory argument.
+- Keep agent-specific syntax in `agents/claude.yaml` or `agents/openai.yaml`.
+  In particular, Codex requires a stdin marker and receives model selection
+  before it, while Claude receives the model flag at the end of its command.

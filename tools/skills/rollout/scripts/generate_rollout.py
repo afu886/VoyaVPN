@@ -19,12 +19,19 @@ PLAN_BLOCK_RE = re.compile(
 )
 ID_RE = re.compile(r"^[a-z0-9-]+$")
 
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+AGENT_CONFIG_PATHS = {
+    "claude": SKILL_ROOT / "agents" / "claude.yaml",
+    "codex": SKILL_ROOT / "agents" / "openai.yaml",
+}
+MODEL_PLACEMENTS = {"append", "before_stdin_marker"}
+
 
 RUNNER_TEMPLATE = r'''#!/usr/bin/env python3
 # 用法:
 #   python3 rollout.py --list
 #   python3 rollout.py [--from-phase PHASE_ID | --from-batch BATCH_ID | --only-phase PHASE_ID [PHASE_ID ...] | --only-batch BATCH_ID [BATCH_ID ...]]
-#                      [--force] [--dry-run] [--commit-per-batch | --no-commit-per-batch] [--codex-cmd CMD] [--model MODEL]
+#                      [--force] [--dry-run] [--commit-per-batch | --no-commit-per-batch] [--agent-cmd CMD] [--model MODEL]
 #                      [--reset-batch BATCH_ID] [--max-fix-attempts N] [--allow-dirty]
 # 参数说明:
 #   --list                  列出所有 phase 和 batch 的当前状态，不执行 rollout。
@@ -33,10 +40,10 @@ RUNNER_TEMPLATE = r'''#!/usr/bin/env python3
 #   --only-phase ...        只执行这些 phase，并自动补齐它们依赖的 phase。
 #   --only-batch ...        只执行这些 batch。
 #   --force                 即使 batch 已经完成，也强制重新执行。
-#   --dry-run               只生成 prompt 和日志路径，不调用 Codex CLI。
+#   --dry-run               只生成 prompt 和日志路径，不调用所选 agent CLI。
 #   --commit-per-batch      每个 batch 成功后自动提交一次 git commit（默认）。
 #   --no-commit-per-batch   禁用每个 batch 成功后的自动 git commit。
-#   --codex-cmd CMD         覆盖默认的 Codex CLI 命令模板。
+#   --agent-cmd CMD         覆盖默认的 agent CLI 命令模板。
 #   --model MODEL           覆盖 rollout 计划里的模型配置。
 #   --reset-batch BATCH_ID  将指定 batch 的状态重置为 pending。
 #   --max-fix-attempts N    覆盖计划里的最大自动修复重试次数。
@@ -59,7 +66,7 @@ from pathlib import Path
 PLAN_JSON = __PLAN_JSON_STRING__
 PLAN = json.loads(PLAN_JSON)
 MAX_VERIFY_OUTPUT_CHARS = 12000
-DEFAULT_CODEX_CMD = "codex exec --dangerously-bypass-approvals-and-sandbox --cd {repo} -"
+AGENT = PLAN["agent"]
 
 
 @dataclasses.dataclass
@@ -99,7 +106,7 @@ class VerifyFailure:
 
 
 @dataclasses.dataclass
-class CodexFailure:
+class AgentFailure:
     exit_code: int
     output: str
 
@@ -156,7 +163,7 @@ def build_phase_graph() -> list[Phase]:
                     id=batch_id,
                     title=raw_batch["title"],
                     kind=raw_batch.get("kind") or "code",
-                    execution=raw_batch.get("execution") or "codex",
+                    execution=raw_batch.get("execution") or "agent",
                     goal=raw_batch["goal"],
                     depends_on=list(raw_batch.get("depends_on") or []),
                     deliverables=list(raw_batch.get("deliverables") or []),
@@ -425,10 +432,10 @@ def run_shell(cmd: str, cwd: Path = REPO, check: bool = True, *, capture_output:
     )
 
 
-def invoke_codex(
+def invoke_agent(
     phase: Phase,
     batch: Batch,
-    codex_cmd: list[str],
+    agent_cmd: list[str],
     log_path: Path,
     dry_run: bool,
     *,
@@ -440,19 +447,19 @@ def invoke_codex(
     print(c(f"→ log:    {display_path(log_path)}", Colors.DIM))
 
     if dry_run:
-        print(c("  (dry-run, skipping codex invocation)", Colors.YELLOW))
+        print(c(f"  (dry-run, skipping {AGENT['name']} invocation)", Colors.YELLOW))
         return 0, prompt_path, ""
 
     mode = "wb" if attempt == 0 else "ab"
     with prompt_path.open("rb") as stdin, log_path.open(mode) as log:
         if attempt > 0:
             log.write(b"\n")
-        log.write(f"# codex invocation {attempt + 1} for {batch.id}\n".encode())
-        log.write(f"# cmd: {shlex.join(codex_cmd)}\n".encode())
+        log.write(f"# {AGENT['name']} invocation {attempt + 1} for {batch.id}\n".encode())
+        log.write(f"# cmd: {shlex.join(agent_cmd)}\n".encode())
         log.write(f"# ts:  {datetime.now(timezone.utc).isoformat()}\n\n".encode())
         log.flush()
         proc = subprocess.Popen(
-            codex_cmd,
+            agent_cmd,
             cwd=REPO,
             stdin=stdin,
             stdout=subprocess.PIPE,
@@ -509,20 +516,20 @@ def git_is_clean() -> bool:
     return result.stdout.strip() == ""
 
 
-def build_codex_retry_notes(batch: Batch, codex_failure: CodexFailure, retry_number: int) -> str:
+def build_agent_retry_notes(batch: Batch, agent_failure: AgentFailure, retry_number: int) -> str:
     return "\n".join(
         [
-            f"The previous Codex CLI attempt for batch `{batch.id}` exited with a non-zero status.",
+            f"The previous {AGENT['display_name']} CLI attempt for batch `{batch.id}` exited with a non-zero status.",
             f"Retry number: {retry_number}",
             "",
             "Inspect the error output below, keep any useful in-progress changes, and continue fixing the batch.",
             "Before you finish, rerun the verification commands yourself and confirm they are green.",
             "",
-            "### Codex CLI Failure",
-            f"Exit code: `{codex_failure.exit_code}`",
+            f"### {AGENT['display_name']} CLI Failure",
+            f"Exit code: `{agent_failure.exit_code}`",
             "Output:",
             "```text",
-            codex_failure.output,
+            agent_failure.output,
             "```",
             "",
         ]
@@ -604,7 +611,13 @@ def find_executable(command: str) -> str | None:
 def resolve_executable_command(command: str) -> list[str]:
     executable = find_executable(command)
     if executable is None:
-        print(c(f"! 未找到命令 `{command}`。请安装 Codex CLI，或使用 --codex-cmd 覆盖。", Colors.RED))
+        print(
+            c(
+                f"! 未找到命令 `{command}`。请安装 {AGENT['display_name']} CLI，"
+                f"或使用 --agent-cmd / {AGENT['legacy_command_flag']} 覆盖。",
+                Colors.RED,
+            )
+        )
         sys.exit(2)
 
     if sys.platform == "win32" and Path(executable).suffix.lower() == ".ps1":
@@ -618,20 +631,20 @@ def resolve_executable_command(command: str) -> list[str]:
     return [executable]
 
 
-def resolve_codex_cmd(user_cmd: str | None, model: str | None) -> list[str]:
-    template = user_cmd or ROLLOUT.get("codex_cmd") or DEFAULT_CODEX_CMD
+def resolve_agent_cmd(user_cmd: str | None, model: str | None) -> list[str]:
+    template = user_cmd or ROLLOUT.get("agent_cmd") or AGENT["default_command"]
     rendered = template.format(repo=str(REPO))
     cmd = split_command_line(rendered)
-    require(bool(cmd), "Codex command is empty.")
+    require(bool(cmd), f"{AGENT['display_name']} command is empty.")
     cmd = [*resolve_executable_command(cmd[0]), *cmd[1:]]
     if model and "--model" not in cmd:
-        if "-" in cmd:
-            index = cmd.index("-")
+        if AGENT["model_placement"] == "before_stdin_marker" and AGENT["stdin_marker"] in cmd:
+            index = cmd.index(AGENT["stdin_marker"])
             cmd[index:index] = ["--model", model]
         else:
             cmd.extend(["--model", model])
-    if "-" not in cmd:
-        cmd.append("-")
+    if AGENT["ensure_stdin_marker"] and AGENT["stdin_marker"] not in cmd:
+        cmd.append(AGENT["stdin_marker"])
     return cmd
 
 
@@ -814,7 +827,7 @@ def parse_args() -> argparse.Namespace:
     selection.add_argument("--only-batch", nargs="+", metavar="BATCH_ID", help="Run only these batches")
 
     parser.add_argument("--force", action="store_true", help="Rerun selected batches even if already done")
-    parser.add_argument("--dry-run", action="store_true", help="Write prompts only, do not invoke Codex")
+    parser.add_argument("--dry-run", action="store_true", help="Write prompts only, do not invoke the selected agent")
     commit_group = parser.add_mutually_exclusive_group()
     commit_group.add_argument(
         "--commit-per-batch",
@@ -829,14 +842,19 @@ def parse_args() -> argparse.Namespace:
         action="store_false",
         help="Do not commit after each successful batch",
     )
-    parser.add_argument("--codex-cmd", help="Override the Codex command template")
-    parser.add_argument("--model", help="Override the Codex model")
+    parser.add_argument("--agent-cmd", help="Override the selected agent command template")
+    parser.add_argument(
+        AGENT["legacy_command_flag"],
+        dest="legacy_agent_cmd",
+        help=f"Legacy alias for --agent-cmd when running {AGENT['display_name']}",
+    )
+    parser.add_argument("--model", help=f"Override the {AGENT['display_name']} model")
     parser.add_argument("--reset-batch", metavar="BATCH_ID", help="Reset one batch to pending state")
     parser.add_argument(
         "--max-fix-attempts",
         type=int,
         default=None,
-        help="Retries after Codex or verification failures; defaults to the plan value",
+        help="Retries after agent or verification failures; defaults to the plan value",
     )
     parser.add_argument("--allow-dirty", action="store_true", help="Allow a dirty git worktree")
     return parser.parse_args()
@@ -844,6 +862,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.agent_cmd and args.legacy_agent_cmd:
+        print(c("! Pass only one of --agent-cmd and the legacy agent command flag.", Colors.RED))
+        return 2
     state = load_state()
 
     if args.list:
@@ -884,10 +905,10 @@ def main() -> int:
     ensure_dirs()
     model = args.model or ROLLOUT.get("model")
     if args.dry_run:
-        codex_cmd = ["codex", "exec", "-"]
+        agent_cmd = AGENT["dry_run_command"]
     else:
-        codex_cmd = resolve_codex_cmd(args.codex_cmd, model)
-        print(c(f"codex cmd: {shlex.join(codex_cmd)}", Colors.DIM))
+        agent_cmd = resolve_agent_cmd(args.agent_cmd or args.legacy_agent_cmd, model)
+        print(c(f"{AGENT['name']} cmd: {shlex.join(agent_cmd)}", Colors.DIM))
 
     selected_batch_ids = select_batch_ids(args, state)
     if not selected_batch_ids:
@@ -917,10 +938,10 @@ def main() -> int:
             mark_batch(state, batch.id, "running")
 
         while True:
-            rc, prompt_path, codex_output = invoke_codex(
+            rc, prompt_path, agent_output = invoke_agent(
                 phase,
                 batch,
-                codex_cmd,
+                agent_cmd,
                 log_path,
                 args.dry_run,
                 attempt=attempt,
@@ -929,14 +950,14 @@ def main() -> int:
             elapsed = time.time() - t0
 
             if rc != 0:
-                codex_failure = CodexFailure(
+                agent_failure = AgentFailure(
                     exit_code=rc,
-                    output=truncate_output(codex_output or "(no output)"),
+                    output=truncate_output(agent_output or "(no output)"),
                 )
                 if attempt < max_fix_attempts:
                     attempt += 1
-                    extra_notes = build_codex_retry_notes(batch, codex_failure, attempt)
-                    print(c(f"↺ {batch.id} codex exited with {rc}, retrying ({attempt})", Colors.YELLOW))
+                    extra_notes = build_agent_retry_notes(batch, agent_failure, attempt)
+                    print(c(f"↺ {batch.id} {AGENT['name']} exited with {rc}, retrying ({attempt})", Colors.YELLOW))
                     continue
                 if not args.dry_run:
                     mark_batch(
@@ -944,15 +965,15 @@ def main() -> int:
                         batch.id,
                         "failed",
                         exit_code=rc,
-                        reason="codex_failed",
+                        reason="agent_failed",
                         log=display_path(log_path),
                         prompt=display_path(prompt_path),
-                        codex_failure={
-                            "exit_code": codex_failure.exit_code,
-                            "output": codex_failure.output,
+                        agent_failure={
+                            "exit_code": agent_failure.exit_code,
+                            "output": agent_failure.output,
                         },
                     )
-                print(c(f"✗ {batch.id} codex exited with {rc} ({elapsed:.0f}s)", Colors.RED))
+                print(c(f"✗ {batch.id} {AGENT['name']} exited with {rc} ({elapsed:.0f}s)", Colors.RED))
                 return rc
 
             if args.dry_run:
@@ -1056,6 +1077,68 @@ def as_int(value, field_name: str) -> int:
     return value
 
 
+def load_agent_adapter(agent_name: str) -> dict:
+    require(
+        agent_name in AGENT_CONFIG_PATHS,
+        f"--agent must be one of: {', '.join(sorted(AGENT_CONFIG_PATHS))}",
+    )
+    adapter_path = AGENT_CONFIG_PATHS[agent_name]
+    require(adapter_path.is_file(), f"Agent adapter not found: {adapter_path}")
+    try:
+        raw = yaml.safe_load(adapter_path.read_text())
+    except yaml.YAMLError as exc:
+        fail(f"Invalid YAML in agent adapter {adapter_path}: {exc}")
+
+    require(isinstance(raw, dict), f"Agent adapter must decode to a YAML dictionary: {adapter_path}")
+    rollout = raw.get("rollout")
+    require(isinstance(rollout, dict), f"Agent adapter is missing `rollout`: {adapter_path}")
+
+    adapter = {
+        "name": as_choice(rollout.get("name"), f"{adapter_path}.rollout.name", set(AGENT_CONFIG_PATHS)),
+        "display_name": as_string(rollout.get("display_name"), f"{adapter_path}.rollout.display_name"),
+        "default_command": as_string(
+            rollout.get("default_command"),
+            f"{adapter_path}.rollout.default_command",
+        ),
+        "dry_run_command": as_string_list(
+            rollout.get("dry_run_command"),
+            f"{adapter_path}.rollout.dry_run_command",
+        ),
+        "legacy_command_key": as_string(
+            rollout.get("legacy_command_key"),
+            f"{adapter_path}.rollout.legacy_command_key",
+        ),
+        "legacy_command_flag": as_string(
+            rollout.get("legacy_command_flag"),
+            f"{adapter_path}.rollout.legacy_command_flag",
+        ),
+        "model_placement": as_choice(
+            rollout.get("model_placement"),
+            f"{adapter_path}.rollout.model_placement",
+            MODEL_PLACEMENTS,
+        ),
+        "stdin_marker": as_optional_string(
+            rollout.get("stdin_marker"),
+            f"{adapter_path}.rollout.stdin_marker",
+        ),
+        "ensure_stdin_marker": as_bool(
+            rollout.get("ensure_stdin_marker"),
+            f"{adapter_path}.rollout.ensure_stdin_marker",
+        ),
+    }
+    require(adapter["name"] == agent_name, f"Adapter name does not match selected agent: {adapter_path}")
+    require(adapter["dry_run_command"], f"{adapter_path}.rollout.dry_run_command must not be empty")
+    require(
+        not adapter["ensure_stdin_marker"] or bool(adapter["stdin_marker"]),
+        f"{adapter_path}.rollout.stdin_marker is required when ensure_stdin_marker is true",
+    )
+    require(
+        adapter["model_placement"] != "before_stdin_marker" or bool(adapter["stdin_marker"]),
+        f"{adapter_path}.rollout.stdin_marker is required for before_stdin_marker model placement",
+    )
+    return adapter
+
+
 def require_existing_repo_path(repo_root: Path, value: str, field_name: str) -> None:
     path = Path(value)
     resolved = path if path.is_absolute() else repo_root / path
@@ -1078,8 +1161,61 @@ def load_plan_block(plan_path: Path) -> dict:
     return data
 
 
-def validate_rollout(raw: dict, plan_path: Path) -> dict:
+def infer_legacy_agent(data: dict) -> str | None:
+    """Infer an adapter only for plans written before rollout.agent existed."""
+    candidates: set[str] = set()
+    raw_rollout = data.get("rollout")
+    if isinstance(raw_rollout, dict):
+        if "claude_cmd" in raw_rollout:
+            candidates.add("claude")
+        if "codex_cmd" in raw_rollout:
+            candidates.add("codex")
+
+    raw_phases = data.get("phases")
+    if isinstance(raw_phases, list):
+        for raw_phase in raw_phases:
+            if not isinstance(raw_phase, dict):
+                continue
+            raw_batches = raw_phase.get("batches")
+            if not isinstance(raw_batches, list):
+                continue
+            for raw_batch in raw_batches:
+                if not isinstance(raw_batch, dict):
+                    continue
+                execution = raw_batch.get("execution")
+                if execution in AGENT_CONFIG_PATHS:
+                    candidates.add(execution)
+
+    require(
+        len(candidates) <= 1,
+        "Could not infer one agent from legacy plan fields; pass --agent claude|codex.",
+    )
+    return next(iter(candidates), None)
+
+
+def validate_rollout(raw: dict, plan_path: Path, adapter: dict) -> dict:
     require(isinstance(raw, dict), "Top-level rollout config must be a dictionary.")
+    plan_agent = raw.get("agent")
+    if plan_agent is not None:
+        plan_agent = as_choice(plan_agent, "rollout.agent", set(AGENT_CONFIG_PATHS))
+        require(
+            plan_agent == adapter["name"],
+            f"rollout.agent is `{plan_agent}`, but --agent selected `{adapter['name']}`",
+        )
+
+    legacy_command_key = adapter["legacy_command_key"]
+    agent_cmd = raw.get("agent_cmd")
+    legacy_agent_cmd = raw.get(legacy_command_key)
+    if agent_cmd is not None:
+        agent_cmd = as_string(agent_cmd, "rollout.agent_cmd")
+    if legacy_agent_cmd is not None:
+        legacy_agent_cmd = as_string(legacy_agent_cmd, f"rollout.{legacy_command_key}")
+    if agent_cmd is not None and legacy_agent_cmd is not None:
+        require(
+            agent_cmd == legacy_agent_cmd,
+            f"rollout.agent_cmd and rollout.{legacy_command_key} must match when both are set",
+        )
+
     repo_root = Path(as_string(raw.get("repo_root"), "rollout.repo_root"))
     if not repo_root.is_absolute():
         repo_root = (plan_path.parent / repo_root).resolve()
@@ -1094,10 +1230,11 @@ def validate_rollout(raw: dict, plan_path: Path) -> dict:
         sources_of_truth = [spec_path, *sources_of_truth]
     rollout = {
         "name": name,
+        "agent": adapter["name"],
         "repo_root": str(repo_root),
         "spec_path": spec_path,
         "workdir": as_string(raw.get("workdir", default_workdir), "rollout.workdir"),
-        "codex_cmd": raw.get("codex_cmd"),
+        "agent_cmd": agent_cmd or legacy_agent_cmd,
         "model": raw.get("model"),
         "max_fix_attempts": as_int(raw.get("max_fix_attempts", 1), "rollout.max_fix_attempts"),
         "allow_dirty": as_bool(raw.get("allow_dirty", False), "rollout.allow_dirty"),
@@ -1110,8 +1247,6 @@ def validate_rollout(raw: dict, plan_path: Path) -> dict:
         "batch_prompt_suffix": as_string_list(raw.get("batch_prompt_suffix", []), "rollout.batch_prompt_suffix"),
     }
 
-    if rollout["codex_cmd"] is not None:
-        rollout["codex_cmd"] = as_string(rollout["codex_cmd"], "rollout.codex_cmd")
     if rollout["model"] is not None:
         rollout["model"] = as_string(rollout["model"], "rollout.model")
 
@@ -1119,7 +1254,7 @@ def validate_rollout(raw: dict, plan_path: Path) -> dict:
     return rollout
 
 
-def validate_phases(raw_phases: object) -> list[dict]:
+def validate_phases(raw_phases: object, adapter: dict) -> list[dict]:
     require(isinstance(raw_phases, list) and raw_phases, "phases must be a non-empty list")
 
     normalized: list[dict] = []
@@ -1161,13 +1296,18 @@ def validate_phases(raw_phases: object) -> list[dict]:
                 not manual_instructions,
                 f"{batch_id}.manual_instructions is not supported; move those steps to prose or an external checklist",
             )
+            as_choice(
+                raw_batch.get("execution", "agent"),
+                f"{batch_id}.execution",
+                {"agent", adapter["name"]},
+            )
 
             batches.append(
                 {
                     "id": batch_id,
                     "title": as_string(raw_batch.get("title"), f"{batch_id}.title"),
                     "kind": batch_kind,
-                    "execution": as_choice(raw_batch.get("execution", "codex"), f"{batch_id}.execution", {"codex"}),
+                    "execution": "agent",
                     "goal": as_string(raw_batch.get("goal"), f"{batch_id}.goal"),
                     "depends_on": as_string_list(raw_batch.get("depends_on", []), f"{batch_id}.depends_on"),
                     "deliverables": as_string_list(raw_batch.get("deliverables", []), f"{batch_id}.deliverables"),
@@ -1208,12 +1348,13 @@ def validate_phases(raw_phases: object) -> list[dict]:
     return normalized
 
 
-def normalize_plan(data: dict, plan_path: Path) -> dict:
+def normalize_plan(data: dict, plan_path: Path, adapter: dict) -> dict:
     require("rollout" in data, "Plan block is missing `rollout`.")
     require("phases" in data, "Plan block is missing `phases`.")
     return {
-        "rollout": validate_rollout(data["rollout"], plan_path),
-        "phases": validate_phases(data["phases"]),
+        "agent": adapter,
+        "rollout": validate_rollout(data["rollout"], plan_path, adapter),
+        "phases": validate_phases(data["phases"], adapter),
     }
 
 
@@ -1228,6 +1369,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate rollout.py from a Markdown implementation plan.")
     parser.add_argument("--plan", required=True, help="Path to the plan Markdown file")
     parser.add_argument("--output", help="Path to the generated rollout.py")
+    parser.add_argument(
+        "--agent",
+        choices=sorted(AGENT_CONFIG_PATHS),
+        help="Agent adapter to embed; defaults to rollout.agent in the plan",
+    )
     return parser.parse_args()
 
 
@@ -1237,12 +1383,21 @@ def main() -> int:
     output_path = Path(args.output).resolve() if args.output else plan_path.with_name("rollout.py")
 
     data = load_plan_block(plan_path)
-    plan = normalize_plan(data, plan_path)
+    raw_rollout = data.get("rollout")
+    require(isinstance(raw_rollout, dict), "Plan block is missing a rollout dictionary.")
+    plan_agent = raw_rollout.get("agent")
+    if plan_agent is not None:
+        plan_agent = as_choice(plan_agent, "rollout.agent", set(AGENT_CONFIG_PATHS))
+    agent_name = args.agent or plan_agent or infer_legacy_agent(data)
+    require(agent_name is not None, "Pass --agent claude|codex or set rollout.agent in the plan.")
+    adapter = load_agent_adapter(agent_name)
+    plan = normalize_plan(data, plan_path, adapter)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_runner(plan))
     output_path.chmod(output_path.stat().st_mode | stat.S_IXUSR)
 
     print(f"[OK] Generated rollout runner: {output_path}")
+    print(f"[OK] Agent: {adapter['name']}")
     print(f"[OK] Repo root: {plan['rollout']['repo_root']}")
     print(f"[OK] Phases: {len(plan['phases'])}")
     print(f"[OK] Batches: {sum(len(phase['batches']) for phase in plan['phases'])}")
