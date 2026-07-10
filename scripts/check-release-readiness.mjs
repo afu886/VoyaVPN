@@ -6,6 +6,12 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { isCliEntrypoint } from "./lib/common.mjs";
+import {
+  isPositiveByteSize,
+  isSha256Hex,
+  isUrlDerivedFromBase,
+  missingExpectedValues,
+} from "./lib/release-validation.mjs";
 import { stableCoreTypes, stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -867,15 +873,16 @@ function validateReleaseIndex(index, cdnBaseUrl) {
   assert(!forbiddenSerialized(index), "release index contains placeholder, example, or GitHub content");
 
   const present = new Set(index.artifacts.map((artifact) => `${artifact.target}/${artifact.arch}`));
-  const missing = stableTargets
-    .map((target) => `${target.os}/${target.arch}`)
-    .filter((target) => !present.has(target));
+  const missing = missingExpectedValues(
+    stableTargets.map((target) => `${target.os}/${target.arch}`),
+    present,
+  );
   assert(missing.length === 0, `release index is missing first-stable target(s): ${missing.join(", ")}`);
 
   for (const artifact of index.artifacts) {
-    assert(artifact.url?.startsWith(`${cdnBaseUrl}/`), `release index URL is not CDN-derived: ${artifact.url}`);
-    assert(Number.isInteger(artifact.bytes) && artifact.bytes > 0, `release index artifact has invalid bytes: ${artifact.name}`);
-    assert(/^[a-f0-9]{64}$/i.test(artifact.sha256 ?? ""), `release index artifact has invalid sha256: ${artifact.name}`);
+    assert(isUrlDerivedFromBase(artifact.url, cdnBaseUrl), `release index URL is not CDN-derived: ${artifact.url}`);
+    assert(isPositiveByteSize(artifact.bytes), `release index artifact has invalid bytes: ${artifact.name}`);
+    assert(isSha256Hex(artifact.sha256), `release index artifact has invalid sha256: ${artifact.name}`);
   }
 }
 
@@ -886,11 +893,11 @@ function validateUpdaterMetadata(latest, updatesBaseUrl) {
   assert(!forbiddenSerialized(latest), "latest.json contains placeholder, example, or GitHub content");
 
   const keys = Object.keys(latest.platforms).sort((left, right) => left.localeCompare(right));
-  const missing = stableTargets.map((target) => target.updater).filter((target) => !keys.includes(target));
+  const missing = missingExpectedValues(stableTargets.map((target) => target.updater), new Set(keys));
   assert(missing.length === 0, `latest.json is missing first-stable updater target(s): ${missing.join(", ")}`);
 
   for (const [target, platform] of Object.entries(latest.platforms)) {
-    assert(platform.url?.startsWith(`${updatesBaseUrl}/`), `updater URL for ${target} is not base-url-derived`);
+    assert(isUrlDerivedFromBase(platform.url, updatesBaseUrl), `updater URL for ${target} is not base-url-derived`);
     assert(!placeholderText(platform.signature), `updater signature for ${target} is a placeholder`);
     assert(String(platform.signature).length >= 32, `updater signature for ${target} is too short`);
   }
@@ -903,23 +910,18 @@ function validateCoreManifest(manifest, cdnBaseUrl) {
   assert(Array.isArray(manifest.assets), "core manifest assets[] must be an array");
 
   const present = new Set(manifest.assets.map((asset) => `${asset.coreType}/${asset.os}/${asset.arch}`));
-  const missing = [];
-  for (const coreType of stableCoreTypes) {
-    for (const target of stableTargets) {
-      const key = `${coreType}/${target.os}/${target.arch}`;
-      if (!present.has(key)) {
-        missing.push(key);
-      }
-    }
-  }
+  const missing = missingExpectedValues(
+    stableCoreTypes.flatMap((coreType) => stableTargets.map((target) => `${coreType}/${target.os}/${target.arch}`)),
+    present,
+  );
   assert(missing.length === 0, `core manifest is missing first-stable asset(s): ${missing.join(", ")}`);
 
   for (const asset of manifest.assets) {
     assert(stableCoreTypes.includes(asset.coreType), `core asset type is not supported in stable releases: ${asset.coreType}`);
-    assert(asset.url?.startsWith(`${cdnBaseUrl}/`), `core asset URL is not CDN-derived: ${asset.name}`);
+    assert(isUrlDerivedFromBase(asset.url, cdnBaseUrl), `core asset URL is not CDN-derived: ${asset.name}`);
     assert(!/github\.com|voyavpn\.example|placeholder/i.test(asset.url), `core asset production URL is forbidden: ${asset.url}`);
-    assert(Number.isInteger(asset.bytes) && asset.bytes > 0, `core asset has invalid bytes: ${asset.name}`);
-    assert(/^[a-f0-9]{64}$/i.test(asset.sha256 ?? ""), `core asset has invalid sha256: ${asset.name}`);
+    assert(isPositiveByteSize(asset.bytes), `core asset has invalid bytes: ${asset.name}`);
+    assert(isSha256Hex(asset.sha256), `core asset has invalid sha256: ${asset.name}`);
     assert(Array.isArray(asset.executableCandidates) && asset.executableCandidates.length > 0, `core asset has no executable candidates: ${asset.name}`);
     assert(typeof asset.upstreamUrl === "string" && asset.upstreamUrl.length > 0, `core asset has no upstream URL: ${asset.name}`);
   }

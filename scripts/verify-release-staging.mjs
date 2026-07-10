@@ -4,6 +4,12 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isCliEntrypoint } from "./lib/common.mjs";
 import {
+  isPositiveByteSize,
+  isSha256Hex,
+  isUrlDerivedFromBase,
+  missingExpectedValues,
+} from "./lib/release-validation.mjs";
+import {
   resolveApprovedUpdaterPublicKey,
   verifyTauriUpdaterSignature,
   verifyTauriUpdaterSignatureFile,
@@ -283,7 +289,7 @@ function assertAllowedUrl(urlText, label, expectedBaseUrl, options, failures) {
     failures.push(`${label} must not use ${reason}: ${text}`);
   }
 
-  if (expectedBaseUrl && !text.startsWith(`${expectedBaseUrl}/`)) {
+  if (expectedBaseUrl && !isUrlDerivedFromBase(text, expectedBaseUrl)) {
     failures.push(`${label} must be derived from ${expectedBaseUrl}: ${text}`);
   }
 
@@ -303,7 +309,7 @@ function requiredSha256(value, label, failures) {
   if (!text) {
     return null;
   }
-  if (!/^[a-f0-9]{64}$/i.test(text)) {
+  if (!isSha256Hex(text)) {
     failures.push(`${label} must be a 64-character SHA-256 hex string`);
     return null;
   }
@@ -311,7 +317,7 @@ function requiredSha256(value, label, failures) {
 }
 
 function requiredBytes(value, label, failures) {
-  if (!Number.isInteger(value) || value <= 0) {
+  if (!isPositiveByteSize(value)) {
     failures.push(`${label} must be a positive integer byte size`);
     return null;
   }
@@ -518,7 +524,7 @@ async function verifyUpdaterMetadataSignatures(latest, rawOptions = {}) {
 }
 
 function assertStableMatrix(label, present, expectedTargets, failures) {
-  const missing = expectedTargets.filter((target) => !present.has(target));
+  const missing = missingExpectedValues(expectedTargets, present);
   if (missing.length > 0) {
     failures.push(`${label} is missing stable targets: ${missing.join(", ")}`);
   }
