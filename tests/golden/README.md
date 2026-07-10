@@ -1,61 +1,73 @@
 # Golden Fixtures
 
-Golden fixtures are the config-generation oracle for VoyaVPN. They compare VoyaVPN-generated sing-box JSON against JSON exported from the read-only v2rayN reference behavior. Golden tests must assert on generated core configs, not only on entities, DTOs, or intermediate snapshots.
+Golden fixtures are the config-generation oracle for VoyaVPN. They compare VoyaVPN-generated sing-box JSON with reference JSON derived from the read-only v2rayN behavior. Golden tests assert on generated core configuration, not only on entities, DTOs, or intermediate snapshots.
 
 ## Reference Inputs
 
-Reference behavior comes from:
+Reference behavior comes from these areas of `<v2rayN>/v2rayN/`:
 
-- `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib/Handler/Builder/CoreConfigContextBuilder.cs`
-- `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib/Services/CoreConfig/Singbox/**`
-- `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib/Sample/**`
-- `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib.Tests/CoreConfig/**`
+- `<v2rayN>/v2rayN/ServiceLib/Handler/Builder/CoreConfigContextBuilder.cs`
+- `<v2rayN>/v2rayN/ServiceLib/Services/CoreConfig/Singbox/**`
+- `<v2rayN>/v2rayN/ServiceLib/Sample/**`
+- `<v2rayN>/v2rayN/ServiceLib.Tests/CoreConfig/**`
 
-The reference repository is read-only. If an export harness is needed later, add it in VoyaVPN or run it out-of-tree without modifying the reference source.
+The reference copy is a read-only checkout of upstream `2dust/v2rayN`. The i18n toolchain defaults to the checkout under `../v2rayN` (specifically `../v2rayN/v2rayN/ServiceLib/Resx`); set `VOYAVPN_V2RAYN_RESX_DIR` to override that source. If an export harness is needed later, add it in VoyaVPN or run it out of tree without modifying the reference source.
 
 ## Fixture Shape
 
-Use one directory per case:
+`matrix.json` is the matrix-driven index for sing-box golden cases. Each case's `fixture` path is resolved relative to `tests/golden/`, and its reference JSON is organized by generated-config area under `singbox/<area>/*.json`.
 
 ```text
 tests/golden/
   README.md
-  cases/
-    singbox-proxy-chain-detour/
-      manifest.json
-      input.json
-      singbox.reference.json
-    singbox-policy-group/
-      manifest.json
-      input.json
-      singbox.reference.json
+  matrix.json
+  singbox/
+    dns/
+      *.json
+    inbounds/
+      *.json
+    outbounds/
+      *.json
+    route/
+      *.json
+  groups/
+    mixed_child_policy_group_preview.json
+    proxy_chain_two_three_hop_preview.json
 ```
 
-`manifest.json` records:
+`matrix.json` has a `version` and a `cases` array. Every case entry uses these fields:
 
-- `id`: stable case ID, matching the directory name
-- `summary`: short behavior description
-- `cores`: `["sing-box"]`
-- `platform`: `generic`, `windows`, `linux`, or `macos` when output depends on platform facts
-- `reference_paths`: v2rayN files or tests that justify the case
-- `hotspots`: hotspot tags such as `policy-group`, `proxy-chain`, `dns`, `tun`, `template`, or `pre-socks`
-- `core_acceptance`: whether sing-box binary acceptance should be attempted when the binary is discoverable
-- `volatile_fields`: fields ignored during canonicalization, with a reason for each entry
+- `id`: stable, unique case identifier used in failure output.
+- `core`: target core; the current runner accepts `"sing-box"`.
+- `fixture`: reference JSON path relative to `tests/golden/`, normally `singbox/<area>/<name>.json`.
+- `generated`: selector for the generated section; it must be supported by `generated_value_for_case()` in `crates/voya-core/src/golden.rs`.
+- `summary`: non-empty behavior description.
+- `hotspots`: non-empty tags identifying the parity risks covered by the case.
+- `reference_paths`: non-empty v2rayN-relative source or test paths that justify the reference behavior.
+- `core_acceptance`: per-case boolean metadata. The current optional binary acceptance test is global rather than driven by this field.
+- `volatile_fields`: JSON Pointer entries to remove from both reference and generated JSON before comparison. Each entry has a `pointer` and a non-empty `reason`.
 
-`input.json` is the normalized VoyaVPN test seed: profiles, settings, routing, DNS, full-config template data, and injected platform facts. It is not the golden assertion target. The assertion target is the generated core JSON compared with `singbox.reference.json`.
+The two preview fixtures in `groups/` are an exception to the matrix layout. `crates/voya-core/src/groups.rs` loads `mixed_child_policy_group_preview.json` and `proxy_chain_two_three_hop_preview.json` directly with `include_str!`; they are not matrix cases and must not be added to `matrix.json`.
+
+## Adding a Fixture
+
+1. Append a complete case entry to `tests/golden/matrix.json`, using an existing or concurrently implemented `generated` selector.
+2. Place the corresponding reference JSON under the appropriate `tests/golden/singbox/<area>/` directory and point `fixture` at it.
+
+Use the direct `groups.rs` `include_str!` mechanism only for the two group preview fixtures; it does not use the matrix flow.
 
 ## Canonicalization
 
-Canonicalization must make diffs stable without hiding behavior:
+Canonicalization makes diffs stable without hiding behavior:
 
-- Parse as JSON and fail on invalid JSON.
+- Parse fixtures as JSON and fail on invalid JSON.
+- Remove only the JSON Pointer values declared in the case's `volatile_fields`, from both the reference and generated values.
 - Recursively sort object keys.
 - Preserve array order. Array order is behavior for outbounds, rules, DNS servers, policy selectors, and inbounds.
-- Preserve string values exactly except for normalized line endings.
-- Preserve the difference between missing fields, `null`, empty arrays, and empty objects unless the manifest explicitly declares a field volatile.
+- Preserve the difference between missing fields, `null`, empty arrays, and empty objects unless the matrix entry explicitly declares a field volatile.
 - Normalize numeric representation through the JSON parser.
 - Pretty-print with two-space indentation and a trailing newline.
-- Prefer deterministic injected inputs over ignore rules. Random ports, interface names, timestamps, temp paths, UUIDs, and generated file paths should be supplied by the test environment where possible.
+- Prefer deterministic generated inputs over ignore rules. Random ports, interface names, timestamps, temp paths, UUIDs, and generated file paths should be supplied by the test environment where possible.
 
 Any `volatile_fields` entry must include a concrete reason and should be rare. It is not acceptable to ignore whole outbounds, rules, DNS sections, or template output to make a fixture pass.
 
@@ -75,10 +87,10 @@ The golden corpus should grow around these case groups:
 
 ## Core Acceptance
 
-Golden JSON diffing always runs. Core binary acceptance is optional and additive:
+Golden JSON diffing always runs for every matrix case. Core binary acceptance is optional and additive: set `VOYA_GOLDEN_ACCEPTANCE=1` to generate the dedicated acceptance config and run:
 
-- sing-box: `sing-box check -c <generated-config>`
+```text
+sing-box check -c <generated-config>
+```
 
-The runner should discover binaries from `VOYA_SING_BOX_BIN`, future test config, the app binary directory, then `PATH`. If the binary is missing, record a skip reason and keep the JSON parity result authoritative for local deterministic checks.
-
-External core binaries are not required for this batch. Stable packages acquire sing-box from the bundled seed prepared during install/build, not from a runtime core download path.
+The runner first uses `VOYA_SINGBOX_BIN` when set, then searches `PATH` for `sing-box` (or `sing-box.exe`). If the binary is unavailable, it prints a skip reason while JSON parity remains authoritative for deterministic checks. The current acceptance test checks one generated config, not each case marked with `core_acceptance`.
