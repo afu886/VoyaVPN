@@ -61,7 +61,7 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 - **voya-net** — HTTP downloads, subscriptions, update checks, Clash REST/WebSocket, WebDAV, rulesets.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
 - **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `clash`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, `backup`, etc.) that combine the domain/db/net/platform crates. No Tauri wiring here.
-- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands.rs` has 94 `#[tauri::command]` functions, `ipc/window.rs` has 2 more, and the fixed `collect_commands!` list registers 95 commands; debug builds add `ipc_demo_round_trip` for 96; events live in `events.rs`).
+- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands/` splits its 94 `#[tauri::command]` functions by subsystem; `commands/mod.rs` re-exports every command and crate-private shell helper, `ipc/window.rs` has 2 more, and the fixed `collect_commands!` list registers 95 commands; debug builds add `ipc_demo_round_trip` for 96; events live in `events.rs`).
 
 ### Frontend (`apps/desktop/src/` + `packages/`)
 
