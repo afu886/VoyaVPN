@@ -7,7 +7,7 @@ const steps = [
   ["Frontend typecheck", "pnpm", ["run", "check:frontend:typecheck"]],
   ["Frontend tests", "pnpm", ["run", "check:frontend:test"]],
   ["Frontend lint", "pnpm", ["run", "check:frontend:lint"]],
-  ["Generated binding drift", "pnpm", ["run", "check:bindings"]],
+  ["Generated binding drift", "pnpm", ["run", "bindings:check"]],
   ["i18n locale drift", "pnpm", ["run", "i18n:check"]],
 ];
 

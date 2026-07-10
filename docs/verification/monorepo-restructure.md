@@ -21,7 +21,7 @@
 | Frontend typecheck | `pnpm run check:frontend:typecheck` | 通过；`pnpm -r run typecheck` 覆盖 `packages/{utils,i18n,ui}` 与 `apps/desktop`。 |
 | Frontend tests | `pnpm run check:frontend:test` | 通过；`pnpm test --run` 摘要为 27 个测试文件、159 个测试通过。 |
 | Frontend lint | `pnpm run check:frontend:lint` | 通过；`eslint .` 无报错。 |
-| Generated binding drift | `pnpm run check:bindings` | 通过；输出 `Generated IPC bindings are up to date.` |
+| Generated binding drift | `pnpm run bindings:check` | 通过；输出 `Generated IPC bindings are up to date.` |
 | i18n locale drift | `pnpm run i18n:check` | 通过；本机缺少 `../v2rayN` ResX 资源，脚本按预期跳过导入。 |
 
 ## Vitest 收集核对
