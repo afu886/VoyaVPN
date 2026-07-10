@@ -1,0 +1,402 @@
+use super::*;
+
+pub(super) fn json_object<const N: usize>(items: [(&str, Value); N]) -> Value {
+    Value::Object(
+        items
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect::<Map<_, _>>(),
+    )
+}
+
+pub(super) fn value_string(object: &Map<String, Value>, key: &str) -> String {
+    object
+        .get(key)
+        .and_then(|value| match value {
+            Value::String(text) => Some(text.clone()),
+            Value::Number(number) => Some(number.to_string()),
+            Value::Bool(value) => Some(value.to_string()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+pub(super) fn value_i32(object: &Map<String, Value>, key: &str) -> Option<i32> {
+    object.get(key).and_then(|value| match value {
+        Value::Number(number) => number.as_i64().and_then(|value| i32::try_from(value).ok()),
+        Value::String(text) => text.parse().ok(),
+        _ => None,
+    })
+}
+
+pub(super) fn string_field(object: &Map<String, Value>, key: &str) -> String {
+    object
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+pub(super) fn parse_wireguard_endpoint(endpoint: &str) -> Option<(String, i32)> {
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return None;
+    }
+    if let Some(rest) = endpoint.strip_prefix('[') {
+        let close_index = rest.find(']')?;
+        let address = rest[..close_index].trim().to_string();
+        if address.is_empty() {
+            return None;
+        }
+        let after = rest[(close_index + 1)..].trim();
+        let port = after
+            .strip_prefix(':')
+            .and_then(|text| text.trim().parse::<i32>().ok())
+            .filter(|port| (1..=65535).contains(port))
+            .unwrap_or(2408);
+        return Some((address, port));
+    }
+
+    if let Some((address, port_text)) = endpoint.rsplit_once(':') {
+        if address.trim().is_empty() {
+            return None;
+        }
+        if let Ok(port) = port_text.trim().parse::<i32>() {
+            if (1..=65535).contains(&port) {
+                return Some((address.trim().to_string(), port));
+            }
+        }
+    }
+    Some((endpoint.to_string(), 2408))
+}
+
+pub(super) fn rsplit_host_port(input: &str) -> Option<(String, &str)> {
+    let (host, port) = input.rsplit_once(':')?;
+    let host = host.trim();
+    if host.is_empty() {
+        return None;
+    }
+    Some((host.trim_matches(['[', ']']).to_string(), port))
+}
+
+pub(super) fn parse_port(protocol: &'static str, port: &str) -> Result<i32, ShareError> {
+    let parsed = port.parse::<i32>().map_err(|_| ShareError::InvalidPort {
+        protocol,
+        port: port.to_string(),
+    })?;
+    if !(1..=65535).contains(&parsed) {
+        return Err(ShareError::InvalidPort {
+            protocol,
+            port: port.to_string(),
+        });
+    }
+    Ok(parsed)
+}
+
+pub(super) fn parse_positive_i32(value: &str) -> Option<i32> {
+    value.parse::<i32>().ok().filter(|value| *value > 0)
+}
+
+pub(super) fn ensure_type(
+    protocol: &'static str,
+    item: &ProfileItem,
+    expected: ConfigType,
+) -> Result<(), ShareError> {
+    if item.config_type == expected {
+        Ok(())
+    } else {
+        Err(ShareError::WrongConfigType {
+            protocol,
+            actual: item.config_type,
+        })
+    }
+}
+
+pub(super) fn ensure_address_port(
+    protocol: &'static str,
+    item: &ProfileItem,
+) -> Result<(), ShareError> {
+    ensure_nonempty(protocol, "address", &item.address)?;
+    if !valid_host(&item.address) {
+        return Err(ShareError::InvalidUri {
+            protocol,
+            reason: format!("invalid host {}", item.address),
+        });
+    }
+    if !(1..=65535).contains(&item.port) {
+        return Err(ShareError::InvalidPort {
+            protocol,
+            port: item.port.to_string(),
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn ensure_nonempty(
+    protocol: &'static str,
+    field: &'static str,
+    value: &str,
+) -> Result<(), ShareError> {
+    if value.is_empty() {
+        Err(ShareError::MissingField { protocol, field })
+    } else {
+        Ok(())
+    }
+}
+
+pub(super) fn valid_host(host: &str) -> bool {
+    let host = host.trim();
+    if host.is_empty()
+        || host.len() > 253
+        || host.chars().any(|ch| {
+            ch.is_control()
+                || ch.is_whitespace()
+                || matches!(ch, '=' | '/' | '?' | '#' | '@' | '\\')
+        })
+    {
+        return false;
+    }
+
+    let host_for_ip = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    if host_for_ip.parse::<IpAddr>().is_ok() {
+        return true;
+    }
+
+    if host.contains(':') {
+        return false;
+    }
+
+    let domain = host.trim_end_matches('.');
+    !domain.is_empty()
+        && domain.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+}
+
+pub(super) fn protocol_share(config_type: ConfigType) -> &'static str {
+    match config_type {
+        ConfigType::VMess => "vmess://",
+        ConfigType::Shadowsocks => "ss://",
+        ConfigType::SOCKS => "socks://",
+        ConfigType::VLESS => "vless://",
+        ConfigType::Trojan => "trojan://",
+        ConfigType::Hysteria2 => HYSTERIA2_DEFAULT_SCHEME,
+        ConfigType::TUIC => "tuic://",
+        ConfigType::WireGuard => "wireguard://",
+        ConfigType::Anytls => "anytls://",
+        ConfigType::Naive => "naive://",
+        _ => "",
+    }
+}
+
+pub(super) fn config_type_name(config_type: ConfigType) -> &'static str {
+    match config_type {
+        ConfigType::VMess => "vmess",
+        ConfigType::Custom => "custom",
+        ConfigType::Shadowsocks => "shadowsocks",
+        ConfigType::SOCKS => "socks",
+        ConfigType::VLESS => "vless",
+        ConfigType::Trojan => "trojan",
+        ConfigType::Hysteria2 => "hysteria2",
+        ConfigType::TUIC => "tuic",
+        ConfigType::WireGuard => "wireguard",
+        ConfigType::HTTP => "http",
+        ConfigType::Anytls => "anytls",
+        ConfigType::Naive => "naive",
+        ConfigType::PolicyGroup => "policygroup",
+        ConfigType::ProxyChain => "proxychain",
+    }
+}
+
+pub(super) fn item_network(item: &ProfileItem) -> &str {
+    if item.network.is_empty() || !NETWORKS.contains(&item.network.as_str()) {
+        DEFAULT_NETWORK
+    } else {
+        item.network.trim()
+    }
+}
+
+pub(super) fn is_group_type(config_type: ConfigType) -> bool {
+    matches!(
+        config_type,
+        ConfigType::PolicyGroup | ConfigType::ProxyChain
+    )
+}
+
+pub(super) fn option_or(value: &Option<String>, default_value: &str) -> String {
+    nonempty_option(value).unwrap_or(default_value).to_string()
+}
+
+pub(super) fn nonempty(value: String) -> Option<String> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+pub(super) fn nonempty_option(value: &Option<String>) -> Option<&str> {
+    nonempty_str(value.as_deref())
+}
+
+pub(super) fn nonempty_str(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.is_empty())
+}
+
+pub(super) fn push_encoded_opt(query: &mut QueryPairs, key: &str, value: &Option<String>) {
+    if let Some(value) = nonempty_option(value) {
+        query.push((key.to_string(), url_encode(value)));
+    }
+}
+
+pub(super) fn push_encoded_str(query: &mut QueryPairs, key: &str, value: &str) {
+    if !value.is_empty() {
+        query.push((key.to_string(), url_encode(value)));
+    }
+}
+
+pub(super) fn format_query(query: &[(String, String)]) -> String {
+    if query.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "?{}",
+            query
+                .iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .collect::<Vec<_>>()
+                .join("&")
+        )
+    }
+}
+
+pub(super) fn ipv6_host(address: &str) -> String {
+    if address.starts_with('[') && address.ends_with(']') {
+        return address.to_string();
+    }
+    if address
+        .parse::<IpAddr>()
+        .is_ok_and(|address| address.is_ipv6())
+    {
+        format!("[{address}]")
+    } else {
+        address.to_string()
+    }
+}
+
+pub(super) fn compact_json_or_self(input: &str) -> String {
+    serde_json::from_str::<Value>(input)
+        .and_then(|value| serde_json::to_string(&value))
+        .unwrap_or_else(|_| input.to_string())
+}
+
+pub(super) fn pretty_json_or_self(input: &str) -> String {
+    serde_json::from_str::<Value>(input)
+        .and_then(|value| serde_json::to_string_pretty(&value))
+        .unwrap_or_else(|_| input.to_string())
+}
+
+pub(super) fn extract_first_pem_body(cert: &str) -> Option<String> {
+    let begin = "-----BEGIN CERTIFICATE-----";
+    let end = "-----END CERTIFICATE-----";
+    let start = cert.find(begin)? + begin.len();
+    let rest = &cert[start..];
+    let finish = rest.find(end)?;
+    Some(rest[..finish].trim().replace('\r', ""))
+}
+
+pub(super) fn base64_encode(input: &str, remove_padding: bool) -> String {
+    let mut encoded = STANDARD.encode(input.as_bytes());
+    if remove_padding {
+        encoded = encoded.trim_end_matches('=').to_string();
+    }
+    encoded
+}
+
+pub(super) fn base64_decode(input: &str, protocol: &'static str) -> Result<String, ShareError> {
+    if input.trim().len() > MAX_BASE64_DECODE_INPUT {
+        return Err(ShareError::InvalidBase64 { protocol });
+    }
+
+    let mut normalized = input
+        .trim()
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
+        .replace('_', "/")
+        .replace('-', "+");
+    if normalized.len() % 4 != 0 {
+        let pad = 4 - (normalized.len() % 4);
+        normalized.extend(std::iter::repeat_n('=', pad));
+    }
+    let bytes = STANDARD
+        .decode(normalized.as_bytes())
+        .map_err(|_| ShareError::InvalidBase64 { protocol })?;
+    String::from_utf8(bytes).map_err(|_| ShareError::InvalidBase64 { protocol })
+}
+
+pub(super) fn url_encode(input: &str) -> String {
+    let mut encoded = String::new();
+    for byte in input.as_bytes() {
+        match *byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(char::from(*byte))
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
+}
+
+pub(super) fn url_decode(input: &str) -> String {
+    percent_decode_str(input).decode_utf8_lossy().into_owned()
+}
+
+pub(super) fn split_csv(input: &str) -> Vec<String> {
+    input
+        .replace(['\r', '\n'], "")
+        .split(',')
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>()
+}
+
+pub(super) fn starts_with_ci(value: &str, prefix: &str) -> bool {
+    value
+        .get(..prefix.len())
+        .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+}
+
+pub(super) fn contains_all_ci(value: &str, needles: &[&str]) -> bool {
+    let lower = value.to_ascii_lowercase();
+    needles
+        .iter()
+        .all(|needle| lower.contains(&needle.to_ascii_lowercase()))
+}
+
+pub(super) fn is_html_page(value: &str) -> bool {
+    contains_all_ci(value, &["<html", "<!doctype html", "<head"])
+}
+
+pub(super) trait StripPrefixCi {
+    fn strip_prefix_ci<'a>(&'a self, prefix: &str) -> Option<&'a str>;
+}
+
+impl StripPrefixCi for str {
+    fn strip_prefix_ci<'a>(&'a self, prefix: &str) -> Option<&'a str> {
+        if starts_with_ci(self, prefix) {
+            self.get(prefix.len()..)
+        } else {
+            None
+        }
+    }
+}
