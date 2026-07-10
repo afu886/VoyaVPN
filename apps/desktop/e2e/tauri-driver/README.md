@@ -9,4 +9,4 @@ This batch adds browser-level Playwright coverage in `e2e/smoke.spec.ts`. It run
 3. Start the app with the Tauri dev or packaged build under the driver.
 4. Re-run the same smoke flow from `e2e/smoke.spec.ts` against the WebDriver endpoint, replacing the browser IPC mock with the real Tauri runtime.
 
-Exact manual checks and skipped automated surfaces are tracked in `docs/verification/cross-platform-smoke.md`.
+Exact manual checks and skipped automated surfaces are tracked in [docs/release/os-smoke-matrix.md](../../../../docs/release/os-smoke-matrix.md).

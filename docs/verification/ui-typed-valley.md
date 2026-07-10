@@ -40,8 +40,8 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 ## 确认发现（按主题；每条带 `file:line` + 严重度）
 
 ### ① 连接体验无「英雄」(P0，最高杠杆) ✅
-- 连接/断开/重启是 `size-7`(28px) 图标按钮，与 PID badge、代理模式 4 段切换、TUN、上下行速度 ~10 个控件挤在
-  44px footer：[status-bar.tsx:196-264](../../apps/desktop/src/components/app-shell/status-bar.tsx#L196-L264)。
+- 归档审计时，连接/断开/重启是 `size-7`(28px) 图标按钮，与 PID badge、代理模式 4 段切换、TUN、上下行速度 ~10 个控件挤在
+  44px footer（当前实现已变更，见 [status-bar.tsx](../../apps/desktop/src/components/app-shell/status-bar.tsx)）。
 - `profilesLabel = t("status.profiles", { count: 0 })` —— **count 硬编码 0**，永不反映真实档案数：
   [status-bar.tsx:108](../../apps/desktop/src/components/app-shell/status-bar.tsx#L108)。
 - 全应用**无任何视图回答 VPN 客户端最该一眼回答的三件事**：是否受保护 / 连到哪个节点·地区 / 现在多快、连了多久。

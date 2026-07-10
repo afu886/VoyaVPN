@@ -10,9 +10,9 @@ VoyaVPN is a greenfield rewrite of v2rayN into Tauri 2, Rust, React, TypeScript,
 
 Reference evidence:
 
-- v2rayN business logic: `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib`
-- v2rayN tests: `/Users/afu/Dev/refs/v2rayN/v2rayN/ServiceLib.Tests`
-- UI references: `/Users/afu/Dev/refs/v2rayN/v2rayN/v2rayN` and `/Users/afu/Dev/refs/v2rayN/v2rayN/v2rayN.Desktop`
+- v2rayN business logic: `<v2rayN>/v2rayN/ServiceLib`
+- v2rayN tests: `<v2rayN>/v2rayN/ServiceLib.Tests`
+- UI references: `<v2rayN>/v2rayN/v2rayN` and `<v2rayN>/v2rayN/v2rayN.Desktop`
 - Target module boundaries are captured in the decision below.
 
 ## Decision

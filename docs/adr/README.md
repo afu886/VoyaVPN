@@ -1,9 +1,6 @@
 # Architecture Decision Records
 
-These ADRs are baseline contracts for the VoyaVPN full rewrite. They are based on:
-
-- `/Users/afu/.claude/plans/typescript-shadcn-tauri-silly-marble.md`
-- read-only v2rayN reference areas under `/Users/afu/Dev/refs/v2rayN/v2rayN`
+These ADRs are baseline contracts for the VoyaVPN full rewrite, based on the initial rewrite plan and read-only v2rayN reference areas under `<v2rayN>/v2rayN`.
 
 ## Index
 
