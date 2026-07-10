@@ -4,7 +4,7 @@
 > 2026 年 6 月的代码审计文档未入库；此处仅以其与 `audit-remediation-2026-06` 的关系作类比。
 > 镜头：**界面 / UI / UX / 设计品味**（非安全/正确性，后者见上一轮审计整改）。
 > 方法：3 个并行只读探查 agent（app-shell+设计系统 / 功能屏+UX 流 / i18n+a11y+一致性）＋我对高杠杆论断的**亲自核实**
-> （读 `status-bar.tsx`、`globals.css`、`server-table.tsx`、locale 文件、grep i18n 覆盖）。凡标 ✅ 为亲自核实，📋 为探查结论。
+> （读 `status-bar.tsx`、`globals.css`、`server-table*.tsx`、locale 文件、grep i18n 覆盖）。凡标 ✅ 为亲自核实，📋 为探查结论。
 
 ## Context（为什么做）
 
@@ -54,7 +54,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
   阴影仅 `shadow-xs/sm`，层次扁平。典型「shadcn baseline，工程好但没设计」。
 
 ### ③ 信息密度过载、缺渐进披露 (P1) ✅📋
-- profiles 表 14 列、强制横向滚动、重度截断、**无列可见性控制**：[server-table.tsx](../../apps/desktop/src/features/profiles/server-table.tsx)。
+- profiles 表 14 列、强制横向滚动、重度截断、**无列可见性控制**：[server-table-columns.tsx](../../apps/desktop/src/features/profiles/server-table-columns.tsx)。
 - connections 表 9 列、**只能过滤不能排序**：[clash-connections-screen.tsx](../../apps/desktop/src/features/clash/clash-connections-screen.tsx)。
 
 ### ④ 质量地板有洞 (P1–P2) ✅
@@ -69,7 +69,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 ### ⑤ 本地化零散硬编码 + 一致性未系统化 (P2) ✅
 - profiles 子域硬编码英文：表单标签 [profile-dialog.tsx:139](../../apps/desktop/src/features/profiles/profile-dialog.tsx#L139)
   （Remarks/Protocol/Core/Port/Group…）、右键菜单与测速按钮
-  [server-table.tsx:372-407](../../apps/desktop/src/features/profiles/server-table.tsx#L372-L407)（Fast/TCP/Real/UDP/Speed/Mixed、
+  [server-table-menus.tsx](../../apps/desktop/src/features/profiles/server-table-menus.tsx)（Fast/TCP/Real/UDP/Speed/Mixed、
   Activate/Edit/Copy/Delete/Move…）、多处 `aria-label="…"` 未走 i18n；zh-Hans 等有英文泄漏。
 - 各屏重复手写 `<section className="flex h-full min-h-0 flex-col"> + 12px header`，无共享页头原语；
   间距尺度 gap-1/1.5/2/3/4 自由混用，卡片底色 `bg-background` vs `bg-muted/30` 不成文。
