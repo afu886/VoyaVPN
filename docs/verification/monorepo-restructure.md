@@ -1,5 +1,7 @@
 # monorepo-restructure 终验证据
 
+本文为 monorepo 重构完成时的历史归档快照。
+
 - Batch: `06-01-full-verify`
 - Phase: `06-verification`
 - 验证时间: `2026-07-07 22:45:22 CST`

@@ -1,7 +1,7 @@
 # VoyaVPN 界面优化方案（tasteskill 复审 · 代号 typed-valley）
 
-> 本文是 `.agents/rollouts/ui-typed-valley/` 的上游证据来源（source of truth），等同审计整改里
-> [docs/code-audit-2026-06.md](../code-audit-2026-06.md) 之于 `audit-remediation-2026-06`。
+> `.agents/` 是仅供本地工作区使用的目录；本文保留为该轮界面复审的归档证据。
+> 2026 年 6 月的代码审计文档未入库；此处仅以其与 `audit-remediation-2026-06` 的关系作类比。
 > 镜头：**界面 / UI / UX / 设计品味**（非安全/正确性，后者见上一轮审计整改）。
 > 方法：3 个并行只读探查 agent（app-shell+设计系统 / 功能屏+UX 流 / i18n+a11y+一致性）＋我对高杠杆论断的**亲自核实**
 > （读 `status-bar.tsx`、`globals.css`、`server-table.tsx`、locale 文件、grep i18n 覆盖）。凡标 ✅ 为亲自核实，📋 为探查结论。
