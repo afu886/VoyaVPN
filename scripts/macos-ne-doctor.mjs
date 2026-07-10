@@ -1,7 +1,7 @@
-import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, requireDarwin, run } from "./lib/common.mjs";
 import {
   packetTunnelBundleIdentifier as providerBundleId,
   packetTunnelLayout,
@@ -53,26 +53,9 @@ Options:
   --dev        Also allow target/release/bundle/macos/VoyaVPN.app for local release builds.`);
 }
 
-function requireDarwin() {
-  if (process.platform !== "darwin") {
-    throw new Error("macOS NetworkExtension doctor must run on macOS.");
-  }
-}
-
-function run(program, args, options = {}) {
-  const result = spawnSync(program, args, {
-    cwd: options.cwd ?? repoRoot,
-    encoding: "utf8",
-    stdio: options.stdio ?? "pipe",
-  });
+function throwIfSpawnFailed(result) {
   if (result.error) {
     throw result.error;
-  }
-  if (options.allowFailure) {
-    return result;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}: ${result.stderr || result.stdout}`);
   }
   return result;
 }
@@ -138,8 +121,8 @@ export function parsePluginkitMatches(output) {
 }
 
 function collectPluginkitMatches() {
-  const all = run("/usr/bin/pluginkit", ["-mDvvv", "-i", providerBundleId], { allowFailure: true });
-  const active = run("/usr/bin/pluginkit", ["-mAvvv", "-i", providerBundleId], { allowFailure: true });
+  const all = throwIfSpawnFailed(capture("/usr/bin/pluginkit", ["-mDvvv", "-i", providerBundleId], { cwd: repoRoot }));
+  const active = throwIfSpawnFailed(capture("/usr/bin/pluginkit", ["-mAvvv", "-i", providerBundleId], { cwd: repoRoot }));
   if (all.status !== 0 && active.status !== 0) {
     throw new Error(
       `pluginkit query failed: ${all.stderr || all.stdout || active.stderr || active.stdout}`,
@@ -164,7 +147,7 @@ function parseSystemExtensionMatches(output) {
 }
 
 function collectSystemExtensionMatches() {
-  const result = run("/usr/bin/systemextensionsctl", ["list"], { allowFailure: true });
+  const result = throwIfSpawnFailed(capture("/usr/bin/systemextensionsctl", ["list"], { cwd: repoRoot }));
   if (result.status !== 0) {
     return [];
   }
@@ -295,16 +278,16 @@ function health(entries) {
 
 function unregisterEntry(entry) {
   if (entry.exists) {
-    run("/usr/bin/pluginkit", ["-r", entry.path], { stdio: "inherit" });
+    run("/usr/bin/pluginkit", ["-r", entry.path], { cwd: repoRoot });
     return;
   }
 
   if (entry.appBundle) {
-    run(
+    throwIfSpawnFailed(capture(
       "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
       ["-f", "-u", entry.appBundle],
-      { allowFailure: true, stdio: "inherit" },
-    );
+      { cwd: repoRoot, stdio: "inherit" },
+    ));
   }
 }
 
@@ -317,11 +300,14 @@ function registerLegalApp(appBundle) {
   run(
     "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
     ["-f", "-R", appBundle],
-    { stdio: "inherit" },
+    { cwd: repoRoot },
   );
   if (provider.mode === "app-extension") {
-    run("/usr/bin/pluginkit", ["-a", appBundle], { stdio: "inherit" });
-    run("/usr/bin/pluginkit", ["-a", provider.path], { allowFailure: true, stdio: "inherit" });
+    run("/usr/bin/pluginkit", ["-a", appBundle], { cwd: repoRoot });
+    throwIfSpawnFailed(capture("/usr/bin/pluginkit", ["-a", provider.path], {
+      cwd: repoRoot,
+      stdio: "inherit",
+    }));
   } else {
     console.log("System Extension activation is requested by the app when TUN starts; the doctor only refreshes LaunchServices.");
   }
@@ -338,7 +324,7 @@ function fix(entries, legalApps) {
 }
 
 function main() {
-  requireDarwin();
+  requireDarwin("macOS NetworkExtension doctor must run on macOS.");
   const options = parseArgs(process.argv.slice(2));
   const legalApps = buildLegalApps(options);
   let entries = classify(collectPluginkitMatches(), legalApps);

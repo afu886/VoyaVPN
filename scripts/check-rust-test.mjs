@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
+import { capture } from "./lib/common.mjs";
 
-function run(command, args, options = {}) {
+function runOrExit(command, args, options = {}) {
   console.log(`$ ${[command, ...args].join(" ")}`);
-  const result = spawnSync(command, args, {
+  const result = capture(command, args, {
     ...options,
     stdio: "inherit",
   });
@@ -12,6 +12,6 @@ function run(command, args, options = {}) {
   }
 }
 
-run("cargo", ["test", "--workspace", "--all-targets", "--exclude", "voyavpn"]);
-run("cargo", ["test", "-p", "voyavpn", "--bin", "voyavpn"]);
-run("cargo", ["test", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service"]);
+runOrExit("cargo", ["test", "--workspace", "--all-targets", "--exclude", "voyavpn"]);
+runOrExit("cargo", ["test", "-p", "voyavpn", "--bin", "voyavpn"]);
+runOrExit("cargo", ["test", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service"]);

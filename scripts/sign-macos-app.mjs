@@ -1,7 +1,7 @@
-import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, run, truthy } from "./lib/common.mjs";
 import {
   appBundleIdentifier,
   packetTunnelBundleIdentifier,
@@ -36,30 +36,6 @@ let tunnelLayout;
 let packetTunnelBundle;
 let packetTunnelProvisioningProfileDestination;
 let embeddedLibboxFramework;
-
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
-
-function run(program, args) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
-
-function runAllowFailure(program, args) {
-  return spawnSync(program, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-}
 
 function provisioningProfile(bundleIdentifier, explicitEnvName, criteria) {
   return resolveProfileFromEnv({
@@ -104,13 +80,13 @@ function signPlainExecutable(identity, path, label) {
   if (!existsSync(path)) {
     return;
   }
-  run("codesign", [...codesignBaseArgs(identity), path]);
+  run("codesign", [...codesignBaseArgs(identity), path], { cwd: repoRoot });
   console.log(`Signed nested executable: ${label}`);
 }
 
 function signNestedCode(identity, packetTunnelProfile) {
   if (existsSync(embeddedLibboxFramework)) {
-    run("codesign", [...codesignBaseArgs(identity), embeddedLibboxFramework]);
+    run("codesign", [...codesignBaseArgs(identity), embeddedLibboxFramework], { cwd: repoRoot });
     console.log("Signed nested framework: Libbox.framework");
   }
 
@@ -122,7 +98,7 @@ function signNestedCode(identity, packetTunnelProfile) {
         packetTunnelEntitlements,
       )
       : packetTunnelEntitlements;
-    run("codesign", [...codesignBaseArgs(identity), "--entitlements", entitlements, packetTunnelBundle]);
+    run("codesign", [...codesignBaseArgs(identity), "--entitlements", entitlements, packetTunnelBundle], { cwd: repoRoot });
     console.log(`Signed nested ${tunnelLayout.label}: PacketTunnel`);
   }
 
@@ -141,7 +117,7 @@ function removeUnsupportedLaunchServicesKeys() {
     return;
   }
 
-  run("/usr/libexec/PlistBuddy", ["-c", "Delete :LSRequiresCarbon", appInfoPlist]);
+  run("/usr/libexec/PlistBuddy", ["-c", "Delete :LSRequiresCarbon", appInfoPlist], { cwd: repoRoot });
   console.log("Removed unsupported LSRequiresCarbon from macOS app Info.plist.");
 }
 
@@ -220,10 +196,12 @@ function main() {
   const args = [...codesignBaseArgs(identity), "--entitlements", entitlements];
   args.push(appBundle);
 
-  run("codesign", args);
-  run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appBundle]);
+  run("codesign", args, { cwd: repoRoot });
+  run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appBundle], { cwd: repoRoot });
   if (distribution === "developer-id") {
-    const assessment = runAllowFailure("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle]);
+    const assessment = capture("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle], {
+      cwd: repoRoot,
+    });
     if (assessment.status === 0) {
       console.log("Developer ID app passed local spctl assessment.");
     } else if (truthy(process.env.VOYAVPN_REQUIRE_GATEKEEPER_ASSESSMENT)) {
@@ -234,7 +212,9 @@ function main() {
       );
     }
   } else {
-    const assessment = runAllowFailure("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle]);
+    const assessment = capture("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle], {
+      cwd: repoRoot,
+    });
     if (assessment.status === 0) {
       console.log("App Store/TestFlight app also passed local spctl assessment.");
     } else {

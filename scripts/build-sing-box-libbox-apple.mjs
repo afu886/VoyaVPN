@@ -1,10 +1,9 @@
-import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { capture, repoRootFromScript, requireDarwin, run, truthy } from "./lib/common.mjs";
 import { DEFAULT_SING_BOX_VERSION } from "./sing-box-core-installer.mjs";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = repoRootFromScript(import.meta.url);
 const sourceDir = resolve(process.env.VOYAVPN_SING_BOX_SOURCE_DIR || resolve(repoRoot, "target", "native", "sing-box"));
 const singBoxRef = process.env.VOYAVPN_SING_BOX_REF || process.env.SING_BOX_VERSION || DEFAULT_SING_BOX_VERSION;
 const targetXCFramework = resolve(
@@ -12,24 +11,9 @@ const targetXCFramework = resolve(
     resolve(repoRoot, "apps", "desktop", "src-tauri", "native", "macos", "Frameworks", "Libbox.xcframework"),
 );
 
-function run(program, args, options = {}) {
-  const result = spawnSync(program, args, {
+function captureText(program, args, options = {}) {
+  const result = capture(program, args, {
     cwd: options.cwd ?? repoRoot,
-    env: { ...process.env, ...options.env },
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
-
-function runText(program, args, options = {}) {
-  const result = spawnSync(program, args, {
-    cwd: options.cwd ?? repoRoot,
-    encoding: "utf8",
   });
   if (result.error) {
     throw result.error;
@@ -40,23 +24,13 @@ function runText(program, args, options = {}) {
   return result.stdout;
 }
 
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
-
-function requireDarwin() {
-  if (process.platform !== "darwin") {
-    throw new Error("Libbox.xcframework must be built on macOS with Xcode command line tools.");
-  }
-}
-
 function ensureSource() {
   if (!existsSync(sourceDir)) {
     mkdirSync(dirname(sourceDir), { recursive: true });
-    run("git", ["clone", "https://github.com/SagerNet/sing-box.git", sourceDir]);
+    run("git", ["clone", "https://github.com/SagerNet/sing-box.git", sourceDir], { cwd: repoRoot });
   }
 
-  const status = runText("git", ["status", "--porcelain"], { cwd: sourceDir }).trim();
+  const status = captureText("git", ["status", "--porcelain"], { cwd: sourceDir }).trim();
   if (status && !truthy(process.env.VOYAVPN_SING_BOX_ALLOW_DIRTY)) {
     throw new Error(
       `sing-box source checkout has local changes: ${sourceDir}\nSet VOYAVPN_SING_BOX_ALLOW_DIRTY=1 if you intentionally want to build from this checkout.`,
@@ -89,7 +63,7 @@ function stageLibbox() {
 }
 
 function main() {
-  requireDarwin();
+  requireDarwin("Libbox.xcframework must be built on macOS with Xcode command line tools.");
   ensureSource();
   buildLibbox();
   stageLibbox();

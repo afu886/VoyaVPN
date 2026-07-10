@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, requireDarwin, truthy } from "./lib/common.mjs";
 import {
   appBundleIdentifier,
   incompatiblePacketTunnelBundle,
@@ -32,23 +33,6 @@ let appex;
 let appexBinary;
 let packetTunnelProvisioningProfile;
 let libbox;
-
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
-
-function run(program, args) {
-  return spawnSync(program, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-}
-
-function requireDarwin() {
-  if (process.platform !== "darwin") {
-    throw new Error("macOS native tunnel verification must run on macOS.");
-  }
-}
 
 function requirePath(path, label) {
   if (!existsSync(path)) {
@@ -163,7 +147,7 @@ function verifyNoIncompatibleTunnelBundle() {
 }
 
 function verifySignature(path, label, requiredEntitlements = []) {
-  const verify = run("codesign", ["--verify", "--strict", "--verbose=2", path]);
+  const verify = capture("codesign", ["--verify", "--strict", "--verbose=2", path], { cwd: repoRoot });
   if (verify.status !== 0) {
     const message = `${label} is not signed or failed signature verification.`;
     if (truthy(process.env.VOYAVPN_REQUIRE_CODESIGN)) {
@@ -180,7 +164,7 @@ function verifySignature(path, label, requiredEntitlements = []) {
     return "";
   }
 
-  const entitlements = run("codesign", ["-d", "--entitlements", ":-", path]);
+  const entitlements = capture("codesign", ["-d", "--entitlements", ":-", path], { cwd: repoRoot });
   const output = `${entitlements.stdout ?? ""}\n${entitlements.stderr ?? ""}`;
   for (const entitlement of requiredEntitlements) {
     if (!output.includes(entitlement)) {
@@ -201,7 +185,7 @@ function verifyNotarizationReadySignature(path, label) {
     return;
   }
 
-  const details = run("codesign", ["-dv", "--verbose=4", path]);
+  const details = capture("codesign", ["-dv", "--verbose=4", path], { cwd: repoRoot });
   const output = `${details.stdout ?? ""}\n${details.stderr ?? ""}`;
   const checks = [
     ["Developer ID Application authority", "Authority=Developer ID Application:"],
@@ -217,7 +201,7 @@ function verifyNotarizationReadySignature(path, label) {
 }
 
 function verifyLibboxRuntime() {
-  const nm = run("nm", ["-gU", appexBinary]);
+  const nm = capture("nm", ["-gU", appexBinary], { cwd: repoRoot });
   const symbols = `${nm.stdout ?? ""}\n${nm.stderr ?? ""}`;
   const hasStaticLibbox = nm.status === 0 && libboxSymbols.every((symbol) => symbols.includes(symbol));
   if (hasStaticLibbox) {
@@ -248,7 +232,7 @@ function verifyLaunchServicesMetadata() {
 }
 
 function main() {
-  requireDarwin();
+  requireDarwin("macOS native tunnel verification must run on macOS.");
   initializeTunnelLayout();
   requirePath(appBundle, "macOS app bundle");
   verifyLaunchServicesMetadata();

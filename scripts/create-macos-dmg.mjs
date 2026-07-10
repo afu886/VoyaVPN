@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, requireDarwin, run, truthy } from "./lib/common.mjs";
 import {
   incompatiblePacketTunnelBundle,
   packetTunnelLayout,
@@ -26,15 +27,10 @@ let packetTunnelBundle;
 let packetTunnelBinary;
 let packetTunnelProvisioningProfile;
 
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
-
-function run(program, args, options = {}) {
-  const result = spawnSync(program, args, {
+function checkedCapture(program, args, options = {}) {
+  const result = capture(program, args, {
     cwd: options.cwd ?? repoRoot,
     env: options.env ?? process.env,
-    encoding: options.encoding ?? "utf8",
     stdio: options.stdio ?? "pipe",
   });
   if (result.error) {
@@ -44,12 +40,6 @@ function run(program, args, options = {}) {
     throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}: ${result.stderr || result.stdout}`);
   }
   return result;
-}
-
-function requireDarwin() {
-  if (process.platform !== "darwin") {
-    throw new Error("macOS DMG creation must run on macOS.");
-  }
 }
 
 function requirePath(path, label) {
@@ -70,7 +60,7 @@ function optionalOrRequiredPath(path, label) {
 }
 
 function plistValue(plistPath, keyPath) {
-  return run("/usr/libexec/PlistBuddy", ["-c", `Print ${keyPath}`, plistPath]).stdout.trim();
+  return checkedCapture("/usr/libexec/PlistBuddy", ["-c", `Print ${keyPath}`, plistPath]).stdout.trim();
 }
 
 function codesignEntitlements(path) {
@@ -118,7 +108,7 @@ function archSuffix() {
 
   const executable = appExecutablePath();
   requirePath(executable, "macOS app executable");
-  const archs = run("lipo", ["-archs", executable]).stdout.trim().split(/\s+/).filter(Boolean);
+  const archs = checkedCapture("lipo", ["-archs", executable]).stdout.trim().split(/\s+/).filter(Boolean);
   const hasArm64 = archs.includes("arm64");
   const hasX64 = archs.includes("x86_64");
   if (hasArm64 && hasX64) {
@@ -184,19 +174,19 @@ function createDmg(outputPath) {
     "-format",
     "UDZO",
     outputPath,
-  ], { stdio: "inherit" });
+  ], { cwd: repoRoot });
 }
 
 function attachDmg(outputPath) {
   const mountPoint = resolve(repoRoot, "target", "native", "macos", "dmg-verify-mount");
   rmSync(mountPoint, { force: true, recursive: true });
   mkdirSync(mountPoint, { recursive: true });
-  run("hdiutil", ["attach", "-nobrowse", "-readonly", "-mountpoint", mountPoint, outputPath], { stdio: "inherit" });
+  run("hdiutil", ["attach", "-nobrowse", "-readonly", "-mountpoint", mountPoint, outputPath], { cwd: repoRoot });
   return mountPoint;
 }
 
 function detachDmg(mountPoint) {
-  run("hdiutil", ["detach", mountPoint], { stdio: "inherit" });
+  run("hdiutil", ["detach", mountPoint], { cwd: repoRoot });
 }
 
 function verifyDmgContents(outputPath) {
@@ -221,7 +211,7 @@ function verifyDmgContents(outputPath) {
       "DMG PacketTunnel provisioning profile",
     );
     run("pnpm", ["native:macos:tunnel:verify"], {
-      stdio: "inherit",
+      cwd: repoRoot,
       env: {
         ...process.env,
         VOYAVPN_MACOS_APP_BUNDLE: mountedApp,
@@ -234,7 +224,7 @@ function verifyDmgContents(outputPath) {
 }
 
 function main() {
-  requireDarwin();
+  requireDarwin("macOS DMG creation must run on macOS.");
   initializeTunnelLayout();
   verifyFinalApp();
   createStagingDirectory();

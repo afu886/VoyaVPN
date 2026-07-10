@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { repoRootFromScript, truthy } from "./lib/common.mjs";
 import { ensureSingBoxSeedForBuild } from "./sing-box-core-installer.mjs";
 import { writeOptionalCoreSeedOverlay } from "./tauri-core-seeds.mjs";
 
@@ -10,7 +10,7 @@ const rawArgs = process.argv.slice(2);
 const writeStableConfigOnly = rawArgs.includes("--write-stable-updater-config");
 const tauriArgs = rawArgs.filter((arg) => arg !== "--write-stable-updater-config");
 const env = { ...process.env };
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = repoRootFromScript(import.meta.url);
 const desktopRoot = resolve(repoRoot, "apps", "desktop");
 const localTauriBin = resolve(
   desktopRoot,
@@ -50,10 +50,6 @@ if (env.CI === "1") {
   env.CI = "true";
 } else if (env.CI === "0") {
   env.CI = "false";
-}
-
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
 }
 
 function falsey(value) {

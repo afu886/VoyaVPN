@@ -5,11 +5,8 @@
 // `node scripts/install-sing-box-core.mjs` or `pnpm core:sing-box:install` when the
 // local app data `bin/sing_box/` directory also needs to be repaired.
 
-import {
-  fetchAndStageSingBoxSeed,
-  isCliEntrypoint,
-  repoRootFromScript,
-} from "./sing-box-core-installer.mjs";
+import { isCliEntrypoint, repoRootFromScript } from "./lib/common.mjs";
+import { fetchAndStageSingBoxSeed } from "./sing-box-core-installer.mjs";
 
 async function main() {
   await fetchAndStageSingBoxSeed({

@@ -1,10 +1,5 @@
-import {
-  installSingBoxCore,
-  isCliEntrypoint,
-  parseInstallArgs,
-  repoRootFromScript,
-  truthy,
-} from "./sing-box-core-installer.mjs";
+import { isCliEntrypoint, repoRootFromScript, truthy } from "./lib/common.mjs";
+import { installSingBoxCore, parseInstallArgs } from "./sing-box-core-installer.mjs";
 
 async function main() {
   const args = parseInstallArgs(process.argv.slice(2));

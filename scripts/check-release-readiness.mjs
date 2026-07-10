@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { isCliEntrypoint } from "./lib/common.mjs";
 import { stableCoreTypes, stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -1180,11 +1181,7 @@ async function main() {
   }
 }
 
-function isCliEntrypoint() {
-  return process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href === import.meta.url : false;
-}
-
-if (isCliEntrypoint()) {
+if (isCliEntrypoint(import.meta.url)) {
   main().catch((error) => {
     console.error(error.message);
     process.exit(1);

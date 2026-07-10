@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { isCliEntrypoint } from "./lib/common.mjs";
 import { stableTargets } from "./release-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -718,11 +719,7 @@ async function main() {
   console.log(`Wrote stable release record to ${relative(repoRoot, outputPath).replaceAll("\\", "/")}`);
 }
 
-function isCliEntrypoint() {
-  return process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href === import.meta.url : false;
-}
-
-if (isCliEntrypoint()) {
+if (isCliEntrypoint(import.meta.url)) {
   main().catch((error) => {
     console.error(error.message);
     process.exit(1);

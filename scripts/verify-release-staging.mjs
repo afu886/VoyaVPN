@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isCliEntrypoint } from "./lib/common.mjs";
 import {
   resolveApprovedUpdaterPublicKey,
   verifyTauriUpdaterSignature,
@@ -911,11 +912,7 @@ async function main() {
   }
 }
 
-function isCliEntrypoint() {
-  return process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href === import.meta.url : false;
-}
-
-if (isCliEntrypoint()) {
+if (isCliEntrypoint(import.meta.url)) {
   main().catch((error) => {
     console.error(error.message);
     process.exit(1);

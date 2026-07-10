@@ -3,14 +3,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture } from "./lib/common.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultDecodedDir = resolve(repoRoot, "target", "native", "macos", "decoded-provisioning-profiles");
 
-function capture(program, args, options = {}) {
-  const result = spawnSync(program, args, {
+function captureText(program, args, options = {}) {
+  const result = capture(program, args, {
     cwd: repoRoot,
-    encoding: "utf8",
     input: options.input,
   });
   if (result.error) {
@@ -197,7 +197,7 @@ export function formatProfileSelectionError(label, bundleIdentifier, rejections,
 }
 
 export function listCodesigningIdentities() {
-  return parseCodesigningIdentities(capture("security", ["find-identity", "-v", "-p", "codesigning"]));
+  return parseCodesigningIdentities(captureText("security", ["find-identity", "-v", "-p", "codesigning"]));
 }
 
 export function resolveSigningIdentity(spec, label = "codesigning") {
@@ -276,7 +276,7 @@ function developerCertificates(plistPath) {
       continue;
     }
     const certificate = Buffer.from(dataMatch[1].replace(/\s+/g, ""), "base64");
-    const subject = capture("openssl", ["x509", "-inform", "DER", "-noout", "-subject"], {
+    const subject = captureText("openssl", ["x509", "-inform", "DER", "-noout", "-subject"], {
       input: certificate,
     }).trim();
     certificates.push({ subject, fingerprint: certificateSha1Fingerprint(certificate) });
@@ -305,7 +305,7 @@ function readExpirationDate(plistPath) {
 }
 
 export function decodeProvisioningProfile(profilePath, decodedDir = defaultDecodedDir) {
-  const decoded = capture("security", ["cms", "-D", "-i", profilePath]);
+  const decoded = captureText("security", ["cms", "-D", "-i", profilePath]);
   mkdirSync(decodedDir, { recursive: true });
   const plistPath = resolve(decodedDir, `${basename(profilePath)}.plist`);
   writeFileSync(plistPath, decoded);

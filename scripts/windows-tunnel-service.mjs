@@ -2,27 +2,13 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { run } from "./lib/common.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const command = process.argv[2] ?? "help";
 const serviceName = "VoyaVPNTunnelService";
 const serviceDisplayName = "VoyaVPN Tunnel Service";
 const serviceBin = resolve(repoRoot, "target", "release", process.platform === "win32" ? "voyavpn-tunnel-service.exe" : "voyavpn-tunnel-service");
-
-function run(program, args, options = {}) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    shell: false,
-    stdio: "inherit",
-    ...options,
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
 
 function requireWindows() {
   if (process.platform !== "win32") {
@@ -31,7 +17,10 @@ function requireWindows() {
 }
 
 function build() {
-  run("cargo", ["build", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service", "--release"]);
+  run("cargo", ["build", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service", "--release"], {
+    cwd: repoRoot,
+    shell: false,
+  });
 }
 
 function install() {
@@ -48,19 +37,22 @@ function install() {
     "demand",
     "DisplayName=",
     serviceDisplayName,
-  ]);
-  run("sc.exe", ["description", serviceName, "Runs VoyaVPN transparent TUN with sing-box and Wintun."]);
+  ], { cwd: repoRoot, shell: false });
+  run("sc.exe", ["description", serviceName, "Runs VoyaVPN transparent TUN with sing-box and Wintun."], {
+    cwd: repoRoot,
+    shell: false,
+  });
 }
 
 function uninstall() {
   requireWindows();
   spawnSync("sc.exe", ["stop", serviceName], { cwd: repoRoot, stdio: "ignore" });
-  run("sc.exe", ["delete", serviceName]);
+  run("sc.exe", ["delete", serviceName], { cwd: repoRoot, shell: false });
 }
 
 function status() {
   requireWindows();
-  run("sc.exe", ["query", serviceName]);
+  run("sc.exe", ["query", serviceName], { cwd: repoRoot, shell: false });
 }
 
 function help() {

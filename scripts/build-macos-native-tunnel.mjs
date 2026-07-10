@@ -11,8 +11,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { capture, requireDarwin, run, truthy } from "./lib/common.mjs";
 import {
   appBundleIdentifier,
   incompatiblePacketTunnelBundle,
@@ -61,23 +61,6 @@ const defaultProvisioningProfileDir = resolve(repoRoot, "..", "docs", "certs");
 const provisioningProfileDir = resolve(process.env.VOYAVPN_PROVISIONING_PROFILE_DIR || defaultProvisioningProfileDir);
 const generatedEntitlementsDir = resolve(outRoot, "generated-entitlements");
 
-function run(program, args) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
-
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
-
 function resolveIdentityFromEnv() {
   const value = process.env.VOYAVPN_CODESIGN_IDENTITY?.trim();
   if (!value) {
@@ -98,12 +81,6 @@ function signingCriteria() {
     identitySha1: resolvedIdentity?.sha1 ?? null,
     deviceUdid: resolvedIdentity ? localProvisioningUdid() : null,
   };
-}
-
-function requireDarwin() {
-  if (process.platform !== "darwin") {
-    throw new Error("macOS native tunnel build must run on macOS with Xcode command line tools.");
-  }
 }
 
 function writePlist(source, destination, replacements = {}) {
@@ -263,9 +240,8 @@ function libboxBinaryPath(frameworkPath) {
 
 function libboxFrameworkLinkage(frameworkPath) {
   const binary = libboxBinaryPath(frameworkPath);
-  const result = spawnSync("file", [binary], {
+  const result = capture("file", [binary], {
     cwd: repoRoot,
-    encoding: "utf8",
   });
   if (result.error) {
     throw result.error;
@@ -297,7 +273,7 @@ function buildHelper() {
     helperSource,
     "-o",
     helperOut,
-  ]);
+  ], { cwd: repoRoot });
 }
 
 function stageOptionalHelper() {
@@ -388,7 +364,7 @@ function buildPacketTunnel() {
   }
 
   args.push(providerSource, "-o", appexBinary);
-  run("xcrun", args);
+  run("xcrun", args, { cwd: repoRoot });
   removeSwiftModuleArtifacts(appexBinary);
 
   writePlist(
@@ -439,7 +415,7 @@ function maybeCodesign(profiles) {
   }
 
   if (existsSync(embeddedLibboxFramework)) {
-    run("codesign", [...codesignArgs, embeddedLibboxFramework]);
+    run("codesign", [...codesignArgs, embeddedLibboxFramework], { cwd: repoRoot });
   }
 
   const packetEntitlements = entitlementsForSigning(
@@ -447,15 +423,15 @@ function maybeCodesign(profiles) {
     profiles.packetTunnel,
     "packet-tunnel.plist",
   );
-  run("codesign", [...codesignArgs, "--entitlements", packetEntitlements, appexBundle]);
+  run("codesign", [...codesignArgs, "--entitlements", packetEntitlements, appexBundle], { cwd: repoRoot });
   if (existsSync(helperOut)) {
     const helperEntitlements = entitlementsForSigning(appEntitlements, profiles.app, "macos-helper.plist");
-    run("codesign", [...codesignArgs, "--entitlements", helperEntitlements, helperOut]);
+    run("codesign", [...codesignArgs, "--entitlements", helperEntitlements, helperOut], { cwd: repoRoot });
   }
 }
 
 function main() {
-  requireDarwin();
+  requireDarwin("macOS native tunnel build must run on macOS with Xcode command line tools.");
   if (!existsSync(providerSource)) {
     throw new Error("macOS PacketTunnel source is missing.");
   }

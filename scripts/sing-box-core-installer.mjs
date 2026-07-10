@@ -12,8 +12,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join, relative, resolve } from "node:path";
+import { truthy } from "./lib/common.mjs";
+
+export { isCliEntrypoint, repoRootFromScript, truthy } from "./lib/common.mjs";
 
 export const DEFAULT_SING_BOX_VERSION = "v1.13.14";
 export const SING_BOX_REPO = "SagerNet/sing-box";
@@ -29,14 +31,6 @@ const SING_BOX_ARCH = {
   arm64: "arm64",
   x64: "amd64",
 };
-
-export function repoRootFromScript(importMetaUrl = import.meta.url) {
-  return resolve(dirname(fileURLToPath(importMetaUrl)), "..");
-}
-
-export function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
-}
 
 export function singBoxVersionLabel(version = DEFAULT_SING_BOX_VERSION) {
   return String(version).replace(/^v/i, "");
@@ -397,8 +391,4 @@ export function parseInstallArgs(argv) {
     forceFetch: argv.includes("--force-fetch"),
     forceInstall: argv.includes("--force"),
   };
-}
-
-export function isCliEntrypoint(importMetaUrl) {
-  return process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href === importMetaUrl : false;
 }

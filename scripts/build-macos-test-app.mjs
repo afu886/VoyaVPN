@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, run, truthy } from "./lib/common.mjs";
 import { resolveSigningIdentity } from "./macos-provisioning.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -11,28 +12,13 @@ const appContents = resolve(appBundle, "Contents");
 const dmgDir = resolve(repoRoot, "target", "release", "bundle", "dmg");
 const installedAppBundle = "/Applications/VoyaVPN.app";
 
-function truthy(value) {
-  return /^(1|true|yes|on)$/i.test(String(value ?? "").trim());
+function commandOptions(env = process.env) {
+  return { cwd: repoRoot, env };
 }
 
-function run(program, args, env = process.env) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    env,
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
-
-function runOptional(program, args, env = process.env) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    env,
+function commandStatus(program, args, env = process.env) {
+  const result = capture(program, args, {
+    ...commandOptions(env),
     stdio: "inherit",
   });
   if (result.error) {
@@ -41,11 +27,8 @@ function runOptional(program, args, env = process.env) {
   return result.status ?? 1;
 }
 
-function capture(program, args) {
-  const result = spawnSync(program, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+function captureText(program, args) {
+  const result = capture(program, args, commandOptions());
   if (result.error) {
     throw result.error;
   }
@@ -111,7 +94,7 @@ function requireNotaryCredentials() {
 }
 
 function plistValue(plistPath, keyPath) {
-  return capture("/usr/libexec/PlistBuddy", ["-c", `Print ${keyPath}`, plistPath]).trim();
+  return captureText("/usr/libexec/PlistBuddy", ["-c", `Print ${keyPath}`, plistPath]).trim();
 }
 
 function appExecutablePath() {
@@ -161,8 +144,8 @@ function installToApplications() {
       { cause: error },
     );
   }
-  run("ditto", [appBundle, installedAppBundle]);
-  runOptional("xattr", ["-dr", "com.apple.quarantine", installedAppBundle]);
+  run("ditto", [appBundle, installedAppBundle], commandOptions());
+  commandStatus("xattr", ["-dr", "com.apple.quarantine", installedAppBundle]);
 }
 
 function stripLeftoverPacketTunnelCopies() {
@@ -181,12 +164,12 @@ function stripLeftoverPacketTunnelCopies() {
 
 function runNetworkExtensionDoctor(appPath, env, extraArgs = []) {
   const args = ["scripts/macos-ne-doctor.mjs", "--fix", "--app", appPath, ...extraArgs];
-  if (runOptional("node", args, env) === 0) {
+  if (commandStatus("node", args, env) === 0) {
     return;
   }
   console.warn("PlugInKit election can lag right after registration; retrying the NetworkExtension doctor once...");
-  run("sleep", ["3"], env);
-  run("node", args, env);
+  run("sleep", ["3"], commandOptions(env));
+  run("node", args, commandOptions(env));
 }
 
 function archSuffix() {
@@ -195,7 +178,7 @@ function archSuffix() {
     return explicit;
   }
 
-  const archs = capture("lipo", ["-archs", appExecutablePath()]).trim().split(/\s+/).filter(Boolean);
+  const archs = captureText("lipo", ["-archs", appExecutablePath()]).trim().split(/\s+/).filter(Boolean);
   const hasArm64 = archs.includes("arm64");
   const hasX64 = archs.includes("x86_64");
   if (hasArm64 && hasX64) {
@@ -225,7 +208,7 @@ function main() {
 
   if (notarizationSkipped) {
     assertAppNotRunning();
-    run("node", ["scripts/macos-local-preflight.mjs"]);
+    run("node", ["scripts/macos-local-preflight.mjs"], commandOptions());
   }
 
   const identity = notarizationSkipped ? localAppExtensionIdentity() : developerIdIdentity();
@@ -255,15 +238,15 @@ function main() {
   );
   console.log(`Output: ${appBundle}`);
 
-  run("pnpm", ["tauri:build", "--bundles", "app"], commonEnv);
-  run("pnpm", ["native:macos:tunnel"], tunnelEnv);
-  run("pnpm", ["native:macos:app:sign"], commonEnv);
-  run("pnpm", ["native:macos:tunnel:verify"], verifyEnv);
+  run("pnpm", ["tauri:build", "--bundles", "app"], commandOptions(commonEnv));
+  run("pnpm", ["native:macos:tunnel"], commandOptions(tunnelEnv));
+  run("pnpm", ["native:macos:app:sign"], commandOptions(commonEnv));
+  run("pnpm", ["native:macos:tunnel:verify"], commandOptions(verifyEnv));
 
   if (!notarizationSkipped) {
     const appNotarizeEnv = withoutEnv(verifyEnv, ["VOYAVPN_NOTARY_ARTIFACT"]);
-    run("pnpm", ["native:macos:app:notarize"], appNotarizeEnv);
-    run("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle], verifyEnv);
+    run("pnpm", ["native:macos:app:notarize"], commandOptions(appNotarizeEnv));
+    run("spctl", ["--assess", "--type", "execute", "--verbose=4", appBundle], commandOptions(verifyEnv));
   }
 
   const finalDmgPath = dmgPath();
@@ -271,20 +254,20 @@ function main() {
     ...verifyEnv,
     VOYAVPN_MACOS_DMG_PATH: finalDmgPath,
   };
-  run("pnpm", ["native:macos:dmg"], dmgEnv);
+  run("pnpm", ["native:macos:dmg"], commandOptions(dmgEnv));
   if (!notarizationSkipped) {
-    run("pnpm", ["native:macos:app:notarize"], {
+    run("pnpm", ["native:macos:app:notarize"], commandOptions({
       ...dmgEnv,
       VOYAVPN_NOTARY_ARTIFACT: finalDmgPath,
-    });
+    }));
     run(
       "spctl",
       ["--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=4", finalDmgPath],
-      dmgEnv,
+      commandOptions(dmgEnv),
     );
   }
 
-  runOptional("xattr", ["-dr", "com.apple.quarantine", appBundle], commonEnv);
+  commandStatus("xattr", ["-dr", "com.apple.quarantine", appBundle], commonEnv);
   if (notarizationSkipped) {
     installToApplications();
     stripLeftoverPacketTunnelCopies();

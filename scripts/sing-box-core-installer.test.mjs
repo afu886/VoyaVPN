@@ -1,19 +1,38 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  isCliEntrypoint,
+  repoRootFromScript,
+  truthy,
+} from "./lib/common.mjs";
+import {
   defaultAppConfigDir,
   installSingBoxCore,
+  isCliEntrypoint as installerIsCliEntrypoint,
+  repoRootFromScript as installerRepoRootFromScript,
   shouldSkipSingBoxInstall,
   singBoxAppExecutable,
   singBoxAssetName,
   singBoxSeedDir,
+  truthy as installerTruthy,
 } from "./sing-box-core-installer.mjs";
 
 describe("sing-box core installer", () => {
+  it("keeps the moved common helpers available from the installer", () => {
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+    expect(installerIsCliEntrypoint).toBe(isCliEntrypoint);
+    expect(installerRepoRootFromScript).toBe(repoRootFromScript);
+    expect(installerRepoRootFromScript()).toBe(repoRoot);
+    expect(installerTruthy).toBe(truthy);
+    expect(truthy(" yes ")).toBe(true);
+  });
+
   it("selects pinned upstream assets for supported platforms", () => {
     expect(singBoxAssetName({ arch: "arm64", platform: "darwin", version: "v1.13.14" })).toBe(
       "sing-box-1.13.14-darwin-arm64.tar.gz",

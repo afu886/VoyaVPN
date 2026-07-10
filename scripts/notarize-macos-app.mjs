@@ -1,30 +1,16 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture, run } from "./lib/common.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appBundle = resolve(process.env.VOYAVPN_MACOS_APP_BUNDLE || resolve(repoRoot, "target", "native", "macos", "VoyaVPN.app"));
 const artifact = process.env.VOYAVPN_NOTARY_ARTIFACT ? resolve(process.env.VOYAVPN_NOTARY_ARTIFACT) : null;
 const notaryZip = resolve(repoRoot, "target", "native", "macos", "VoyaVPN-notary.zip");
 
-function run(program, args, options = {}) {
-  const result = spawnSync(program, args, {
+function captureText(program, args, options = {}) {
+  const result = capture(program, args, {
     cwd: options.cwd ?? repoRoot,
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`${program} ${args.join(" ")} failed with status ${result.status}`);
-  }
-}
-
-function capture(program, args, options = {}) {
-  const result = spawnSync(program, args, {
-    cwd: options.cwd ?? repoRoot,
-    encoding: "utf8",
   });
   if (result.error) {
     throw result.error;
@@ -95,7 +81,7 @@ function stapleTarget(submittedArtifact) {
 
 function submitForNotarization(submittedArtifact) {
   const credentials = notaryCredentials();
-  const output = capture("xcrun", [
+  const output = captureText("xcrun", [
     "notarytool",
     "submit",
     submittedArtifact,
@@ -108,7 +94,7 @@ function submitForNotarization(submittedArtifact) {
   const id = result.id || result.jobId;
   if (result.status !== "Accepted") {
     if (id) {
-      const log = capture("xcrun", ["notarytool", "log", id, "--output-format", "json", ...credentials]);
+      const log = captureText("xcrun", ["notarytool", "log", id, "--output-format", "json", ...credentials]);
       console.error(log);
     }
     throw new Error(`notarization failed for ${submittedArtifact}: ${result.status || "unknown status"}`);
@@ -128,8 +114,8 @@ function main() {
   submitForNotarization(submittedArtifact);
 
   const target = stapleTarget(submittedArtifact);
-  run("xcrun", ["stapler", "staple", target]);
-  run("xcrun", ["stapler", "validate", target]);
+  run("xcrun", ["stapler", "staple", target], { cwd: repoRoot });
+  run("xcrun", ["stapler", "validate", target], { cwd: repoRoot });
   console.log(`macOS notarization completed for ${target}`);
 }
 
