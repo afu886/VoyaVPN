@@ -17,5 +17,8 @@ tracing.workspace = true
 voya-core.workspace = true
 zeroize.workspace = true
 
+[build-dependencies]
+cc = "1.2"
+
 [lints]
 workspace = true
