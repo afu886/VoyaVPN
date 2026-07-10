@@ -67,7 +67,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 - **断点过激**：代理模式/TUN/核心信息在 `md:`(768px) 以下 `hidden`，小窗口丢关键控件。
 
 ### ⑤ 本地化零散硬编码 + 一致性未系统化 (P2) ✅
-- profiles 子域硬编码英文：表单标签 [profile-dialog.tsx:139](../../apps/desktop/src/features/profiles/profile-dialog.tsx#L139)
+- profiles 子域硬编码英文：表单标签 [profile-dialog.tsx](../../apps/desktop/src/features/profiles/profile-dialog.tsx)
   （Remarks/Protocol/Core/Port/Group…）、右键菜单与测速按钮
   [server-table-menus.tsx](../../apps/desktop/src/features/profiles/server-table-menus.tsx)（Fast/TCP/Real/UDP/Speed/Mixed、
   Activate/Edit/Copy/Delete/Move…）、多处 `aria-label="…"` 未走 i18n；zh-Hans 等有英文泄漏。
