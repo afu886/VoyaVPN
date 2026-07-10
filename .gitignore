@@ -48,7 +48,6 @@ apps/web/.output/
 .eslintcache
 .stylelintcache
 *.tsbuildinfo
-apps/extension/scripts/.build-analysis/
 
 # Build and package output
 dist/
@@ -56,7 +55,6 @@ build/
 storybook-static/
 web-build/
 dist-pack/
-packages/native/lib/
 target/
 *.tgz
 apps/desktop/src-tauri/native/macos/Frameworks/
