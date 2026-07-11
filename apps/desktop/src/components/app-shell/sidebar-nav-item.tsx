@@ -5,7 +5,7 @@ import { cn } from "@voya/ui/lib/utils";
 // A single sidebar destination row. Rendered as an ARIA `tab` (rather than a
 // plain button or link) so the shell's nav reads as a tablist and the existing
 // `getByRole("tab")` assertions keep holding after the Radix Tabs drop. Selected
-// rows read blue (`accent-blue-light` tint + `text-primary`); the rest fall back
+// rows read blue (`accent-blue-light` tint + `text-brand`); the rest fall back
 // to a calm surface hover.
 export function SidebarNavItem({
   active,
@@ -29,7 +29,7 @@ export function SidebarNavItem({
       className={cn(
         "flex w-full items-center gap-2 rounded-sm py-1.5 pr-4 pl-3 text-sm font-medium outline-none transition-colors duration-short ease-out-practical focus-visible:ring-2 focus-visible:ring-ring/50",
         active
-          ? "bg-accent-blue-light text-primary"
+          ? "bg-accent-blue-light text-brand"
           : "text-sidebar-foreground hover:bg-accent",
       )}
       id={id}

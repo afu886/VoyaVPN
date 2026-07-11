@@ -2,7 +2,12 @@ export const fonts = ["inter", "manrope", "system"] as const;
 
 export type Font = (typeof fonts)[number];
 
-export const DEFAULT_FONT: Font = "inter";
+export const DEFAULT_FONT: Font = "system";
+
+/** GitHub Primer system-first sans stack (with CJK fallbacks). Keep in sync with
+ *  --app-font-family / --font-system in globals.css. */
+export const GITHUB_SANS_STACK =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"';
 
 type FontDefinition = {
   className: `font-${Font}`;
@@ -14,19 +19,19 @@ type FontDefinition = {
 export const fontDefinitions = {
   inter: {
     className: "font-inter",
-    css: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    css: `Inter, ${GITHUB_SANS_STACK}`,
     label: "Inter",
     persistedFamily: "Inter",
   },
   manrope: {
     className: "font-manrope",
-    css: 'Manrope, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    css: `Manrope, ${GITHUB_SANS_STACK}`,
     label: "Manrope",
     persistedFamily: "Manrope",
   },
   system: {
     className: "font-system",
-    css: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    css: GITHUB_SANS_STACK,
     label: "System",
     persistedFamily: "System",
   },
@@ -34,8 +39,8 @@ export const fontDefinitions = {
 
 /**
  * Role-based typography (Safe Passage). The user-selectable {@link fonts} drive
- * the `body` role at runtime via `--app-font-family`; `display` (Manrope,
- * tabular-nums for Hero timing/throughput numerals) and `mono` (logs /
+ * the `body` role at runtime via `--app-font-family`; `display` (GitHub system
+ * stack, tabular-nums for Hero timing/throughput numerals) and `mono` (logs /
  * connections / codemirror / data cells) are fixed roles surfaced as the
  * `--font-display` / `--font-mono` theme tokens in globals.css. Keep
  * MONO_FONT_STACK in sync with `--font-mono` there.
@@ -44,7 +49,7 @@ export const MONO_FONT_STACK =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
 
 export const fontRoles = {
-  display: fontDefinitions.manrope.css,
+  display: fontDefinitions.system.css,
   body: "var(--app-font-family)",
   mono: MONO_FONT_STACK,
 } as const;

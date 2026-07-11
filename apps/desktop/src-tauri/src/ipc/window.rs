@@ -54,9 +54,9 @@ pub fn set_window_acrylic(window: tauri::WebviewWindow, dark: bool) -> Result<()
         // Neutral gray, one tint per mode — kept in sync with the `.voyavpn-acrylic`
         // veil in globals.css so the native material and the CSS layer agree.
         let color = if dark {
-            Color(24, 25, 27, 200)
+            Color(1, 4, 9, 200)
         } else {
-            Color(234, 235, 238, 200)
+            Color(246, 248, 250, 200)
         };
         window
             .set_effects(

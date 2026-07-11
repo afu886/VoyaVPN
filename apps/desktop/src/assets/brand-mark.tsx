@@ -2,8 +2,8 @@ import type { SVGProps } from "react";
 
 // Adapted from `public/favicon.svg` (originally SVGR'd from it). The blue
 // background ground is dropped so the mark renders on a transparent canvas, and
-// the mark color tracks the brand token `--primary` (nicenote blue #1a58f2 in
-// light, #7aa7ff in dark) so it stays consistent with buttons/links/focus rings.
+// the mark color tracks the brand token `--primary` (Primer accent blue #0969da in
+// light, #1f6feb in dark) so it stays consistent with buttons/links/focus rings.
 // Size it via `className` (`size-*`).
 export const BrandMark = (props: SVGProps<SVGSVGElement>) => (
   <svg

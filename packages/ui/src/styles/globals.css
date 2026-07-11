@@ -6,97 +6,105 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant rtl (&:where([dir="rtl"], [dir="rtl"] *));
 
+/* Color values vendored from @primer/primitives@11.9.0 (GitHub Primer functional
+   tokens, light + dark themes) — see docs/design/primer-token-mapping.md.
+   Do not tweak by eye; re-vendor from the package on upgrades. */
 :root {
-  --app-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  /* nicenote-aligned 14px UI base (user-adjustable; see DEFAULT_FONT_SIZE in preferences-store). */
+  --app-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  /* GitHub-aligned 14px UI base (user-adjustable; see DEFAULT_FONT_SIZE in preferences-store). */
   --app-font-size: 14px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  --radius: 7px;
-  --background: #fbfcfe;
-  --foreground: #262b35;
-  --card: #fbfcfe;
-  --card-foreground: #262b35;
+  --radius: 6px;
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
   --popover: #ffffff;
-  --popover-foreground: #262b35;
-  /* Interactive accent → nicenote brand blue (drives Button default / Badge / Switch / selection). */
-  --primary: #1a58f2;
+  --popover-foreground: #1f2328;
+  /* Interactive accent → Primer accent emphasis (drives Button default / Badge / Switch / selection).
+     Fill-only: text consumers use --link / --text-brand instead. */
+  --primary: #0969da;
   --primary-foreground: #ffffff;
-  --secondary: #e2e7f0;
-  --secondary-foreground: #262b35;
-  --muted: #e9edf4;
-  --muted-foreground: #5e6573;
-  --accent: #e2e7f0;
-  --accent-foreground: #262b35;
-  --destructive: #e53e3e;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #1f2328;
+  --muted: #f6f8fa;
+  --muted-foreground: #59636e;
+  --accent: rgb(129 139 152 / 0.1);
+  --accent-foreground: #1f2328;
+  --destructive: #cf222e;
   --destructive-foreground: #ffffff;
-  --border: #dde1ea;
-  --input: #dde1ea;
-  --ring: #1a58f2;
-  --chart-1: #427e8a;
-  --chart-2: #3f8850;
-  --chart-3: #987e1b;
-  --chart-4: #b25620;
-  --chart-5: #bb433a;
+  --border: #d1d9e0;
+  --input: #d1d9e0;
+  --ring: #0969da;
+  --chart-1: #0969da;
+  --chart-2: #1a7f37;
+  --chart-3: #9a6700;
+  --chart-4: #8250df;
+  --chart-5: #b12f79;
 
-  /* Connected state — affirmative green for the VPN connected/affirmative semantics. */
-  --connected: #38a169;
+  /* Connected state — Primer success emphasis for the VPN connected/affirmative semantics. */
+  --connected: #1f883d;
   --connected-foreground: #ffffff;
-  --connected-glow: 0 0 0 1px rgb(56 161 105 / 0.4), 0 0 18px -2px rgb(56 161 105 / 0.45);
+  --connected-glow: 0 0 0 1px rgb(31 136 61 / 0.4), 0 0 12px -2px rgb(31 136 61 / 0.3);
 
-  /* Safe Passage — brand accents. signal/glow re-point to --connected (names preserved, value now green).
+  /* Safe Passage — brand accents. signal/glow re-point to --connected (names preserved).
      Use sparingly: connected state / primary connect glow / active node. */
   --signal: var(--connected);
   --signal-foreground: var(--connected-foreground);
-  /* Beacon — aligned to nicenote --accent-orange #d9730d (needs white ink for AA). */
-  --beacon: #d9730d;
+  /* Beacon — Primer severe emphasis (needs white ink for AA). */
+  --beacon: #bc4c00;
   --beacon-foreground: #ffffff;
 
   /* Depth ladder + connection glow */
-  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 1px 3px 0 rgb(15 23 42 / 0.1);
-  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / 0.08), 0 4px 12px -2px rgb(15 23 42 / 0.12);
-  --shadow-lg: 0 8px 16px -4px rgb(15 23 42 / 0.1), 0 16px 32px -8px rgb(15 23 42 / 0.16);
+  --shadow-sm: 0 1px 2px 0 rgb(31 35 40 / 0.06), 0 1px 3px 0 rgb(31 35 40 / 0.1);
+  --shadow-md: 0 2px 4px -1px rgb(31 35 40 / 0.08), 0 4px 12px -2px rgb(31 35 40 / 0.12);
+  --shadow-lg: 0 8px 16px -4px rgb(31 35 40 / 0.1), 0 16px 32px -8px rgb(31 35 40 / 0.16);
   --glow-signal: var(--connected-glow);
 
-  /* nicenote surface ladder — base rungs alias existing semantics; interaction rungs are literal. */
+  /* Primer surface ladder — base rungs alias existing semantics; interaction rungs use
+     Primer control-transparent alphas. */
   --surface: var(--background);
-  --surface-sunken: #eef1f6;
+  --surface-sunken: #f6f8fa;
   --surface-raised: #ffffff;
   --surface-overlay: var(--popover);
-  --surface-hovered: #e9edf4;
-  --surface-pressed: #e2e7f0;
-  --surface-button: #e2e7f0;
-  --overlay-hovered: rgb(0 0 0 / 0.08);
-  --overlay-pressed: rgb(0 0 0 / 0.12);
+  --surface-hovered: rgb(129 139 152 / 0.1);
+  --surface-pressed: rgb(129 139 152 / 0.15);
+  --surface-button: #f6f8fa;
+  --overlay-hovered: rgb(31 35 40 / 0.08);
+  --overlay-pressed: rgb(31 35 40 / 0.12);
 
-  /* nicenote accent palette (--accent-<hue> does not collide with the shadcn --accent slot). */
-  --accent-blue: #1a58f2;
-  --accent-blue-light: rgb(26 88 242 / 0.08);
-  --accent-blue-bg: rgb(26 88 242 / 0.1);
-  --accent-blue-hover: #1243c4;
-  --accent-red: #e53e3e;
-  --accent-red-light: rgb(229 62 62 / 0.1);
-  --accent-orange: #d9730d;
-  --accent-orange-light: rgb(217 115 13 / 0.1);
-  --accent-yellow: #d69e2e;
-  --accent-yellow-light: rgb(214 158 46 / 0.1);
-  --accent-green: #38a169;
-  --accent-green-light: rgb(56 161 105 / 0.1);
-  --accent-purple: #805ad5;
-  --accent-purple-light: rgb(128 90 213 / 0.1);
-  --accent-teal: #319795;
-  --accent-teal-light: rgb(49 151 149 / 0.1);
-  --accent-pink: #d53f8c;
-  --accent-pink-light: rgb(213 63 140 / 0.1);
-  --accent-gray: #718096;
-  --accent-gray-light: rgb(113 128 150 / 0.1);
+  /* Primer accent palette (--accent-<hue> does not collide with the shadcn --accent slot). */
+  --accent-blue: #0969da;
+  --accent-blue-light: rgb(9 105 218 / 0.08);
+  --accent-blue-bg: rgb(9 105 218 / 0.1);
+  --accent-blue-hover: #0550ae;
+  --accent-red: #d1242f;
+  --accent-red-light: rgb(209 36 47 / 0.1);
+  --accent-orange: #bc4c00;
+  --accent-orange-light: rgb(188 76 0 / 0.1);
+  --accent-yellow: #9a6700;
+  --accent-yellow-light: rgb(154 103 0 / 0.1);
+  --accent-green: #1a7f37;
+  --accent-green-light: rgb(26 127 55 / 0.1);
+  --accent-purple: #8250df;
+  --accent-purple-light: rgb(130 80 223 / 0.1);
+  --accent-teal: #106e75;
+  --accent-teal-light: rgb(16 110 117 / 0.1);
+  --accent-pink: #b12f79;
+  --accent-pink-light: rgb(177 47 121 / 0.1);
+  --accent-gray: #59636e;
+  --accent-gray-light: rgb(89 99 110 / 0.1);
 
-  /* nicenote elevation — soft cool shadows (light tints rgb(15 23 42) to match the cool surfaces).
+  /* Primer elevation — resting/overlay shadow families (light ink rgb(31 35 40)).
      Named --shadow-raised/-overlay/-overflow indirection is registered in @theme inline. */
-  --elevation-raised: 0px 1px 2px rgb(15 23 42 / 0.06), 0px 0px 1px rgb(15 23 42 / 0.1);
-  --elevation-overlay: 0px 8px 24px rgb(15 23 42 / 0.15), 0px 0px 1px rgb(15 23 42 / 0.1);
-  --elevation-overflow: 0px 0px 8px rgb(15 23 42 / 0.1), 0px 0px 1px rgb(15 23 42 / 0.08);
+  --elevation-raised: 0px 1px 1px rgb(31 35 40 / 0.04), 0px 0px 1px rgb(31 35 40 / 0.12);
+  --elevation-overlay: 0px 8px 24px rgb(140 149 159 / 0.2), 0px 0px 1px rgb(31 35 40 / 0.12);
+  --elevation-overflow: 0px 0px 8px rgb(140 149 159 / 0.2), 0px 0px 1px rgb(31 35 40 / 0.1);
 
   /* nicenote motion — named durations (consumed by the @utility duration-* blocks below).
      Theme-agnostic; ADS easings live in @theme inline. */
@@ -109,51 +117,51 @@
   --duration-xlong: 400ms;
   --duration-xxlong: 600ms;
 
-  /* nicenote semantic families — text/icon hierarchy, links, border variants,
+  /* Primer semantic families — text/icon hierarchy, links, border variants,
      feedback backgrounds, blanket + dialog trio (registered as utilities in @theme inline). */
-  --text-subtle: #5e6573;
-  --text-tertiary: #5e6573;
-  --text-subtlest: #868d9c;
-  --text-heading: #262b35;
+  --text-subtle: #59636e;
+  --text-tertiary: #59636e;
+  --text-subtlest: #818b98;
+  --text-heading: #1f2328;
   --text-inverse: #ffffff;
-  --text-disabled: #868d9c;
-  --text-brand: #1a58f2;
-  --text-danger: #e53e3e;
-  --text-success: #38a169;
-  --text-warning: #92400e;
-  --text-information: #1a58f2;
-  --text-discovery: #805ad5;
-  --link: #1a58f2;
-  --link-pressed: #1243c4;
-  --border-bold: #cdd3df;
-  --border-subtle: #dde1ea;
-  --border-focused: #1a58f2;
-  --border-selected: #1a58f2;
-  --border-danger: #e53e3e;
-  --icon: #262b35;
-  --icon-subtle: #5e6573;
-  --icon-brand: #1a58f2;
-  --icon-danger: #e53e3e;
-  --icon-success: #38a169;
-  --icon-warning: #d9730d;
-  --bg-danger: rgb(229 62 62 / 0.1);
-  --bg-danger-bold: #e53e3e;
-  --bg-success: rgb(56 161 105 / 0.1);
-  --bg-success-bold: #38a169;
-  --bg-warning: #fef3c7;
-  --bg-warning-bold: #d97706;
-  --bg-information: rgb(26 88 242 / 0.1);
-  --bg-discovery: rgb(128 90 213 / 0.1);
-  --bg-selected: #e7eefe;
-  --bg-selected-strong: #d4e1fd;
-  --state-drag-target: rgb(26 88 242 / 0.1);
-  --blanket: rgb(0 0 0 / 0.3);
+  --text-disabled: #818b98;
+  --text-brand: #0969da;
+  --text-danger: #d1242f;
+  --text-success: #1a7f37;
+  --text-warning: #9a6700;
+  --text-information: #0969da;
+  --text-discovery: #8250df;
+  --link: #0969da;
+  --link-pressed: #0550ae;
+  --border-bold: #818b98;
+  --border-subtle: rgb(209 217 224 / 0.7);
+  --border-focused: #0969da;
+  --border-selected: #0969da;
+  --border-danger: #d1242f;
+  --icon: #1f2328;
+  --icon-subtle: #59636e;
+  --icon-brand: #0969da;
+  --icon-danger: #d1242f;
+  --icon-success: #1a7f37;
+  --icon-warning: #9a6700;
+  --bg-danger: #ffebe9;
+  --bg-danger-bold: #cf222e;
+  --bg-success: #dafbe1;
+  --bg-success-bold: #1f883d;
+  --bg-warning: #fff8c5;
+  --bg-warning-bold: #9a6700;
+  --bg-information: #ddf4ff;
+  --bg-discovery: #fbefff;
+  --bg-selected: #ddf4ff;
+  --bg-selected-strong: #b6e3ff;
+  --state-drag-target: rgb(9 105 218 / 0.1);
+  --blanket: rgb(200 209 218 / 0.4);
   --surface-dialog: #ffffff;
-  --border-dialog: #dde1ea;
-  --shadow-dialog: rgb(15 23 42 / 0.15);
+  --border-dialog: #d1d9e0;
+  --shadow-dialog: rgb(140 149 159 / 0.3);
 
-  /* nicenote layered chrome — sidebar/titlebar/statusbar paint a cool-grey distinct from content. */
-  --sidebar: #e9ecf3;
+  /* Primer layered chrome — sidebar/titlebar/statusbar paint the muted canvas distinct from content. */
+  --sidebar: #f6f8fa;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -164,130 +172,130 @@
 }
 
 .dark {
-  --background: #16181d;
-  --foreground: #e3e6ec;
-  --card: #1f232a;
-  --card-foreground: #e3e6ec;
-  --popover: #242932;
-  --popover-foreground: #e3e6ec;
-  --primary: #7aa7ff;
-  --primary-foreground: #0b1220;
-  --secondary: #272c34;
-  --secondary-foreground: #e3e6ec;
-  --muted: #20242b;
-  --muted-foreground: #aab0bd;
-  --accent: #272c34;
-  --accent-foreground: #e3e6ec;
-  --destructive: #ff8a86;
-  --destructive-foreground: #131517;
-  --border: #2e323a;
-  --input: #363b44;
-  --ring: #7aa7ff;
-  --chart-1: rgb(113 178 255);
-  --chart-2: rgb(64 221 138);
-  --chart-3: rgb(255 233 123);
-  --chart-4: rgb(191 139 255);
-  --chart-5: rgb(255 106 209);
+  --background: #0d1117;
+  --foreground: #f0f6fc;
+  --card: #151b23;
+  --card-foreground: #f0f6fc;
+  --popover: #151b23;
+  --popover-foreground: #f0f6fc;
+  --primary: #1f6feb;
+  --primary-foreground: #ffffff;
+  --secondary: #212830;
+  --secondary-foreground: #f0f6fc;
+  --muted: #151b23;
+  --muted-foreground: #9198a1;
+  --accent: rgb(101 108 118 / 0.2);
+  --accent-foreground: #f0f6fc;
+  --destructive: #da3633;
+  --destructive-foreground: #ffffff;
+  --border: #3d444d;
+  --input: #3d444d;
+  --ring: #1f6feb;
+  --chart-1: #4493f8;
+  --chart-2: #3fb950;
+  --chart-3: #d29922;
+  --chart-4: #ab7df8;
+  --chart-5: #e57bb2;
 
-  /* Connected state (green brightens on the dark canvas). signal/glow inherit via the :root indirection. */
-  --connected: #79d89d;
-  --connected-foreground: #06201d;
-  --connected-glow: 0 0 0 1px rgb(121 216 157 / 0.45), 0 0 22px -2px rgb(121 216 157 / 0.55);
+  /* Connected state (Primer success emphasis; glow tints the brighter success fg).
+     signal/glow inherit via the :root indirection. */
+  --connected: #238636;
+  --connected-foreground: #ffffff;
+  --connected-glow: 0 0 0 1px rgb(63 185 80 / 0.4), 0 0 14px -2px rgb(63 185 80 / 0.35);
 
   /* Safe Passage — brand accents (signal/glow re-point to --connected above).
-     Beacon aligned to nicenote --accent-orange dark #f3a15b. */
-  --beacon: #f3a15b;
-  --beacon-foreground: #1c1206;
+     Beacon → Primer severe emphasis (dark). */
+  --beacon: #bd561d;
+  --beacon-foreground: #ffffff;
 
   /* Depth ladder + connection glow (deeper shadows on the dark canvas) */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.5);
-  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.45), 0 4px 12px -2px rgb(0 0 0 / 0.55);
-  --shadow-lg: 0 8px 16px -4px rgb(0 0 0 / 0.5), 0 16px 32px -8px rgb(0 0 0 / 0.6);
+  --shadow-sm: 0 1px 2px 0 rgb(1 4 9 / 0.4), 0 1px 3px 0 rgb(1 4 9 / 0.5);
+  --shadow-md: 0 2px 4px -1px rgb(1 4 9 / 0.45), 0 4px 12px -2px rgb(1 4 9 / 0.55);
+  --shadow-lg: 0 8px 16px -4px rgb(1 4 9 / 0.5), 0 16px 32px -8px rgb(1 4 9 / 0.6);
 
-  /* nicenote surface ladder — interaction rungs tuned to the warm-charcoal canvas. */
+  /* Primer surface ladder — GitHub dark separates by borders; muted tints elevate. */
   --surface: var(--background);
-  --surface-sunken: #111318;
+  --surface-sunken: #151b23;
   --surface-raised: var(--card);
   --surface-overlay: var(--popover);
-  --surface-hovered: #20242b;
-  --surface-pressed: #272c34;
-  --surface-button: #2c313a;
-  --overlay-hovered: rgb(255 255 255 / 0.06);
-  --overlay-pressed: rgb(255 255 255 / 0.1);
+  --surface-hovered: rgb(101 108 118 / 0.2);
+  --surface-pressed: rgb(101 108 118 / 0.25);
+  --surface-button: #212830;
+  --overlay-hovered: rgb(255 255 255 / 0.08);
+  --overlay-pressed: rgb(255 255 255 / 0.12);
 
-  /* nicenote accent palette (dark) */
-  --accent-blue: #7aa7ff;
-  --accent-blue-light: rgb(122 167 255 / 0.16);
-  --accent-blue-bg: rgb(122 167 255 / 0.2);
-  --accent-blue-hover: #a6c4ff;
-  --accent-red: #ff8a86;
-  --accent-red-light: rgb(255 138 134 / 0.16);
-  --accent-orange: #f3a15b;
-  --accent-orange-light: rgb(243 161 91 / 0.17);
-  --accent-yellow: #f2c86b;
-  --accent-yellow-light: rgb(242 200 107 / 0.18);
-  --accent-green: #79d89d;
-  --accent-green-light: rgb(121 216 157 / 0.16);
-  --accent-purple: #b69cff;
-  --accent-purple-light: rgb(182 156 255 / 0.17);
-  --accent-teal: #64d1c8;
-  --accent-teal-light: rgb(100 209 200 / 0.16);
-  --accent-pink: #f28ac3;
-  --accent-pink-light: rgb(242 138 195 / 0.16);
-  --accent-gray: #a7b0bd;
-  --accent-gray-light: rgb(167 176 189 / 0.14);
+  /* Primer accent palette (dark) */
+  --accent-blue: #4493f8;
+  --accent-blue-light: rgb(68 147 248 / 0.16);
+  --accent-blue-bg: rgb(68 147 248 / 0.2);
+  --accent-blue-hover: #79c0ff;
+  --accent-red: #f85149;
+  --accent-red-light: rgb(248 81 73 / 0.16);
+  --accent-orange: #db6d28;
+  --accent-orange-light: rgb(219 109 40 / 0.17);
+  --accent-yellow: #d29922;
+  --accent-yellow-light: rgb(210 153 34 / 0.18);
+  --accent-green: #3fb950;
+  --accent-green-light: rgb(63 185 80 / 0.16);
+  --accent-purple: #ab7df8;
+  --accent-purple-light: rgb(171 125 248 / 0.17);
+  --accent-teal: #1cb0ab;
+  --accent-teal-light: rgb(28 176 171 / 0.16);
+  --accent-pink: #e57bb2;
+  --accent-pink-light: rgb(229 123 178 / 0.16);
+  --accent-gray: #9198a1;
+  --accent-gray-light: rgb(145 152 161 / 0.14);
 
-  /* nicenote elevation — deep shadows gain a 1px spread ring on the dark canvas. */
+  /* Primer elevation — deep shadows gain a 1px border ring on the dark canvas. */
   --elevation-raised:
-    0px 0px 0px 1px rgb(0 0 0 / 0), 0px 1px 1px rgb(0 0 0 / 0.35), 0px 0px 1px rgb(0 0 0 / 0.4);
+    0px 0px 0px 1px rgb(1 4 9 / 0), 0px 1px 1px rgb(1 4 9 / 0.45), 0px 0px 1px rgb(1 4 9 / 0.5);
   --elevation-overlay:
-    0px 0px 0px 1px rgb(58 62 70 / 0.45), 0px 8px 24px rgb(0 0 0 / 0.42),
-    0px 0px 1px 1px rgb(0 0 0 / 0.4);
-  --elevation-overflow: 0px 0px 12px rgb(0 0 0 / 0.42), 0px 0px 1px rgb(0 0 0 / 0.4);
+    0px 0px 0px 1px #3d444d, 0px 8px 24px rgb(1 4 9 / 0.85), 0px 0px 1px 1px rgb(1 4 9 / 0.4);
+  --elevation-overflow: 0px 0px 12px rgb(1 4 9 / 0.85), 0px 0px 1px #3d444d;
 
-  /* nicenote semantic families (dark) */
-  --text-subtle: #aab0bd;
-  --text-tertiary: #8f96a4;
-  --text-subtlest: #7b8290;
-  --text-heading: #f0f2f7;
-  --text-inverse: #131517;
-  --text-disabled: #5f636b;
-  --text-brand: #7aa7ff;
-  --text-danger: #ff8a86;
-  --text-success: #79d89d;
-  --text-warning: #f5c36b;
-  --text-information: #7aa7ff;
-  --text-discovery: #b69cff;
-  --link: #7aa7ff;
-  --link-pressed: #a6c4ff;
-  --border-bold: #424755;
-  --border-subtle: #22252c;
-  --border-focused: #7aa7ff;
-  --border-selected: #7aa7ff;
-  --border-danger: #ff8a86;
-  --icon: #e3e6ec;
-  --icon-subtle: #aab0bd;
-  --icon-brand: #7aa7ff;
-  --icon-danger: #ff8a86;
-  --icon-success: #79d89d;
-  --icon-warning: #f3a15b;
-  --bg-danger: rgb(255 138 134 / 0.16);
-  --bg-danger-bold: #ff8a86;
-  --bg-success: rgb(121 216 157 / 0.16);
-  --bg-success-bold: #79d89d;
-  --bg-warning: rgb(245 195 107 / 0.16);
-  --bg-warning-bold: #d99b3d;
-  --bg-information: rgb(122 167 255 / 0.2);
-  --bg-discovery: rgb(182 156 255 / 0.17);
-  --bg-selected: #1d3358;
-  --bg-selected-strong: #274680;
-  --state-drag-target: rgb(122 167 255 / 0.2);
-  --blanket: rgb(8 8 7 / 0.58);
-  --surface-dialog: #252830;
-  --border-dialog: #363b44;
-  --shadow-dialog: rgb(0 0 0 / 0.42);
+  /* Primer semantic families (dark) */
+  --text-subtle: #9198a1;
+  --text-tertiary: #9198a1;
+  --text-subtlest: #656c76;
+  --text-heading: #f0f6fc;
+  --text-inverse: #ffffff;
+  --text-disabled: #656c76;
+  --text-brand: #4493f8;
+  --text-danger: #f85149;
+  --text-success: #3fb950;
+  --text-warning: #d29922;
+  --text-information: #4493f8;
+  --text-discovery: #ab7df8;
+  --link: #4493f8;
+  --link-pressed: #79c0ff;
+  --border-bold: #656c76;
+  --border-subtle: rgb(61 68 77 / 0.7);
+  --border-focused: #1f6feb;
+  --border-selected: #1f6feb;
+  --border-danger: #f85149;
+  --icon: #f0f6fc;
+  --icon-subtle: #9198a1;
+  --icon-brand: #4493f8;
+  --icon-danger: #f85149;
+  --icon-success: #3fb950;
+  --icon-warning: #d29922;
+  --bg-danger: rgb(248 81 73 / 0.1);
+  --bg-danger-bold: #da3633;
+  --bg-success: rgb(46 160 67 / 0.15);
+  --bg-success-bold: #238636;
+  --bg-warning: rgb(187 128 9 / 0.15);
+  --bg-warning-bold: #9e6a03;
+  --bg-information: rgb(56 139 253 / 0.1);
+  --bg-discovery: rgb(171 125 248 / 0.15);
+  --bg-selected: rgb(56 139 253 / 0.1);
+  --bg-selected-strong: rgb(56 139 253 / 0.25);
+  --state-drag-target: rgb(56 139 253 / 0.15);
+  --blanket: rgb(33 40 48 / 0.4);
+  --surface-dialog: #151b23;
+  --border-dialog: #3d444d;
+  --shadow-dialog: rgb(1 4 9 / 0.85);
 
-  --sidebar: #121419;
+  --sidebar: #010409;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -317,39 +325,48 @@ html.voyavpn-acrylic #root > main {
   background-color: transparent;
 }
 html.voyavpn-acrylic body {
-  background-color: rgb(233 236 243 / 0.8);
+  background-color: rgb(246 248 250 / 0.8);
 }
 html.voyavpn-acrylic.dark body {
-  background-color: rgb(18 20 25 / 0.8);
+  background-color: rgb(1 4 9 / 0.8);
 }
 
 /* Accessibility: honor prefers-reduced-transparency by falling back to a fully opaque
    surface — no reliance on the OS material, keeping text contrast stable. */
 @media (prefers-reduced-transparency: reduce) {
   html.voyavpn-acrylic body {
-    background-color: #e9ecf3;
+    background-color: #f6f8fa;
   }
   html.voyavpn-acrylic.dark body {
-    background-color: #121419;
+    background-color: #010409;
   }
 }
 
 @theme inline {
-  --font-inter: "Inter", sans-serif;
-  --font-manrope: "Manrope", sans-serif;
-  --font-system: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-inter:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+  --font-manrope:
+    "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+  --font-system:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
 
   /* Safe Passage typography roles. body = user-selected font above (--app-font-family);
-     display = Manrope (Hero timing/throughput numerals, tabular-nums);
+     display = GitHub system stack (Hero timing/throughput numerals stay tabular-nums);
      mono = logs / connections / codemirror / data cells. Keep in sync with MONO_FONT_STACK in src/config/fonts.ts. */
-  --font-display: "Manrope", sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --radius-xs: 2px;
   --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 7px;
-  --radius-xl: 11px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 12px;
   --radius-2xl: 16px;
   --radius-full: 9999px;
 
@@ -478,7 +495,7 @@ html.voyavpn-acrylic.dark body {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }

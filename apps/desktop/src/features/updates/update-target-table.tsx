@@ -215,7 +215,7 @@ function statusTone(status: UpdateResultStatus) {
     case "upToDate":
       return "border-success-bold/30 bg-success-bg text-success";
     case "updateAvailable":
-      return "border-primary/30 bg-accent-blue-light text-primary";
+      return "border-primary/30 bg-accent-blue-light text-brand";
     case "error":
       return "border-destructive/40 bg-destructive/10 text-destructive";
     case "skipped":

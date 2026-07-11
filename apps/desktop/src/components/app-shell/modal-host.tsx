@@ -55,7 +55,7 @@ const fontSizeOptions = Array.from(
 // tint with a blue border/text, matching the sidebar's active-row treatment —
 // instead of the neutral secondary fill. Applied on the `aria-pressed` button.
 const selectedOptionClass =
-  "border border-primary bg-accent-blue-light text-primary hover:bg-accent-blue-light hover:text-primary";
+  "border border-primary bg-accent-blue-light text-brand hover:bg-accent-blue-light hover:text-brand";
 
 export function ModalHost() {
   const closeTopModal = useModalStore((state) => state.closeTopModal);

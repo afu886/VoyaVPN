@@ -17,8 +17,8 @@ describe("font roles", () => {
     expect(fontRoles.mono).toBe(MONO_FONT_STACK);
   });
 
-  it("maps the display role to Manrope and the body role to the runtime app font", () => {
-    expect(fontRoles.display).toBe(fontDefinitions.manrope.css);
+  it("maps the display role to the GitHub system stack and the body role to the runtime app font", () => {
+    expect(fontRoles.display).toBe(fontDefinitions.system.css);
     expect(fontRoles.body).toBe("var(--app-font-family)");
   });
 
