@@ -2,7 +2,6 @@ import { Database, Home, Network, Plug, Route, ScrollText, Shield } from "lucide
 import type { LucideIcon } from "lucide-react";
 
 import { BrandMark } from "@/assets/brand-mark";
-import { SidebarFooter } from "@/components/app-shell/sidebar-footer";
 import { SidebarNavItem } from "@/components/app-shell/sidebar-nav-item";
 import { SidebarSectionHeader } from "@/components/app-shell/sidebar-section-header";
 import { useI18n } from "@voya/i18n/use-i18n";
@@ -67,8 +66,6 @@ export function AppSidebar() {
           <div className="flex flex-col gap-0.5">{networkNav.map(renderNavItem)}</div>
         </SidebarSectionHeader>
       </nav>
-
-      <SidebarFooter />
     </aside>
   );
 }

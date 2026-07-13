@@ -24,7 +24,6 @@ import type {
 } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { getErrorMessage } from "@voya/utils/error";
-import { useModalStore } from "@/stores/modal-store";
 import { useProfileColumnsStore } from "@/stores/profile-columns-store";
 
 import {
@@ -58,6 +57,7 @@ export function useServerTable() {
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [shareQrContent, setShareQrContent] = useState<string | null>(null);
   const [sortState, setSortState] = useState<{ ascending: boolean; key: ProfileSortKey } | null>(null);
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const { t } = useI18n();
@@ -68,7 +68,6 @@ export function useServerTable() {
   const speedtestResultsByProfileId = useRuntimeEventStore((state) => state.speedtestResultsByProfileId);
   const speedtestRunning = useRuntimeEventStore((state) => state.speedtestRunning);
   const setSpeedtestRunning = useRuntimeEventStore((state) => state.setSpeedtestRunning);
-  const openModal = useModalStore((state) => state.openModal);
   const queryClient = useQueryClient();
   const filter = filterText.trim();
   const profilesQuery = useQuery({
@@ -251,7 +250,7 @@ export function useServerTable() {
     try {
       const result = await runProfileExport(kind, indexIds);
       if (showQr) {
-        openModal("qr", { qrContent: result.text });
+        setShareQrContent(result.text);
         return;
       }
 
@@ -332,7 +331,9 @@ export function useServerTable() {
     setFilterText,
     setImportOpen,
     setPendingDelete,
+    setShareQrContent,
     setSubscriptionsOpen,
+    shareQrContent,
     sortState,
     speedtestRunning,
     subscriptionsOpen,

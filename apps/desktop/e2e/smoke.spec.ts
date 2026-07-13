@@ -14,6 +14,7 @@ test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "VoyaVPN" })).toBeVisible();
   await expect(page.getByTestId("status-bar")).toContainText("Disconnected");
   await expect(page.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { exact: true, name: "QR" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Settings" }).click();
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
@@ -27,15 +28,6 @@ test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(page.getByText("Show window", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(settingsDialog).toBeHidden();
-
-  await page.getByRole("button", { exact: true, name: "QR" }).click();
-  const qrDialog = page.getByRole("dialog", { name: "QR" });
-  await expect(qrDialog).toBeVisible();
-  await page.getByLabel("Content").fill(importFixture);
-  await page.getByRole("button", { name: "Generate" }).click();
-  await expect(page.getByAltText("Generated QR code")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(qrDialog).toBeHidden();
 });
 
 test("imports the default configuration template from the Settings sources card", async ({ page }) => {
@@ -149,11 +141,29 @@ test("adds and imports profiles, activates one, and connects through the fake ru
 
   await page.getByRole("menuitem", { name: "More actions" }).click();
   await page.getByRole("menuitem", { exact: true, name: "Import" }).click();
-  await page.getByRole("textbox", { name: "Import payload" }).fill(importFixture);
-  await page.getByRole("button", { exact: true, name: "Import payload" }).click();
+  const importDialog = page.getByRole("dialog", { name: "Import Profiles" });
+  await importDialog.getByLabel("Scan image").setInputFiles({
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+    mimeType: "image/png",
+    name: "not-a-qr-code.png",
+  });
+  await expect(importDialog.getByText("No QR code found.")).toBeVisible();
+  await importDialog.getByRole("textbox", { name: "Import payload" }).fill(importFixture);
+  await importDialog.getByRole("button", { exact: true, name: "Import payload" }).click();
   await expect(page.getByText("Smoke Imported VLESS")).toBeVisible();
 
   await page.getByLabel("Select Smoke Imported VLESS").check();
+  await page.getByRole("menuitem", { name: "Export" }).click();
+  await page.getByRole("menuitem", { name: "Show QR" }).click();
+  const shareQrDialog = page.getByRole("dialog", { name: "Show QR" });
+  await expect(shareQrDialog).toBeVisible();
+  await expect(shareQrDialog.getByLabel("Content")).toHaveValue(/Smoke%20Imported%20VLESS/u);
+  await expect(shareQrDialog.getByAltText("Generated QR code")).toBeVisible();
+  await shareQrDialog.getByRole("button", { name: "Close" }).first().click();
+
   await page.getByRole("button", { name: "Activate" }).click();
   await expect(page.getByTestId("active-profile-marker")).toBeVisible();
 

@@ -148,7 +148,7 @@ pub fn save_global_hotkeys<R: tauri::Runtime>(
 #[tauri::command]
 #[specta::specta]
 pub fn generate_qr_code(content: String) -> Result<QrCodeImage, AppError> {
-    validate_ipc_text(
+    validate_ipc_qr_content(
         &content,
         "QR content",
         IPC_QR_CONTENT_MAX_CHARS,
@@ -255,5 +255,36 @@ mod tests {
         updated.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
 
         assert!(!saved_config_requires_runtime_restart(&original, &updated));
+    }
+
+    #[test]
+    fn qr_generation_accepts_multiline_content() {
+        let image = generate_qr_code("profile-1\r\nprofile-2\nprofile-3".to_string())
+            .expect("multiline QR content should be accepted");
+
+        assert_eq!(image.mime_type, "image/svg+xml");
+        assert!(image.svg.contains("<svg"));
+    }
+
+    #[test]
+    fn qr_generation_rejects_other_control_characters() {
+        let error = generate_qr_code("profile-1\tprofile-2".to_string())
+            .expect_err("non-line-ending control characters should be rejected");
+
+        assert!(matches!(
+            error,
+            AppError::Qr(message) if message == "invalid QR content: control characters are not allowed"
+        ));
+    }
+
+    #[test]
+    fn qr_generation_rejects_content_over_4096_characters() {
+        let error = generate_qr_code("a".repeat(IPC_QR_CONTENT_MAX_CHARS + 1))
+            .expect_err("oversized QR content should be rejected");
+
+        assert!(matches!(
+            error,
+            AppError::Qr(message) if message == "invalid QR content: value is too long"
+        ));
     }
 }

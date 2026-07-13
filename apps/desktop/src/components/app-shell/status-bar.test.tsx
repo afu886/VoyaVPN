@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import type {
   StatisticsSnapshot,
   TunProviderDiagnostics,
 } from "@/ipc/bindings";
+import { useModalStore } from "@/stores/modal-store";
 import { useToastStore } from "@/stores/toast-store";
 
 import { StatusBar } from "./status-bar";
@@ -158,6 +159,7 @@ describe("StatusBar", () => {
     runtimeMock.state.coreState = null;
     runtimeMock.state.statistics = null;
     vi.mocked(runtimeMock.state.setCoreState).mockClear();
+    useModalStore.setState({ stack: [] });
     useShellStore.setState({ activeTab: "home" });
     useToastStore.setState({ toasts: [] });
     vi.mocked(listProfiles).mockResolvedValue([]);
@@ -198,6 +200,20 @@ describe("StatusBar", () => {
     renderStatusBar();
 
     expect(screen.getByText("Route: /routing")).toBeInTheDocument();
+  });
+
+  it("places Settings as the final status bar action and opens the settings modal", async () => {
+    const user = userEvent.setup();
+
+    renderStatusBar();
+
+    const statusBar = screen.getByTestId("status-bar");
+    const settingsButton = within(statusBar).getByRole("button", { name: "Settings" });
+    expect(within(statusBar).getAllByRole("button").at(-1)).toBe(settingsButton);
+
+    await user.click(settingsButton);
+
+    expect(useModalStore.getState().stack.at(-1)).toMatchObject({ kind: "settings" });
   });
 
   it("drops the runtime keys now owned by the hero", async () => {

@@ -89,6 +89,20 @@ pub fn validate_text(value: &str, max_chars: usize) -> Result<()> {
     Ok(())
 }
 
+pub fn validate_qr_content(value: &str, max_chars: usize) -> Result<()> {
+    if value.chars().count() > max_chars {
+        return Err(InputSafetyError::TooLong);
+    }
+    if value
+        .chars()
+        .any(|character| character.is_control() && !matches!(character, '\r' | '\n'))
+    {
+        return Err(InputSafetyError::ControlCharacters);
+    }
+
+    Ok(())
+}
+
 pub fn resolve_scoped_file(input: &str, base_dir: &Path, max_chars: usize) -> Result<PathBuf> {
     let input = input.trim();
     if input.is_empty() || input.chars().count() > max_chars || input.chars().any(char::is_control)
@@ -189,6 +203,28 @@ mod tests {
     fn required_text_validation_rejects_oversized_values() {
         let value = "a".repeat(129);
         let error = validate_required_text(&value, 128).expect_err("oversized value rejected");
+
+        assert!(matches!(error, InputSafetyError::TooLong));
+    }
+
+    #[test]
+    fn qr_content_validation_accepts_line_endings() {
+        validate_qr_content("profile-1\r\nprofile-2\nprofile-3\rprofile-4", 128)
+            .expect("QR line endings should be accepted");
+    }
+
+    #[test]
+    fn qr_content_validation_rejects_other_control_characters() {
+        let error = validate_qr_content("profile-1\tprofile-2", 128)
+            .expect_err("non-line-ending control characters should be rejected");
+
+        assert!(matches!(error, InputSafetyError::ControlCharacters));
+    }
+
+    #[test]
+    fn qr_content_validation_rejects_oversized_values() {
+        let value = "a".repeat(4097);
+        let error = validate_qr_content(&value, 4096).expect_err("oversized QR content rejected");
 
         assert!(matches!(error, InputSafetyError::TooLong));
     }

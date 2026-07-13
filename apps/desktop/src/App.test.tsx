@@ -493,6 +493,9 @@ describe("App", () => {
   it("renders the app shell tabs and status bar", () => {
     renderApp();
 
+    const sidebar = screen.getByRole("complementary");
+    const statusBar = screen.getByTestId("status-bar");
+
     expect(screen.getByRole("heading", { name: "VoyaVPN" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Home/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Profiles/ })).toBeInTheDocument();
@@ -501,8 +504,11 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: /Clash Proxies/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Clash Connections/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Logs/ })).toBeInTheDocument();
-    expect(screen.getByTestId("status-bar")).toHaveTextContent("Disconnected");
-    expect(screen.getByTestId("status-bar")).toHaveTextContent("Route: /profiles");
+    expect(statusBar).toHaveTextContent("Disconnected");
+    expect(statusBar).toHaveTextContent("Route: /profiles");
+    expect(within(statusBar).getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("button", { name: "Settings" })).toBeNull();
+    expect(within(sidebar).queryByRole("button", { name: "Theme" })).toBeNull();
   });
 
   it("defaults to the connection home hero", () => {
@@ -523,7 +529,7 @@ describe("App", () => {
     renderApp();
 
     // Language selection now lives in the Settings modal rather than a header
-    // toggle, so reach the RTL locale through the sidebar footer's Settings entry.
+    // toggle, so reach the RTL locale through the status bar's Settings entry.
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByRole("button", { name: "FA" }));
 

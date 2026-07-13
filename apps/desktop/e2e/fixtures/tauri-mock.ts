@@ -276,6 +276,19 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve({ Id: "sub-smoke", Remarks: "Smoke", Url: "", MoreUrl: "", Enabled: true, UserAgent: "", Sort: 0, UpdateTime: null });
         case "delete_subscriptions":
           return Promise.resolve(0);
+        case "export_profile_share_links": {
+          const indexIds = readStringArray(args, "indexIds");
+          const links = indexIds.map((indexId) => {
+            const profile = state.profiles.find((item) => item.profile.IndexId === indexId)?.profile;
+            if (!profile) {
+              throw new Error(`missing profile ${indexId}`);
+            }
+
+            return `vless://${encodeURIComponent(String(profile.Password))}@${String(profile.Address)}:${String(profile.Port)}#${encodeURIComponent(String(profile.Remarks))}`;
+          });
+
+          return Promise.resolve({ count: links.length, format: "shareLinks", text: links.join("\n") });
+        }
         case "import_profiles_from_text": {
           const row = upsertProfile(importedProfile(String(args.text ?? "")));
           return Promise.resolve({ imported: 1, importedIndexIds: [row.profile.IndexId], removedExisting: 0, skipped: 0, subid: args.subid ?? null });

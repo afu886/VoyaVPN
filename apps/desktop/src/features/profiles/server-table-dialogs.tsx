@@ -9,9 +9,11 @@ import {
   AlertDialogTitle,
 } from "@voya/ui/components/alert-dialog";
 import { buttonVariants } from "@voya/ui/components/button-variants";
-import { ImportProfilesDialog, SubscriptionsDialog } from "@/features/subscriptions";
+import { SubscriptionsDialog } from "@/features/subscriptions";
 
+import { ImportProfilesDialog } from "./import-profiles-dialog";
 import { ProfileDialog } from "./profile-dialog";
+import { ShareQrDialog } from "./share-qr-dialog";
 import type { ServerTableController } from "./use-server-table";
 
 export function ServerTableDialogs({ controller }: { controller: ServerTableController }) {
@@ -26,7 +28,9 @@ export function ServerTableDialogs({ controller }: { controller: ServerTableCont
     setDialogState,
     setImportOpen,
     setPendingDelete,
+    setShareQrContent,
     setSubscriptionsOpen,
+    shareQrContent,
     subscriptionsOpen,
     t,
   } = controller;
@@ -49,6 +53,11 @@ export function ServerTableDialogs({ controller }: { controller: ServerTableCont
         onChanged={() => void queryClient.invalidateQueries({ queryKey: ["profiles"] })}
         onOpenChange={setSubscriptionsOpen}
         open={subscriptionsOpen}
+      />
+      <ShareQrDialog
+        content={shareQrContent ?? ""}
+        onOpenChange={(open) => !open && setShareQrContent(null)}
+        open={shareQrContent !== null}
       />
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>

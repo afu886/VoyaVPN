@@ -16,6 +16,8 @@ const ipcMocks = vi.hoisted(() => ({
   dedupeProfiles: vi.fn(),
   deleteSubscriptions: vi.fn(),
   deleteProfiles: vi.fn(),
+  exportProfileShareLinks: vi.fn(),
+  generateQrCode: vi.fn(),
   importProfilesFromText: vi.fn(),
   listGroupChildCandidates: vi.fn(),
   listProfiles: vi.fn(),
@@ -24,6 +26,7 @@ const ipcMocks = vi.hoisted(() => ({
   previewGroupProfile: vi.fn(),
   cancelSpeedtest: vi.fn(),
   runSpeedtest: vi.fn(),
+  scanScreenQr: vi.fn(),
   saveGroupProfile: vi.fn(),
   saveProfile: vi.fn(),
   saveSubscription: vi.fn(),
@@ -128,6 +131,12 @@ describe("ProfilesScreen", () => {
     ipcMocks.dedupeProfiles.mockResolvedValue({ kept: 0, removedIndexIds: [], total: 0 });
     ipcMocks.deleteSubscriptions.mockResolvedValue(1);
     ipcMocks.deleteProfiles.mockResolvedValue(1);
+    ipcMocks.exportProfileShareLinks.mockImplementation(async (indexIds: string[]) => ({
+      count: indexIds.length,
+      format: "shareLinks",
+      text: indexIds.map((indexId) => `vless://${indexId}@example.test:443`).join("\n"),
+    }));
+    ipcMocks.generateQrCode.mockResolvedValue({ mimeType: "image/svg+xml", svg: "<svg />" });
     ipcMocks.importProfilesFromText.mockResolvedValue({ imported: 1, importedIndexIds: ["profile-new"], removedExisting: 0, skipped: 0, subid: null });
     ipcMocks.listGroupChildCandidates.mockResolvedValue([]);
     ipcMocks.listSubscriptions.mockResolvedValue([]);
@@ -143,6 +152,12 @@ describe("ProfilesScreen", () => {
       completedCount: 0,
       results: [],
       selectedCount: 0,
+    });
+    ipcMocks.scanScreenQr.mockResolvedValue({
+      message: null,
+      source: "screen",
+      status: "unavailable",
+      text: null,
     });
     ipcMocks.saveGroupProfile.mockImplementation(async (profile: ProfileItem_Deserialize) => makeProfile(100, profile));
     ipcMocks.saveProfile.mockImplementation(async (profile: ProfileItem_Deserialize) => makeProfile(99, profile));
@@ -455,6 +470,50 @@ describe("ProfilesScreen", () => {
     expect(screen.getByText("Imported 1 profile.")).toBeInTheDocument();
   });
 
+  it("refreshes and selects a profile imported from a scanned screen QR code", async () => {
+    const importedProfile = makeProfile(8, {
+      IndexId: "profile-scanned",
+      Remarks: "Scanned node",
+    });
+    ipcMocks.listProfiles
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([importedProfile]);
+    ipcMocks.scanScreenQr.mockResolvedValue({
+      message: null,
+      source: "native",
+      status: "found",
+      text: "vless://uuid@example.test:443#Scanned",
+    });
+    ipcMocks.importProfilesFromText.mockResolvedValue({
+      deduped: 0,
+      failed: 0,
+      filtered: 0,
+      imported: 1,
+      importedIndexIds: ["profile-scanned"],
+      messages: [],
+      parsed: 1,
+      removedExisting: 0,
+      skipped: 0,
+      subid: null,
+    });
+
+    renderProfiles();
+
+    await userEvent.click(await screen.findByRole("menuitem", { name: "More actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Import" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Screen" }));
+    expect(await screen.findByLabelText("Import payload")).toHaveValue(
+      "vless://uuid@example.test:443#Scanned",
+    );
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Import payload" }));
+
+    expect(await screen.findByText("Scanned node")).toBeInTheDocument();
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+    expect(screen.getByText("Imported 1 profile.")).toBeInTheDocument();
+  });
+
   it("imports profiles directly from clipboard text", async () => {
     const clipboardText = "vless://uuid@example.test:443#US";
     const readText = mockClipboardReadText(`\n${clipboardText}\n`);
@@ -528,6 +587,63 @@ describe("ProfilesScreen", () => {
 
     expect(await screen.findByText("Clipboard text read is unavailable in this WebView.")).toBeInTheDocument();
     expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+
+  it("shows a read-only QR export for one or multiple selected profiles", async () => {
+    ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
+
+    renderProfiles();
+
+    await userEvent.click(await screen.findByLabelText("Select Server 1"));
+    await userEvent.click(screen.getByLabelText("Select Server 0"));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
+
+    const expectedContent =
+      "vless://profile-0@example.test:443\nvless://profile-1@example.test:443";
+    expect(ipcMocks.exportProfileShareLinks).toHaveBeenCalledWith(["profile-0", "profile-1"]);
+    await waitFor(() => expect(ipcMocks.generateQrCode).toHaveBeenCalledWith(expectedContent));
+
+    const dialog = await screen.findByRole("dialog", { name: "Show QR" });
+    expect(within(dialog).getByLabelText("Content")).toHaveValue(expectedContent);
+    expect(within(dialog).getByLabelText("Content")).toHaveAttribute("readonly");
+    expect(within(dialog).getByAltText("Generated QR code")).toBeInTheDocument();
+  });
+
+  it("keeps the QR dialog closed when the selected profile cannot export a share link", async () => {
+    ipcMocks.listProfiles.mockResolvedValue([
+      makeProfile(0, { ConfigType: CONFIG_TYPES.PolicyGroup, Remarks: "Policy group" }),
+    ]);
+    ipcMocks.exportProfileShareLinks.mockRejectedValue(
+      new Error("share export does not support policy groups"),
+    );
+
+    renderProfiles();
+
+    await userEvent.click(await screen.findByLabelText("Select Policy group"));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
+
+    expect(await screen.findByText("share export does not support policy groups")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Show QR" })).not.toBeInTheDocument();
+    expect(ipcMocks.generateQrCode).not.toHaveBeenCalled();
+  });
+
+  it("shows QR generation errors without hiding the exported content", async () => {
+    ipcMocks.listProfiles.mockResolvedValue([makeProfile(0)]);
+    ipcMocks.generateQrCode.mockRejectedValue(new Error("QR content is too large"));
+
+    renderProfiles();
+
+    await userEvent.click(await screen.findByLabelText("Select Server 0"));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Show QR" });
+    expect(await within(dialog).findByText("QR content is too large")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Content")).toHaveValue(
+      "vless://profile-0@example.test:443",
+    );
   });
 
   it("moves rows with drag and drop through the move IPC command", async () => {

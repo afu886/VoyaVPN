@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ClipboardCopy, Gauge, LoaderCircle, Power, WifiOff } from "lucide-react";
+import { Activity, ClipboardCopy, Gauge, LoaderCircle, Power, Settings, WifiOff } from "lucide-react";
 
 import { Badge } from "@voya/ui/components/badge";
 import { Button } from "@voya/ui/components/button";
@@ -11,6 +11,7 @@ import type { CoreStateEvent, RuntimeStatusResponse, TunProviderDiagnostics } fr
 import { getErrorMessage } from "@voya/utils/error";
 import { formatBytesPerSecond } from "@voya/utils/formatting";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
+import { useModalStore } from "@/stores/modal-store";
 import { shellTabRoutes, useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
@@ -22,6 +23,7 @@ export function StatusBar() {
   const setCoreState = useRuntimeEventStore((state) => state.setCoreState);
   const statistics = useRuntimeEventStore((state) => state.statistics);
   const activeTab = useShellStore((state) => state.activeTab);
+  const openModal = useModalStore((state) => state.openModal);
   const pushToast = useToastStore((state) => state.pushToast);
   const initialStatusGenerationRef = useRef(0);
   const mountedRef = useMountedRef();
@@ -57,6 +59,7 @@ export function StatusBar() {
   const profilesLabel = t("status.profiles", { count: profilesQuery.data?.length ?? 0 });
   const routeLabel = t("status.route", { route: shellTabRoutes[activeTab] });
   const copyTunDiagnosticsLabel = t("status.copyTunDiagnostics");
+  const settingsLabel = t("actions.settings");
 
   async function copyTunDiagnostics() {
     if (copyingTunDiagnostics) {
@@ -160,6 +163,22 @@ export function StatusBar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">{copyTunDiagnosticsLabel}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={settingsLabel}
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => openModal("settings")}
+              size="icon-xs"
+              title={settingsLabel}
+              type="button"
+              variant="ghost"
+            >
+              <Settings className="size-3.5" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{settingsLabel}</TooltipContent>
         </Tooltip>
       </div>
     </footer>

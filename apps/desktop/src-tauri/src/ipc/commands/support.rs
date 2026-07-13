@@ -82,6 +82,16 @@ pub(super) fn validate_ipc_text(
         .map_err(|error| ipc_text_error(error, field, make_error))
 }
 
+pub(super) fn validate_ipc_qr_content(
+    value: &str,
+    field: &str,
+    max_chars: usize,
+    make_error: fn(String) -> AppError,
+) -> Result<(), AppError> {
+    input_safety::validate_qr_content(value, max_chars)
+        .map_err(|error| ipc_text_error(error, field, make_error))
+}
+
 pub(super) fn ipc_text_error(
     error: InputSafetyError,
     field: &str,

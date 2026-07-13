@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
-import { ClipboardPaste, FileUp, Upload } from "lucide-react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ClipboardPaste, FileUp, ImagePlus, Monitor, ScanLine, Upload } from "lucide-react";
 
+import { useI18n } from "@voya/i18n/use-i18n";
 import { Alert, AlertDescription } from "@voya/ui/components/alert";
 import { Button } from "@voya/ui/components/button";
 import { Card, CardContent } from "@voya/ui/components/card";
@@ -23,9 +24,17 @@ import {
   SelectValue,
 } from "@voya/ui/components/select";
 import { Textarea } from "@voya/ui/components/textarea";
-import { importProfilesFromText, listSubscriptions } from "@/ipc";
-import type { ImportProfilesResult } from "@/ipc/bindings";
+import { getErrorMessage } from "@voya/utils/error";
 import { redactOperationalError } from "@voya/utils/operational-redaction";
+import { importProfilesFromText, listSubscriptions, scanScreenQr } from "@/ipc";
+import type { ImportProfilesResult } from "@/ipc/bindings";
+
+import {
+  QrNotFoundError,
+  readClipboardImageBlob,
+  scanDisplayMediaQr,
+  scanQrBlob,
+} from "./qr-scanner";
 
 type ImportProfilesDialogProps = {
   onImported: (result: ImportProfilesResult) => Promise<void> | void;
@@ -41,9 +50,12 @@ type ResultMessage = {
 };
 
 export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportProfilesDialogProps) {
+  const { t } = useI18n();
+  const qrFileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultMessages, setResultMessages] = useState<ResultMessage[]>([]);
   const [resultText, setResultText] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [selectedSubid, setSelectedSubid] = useState("");
   const [text, setText] = useState("");
   const nextResultMessageIdRef = useRef(0);
@@ -88,11 +100,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
 
   async function handlePaste() {
     if (!navigator.clipboard?.readText) {
-      setError("Clipboard read is unavailable in this context.");
+      setError(t("qr.clipboardUnavailable"));
       return;
     }
-    setError(null);
-    setResultMessages([]);
+    clearFeedback();
     try {
       setText(await navigator.clipboard.readText());
     } catch (error) {
@@ -104,8 +115,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
     if (!file) {
       return;
     }
-    setError(null);
-    setResultMessages([]);
+    clearFeedback();
     try {
       setText(await file.text());
     } catch (error) {
@@ -113,15 +123,96 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
     }
   }
 
+  async function handleQrFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) {
+      return;
+    }
+
+    await scanIntoPayload(() => scanQrBlob(file));
+  }
+
+  async function handleClipboardImage() {
+    if (!navigator.clipboard?.read) {
+      setError(t("qr.clipboardImageUnavailable"));
+      return;
+    }
+
+    await scanIntoPayload(async () => scanQrBlob(await readClipboardImageBlob()));
+  }
+
+  async function handleScreenScan() {
+    setScanning(true);
+    clearFeedback();
+    try {
+      const result = await scanScreenQr();
+      if (result.status === "found" && result.text?.trim()) {
+        applyScannedPayload(result.text);
+        return;
+      }
+
+      try {
+        applyScannedPayload(await scanDisplayMediaQr());
+      } catch (fallbackError) {
+        const backendMessage =
+          result.message?.trim() ||
+          t(result.status === "unavailable" ? "qr.screenUnavailable" : "qr.noQrFound");
+        const fallbackMessage = formatQrError(fallbackError);
+        setError(
+          fallbackMessage === backendMessage ? backendMessage : `${backendMessage} ${fallbackMessage}`,
+        );
+      }
+    } catch (error) {
+      setError(getErrorMessage(error));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function scanIntoPayload(scan: () => Promise<string>) {
+    setScanning(true);
+    clearFeedback();
+    try {
+      applyScannedPayload(await scan());
+    } catch (error) {
+      setError(formatQrError(error));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function applyScannedPayload(payload: string) {
+    const decoded = payload.trim();
+    if (!decoded) {
+      setError(t("qr.noQrFound"));
+      return;
+    }
+
+    setText(decoded);
+  }
+
+  function clearFeedback() {
+    setError(null);
+    setResultMessages([]);
+    setResultText(null);
+  }
+
+  function formatQrError(error: unknown) {
+    return error instanceof QrNotFoundError ? t("qr.noQrFound") : getErrorMessage(error);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="size-4" aria-hidden="true" />
             Import Profiles
           </DialogTitle>
-          <DialogDescription className="sr-only">Import share links, subscription URLs, or JSON payloads.</DialogDescription>
+          <DialogDescription className="sr-only">
+            Import share links, subscription URLs, or JSON payloads.
+          </DialogDescription>
         </DialogHeader>
 
         <Card className="gap-3 rounded-xl bg-surface-raised p-3 shadow-raised">
@@ -176,7 +267,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                 </div>
               </div>
 
-              <Button onClick={() => void handlePaste()} type="button" variant="outline">
+              <Button disabled={scanning} onClick={() => void handlePaste()} type="button" variant="outline">
                 <ClipboardPaste className="size-4" aria-hidden="true" />
                 Paste
               </Button>
@@ -195,6 +286,50 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                 type="file"
               />
             </div>
+
+            <section className="grid gap-2" aria-label={t("qr.scan")}>
+              <h3 className="flex items-center gap-2 text-sm font-medium">
+                <ScanLine className="size-4" aria-hidden="true" />
+                {t("qr.scan")}
+              </h3>
+              <input
+                ref={qrFileInputRef}
+                accept="image/*"
+                aria-label={t("qr.scanImage")}
+                className="hidden"
+                onChange={(event) => void handleQrFile(event)}
+                type="file"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  disabled={scanning}
+                  onClick={() => qrFileInputRef.current?.click()}
+                  type="button"
+                  variant="outline"
+                >
+                  <ImagePlus className="size-4" aria-hidden="true" />
+                  {t("qr.scanImage")}
+                </Button>
+                <Button
+                  disabled={scanning}
+                  onClick={() => void handleClipboardImage()}
+                  type="button"
+                  variant="outline"
+                >
+                  <ClipboardPaste className="size-4" aria-hidden="true" />
+                  {t("qr.scanClipboardImage")}
+                </Button>
+                <Button
+                  disabled={scanning}
+                  onClick={() => void handleScreenScan()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Monitor className="size-4" aria-hidden="true" />
+                  {t("qr.scanScreen")}
+                </Button>
+              </div>
+            </section>
 
             <div className="grid gap-1">
               <Label className="text-xs text-muted-foreground" htmlFor="import-payload">
@@ -238,7 +373,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
             Close
           </Button>
-          <Button disabled={!canImport} onClick={() => void handleImport()} type="button">
+          <Button disabled={!canImport || scanning} onClick={() => void handleImport()} type="button">
             Import payload
           </Button>
         </DialogFooter>

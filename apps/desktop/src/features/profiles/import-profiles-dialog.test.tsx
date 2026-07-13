@@ -1,0 +1,181 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { changeLocale } from "@voya/i18n";
+
+import { ImportProfilesDialog } from "./import-profiles-dialog";
+import { QrNotFoundError } from "./qr-scanner";
+
+const ipcMocks = vi.hoisted(() => ({
+  importProfilesFromText: vi.fn(),
+  listSubscriptions: vi.fn(),
+  scanScreenQr: vi.fn(),
+}));
+
+const scannerMocks = vi.hoisted(() => ({
+  readClipboardImageBlob: vi.fn(),
+  scanDisplayMediaQr: vi.fn(),
+  scanQrBlob: vi.fn(),
+}));
+
+vi.mock("@/ipc", () => ipcMocks);
+vi.mock("./qr-scanner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./qr-scanner")>();
+
+  return { ...actual, ...scannerMocks };
+});
+
+const queryClients = new Set<QueryClient>();
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+function renderDialog(onImported = vi.fn(), onOpenChange = vi.fn()) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { gcTime: 0, retry: false } },
+  });
+  queryClients.add(queryClient);
+
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <ImportProfilesDialog onImported={onImported} onOpenChange={onOpenChange} open />
+      </QueryClientProvider>,
+    ),
+    onImported,
+    onOpenChange,
+  };
+}
+
+beforeEach(async () => {
+  await changeLocale("en");
+  Object.values(ipcMocks).forEach((mock) => mock.mockReset());
+  Object.values(scannerMocks).forEach((mock) => mock.mockReset());
+  ipcMocks.listSubscriptions.mockResolvedValue([]);
+  ipcMocks.importProfilesFromText.mockResolvedValue({
+    imported: 1,
+    importedIndexIds: ["profile-from-qr"],
+    removedExisting: 0,
+    skipped: 0,
+    subid: null,
+  });
+});
+
+afterEach(() => {
+  queryClients.forEach((queryClient) => queryClient.clear());
+  queryClients.clear();
+  if (originalClipboardDescriptor) {
+    Object.defineProperty(navigator, "clipboard", originalClipboardDescriptor);
+  } else {
+    Reflect.deleteProperty(navigator, "clipboard");
+  }
+});
+
+describe("ImportProfilesDialog QR scanning", () => {
+  it("fills the editable payload from an image and waits for explicit import", async () => {
+    const user = userEvent.setup();
+    scannerMocks.scanQrBlob.mockResolvedValue("  vless://image.example  ");
+    renderDialog();
+
+    fireEvent.change(await screen.findByLabelText("Scan image"), {
+      target: { files: [new File(["qr"], "profile.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Import payload")).toHaveValue("vless://image.example"));
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Import payload" }));
+    await waitFor(() =>
+      expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith("vless://image.example", null, false),
+    );
+  });
+
+  it("fills the payload from a clipboard image without importing it", async () => {
+    const image = new Blob(["clipboard"], { type: "image/png" });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { read: vi.fn() },
+    });
+    scannerMocks.readClipboardImageBlob.mockResolvedValue(image);
+    scannerMocks.scanQrBlob.mockResolvedValue("trojan://clipboard.example");
+    renderDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Clipboard image" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Import payload")).toHaveValue("trojan://clipboard.example"),
+    );
+    expect(scannerMocks.scanQrBlob).toHaveBeenCalledWith(image);
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+
+  it("uses a successful backend screen scan without opening display capture", async () => {
+    ipcMocks.scanScreenQr.mockResolvedValue({
+      message: null,
+      source: "native",
+      status: "found",
+      text: "vmess://screen.example",
+    });
+    renderDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Screen" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Import payload")).toHaveValue("vmess://screen.example"),
+    );
+    expect(scannerMocks.scanDisplayMediaQr).not.toHaveBeenCalled();
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+
+  it("falls back to display capture when the backend finds no QR code", async () => {
+    ipcMocks.scanScreenQr.mockResolvedValue({
+      message: null,
+      source: "native",
+      status: "notFound",
+      text: null,
+    });
+    scannerMocks.scanDisplayMediaQr.mockResolvedValue("ss://fallback.example");
+    renderDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Screen" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Import payload")).toHaveValue("ss://fallback.example"),
+    );
+    expect(scannerMocks.scanDisplayMediaQr).toHaveBeenCalledOnce();
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+
+  it("reports both native and WebView screen scanning as unavailable", async () => {
+    ipcMocks.scanScreenQr.mockResolvedValue({
+      message: null,
+      source: "native",
+      status: "unavailable",
+      text: null,
+    });
+    scannerMocks.scanDisplayMediaQr.mockRejectedValue(
+      new Error("Screen capture is unavailable in this WebView."),
+    );
+    renderDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Screen" }));
+
+    expect(
+      await screen.findByText(/Screen QR scanning is unavailable.*Screen capture is unavailable/s),
+    ).toBeInTheDocument();
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+
+  it("shows the localized no-QR result without changing the payload", async () => {
+    scannerMocks.scanQrBlob.mockRejectedValue(new QrNotFoundError());
+    renderDialog();
+
+    fireEvent.change(await screen.findByLabelText("Scan image"), {
+      target: { files: [new File(["plain"], "plain.png", { type: "image/png" })] },
+    });
+
+    expect(await screen.findByText("No QR code found.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Import payload")).toHaveValue("");
+    expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
+  });
+});

@@ -24,9 +24,6 @@ const ipcMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/ipc", () => ipcMocks);
-vi.mock("@/features/qr", () => ({
-  QrDialog: () => <div data-testid="qr-dialog" />,
-}));
 vi.mock("@/features/templates", () => ({
   FullConfigTemplateDialog: () => <div data-testid="templates-dialog" />,
 }));

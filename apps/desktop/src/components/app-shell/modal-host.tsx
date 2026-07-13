@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@voya/ui/components/dialog";
-import { QrDialog } from "@/features/qr";
 import { SettingsDialog } from "@/features/settings";
 import { FullConfigTemplateDialog } from "@/features/templates";
 import { useI18n } from "@voya/i18n/use-i18n";
@@ -30,7 +29,6 @@ export function ModalHost() {
         <SettingsDialog entryId={modal.id} initialTab={modal.settingsTab} key={modal.id} />
       ) : null}
       {modal?.kind === "fullConfigTemplate" ? <FullConfigTemplateDialog /> : null}
-      {modal?.kind === "qr" ? <QrDialog initialContent={modal.qrContent} key={modal.id} /> : null}
       {modal?.kind === "missingCore" ? <MissingCoreDialog payload={modal.missingCore} /> : null}
     </Dialog>
   );
