@@ -41,7 +41,6 @@ pub struct AppConfig {
     #[serde(rename = "ClashUIItem")]
     pub clash_ui_item: ClashUiItem,
     pub system_proxy_item: SystemProxyItem,
-    pub web_dav_item: WebDavItem,
     pub check_update_item: CheckUpdateItem,
     pub diagnostics_item: DiagnosticsItem,
     pub fragment4_ray_item: Fragment4RayItem,
@@ -71,7 +70,6 @@ impl Default for AppConfig {
             hysteria_item: HysteriaItem::default(),
             clash_ui_item: ClashUiItem::default(),
             system_proxy_item: SystemProxyItem::default(),
-            web_dav_item: WebDavItem::default(),
             check_update_item: CheckUpdateItem::default(),
             diagnostics_item: DiagnosticsItem::default(),
             fragment4_ray_item: Fragment4RayItem::default(),
@@ -250,8 +248,6 @@ pub struct UiItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_theme: Option<String>,
     pub current_language: String,
-    pub current_font_family: String,
-    pub current_font_size: i32,
     pub enable_drag_drop_sort: bool,
     pub double_click2_activate: bool,
     pub auto_hide_startup: bool,
@@ -272,8 +268,6 @@ impl Default for UiItem {
             color_primary_name: None,
             current_theme: None,
             current_language: DEFAULT_LANGUAGE.to_string(),
-            current_font_family: String::new(),
-            current_font_size: 0,
             enable_drag_drop_sort: false,
             double_click2_activate: false,
             auto_hide_startup: false,
@@ -474,19 +468,6 @@ impl Default for SystemProxyItem {
             custom_system_proxy_script_path: None,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct WebDavItem {
-    #[serde(rename = "Url", skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dir_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]

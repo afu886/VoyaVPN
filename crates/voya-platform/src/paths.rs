@@ -16,7 +16,6 @@ pub const PORTABLE_BLOCK_FILE: &str = "NotStoreConfigHere.txt";
 pub const CONFIG_DIR_NAME: &str = "guiConfigs";
 pub const BIN_DIR_NAME: &str = "bin";
 pub const BIN_CONFIG_DIR_NAME: &str = "binConfigs";
-pub const BACKUP_DIR_NAME: &str = "guiBackups";
 pub const LOG_DIR_NAME: &str = "guiLogs";
 pub const TEMP_DIR_NAME: &str = "guiTemps";
 pub const CORE_SEED_RESOURCE_DIR_NAME: &str = "core-seeds";
@@ -34,7 +33,6 @@ pub struct AppPaths {
     config_dir: PathBuf,
     bin_dir: PathBuf,
     bin_config_dir: PathBuf,
-    backup_dir: PathBuf,
     log_dir: PathBuf,
     temp_dir: PathBuf,
 }
@@ -48,7 +46,6 @@ impl AppPaths {
             config_dir: app_dir.join(CONFIG_DIR_NAME),
             bin_dir: app_dir.join(BIN_DIR_NAME),
             bin_config_dir: app_dir.join(BIN_CONFIG_DIR_NAME),
-            backup_dir: app_dir.join(BACKUP_DIR_NAME),
             log_dir: app_dir.join(LOG_DIR_NAME),
             temp_dir: app_dir.join(TEMP_DIR_NAME),
             app_dir,
@@ -83,11 +80,6 @@ impl AppPaths {
     #[must_use]
     pub fn bin_config_dir(&self) -> &Path {
         &self.bin_config_dir
-    }
-
-    #[must_use]
-    pub fn backup_dir(&self) -> &Path {
-        &self.backup_dir
     }
 
     #[must_use]
@@ -140,7 +132,6 @@ impl AppPaths {
             &self.config_dir,
             &self.bin_dir,
             &self.bin_config_dir,
-            &self.backup_dir,
             &self.log_dir,
             &self.temp_dir,
         ] {

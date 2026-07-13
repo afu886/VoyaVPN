@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, vi } from "vitest";
 
 import { App } from "./App";
-import { fontToCss } from "@voya/ui/config/fonts";
 import { changeLocale } from "@voya/i18n";
 import {
   clashCloseConnection,
@@ -21,7 +20,7 @@ import type {
   ClashTrafficEvent,
   UiItem_Serialize,
 } from "@/ipc/bindings";
-import { DEFAULT_FONT, DEFAULT_FONT_SIZE, usePreferencesStore } from "@/stores/preferences-store";
+import { usePreferencesStore } from "@/stores/preferences-store";
 import { useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
@@ -252,8 +251,6 @@ vi.mock("@/ipc", () => ({
       },
       UIItem: {
         ColorPrimaryName: "Teal",
-        CurrentFontFamily: "",
-        CurrentFontSize: 16,
         CurrentLanguage: "en",
         CurrentTheme: "FollowSystem",
       },
@@ -445,17 +442,13 @@ describe("App", () => {
     useToastStore.setState({ toasts: [] });
     // Reset the persisted preferences singleton so each test re-hydrates from
     // its own loadAppConfig mock; otherwise a prior test leaves appConfigLoaded
-    // true and the theme/font hydration effect short-circuits.
+    // true and the theme hydration effect short-circuits.
     usePreferencesStore.setState({
       appConfigLoaded: false,
-      font: DEFAULT_FONT,
-      fontSize: DEFAULT_FONT_SIZE,
       themeMode: "system",
     });
     window.localStorage.clear();
     document.documentElement.className = "";
-    document.documentElement.style.removeProperty("--app-font-family");
-    document.documentElement.style.removeProperty("--app-font-size");
     vi.mocked(loadAppConfig).mockClear();
     vi.mocked(saveAppConfig).mockClear();
     vi.mocked(clashCloseConnection).mockClear();
@@ -524,14 +517,12 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: /نمایه/ })).toBeInTheDocument();
   });
 
-  it("hydrates and persists theme and strict font settings through app config", async () => {
+  it("hydrates and persists the theme through app config", async () => {
     const user = userEvent.setup();
     vi.mocked(loadAppConfig).mockResolvedValue(
       makeAppConfig({
         UIItem: makeUiItem({
           ColorPrimaryName: "Rose",
-          CurrentFontFamily: "Manrope",
-          CurrentFontSize: 18,
           CurrentTheme: "Dark",
         }),
       }),
@@ -540,22 +531,18 @@ describe("App", () => {
     renderApp();
 
     await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
-    expect(document.documentElement).toHaveClass("font-manrope");
-    expect(document.documentElement.style.getPropertyValue("--app-font-family")).toBe(fontToCss("manrope"));
-    expect(document.documentElement.style.getPropertyValue("--app-font-size")).toBe("18px");
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.queryByRole("heading", { name: "Font" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Font size")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Light" }));
-    await user.click(screen.getByRole("button", { name: "Inter" }));
 
     await waitFor(() => {
       const savedConfig = vi.mocked(saveAppConfig).mock.calls.at(-1)?.[0];
 
-      expect(savedConfig?.UIItem).toMatchObject({
-        CurrentFontFamily: "Inter",
-        CurrentFontSize: 18,
-        CurrentTheme: "Light",
-      });
+      expect(savedConfig?.UIItem).toMatchObject({ CurrentTheme: "Light" });
+      expect(savedConfig?.UIItem).not.toHaveProperty("CurrentFontFamily");
+      expect(savedConfig?.UIItem).not.toHaveProperty("CurrentFontSize");
       expect(savedConfig?.UIItem).not.toHaveProperty("ColorPrimaryName");
     });
 
@@ -936,8 +923,6 @@ function makeUiItem(overrides: Partial<UiItem_Serialize> = {}): UiItem_Serialize
   return {
     AutoHideStartup: false,
     ColorPrimaryName: "Teal",
-    CurrentFontFamily: "",
-    CurrentFontSize: 16,
     CurrentLanguage: "en",
     CurrentTheme: "FollowSystem",
     DoubleClick2Activate: false,

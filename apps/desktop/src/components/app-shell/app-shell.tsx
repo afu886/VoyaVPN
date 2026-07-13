@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@voya/ui/components/dialog";
-import { fonts } from "@voya/ui/config/fonts";
 import { applyDocumentLocale } from "@voya/i18n";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { HomeScreen } from "@/features/home";
@@ -40,10 +39,6 @@ import type { AppConfig_Deserialize, ClashMonitorStatus } from "@/ipc/bindings";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
 import {
-  type Font,
-  fontToClassName,
-  fontToCss,
-  fontToFamilyString,
   resolveThemeMode,
   themeModeToConfig,
   type ThemeMode,
@@ -82,15 +77,13 @@ export function AppShell() {
   const queryClient = useQueryClient();
   const { direction, language, t } = useI18n();
   const activeTab = useShellStore((state) => state.activeTab);
-  const font = usePreferencesStore((state) => state.font);
-  const fontSize = usePreferencesStore((state) => state.fontSize);
   const pushToast = useToastStore((state) => state.pushToast);
   const themeMode = usePreferencesStore((state) => state.themeMode);
   const { titleBarLayout } = useWindowChrome();
   const [pendingPreset, setPendingPreset] = useState<RegionalPresetOption | null>(null);
 
   usePersistedPreferences(language);
-  useThemeEffects(themeMode, font, fontSize);
+  useThemeEffects(themeMode);
   useClashMonitorLifecycle(activeTab);
   // Windows borderless chrome is the only Acrylic target; the hook no-ops elsewhere.
   useAcrylicWindow(titleBarLayout === "windows");
@@ -235,8 +228,6 @@ function RegionalPresetConfirmDialog({
 
 function usePersistedPreferences(language: string) {
   const appConfigLoaded = usePreferencesStore((state) => state.appConfigLoaded);
-  const font = usePreferencesStore((state) => state.font);
-  const fontSize = usePreferencesStore((state) => state.fontSize);
   const hydrateFromConfig = usePreferencesStore((state) => state.hydrateFromConfig);
   const themeMode = usePreferencesStore((state) => state.themeMode);
   const lastPersistedKeyRef = useRef<string | null>(null);
@@ -245,8 +236,8 @@ function usePersistedPreferences(language: string) {
   const persistQueueRef = useRef<Promise<void> | null>(null);
   const persistSequenceRef = useRef(0);
   const preferenceSnapshot = useMemo<PreferenceConfigSnapshot>(
-    () => ({ font, fontSize, language, themeMode }),
-    [font, fontSize, language, themeMode],
+    () => ({ language, themeMode }),
+    [language, themeMode],
   );
 
   useEffect(() => {
@@ -264,8 +255,6 @@ function usePersistedPreferences(language: string) {
 
         hydrateFromConfig(config.UIItem);
         lastPersistedKeyRef.current = preferenceConfigKey({
-          font: usePreferencesStore.getState().font,
-          fontSize: usePreferencesStore.getState().fontSize,
           language,
           themeMode: usePreferencesStore.getState().themeMode,
         });
@@ -502,29 +491,18 @@ function isTauriRuntime() {
 }
 
 type PreferenceConfigSnapshot = {
-  font: Font;
-  fontSize: number;
   language: string;
   themeMode: ThemeMode;
 };
 
-function preferenceConfigKey({
-  font,
-  fontSize,
-  language,
-  themeMode,
-}: PreferenceConfigSnapshot) {
+function preferenceConfigKey({ language, themeMode }: PreferenceConfigSnapshot) {
   return JSON.stringify({
-    font,
-    fontSize,
     language,
     themeMode,
   });
 }
 
 async function persistPreferenceConfig({
-  font,
-  fontSize,
   language,
   themeMode,
 }: PreferenceConfigSnapshot) {
@@ -533,8 +511,6 @@ async function persistPreferenceConfig({
     ...config,
     UIItem: {
       ...uiItemWithoutLegacyColor(config.UIItem),
-      CurrentFontFamily: fontToFamilyString(font),
-      CurrentFontSize: fontSize,
       CurrentLanguage: language,
       CurrentTheme: themeModeToConfig(themeMode),
     },
@@ -543,7 +519,7 @@ async function persistPreferenceConfig({
   await saveAppConfig(nextConfig);
 }
 
-function useThemeEffects(themeMode: ThemeMode, font: Font, fontSize: number) {
+function useThemeEffects(themeMode: ThemeMode) {
   useEffect(() => {
     const root = document.documentElement;
     const media =
@@ -553,11 +529,7 @@ function useThemeEffects(themeMode: ThemeMode, font: Font, fontSize: number) {
       const resolvedTheme = resolveThemeMode(themeMode);
 
       root.classList.toggle("dark", resolvedTheme === "dark");
-      root.classList.remove(...fonts.map(fontToClassName));
-      root.classList.add(fontToClassName(font));
       root.style.colorScheme = resolvedTheme;
-      root.style.setProperty("--app-font-family", fontToCss(font));
-      root.style.setProperty("--app-font-size", `${fontSize}px`);
     };
 
     applyTheme();
@@ -569,5 +541,5 @@ function useThemeEffects(themeMode: ThemeMode, font: Font, fontSize: number) {
     media.addEventListener("change", applyTheme);
 
     return () => media.removeEventListener("change", applyTheme);
-  }, [font, fontSize, themeMode]);
+  }, [themeMode]);
 }

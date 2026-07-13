@@ -3,7 +3,6 @@ import { create } from "zustand";
 import type { CoreType } from "@/ipc/bindings";
 
 export type ModalKind =
-  | "backup"
   | "fullConfigTemplate"
   | "missingCore"
   | "qr"

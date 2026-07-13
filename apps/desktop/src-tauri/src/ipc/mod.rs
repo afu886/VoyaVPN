@@ -93,13 +93,6 @@ macro_rules! collect_ipc_commands {
             commands::download_updates,
             commands::manual_app_update_links,
             commands::install_core_seed,
-            commands::backup_status,
-            commands::backup_save_webdav_settings,
-            commands::backup_create_local,
-            commands::backup_restore_local::<tauri::Wry>,
-            commands::backup_webdav_check,
-            commands::backup_webdav_push,
-            commands::backup_webdav_pull::<tauri::Wry>,
             window::get_window_chrome_config,
             window::set_window_acrylic,
             $($extra_command)*
@@ -155,10 +148,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::updates::RulesetGeoSourceSettings>()
         .typ::<commands::AppUpdateDiagnosticAction>()
         .typ::<commands::AppUpdateDiagnosticResult>()
-        .typ::<voya_app::backup::BackupStatus>()
-        .typ::<voya_app::backup::BackupOperationResult>()
-        .typ::<voya_app::backup::BackupRestoreResult>()
-        .typ::<voya_app::backup::BackupRemoteResult>()
         .typ::<voya_app::autostart::AutostartStatus>()
         .typ::<voya_app::autostart::AutostartPlatform>()
         .typ::<voya_app::hotkeys::HotkeyStatus>()
@@ -172,7 +161,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::exports::ExportProfilesRequest>()
         .typ::<voya_app::exports::ExportProfilesResult>()
         .typ::<voya_app::exports::ExportProfilesFormat>()
-        .typ::<voya_core::WebDavItem>()
         .typ::<voya_core::PresetType>()
         .typ::<voya_core::SpeedActionType>()
         .typ::<voya_app::tun::TunStatus>()

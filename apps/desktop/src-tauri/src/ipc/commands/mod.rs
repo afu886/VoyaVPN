@@ -12,10 +12,6 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
 use voya_app::autostart::{AutostartManager, AutostartManagerError, AutostartStatus};
-use voya_app::backup::{
-    BackupManager, BackupManagerError, BackupOperationResult, BackupRemoteResult,
-    BackupRestoreResult, BackupStatus,
-};
 use voya_app::certificates::{
     calculate_certificate_sha256 as calculate_certificate_sha256_impl,
     fetch_certificate as fetch_certificate_impl, CertificateError, CertificateFetchRequest,
@@ -62,7 +58,7 @@ use voya_core::{
     AppConfig, CoreType, FullConfigTemplateItem, GlobalHotkey, GroupChildCandidate, GroupPreview,
     GroupValidationResult, ImportProfilesResult, KeyEventItem, MoveAction, PresetType,
     ProfileDedupeResult, ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RuleMode,
-    RulesItem, SubItem, SubscriptionUpdateResult, SysProxyType, WebDavItem,
+    RulesItem, SubItem, SubscriptionUpdateResult, SysProxyType,
 };
 use voya_platform::{
     coreinfo::{
@@ -98,7 +94,6 @@ pub enum AppError {
     Autostart(String),
     ConfigLoad(String),
     ConfigSave(String),
-    Backup(String),
     Certificate(String),
     Clash(String),
     Database(String),
@@ -225,7 +220,6 @@ pub struct SystemProxyStatusResponse {
 }
 
 mod app;
-mod backup;
 mod clash;
 #[cfg(debug_assertions)]
 mod demo;
@@ -245,7 +239,6 @@ mod tun;
 mod updates;
 
 pub use app::*;
-pub use backup::*;
 pub use clash::*;
 #[cfg(debug_assertions)]
 pub use demo::*;

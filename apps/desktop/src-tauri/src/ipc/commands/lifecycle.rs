@@ -208,34 +208,6 @@ where
     }
 }
 
-pub(super) fn emit_backup_invalidation<R>(
-    app: &tauri::AppHandle<R>,
-    reason: &str,
-) -> Result<(), AppError>
-where
-    R: tauri::Runtime,
-{
-    InvalidateEvent {
-        keys: [
-            vec!["app-config".to_string()],
-            vec!["backup".to_string()],
-            vec!["profiles".to_string()],
-            vec!["profile-ex".to_string()],
-            vec!["subscriptions".to_string()],
-            vec!["routings".to_string()],
-            vec!["dns".to_string()],
-        ]
-        .into_iter()
-        .map(|query_key| QueryInvalidation {
-            query_key,
-            reason: reason.to_string(),
-        })
-        .collect(),
-    }
-    .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
-}
-
 pub(super) fn emit_app_config_invalidation<R>(
     app: &tauri::AppHandle<R>,
     reason: &str,

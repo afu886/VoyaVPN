@@ -4,7 +4,6 @@
 //! live here. Tauri command wiring stays in `src-tauri`.
 
 pub mod autostart;
-pub mod backup;
 pub mod certificates;
 pub mod clash;
 mod coregen;

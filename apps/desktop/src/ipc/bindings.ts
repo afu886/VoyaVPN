@@ -140,13 +140,6 @@ export const commands = {
 	 *  when the binary is absent (e.g. cleared bin dir, antivirus removal, or a skipped first run).
 	 */
 	installCoreSeed: (coreType: CoreType) => typedError<CoreSeedInstallResult, AppError>(__TAURI_INVOKE("install_core_seed", { coreType })),
-	backupStatus: () => typedError<BackupStatus_Serialize, AppError>(__TAURI_INVOKE("backup_status")),
-	backupSaveWebdavSettings: (settings: WebDavItem_Deserialize) => typedError<WebDavItem_Serialize, AppError>(__TAURI_INVOKE("backup_save_webdav_settings", { settings })),
-	backupCreateLocal: (outputPath: string | null) => typedError<BackupOperationResult, AppError>(__TAURI_INVOKE("backup_create_local", { outputPath })),
-	backupRestoreLocal: (inputPath: string) => typedError<BackupRestoreResult_Serialize, AppError>(__TAURI_INVOKE("backup_restore_local", { inputPath })),
-	backupWebdavCheck: (settings: WebDavItem_Deserialize) => typedError<BackupOperationResult, AppError>(__TAURI_INVOKE("backup_webdav_check", { settings })),
-	backupWebdavPush: (settings: WebDavItem_Deserialize) => typedError<BackupRemoteResult, AppError>(__TAURI_INVOKE("backup_webdav_push", { settings })),
-	backupWebdavPull: (settings: WebDavItem_Deserialize) => typedError<BackupRestoreResult_Serialize, AppError>(__TAURI_INVOKE("backup_webdav_pull", { settings })),
 	/**
 	 *  Report the window decoration this build should render. Only Windows gets the
 	 *  custom borderless title bar; macOS and Linux keep their native frame, and the
@@ -194,7 +187,6 @@ export type AppConfig_Deserialize = {
 	HysteriaItem?: HysteriaItem,
 	ClashUIItem?: ClashUiItem,
 	SystemProxyItem?: SystemProxyItem_Deserialize,
-	WebDavItem?: WebDavItem_Deserialize,
 	CheckUpdateItem?: CheckUpdateItem_Deserialize,
 	DiagnosticsItem?: DiagnosticsItem_Deserialize,
 	Fragment4RayItem?: Fragment4RayItem_Deserialize,
@@ -221,7 +213,6 @@ export type AppConfig_Serialize = {
 	HysteriaItem: HysteriaItem,
 	ClashUIItem: ClashUiItem,
 	SystemProxyItem: SystemProxyItem_Serialize,
-	WebDavItem: WebDavItem_Serialize,
 	CheckUpdateItem: CheckUpdateItem_Serialize,
 	DiagnosticsItem: DiagnosticsItem_Serialize,
 	Fragment4RayItem: Fragment4RayItem_Serialize,
@@ -230,7 +221,7 @@ export type AppConfig_Serialize = {
 	SimpleDNSItem: SimpleDnsItem_Serialize,
 };
 
-export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "backup"; message: string } | { kind: "certificate"; message: string } | { kind: "clash"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "template"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
+export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "clash"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "template"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
 
 export type AppEvent = { kind: "notice"; payload: AppNotice } | { kind: "selectTab"; payload: ShellTabTarget };
 
@@ -262,47 +253,6 @@ export type AutostartStatus = {
 	artifactKind: string | null,
 	artifactPath: string | null,
 	artifactName: string | null,
-};
-
-export type BackupOperationResult = {
-	path: string | null,
-	bytes: number | null,
-	message: string,
-};
-
-export type BackupRemoteResult = {
-	path: string | null,
-	remotePath: string,
-	bytes: number | null,
-	message: string,
-};
-
-export type BackupRestoreResult = BackupRestoreResult_Serialize | BackupRestoreResult_Deserialize;
-
-export type BackupRestoreResult_Deserialize = {
-	path: string,
-	restoredConfig: AppConfig_Deserialize,
-	message: string,
-};
-
-export type BackupRestoreResult_Serialize = {
-	path: string,
-	restoredConfig: AppConfig_Serialize,
-	message: string,
-};
-
-export type BackupStatus = BackupStatus_Serialize | BackupStatus_Deserialize;
-
-export type BackupStatus_Deserialize = {
-	defaultBackupPath: string,
-	backupDir: string,
-	webDavItem: WebDavItem_Deserialize,
-};
-
-export type BackupStatus_Serialize = {
-	defaultBackupPath: string,
-	backupDir: string,
-	webDavItem: WebDavItem_Serialize,
 };
 
 export type CertificateFetchRequest = {
@@ -1557,8 +1507,6 @@ export type UiItem_Deserialize = {
 	ColorPrimaryName?: string | null,
 	CurrentTheme?: string | null,
 	CurrentLanguage?: string,
-	CurrentFontFamily?: string,
-	CurrentFontSize?: number,
 	EnableDragDropSort?: boolean,
 	DoubleClick2Activate?: boolean,
 	AutoHideStartup?: boolean,
@@ -1576,8 +1524,6 @@ export type UiItem_Serialize = {
 	ColorPrimaryName?: string | null,
 	CurrentTheme?: string | null,
 	CurrentLanguage: string,
-	CurrentFontFamily: string,
-	CurrentFontSize: number,
 	EnableDragDropSort: boolean,
 	DoubleClick2Activate: boolean,
 	AutoHideStartup: boolean,
@@ -1629,22 +1575,6 @@ export type UpdateTarget = {
 };
 
 export type UpdateTargetKind = "app" | "geo" | "srs";
-
-export type WebDavItem = WebDavItem_Serialize | WebDavItem_Deserialize;
-
-export type WebDavItem_Deserialize = {
-	Url?: string | null,
-	UserName?: string | null,
-	Password?: string | null,
-	DirName?: string | null,
-};
-
-export type WebDavItem_Serialize = {
-	Url?: string | null,
-	UserName?: string | null,
-	Password?: string | null,
-	DirName?: string | null,
-};
 
 export type WindowChromeConfig = {
 	titleBarLayout: TitleBarLayout,

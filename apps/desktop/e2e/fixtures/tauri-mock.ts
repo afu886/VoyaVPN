@@ -112,12 +112,6 @@ export async function installTauriSmokeMock(page: Page) {
           },
         ],
       },
-      webDav: {
-        DirName: null as string | null,
-        Password: null as string | null,
-        Url: null as string | null,
-        UserName: null as string | null,
-      },
     };
 
     function invoke(command: string, args: CommandArgs = {}) {
@@ -401,25 +395,6 @@ export async function installTauriSmokeMock(page: Page) {
             mimeType: "image/svg+xml",
             svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><rect x=\"8\" y=\"8\" width=\"16\" height=\"16\" fill=\"black\"/><rect x=\"40\" y=\"8\" width=\"16\" height=\"16\" fill=\"black\"/><rect x=\"8\" y=\"40\" width=\"16\" height=\"16\" fill=\"black\"/><rect x=\"32\" y=\"32\" width=\"8\" height=\"8\" fill=\"black\"/></svg>",
           });
-        case "backup_status":
-          return Promise.resolve({
-            backupDir: "/tmp/voyavpn-smoke/backups",
-            defaultBackupPath: "/tmp/voyavpn-smoke/backups/smoke.zip",
-            webDavItem: clone(state.webDav),
-          });
-        case "backup_save_webdav_settings":
-          state.webDav = mergeDeep(state.webDav, readRecord(args, "settings"));
-          return Promise.resolve(clone(state.webDav));
-        case "backup_create_local":
-          return Promise.resolve({ bytes: 1024, message: "Smoke backup created", path: args.outputPath ?? "/tmp/voyavpn-smoke/backups/smoke.zip" });
-        case "backup_restore_local":
-          return Promise.resolve({ message: "Smoke backup restored", path: args.inputPath, restoredConfig: clone(state.appConfig) });
-        case "backup_webdav_check":
-          return Promise.resolve({ bytes: null, message: "Smoke WebDAV check ok", path: null });
-        case "backup_webdav_push":
-          return Promise.resolve({ bytes: 1024, message: "Smoke WebDAV upload ok", path: null, remotePath: "/VoyaVPN/smoke.zip" });
-        case "backup_webdav_pull":
-          return Promise.resolve({ message: "Smoke WebDAV restore ok", path: "/tmp/voyavpn-smoke/webdav.zip", restoredConfig: clone(state.appConfig) });
         case "app_update_status":
           return Promise.resolve({ currentVersion: "0.1.0", message: null, state: "ready" });
         case "manual_app_update_links":
@@ -695,16 +670,8 @@ export async function installTauriSmokeMock(page: Page) {
         TunModeItem: {},
         UIItem: {
           ColorPrimaryName: "Teal",
-          CurrentFontFamily: "",
-          CurrentFontSize: 16,
           CurrentLanguage: "en",
           CurrentTheme: "FollowSystem",
-        },
-        WebDavItem: {
-          DirName: null,
-          Password: null,
-          Url: null,
-          UserName: null,
         },
       };
     }

@@ -1,4 +1,4 @@
-import { Database, Globe2, Moon, QrCode, RefreshCw, Settings, Sun } from "lucide-react";
+import { Globe2, Moon, QrCode, RefreshCw, Settings, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@voya/ui/components/button";
@@ -15,8 +15,8 @@ import { useModalStore } from "@/stores/modal-store";
 import { resolveThemeMode, type ThemeMode, usePreferencesStore } from "@/stores/preferences-store";
 
 // The former Menubar Tools/Help actions now live as a row of icon actions pinned
-// to the bottom of the sidebar: the static app actions (Backup, Check updates,
-// QR), a one-tap theme toggle, and the Settings entry. Regional presets
+// to the bottom of the sidebar: the static app actions (Check updates, QR), a
+// one-tap theme toggle, and the Settings entry. Regional presets
 // keep their multi-choice picker via a small Menubar dropdown (the same pattern
 // the Columns menus already use) since picking a preset is a one-of-three choice.
 export type RegionalPresetOption = {
@@ -77,7 +77,6 @@ export function SidebarFooter({
         </MenubarMenu>
       </Menubar>
 
-      <SidebarFooterAction icon={Database} label={t("menu.backup")} onClick={() => openModal("backup")} />
       <SidebarFooterAction
         icon={RefreshCw}
         label={t("menu.checkUpdates")}

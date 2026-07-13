@@ -74,9 +74,9 @@
   1px `#3d444d` spread ring);`--shadow-sm/md/lg` 仅重着墨色、保持原 alpha。
 - 圆角:`--radius` 7px→6px;`--radius-md/lg` 统一 6px,`--radius-xl` 12px
   (GitHub 6px 制)。
-- 字体:默认字体改为 GitHub 系统栈(`-apple-system, BlinkMacSystemFont,
-  "Segoe UI", "Noto Sans", …` + CJK 回退);`DEFAULT_FONT` inter→system;
-  Inter/Manrope 保留为用户可选项。mono 栈本就与 GitHub 一致未变。
+- 字体:正文与 display 固定使用 GitHub 系统栈(`-apple-system, BlinkMacSystemFont,
+  "Segoe UI", "Noto Sans", …` + CJK 回退)，不再提供运行时字体族或字号设置；
+  mono 栈本就与 GitHub 一致未变。
 - Acrylic:CSS 面纱 light `rgb(246 248 250/.8)` / dark `rgb(1 4 9/.8)`,
   reduced-transparency 回退 `#f6f8fa`/`#010409`,与 window.rs 原生 tint
   `Color(246,248,250,200)`/`Color(1,4,9,200)` 保持同步;

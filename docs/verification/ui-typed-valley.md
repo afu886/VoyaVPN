@@ -50,7 +50,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 ### ② 观感模板化、无品牌 signature (P1) ✅
 - 配色纯 shadcn neutral/slate：`--primary` ≈ `#0f172b`、neutrals 全 slate、`--chart-1..5` 是 shadcn 默认
   chart 调色板，**无品牌强调色**：[globals.css:7-70](../../packages/ui/src/styles/globals.css#L7-L70)。
-- 三个「字体」是 Inter/Manrope/system 三个**可互换 sans**，无 display/body/mono 角色分工；字阶仅 xs/sm/base/lg；
+- 原字体选择器只有 Inter/Manrope/system 三个**可互换 sans**（现已移除），当时无 display/body/mono 角色分工；字阶仅 xs/sm/base/lg；
   阴影仅 `shadow-xs/sm`，层次扁平。典型「shadcn baseline，工程好但没设计」。
 
 ### ③ 信息密度过载、缺渐进披露 (P1) ✅📋
@@ -60,7 +60,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 ### ④ 质量地板有洞 (P1–P2) ✅
 - **加载/空/错误态参差**：connections 有骨架屏，profiles 等多数屏仅居中裸文字。
 - **反馈不一致**：成功时而 inline `<span>` 时而 toast，无统一心智。
-- **破坏性操作无二次确认**：删除档案、还原备份直接执行；`packages/ui/src/components/` 内**无 AlertDialog**。
+- **破坏性操作二次确认**：✅ 删除档案已通过 `AlertDialog` 确认。
 - **无 `prefers-reduced-motion`**：✅ 全仓 grep 为 0；动效对所有用户无条件播放。
 - **logs 未虚拟化**、无时间戳、无搜索/级别过滤：[logs-screen.tsx](../../apps/desktop/src/features/logs/logs-screen.tsx)。
 - **modal-in-modal**：group-builder 嵌在 profile-dialog 内。
@@ -92,8 +92,8 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 - **色（4–6 具名）**：`--ink` 深海军画布（在现 `#020618` 上微提 chroma，让强调色读得出）；`--signal` 极光青绿
   ≈ `oklch(0.78 0.13 185)`（"受保护"色，**克制使用**：连接态/主连接键辉光/活动节点）；`--beacon` 暖琥珀
   （connecting/warning，可复用现 chart 暖色）；neutrals 沿用 slate；destructive 留红。浅色模式 `--signal` 取更深一档保对比度。
-- **字（角色化）**：`display`=Manrope（Hero 计时/速率大字，tabular-nums）、`body`=Inter、**新增 `--font-mono`**
-  （logs/connections/codemirror/数据单元格）。在 [fonts.ts](../../packages/ui/src/config/fonts.ts) 与 `@theme` 建立 display/body/mono 三角色。
+- **字（角色化）**：`display` 与 `body` 使用固定的 GitHub 系统字体栈，`--font-mono` 用于
+  logs/connections/codemirror/数据单元格；这些角色统一定义在 [globals.css](../../packages/ui/src/styles/globals.css) 的 `@theme` 中。
 - **深度/动效**：新增 `--shadow-sm/md/lg` 阶梯 + `--glow-signal`（连接灯标辉光）；一切动效置于
   `prefers-reduced-motion: reduce` 守卫下（reduce 时辉光脉动关闭）。
 - 落点：`packages/ui/src/styles/globals.css` 的 `:root`/`.dark`/`@supports oklch`/`@theme inline` **四块同步改**；
@@ -113,7 +113,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 
 | Phase | 主题 | 内容 |
 | --- | --- | --- |
-| 01-foundation | 视觉地基（A） | globals.css token 系统 + reduced-motion；fonts 三角色；button/card 深度 |
+| 01-foundation | 视觉地基（A） | globals.css token 系统 + reduced-motion；固定字体角色；button/card 深度 |
 | 02-connect-home | Hero（B） | 连接主页 + 底栏瘦身 + count:0 修复 |
 | 03-density | 渐进披露（C） | profiles 列可见性 + connections 排序/列开关 |
 | 04-quality-floor | 质量地板（D） | AlertDialog 二次确认 + EmptyState/骨架 + logs 虚拟化/时间戳/过滤 + 断点回收 |

@@ -10,12 +10,6 @@
    tokens, light + dark themes) — see docs/design/primer-token-mapping.md.
    Do not tweak by eye; re-vendor from the package on upgrades. */
 :root {
-  --app-font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji";
-  /* GitHub-aligned 14px UI base (user-adjustable; see DEFAULT_FONT_SIZE in preferences-store). */
-  --app-font-size: 14px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
@@ -343,20 +337,8 @@ html.voyavpn-acrylic.dark body {
 }
 
 @theme inline {
-  --font-inter:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
-  --font-manrope:
-    "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
-  --font-system:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji";
-
-  /* Safe Passage typography roles. body = user-selected font above (--app-font-family);
-     display = GitHub system stack (Hero timing/throughput numerals stay tabular-nums);
-     mono = logs / connections / codemirror / data cells. Keep in sync with MONO_FONT_STACK in src/config/fonts.ts. */
+  /* Safe Passage typography roles. Display uses the GitHub system stack;
+     mono is reserved for logs, connections, editors, and data cells. */
   --font-display:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
@@ -512,8 +494,11 @@ html.voyavpn-acrylic.dark body {
 
   body {
     @apply min-h-svh w-full bg-background text-foreground;
-    font-family: var(--app-font-family);
-    font-size: var(--app-font-size);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji";
+    font-size: 14px;
     letter-spacing: 0;
     margin: 0;
   }

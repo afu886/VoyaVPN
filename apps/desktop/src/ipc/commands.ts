@@ -7,10 +7,6 @@ import type {
   AppUpdateDiagnosticResult,
   AppUpdaterStatus,
   AutostartStatus,
-  BackupOperationResult,
-  BackupRemoteResult,
-  BackupRestoreResult_Serialize,
-  BackupStatus_Serialize,
   CertificateFetchRequest,
   CertificateFetchResult,
   ClashConnectionsSnapshot,
@@ -61,8 +57,6 @@ import type {
   TunStatus,
   UpdateRunResult,
   UpdateStatus,
-  WebDavItem_Deserialize,
-  WebDavItem_Serialize,
   WindowChromeConfig,
 } from "@/ipc/bindings";
 
@@ -525,36 +519,6 @@ export async function installCoreSeed(coreType: CoreType): Promise<CoreSeedInsta
   return unwrapCommandResult(await commands.installCoreSeed(coreType));
 }
 
-export async function backupStatus(): Promise<BackupStatus_Serialize> {
-  return unwrapCommandResult(await commands.backupStatus());
-}
-
-export async function backupSaveWebdavSettings(
-  settings: WebDavItem_Deserialize,
-): Promise<WebDavItem_Serialize> {
-  return unwrapCommandResult(await commands.backupSaveWebdavSettings(settings));
-}
-
-export async function backupCreateLocal(outputPath: string | null = null): Promise<BackupOperationResult> {
-  return unwrapCommandResult(await commands.backupCreateLocal(outputPath));
-}
-
-export async function backupRestoreLocal(inputPath: string): Promise<BackupRestoreResult_Serialize> {
-  return unwrapCommandResult(await commands.backupRestoreLocal(inputPath));
-}
-
-export async function backupWebdavCheck(settings: WebDavItem_Deserialize): Promise<BackupOperationResult> {
-  return unwrapCommandResult(await commands.backupWebdavCheck(settings));
-}
-
-export async function backupWebdavPush(settings: WebDavItem_Deserialize): Promise<BackupRemoteResult> {
-  return unwrapCommandResult(await commands.backupWebdavPush(settings));
-}
-
-export async function backupWebdavPull(settings: WebDavItem_Deserialize): Promise<BackupRestoreResult_Serialize> {
-  return unwrapCommandResult(await commands.backupWebdavPull(settings));
-}
-
 export async function getWindowChromeConfig(): Promise<WindowChromeConfig> {
   return unwrapCommandResult(await commands.getWindowChromeConfig());
 }
@@ -586,8 +550,6 @@ function formatAppError(error: AppError): string {
     case "configLoad":
       return error.message;
     case "configSave":
-      return error.message;
-    case "backup":
       return error.message;
     case "certificate":
       return error.message;

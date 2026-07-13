@@ -24,14 +24,6 @@ test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(settingsDialog).toBeHidden();
 
   await page.getByRole("menuitem", { exact: true, name: "Tools" }).click();
-  await page.getByRole("menuitem", { name: "Backup and Restore" }).click();
-  const backupDialog = page.getByRole("dialog", { name: "Backup and Restore" });
-  await expect(backupDialog).toBeVisible();
-  await expect(page.getByLabel("Backup path")).toHaveValue("/tmp/voyavpn-smoke/backups/smoke.zip");
-  await page.keyboard.press("Escape");
-  await expect(backupDialog).toBeHidden();
-
-  await page.getByRole("menuitem", { exact: true, name: "Tools" }).click();
   await page.getByRole("menuitem", { name: "QR" }).click();
   const qrDialog = page.getByRole("dialog", { name: "QR" });
   await expect(qrDialog).toBeVisible();

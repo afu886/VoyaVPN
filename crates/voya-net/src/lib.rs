@@ -1,5 +1,5 @@
 //! Network service clients for downloads, updates, subscriptions, Clash API,
-//! WebDAV, geo assets, and rulesets.
+//! geo assets, and rulesets.
 
 mod download;
 mod subscription;
@@ -7,7 +7,6 @@ mod subscription;
 pub mod clash;
 pub mod ruleset;
 pub mod update;
-pub mod webdav;
 
 pub use download::{
     DownloadAttempt, DownloadBytesResponse, DownloadClient, DownloadError, DownloadRequest,
@@ -25,8 +24,7 @@ pub use subscription::{
 };
 
 pub(crate) use download::{
-    build_http_client, is_denied_local_host, read_response_bytes_limited,
-    read_response_text_limited, LimitedBodyReadError,
+    build_http_client, is_denied_local_host, read_response_text_limited, LimitedBodyReadError,
 };
 
 #[cfg(test)]

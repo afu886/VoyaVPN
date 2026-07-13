@@ -33,7 +33,6 @@ voya-net.workspace = true
 voya-platform.workspace = true
 voya-udptest.workspace = true
 webpki-roots = "1.0"
-zip = { version = "0.6", default-features = false, features = ["deflate"] }
 zeroize.workspace = true
 
 [dev-dependencies]

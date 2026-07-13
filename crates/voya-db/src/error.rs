@@ -144,8 +144,4 @@ pub enum DbError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("invalid backup database: {reason}")]
-    InvalidBackup { reason: &'static str },
-    #[error("backup database failed foreign key check with {violations} violation(s)")]
-    BackupForeignKeyViolation { violations: usize },
 }

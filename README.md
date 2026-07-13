@@ -16,7 +16,7 @@ TypeScript, Tailwind v4, and shadcn/ui foundations.
 - `crates/voya-core`: pure domain logic and golden-tested sing-box config generation.
 - `crates/voya-db`: SQLite repositories and migrations.
 - `crates/voya-platform`: OS-specific paths, process, proxy, TUN, and hotkey adapters.
-- `crates/voya-net`: downloads, updates, subscriptions, Clash API, and WebDAV clients.
+- `crates/voya-net`: downloads, updates, subscriptions, Clash API, and ruleset clients.
 - `crates/voya-udptest`: UDP tester support.
 - `crates/voya-app`: application orchestration across the domain crates.
 

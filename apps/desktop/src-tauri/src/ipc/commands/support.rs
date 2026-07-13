@@ -251,7 +251,6 @@ pub(super) fn runtime_missing_core_type(error: &RuntimeError) -> Option<CoreType
 #[derive(Debug, Clone, Copy)]
 pub(super) enum IpcFileScope {
     ProfileImport,
-    BackupRestore,
 }
 
 impl IpcFileScope {
@@ -259,10 +258,6 @@ impl IpcFileScope {
         match self {
             Self::ProfileImport => AppError::Subscription(
                 "invalid import file path: provide a relative file name inside the import directory"
-                    .to_string(),
-            ),
-            Self::BackupRestore => AppError::Backup(
-                "invalid backup restore path: provide a relative file name inside the backup directory"
                     .to_string(),
             ),
         }
@@ -273,9 +268,6 @@ impl IpcFileScope {
             Self::ProfileImport => AppError::Subscription(
                 "import file is not available in the import directory".to_string(),
             ),
-            Self::BackupRestore => {
-                AppError::Backup("backup file is not available in the backup directory".to_string())
-            }
         }
     }
 
@@ -283,9 +275,6 @@ impl IpcFileScope {
         match self {
             Self::ProfileImport => {
                 AppError::Subscription(format!("failed to prepare import directory: {source}"))
-            }
-            Self::BackupRestore => {
-                AppError::Backup(format!("failed to prepare backup directory: {source}"))
             }
         }
     }
@@ -416,14 +405,6 @@ pub(super) fn tun_manager(state: &AppState) -> TunManager {
 
 pub(super) fn update_manager(state: &AppState) -> UpdateManager<'_> {
     UpdateManager::new(state.database(), state.runtime_paths().clone())
-}
-
-pub(super) fn backup_manager(state: &AppState) -> BackupManager<'_> {
-    BackupManager::new(
-        state.database(),
-        state.config_store(),
-        state.runtime_paths().clone(),
-    )
 }
 
 pub(super) struct TauriHotkeyRegistrar<R: tauri::Runtime> {
@@ -811,28 +792,6 @@ pub(super) fn persist_config_if_changed(
     Ok(())
 }
 
-pub(super) fn replace_current_config(state: &AppState, config: &AppConfig) -> Result<(), AppError> {
-    let mut guard = state
-        .config()
-        .write()
-        .map_err(|_| AppError::State("app config lock is poisoned".to_string()))?;
-    *guard = config.clone();
-
-    Ok(())
-}
-
-pub(super) fn save_webdav_settings_for_operation(
-    state: &AppState,
-    settings: WebDavItem,
-) -> Result<AppConfig, AppError> {
-    let original = current_config(state)?;
-    let mut config = original.clone();
-    backup_manager(state).save_webdav_settings(&mut config, settings);
-    persist_config_if_changed(state, &original, &config)?;
-
-    Ok(config)
-}
-
 pub(super) fn profile_error(error: ProfileManagerError) -> AppError {
     match error {
         ProfileManagerError::Database(error) => AppError::Database(error.to_string()),
@@ -1007,47 +966,6 @@ pub(super) fn update_error(error: UpdateManagerError) -> AppError {
     match error {
         UpdateManagerError::Database(error) => AppError::Database(error.to_string()),
         error => AppError::Update(error.to_string()),
-    }
-}
-
-pub(super) fn backup_error(error: BackupManagerError) -> AppError {
-    match error {
-        BackupManagerError::Database(error) => AppError::Database(error.to_string()),
-        error => AppError::Backup(error.to_string()),
-    }
-}
-
-pub(super) fn backup_restore_error(error: BackupManagerError) -> AppError {
-    match error {
-        BackupManagerError::Database(error) => AppError::Database(error.to_string()),
-        BackupManagerError::Io { source, .. } => {
-            AppError::Backup(format!("backup restore filesystem error: {source}"))
-        }
-        BackupManagerError::Zip { source, .. } => {
-            AppError::Backup(format!("backup restore zip error: {source}"))
-        }
-        BackupManagerError::InvalidArchive(_) => {
-            AppError::Backup("invalid backup archive".to_string())
-        }
-        BackupManagerError::ConfigSerialize(error) => {
-            AppError::Backup(format!("failed to serialize backup data: {error}"))
-        }
-        BackupManagerError::ConfigDeserialize(error) => {
-            AppError::Backup(format!("failed to deserialize backup data: {error}"))
-        }
-        BackupManagerError::RestoreRollback { restore, rollback } => AppError::Backup(format!(
-            "backup restore failed and rollback failed: restore error: {}; rollback error: {}",
-            backup_restore_error_message(*restore),
-            backup_restore_error_message(*rollback)
-        )),
-        BackupManagerError::WebDav(error) => AppError::Backup(error.to_string()),
-    }
-}
-
-pub(super) fn backup_restore_error_message(error: BackupManagerError) -> String {
-    match backup_restore_error(error) {
-        AppError::Backup(message) | AppError::Database(message) => message,
-        _ => "backup restore failed".to_string(),
     }
 }
 

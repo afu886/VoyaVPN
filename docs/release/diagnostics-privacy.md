@@ -50,7 +50,7 @@ The following fields and payloads are forbidden in diagnostics, including nested
 
 - Node URLs, share links, server links, proxy links, and raw outbound definitions.
 - Subscription URLs, subscription headers, subscription names that contain service or account identifiers, and subscription response bodies.
-- Credentials, tokens, passwords, API keys, cookies, bearer headers, private keys, updater signing keys, WebDAV credentials, proxy credentials, and embedded user secrets.
+- Credentials, tokens, passwords, API keys, cookies, bearer headers, private keys, updater signing keys, proxy credentials, and embedded user secrets.
 - IP addresses and IPs of any kind, including local IPs, public IPs, proxy IPs, DNS resolver IPs, endpoint IPs, destination IPs, and subnet/CIDR values.
 - Full logs, log excerpts that include raw errors, process output, core stdout/stderr, panic payload text, or support bundles.
 - Generated configs for sing-box, TUN, DNS, routing, rulesets, or system proxy state.
@@ -116,7 +116,7 @@ Complete this template in the external release evidence tracker before stable pu
 | Decision | `approved` or `blocked` |
 | Diagnostics endpoint | Approved HTTPS ingest endpoint or approved endpoint-disabled state. Record the endpoint owner and evidence ID; do not record credentials. |
 | Endpoint validation | Evidence that the endpoint uses HTTPS, has no credentials in the URL, has no query or fragment, does not require cookies, and is not a local, source-control, IP, test, or unapproved mirror host. |
-| Endpoint auth model | `none` or approved non-user ingest key reference. User, subscription, proxy, updater, or WebDAV credentials are forbidden. |
+| Endpoint auth model | `none` or approved non-user ingest key reference. User, subscription, proxy, or updater credentials are forbidden. |
 | Default-on state | Screenshot or settings evidence showing diagnostics are enabled on first production stable launch. |
 | Opt-out behavior | Screenshot, log, or smoke evidence showing the visible opt-out persists across restart and app update. |
 | Queue clearing | Evidence that pending diagnostics queue entries are cleared immediately after opt-out. |

@@ -19,7 +19,7 @@ Frontend rules:
 - TypeScript IPC DTOs that mirror Rust types are generated, not hand-written.
 - Generated binding drift is a build failure once the scaffold exists.
 
-Backend command groups follow subsystem ownership: profiles, subscriptions, routing, DNS, config generation, core runtime, system proxy, TUN/elevation, Clash, speedtest, backup, updates, hotkeys, QR, certificates, and presets.
+Backend command groups follow subsystem ownership: profiles, subscriptions, routing, DNS, config generation, core runtime, system proxy, TUN/elevation, Clash, speedtest, updates, hotkeys, QR, certificates, and presets.
 
 Events use three frontend channels:
 
