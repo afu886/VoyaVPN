@@ -28,8 +28,9 @@ import type {
   KeyEventItem_Deserialize,
   ManualAppUpdateLinks,
   MoveAction,
-  PresetApplyResult,
-  PresetType,
+  ConfigSourceSettings,
+  ConfigTemplateImportResult,
+  ConfigTemplateSelection,
   ProfileDedupeResult,
   ProfileItem_Deserialize,
   ProfileListItem_Serialize,
@@ -41,7 +42,6 @@ import type {
   RuleMode,
   RulesItem_Deserialize,
   RuntimeStatusResponse,
-  RulesetGeoSourceSettings,
   CoreSeedInstallResult,
   CoreType,
   DiagnosticsStatus,
@@ -376,22 +376,14 @@ export async function moveRoutingRule(
   return unwrapCommandResult(await commands.moveRoutingRule(routingId, ruleId, action, position));
 }
 
-export async function importRoutingTemplates(
+export async function importConfigTemplate(
+  selection: ConfigTemplateSelection,
   preferProxy = true,
   proxyUrl: string | null = null,
-  importAdvancedRules = false,
-): Promise<RoutingItem_Serialize[]> {
+): Promise<ConfigTemplateImportResult> {
   return unwrapCommandResult(
-    await commands.importRoutingTemplates(preferProxy, proxyUrl, importAdvancedRules),
+    await commands.importConfigTemplate(selection, preferProxy, proxyUrl),
   );
-}
-
-export async function applyRegionalPreset(
-  presetType: PresetType,
-  preferProxy = true,
-  proxyUrl: string | null = null,
-): Promise<PresetApplyResult> {
-  return unwrapCommandResult(await commands.applyRegionalPreset(presetType, preferProxy, proxyUrl));
 }
 
 export async function clashListProxies(): Promise<ClashProxiesSnapshot> {
@@ -466,14 +458,14 @@ export async function updateStatus(): Promise<UpdateStatus> {
   return unwrapCommandResult(await commands.updateStatus());
 }
 
-export async function loadRulesetGeoSources(): Promise<RulesetGeoSourceSettings> {
-  return unwrapCommandResult(await commands.loadRulesetGeoSources());
+export async function loadConfigSources(): Promise<ConfigSourceSettings> {
+  return unwrapCommandResult(await commands.loadConfigSources());
 }
 
-export async function saveRulesetGeoSources(
-  settings: RulesetGeoSourceSettings,
-): Promise<RulesetGeoSourceSettings> {
-  return unwrapCommandResult(await commands.saveRulesetGeoSources(settings));
+export async function saveConfigSources(
+  settings: ConfigSourceSettings,
+): Promise<ConfigSourceSettings> {
+  return unwrapCommandResult(await commands.saveConfigSources(settings));
 }
 
 export async function saveUpdatePreferences(

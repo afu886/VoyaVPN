@@ -69,8 +69,7 @@ macro_rules! collect_ipc_commands {
             commands::save_routing_rule::<tauri::Wry>,
             commands::delete_routing_rules::<tauri::Wry>,
             commands::move_routing_rule::<tauri::Wry>,
-            commands::import_routing_templates::<tauri::Wry>,
-            commands::apply_regional_preset::<tauri::Wry>,
+            commands::import_config_template::<tauri::Wry>,
             commands::clash_list_proxies,
             commands::clash_test_delay,
             commands::clash_select_proxy::<tauri::Wry>,
@@ -87,8 +86,8 @@ macro_rules! collect_ipc_commands {
             commands::record_app_update_diagnostic,
             commands::update_status,
             commands::save_update_preferences,
-            commands::load_ruleset_geo_sources,
-            commands::save_ruleset_geo_sources,
+            commands::load_config_sources,
+            commands::save_config_sources::<tauri::Wry>,
             commands::check_updates,
             commands::download_updates,
             commands::manual_app_update_links,
@@ -123,7 +122,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_core::DnsItem>()
         .typ::<voya_app::dns::DnsSettings>()
         .typ::<voya_app::dns::DnsValidationIssue>()
-        .typ::<voya_app::presets::PresetApplyResult>()
+        .typ::<voya_app::presets::ConfigTemplateSelection>()
+        .typ::<voya_app::presets::ConfigTemplateImportResult>()
         .typ::<voya_app::clash::ClashProxiesSnapshot>()
         .typ::<voya_app::clash::ClashProxyGroup>()
         .typ::<voya_app::clash::ClashProxyNode>()
@@ -145,7 +145,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::updates::UpdateTargetKind>()
         .typ::<voya_app::updates::UpdateAcquisition>()
         .typ::<voya_app::updates::UpdateResultStatus>()
-        .typ::<voya_app::updates::RulesetGeoSourceSettings>()
+        .typ::<voya_app::updates::ConfigSourceSettings>()
         .typ::<commands::AppUpdateDiagnosticAction>()
         .typ::<commands::AppUpdateDiagnosticResult>()
         .typ::<voya_app::autostart::AutostartStatus>()
@@ -161,7 +161,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::exports::ExportProfilesRequest>()
         .typ::<voya_app::exports::ExportProfilesResult>()
         .typ::<voya_app::exports::ExportProfilesFormat>()
-        .typ::<voya_core::PresetType>()
         .typ::<voya_core::SpeedActionType>()
         .typ::<voya_app::tun::TunStatus>()
         .typ::<voya_app::tun::TunPreflight>()

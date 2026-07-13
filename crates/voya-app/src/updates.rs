@@ -150,9 +150,10 @@ pub struct ManualAppUpdateDownload {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RulesetGeoSourceSettings {
+pub struct ConfigSourceSettings {
     pub geo_source_url: Option<String>,
     pub srs_source_url: Option<String>,
+    pub route_rules_template_source_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -211,18 +212,16 @@ impl<'db> UpdateManager<'db> {
     }
 
     #[must_use]
-    pub fn source_settings(&self, config: &AppConfig) -> RulesetGeoSourceSettings {
+    pub fn source_settings(&self, config: &AppConfig) -> ConfigSourceSettings {
         source_settings(config)
     }
 
     pub fn save_source_settings(
         &self,
         config: &mut AppConfig,
-        settings: RulesetGeoSourceSettings,
-    ) -> RulesetGeoSourceSettings {
-        config.const_item.geo_source_url = normalize_optional_url(settings.geo_source_url);
-        config.const_item.srs_source_url = normalize_optional_url(settings.srs_source_url);
-        self.source_settings(config)
+        settings: ConfigSourceSettings,
+    ) -> ConfigSourceSettings {
+        apply_source_settings(config, settings)
     }
 
     pub async fn check_updates(
@@ -585,11 +584,23 @@ pub fn update_status(config: &AppConfig) -> UpdateStatus {
 }
 
 #[must_use]
-pub fn source_settings(config: &AppConfig) -> RulesetGeoSourceSettings {
-    RulesetGeoSourceSettings {
+pub fn source_settings(config: &AppConfig) -> ConfigSourceSettings {
+    ConfigSourceSettings {
         geo_source_url: config.const_item.geo_source_url.clone(),
         srs_source_url: config.const_item.srs_source_url.clone(),
+        route_rules_template_source_url: config.const_item.route_rules_template_source_url.clone(),
     }
+}
+
+pub(crate) fn apply_source_settings(
+    config: &mut AppConfig,
+    settings: ConfigSourceSettings,
+) -> ConfigSourceSettings {
+    config.const_item.geo_source_url = normalize_optional_url(settings.geo_source_url);
+    config.const_item.srs_source_url = normalize_optional_url(settings.srs_source_url);
+    config.const_item.route_rules_template_source_url =
+        normalize_optional_url(settings.route_rules_template_source_url);
+    source_settings(config)
 }
 
 #[must_use]
@@ -1229,9 +1240,12 @@ mod tests {
 
         let saved = manager.save_source_settings(
             &mut config,
-            RulesetGeoSourceSettings {
+            ConfigSourceSettings {
                 geo_source_url: Some("  ".to_string()),
                 srs_source_url: Some(" https://rules.example/{0}/{1}.srs ".to_string()),
+                route_rules_template_source_url: Some(
+                    " https://rules.example/routing/template.json ".to_string(),
+                ),
             },
         );
 
@@ -1241,6 +1255,10 @@ mod tests {
             Some("https://rules.example/{0}/{1}.srs")
         );
         assert_eq!(config.const_item.geo_source_url, None);
+        assert_eq!(
+            saved.route_rules_template_source_url.as_deref(),
+            Some("https://rules.example/routing/template.json")
+        );
     }
 
     #[test]

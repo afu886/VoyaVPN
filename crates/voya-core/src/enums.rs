@@ -239,21 +239,6 @@ int_enum!(MultipleLoad {
     LeastLoad = 4,
 });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
-pub enum PresetType {
-    Default = 0,
-    Russia = 1,
-    Iran = 2,
-}
-
-int_enum!(PresetType {
-    Default = 0,
-    Russia = 1,
-    Iran = 2,
-});
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
 #[repr(i32)]
 #[specta(type = i32)]

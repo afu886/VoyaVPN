@@ -1,24 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Globe2 } from "lucide-react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 
 import { AppSidebar, SHELL_PANEL_ID } from "@/components/app-shell/app-sidebar";
 import { ModalHost } from "@/components/app-shell/modal-host";
-import { type RegionalPresetOption } from "@/components/app-shell/sidebar-footer";
 import { StatusBar } from "@/components/app-shell/status-bar";
 import { TitleBar } from "@/components/app-shell/title-bar";
 import { Toaster } from "@/components/app-shell/toaster";
 import { useAcrylicWindow } from "@/components/app-shell/use-acrylic-window";
 import { useWindowChrome } from "@/components/app-shell/use-window-chrome";
-import { Button } from "@voya/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@voya/ui/components/dialog";
 import { applyDocumentLocale } from "@voya/i18n";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { HomeScreen } from "@/features/home";
@@ -28,7 +16,6 @@ import { DnsScreen } from "@/features/dns";
 import { ClashConnectionsScreen, ClashProxiesScreen } from "@/features/clash";
 import { LogsScreen } from "@/features/logs";
 import {
-  applyRegionalPreset,
   clashStartMonitor,
   clashStopMonitor,
   loadAppConfig,
@@ -37,7 +24,6 @@ import {
 } from "@/ipc";
 import type { AppConfig_Deserialize, ClashMonitorStatus } from "@/ipc/bindings";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
-import { getErrorMessage } from "@voya/utils/error";
 import {
   resolveThemeMode,
   themeModeToConfig,
@@ -74,13 +60,10 @@ function renderActiveScreen(tab: ShellTab) {
 }
 
 export function AppShell() {
-  const queryClient = useQueryClient();
-  const { direction, language, t } = useI18n();
+  const { direction, language } = useI18n();
   const activeTab = useShellStore((state) => state.activeTab);
-  const pushToast = useToastStore((state) => state.pushToast);
   const themeMode = usePreferencesStore((state) => state.themeMode);
   const { titleBarLayout } = useWindowChrome();
-  const [pendingPreset, setPendingPreset] = useState<RegionalPresetOption | null>(null);
 
   usePersistedPreferences(language);
   useThemeEffects(themeMode);
@@ -91,20 +74,6 @@ export function AppShell() {
   useEffect(() => {
     applyDocumentLocale(language);
   }, [language]);
-
-  async function handleRegionalPresetApplied(fallbackCustomDnsEnabled: boolean) {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["app-config"] }),
-      queryClient.invalidateQueries({ queryKey: ["dns"] }),
-      queryClient.invalidateQueries({ queryKey: ["routings"] }),
-    ]);
-    pushToast({
-      description: fallbackCustomDnsEnabled
-        ? t("modal.regionalPresetAppliedFallback")
-        : t("modal.regionalPresetAppliedDescription"),
-      title: t("modal.regionalPresetApplied"),
-    });
-  }
 
   return (
     <main className="bg-background text-foreground" dir={direction}>
@@ -118,7 +87,7 @@ export function AppShell() {
           <div className="col-span-2" data-slot="titlebar-placeholder" />
         )}
 
-        <AppSidebar onSelectPreset={setPendingPreset} />
+        <AppSidebar />
 
         <div
           aria-labelledby={`shell-tab-${activeTab}`}
@@ -136,93 +105,8 @@ export function AppShell() {
       </div>
 
       <ModalHost />
-      <RegionalPresetConfirmDialog
-        onApplied={(fallbackCustomDnsEnabled) => void handleRegionalPresetApplied(fallbackCustomDnsEnabled)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingPreset(null);
-          }
-        }}
-        preset={pendingPreset}
-      />
       <Toaster />
     </main>
-  );
-}
-
-function RegionalPresetConfirmDialog({
-  onApplied,
-  onOpenChange,
-  preset,
-}: {
-  onApplied: (fallbackCustomDnsEnabled: boolean) => void;
-  onOpenChange: (open: boolean) => void;
-  preset: RegionalPresetOption | null;
-}) {
-  const { t } = useI18n();
-  const [error, setError] = useState<string | null>(null);
-  const [isApplying, setIsApplying] = useState(false);
-  const open = Boolean(preset);
-  const title = useMemo(
-    () => (preset ? t("modal.regionalPresetTitle", { preset: t(preset.labelKey) }) : ""),
-    [preset, t],
-  );
-
-  async function confirmApply() {
-    if (!preset) {
-      return;
-    }
-
-    setIsApplying(true);
-    setError(null);
-    try {
-      const result = await applyRegionalPreset(preset.value, true, null);
-      onApplied(result.fallbackCustomDnsEnabled);
-      onOpenChange(false);
-    } catch (error) {
-      setError(getErrorMessage(error));
-    } finally {
-      setIsApplying(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!isApplying) {
-          setError(null);
-          onOpenChange(nextOpen);
-        }
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Globe2 className="size-4" aria-hidden="true" />
-            {title}
-          </DialogTitle>
-          <DialogDescription>
-            {preset ? t(preset.descriptionKey) : t("modal.regionalPresetDescription")}
-          </DialogDescription>
-        </DialogHeader>
-
-        {error ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <DialogFooter>
-          <Button disabled={isApplying} onClick={() => onOpenChange(false)} type="button" variant="outline">
-            {t("actions.close")}
-          </Button>
-          <Button disabled={!preset || isApplying} onClick={() => void confirmApply()} type="button">
-            {isApplying ? t("modal.regionalPresetApplying") : t("modal.regionalPresetApply")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

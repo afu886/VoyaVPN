@@ -71,6 +71,7 @@ export async function installTauriSmokeMock(page: Page) {
       },
       sources: {
         geoSourceUrl: null as string | null,
+        routeRulesTemplateSourceUrl: null as string | null,
         srsSourceUrl: null as string | null,
       },
       sysProxy: {
@@ -324,18 +325,42 @@ export async function installTauriSmokeMock(page: Page) {
           const routing = state.routings.find((item) => item.Id === args.routingId) ?? state.routings[0];
           return Promise.resolve(clone(routing));
         }
-        case "import_routing_templates":
-          return Promise.resolve(clone(state.routings));
-        case "apply_regional_preset":
+        case "import_config_template": {
+          const selection = readRecord(args, "selection");
+          const selectionType = String(selection.type ?? "default");
+          const customSources = readRecord(selection, "sources");
+          state.sources =
+            selectionType === "custom"
+              ? {
+                  geoSourceUrl: (customSources.geoSourceUrl as string | null) ?? null,
+                  routeRulesTemplateSourceUrl:
+                    (customSources.routeRulesTemplateSourceUrl as string | null) ?? null,
+                  srsSourceUrl: (customSources.srsSourceUrl as string | null) ?? null,
+                }
+              : selectionType === "default"
+                ? { geoSourceUrl: null, routeRulesTemplateSourceUrl: null, srsSourceUrl: null }
+                : {
+                    geoSourceUrl: `https://rules.example.test/${selectionType}/geo/{0}.dat`,
+                    routeRulesTemplateSourceUrl: `https://rules.example.test/${selectionType}/template.json`,
+                    srsSourceUrl: `https://rules.example.test/${selectionType}/{1}.srs`,
+                  };
+          state.appConfig.ConstItem.GeoSourceUrl = state.sources.geoSourceUrl;
+          state.appConfig.ConstItem.RouteRulesTemplateSourceUrl = state.sources.routeRulesTemplateSourceUrl;
+          state.appConfig.ConstItem.SrsSourceUrl = state.sources.srsSourceUrl;
+          state.routings = state.routings.map((routing, index) => ({
+            ...routing,
+            IsActive: index === 0,
+          }));
           return Promise.resolve({
+            activeRoutingId: state.routings[0]?.Id ?? null,
             fallbackCustomDnsEnabled: false,
-            geoSourceUrl: state.sources.geoSourceUrl,
-            presetType: args.presetType ?? 0,
-            routeRulesTemplateSourceUrl: state.appConfig.ConstItem.RouteRulesTemplateSourceUrl,
+            reusedExistingRouting: true,
+            routingIds: state.routings.map((routing) => routing.Id),
             simpleDnsFetched: false,
             singboxDnsFetched: false,
-            srsSourceUrl: state.sources.srsSourceUrl,
+            sources: clone(state.sources),
           });
+        }
         case "load_dns_settings":
           return Promise.resolve(clone(state.dns));
         case "save_dns_settings":
@@ -382,13 +407,18 @@ export async function installTauriSmokeMock(page: Page) {
         case "save_global_hotkeys":
           state.hotkeys = { ...state.hotkeys, settings: readArray(args, "settings") };
           return Promise.resolve(clone(state.hotkeys));
-        case "load_ruleset_geo_sources":
+        case "load_config_sources":
           return Promise.resolve(clone(state.sources));
-        case "save_ruleset_geo_sources":
+        case "save_config_sources":
           state.sources = {
             geoSourceUrl: readRecord(args, "settings").geoSourceUrl as string | null,
+            routeRulesTemplateSourceUrl:
+              readRecord(args, "settings").routeRulesTemplateSourceUrl as string | null,
             srsSourceUrl: readRecord(args, "settings").srsSourceUrl as string | null,
           };
+          state.appConfig.ConstItem.GeoSourceUrl = state.sources.geoSourceUrl;
+          state.appConfig.ConstItem.RouteRulesTemplateSourceUrl = state.sources.routeRulesTemplateSourceUrl;
+          state.appConfig.ConstItem.SrsSourceUrl = state.sources.srsSourceUrl;
           return Promise.resolve(clone(state.sources));
         case "generate_qr_code":
           return Promise.resolve({
@@ -639,9 +669,9 @@ export async function installTauriSmokeMock(page: Page) {
         },
         ClashUIItem: {},
         ConstItem: {
-          GeoSourceUrl: null,
-          RouteRulesTemplateSourceUrl: null,
-          SrsSourceUrl: null,
+          GeoSourceUrl: null as string | null,
+          RouteRulesTemplateSourceUrl: null as string | null,
+          SrsSourceUrl: null as string | null,
         },
         CoreBasicItem: {},
         CoreTypeItem: [],

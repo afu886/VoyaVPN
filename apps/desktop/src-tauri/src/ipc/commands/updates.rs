@@ -1,4 +1,4 @@
-use super::{support::*, *};
+use super::{lifecycle::emit_app_config_invalidation, support::*, *};
 
 #[tauri::command]
 #[specta::specta]
@@ -89,9 +89,9 @@ pub fn save_update_preferences(
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_ruleset_geo_sources(
+pub fn load_config_sources(
     state: tauri::State<'_, AppState>,
-) -> Result<RulesetGeoSourceSettings, AppError> {
+) -> Result<ConfigSourceSettings, AppError> {
     let config = current_config(&state)?;
 
     Ok(update_manager(&state).source_settings(&config))
@@ -99,15 +99,28 @@ pub fn load_ruleset_geo_sources(
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_ruleset_geo_sources(
+pub fn save_config_sources<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    settings: RulesetGeoSourceSettings,
-) -> Result<RulesetGeoSourceSettings, AppError> {
+    settings: ConfigSourceSettings,
+) -> Result<ConfigSourceSettings, AppError> {
+    for (label, value) in [
+        ("Geo source URL", settings.geo_source_url.as_deref()),
+        ("SRS source URL", settings.srs_source_url.as_deref()),
+        (
+            "routing template source URL",
+            settings.route_rules_template_source_url.as_deref(),
+        ),
+    ] {
+        validate_optional_ipc_text(value, label, IPC_PROXY_URL_MAX_CHARS, AppError::Update)?;
+    }
+
     let original = current_config(&state)?;
     let mut config = original.clone();
     let manager = update_manager(&state);
     let saved = manager.save_source_settings(&mut config, settings);
     persist_config_if_changed(&state, &original, &config)?;
+    emit_app_config_invalidation(&app, "config-sources-saved")?;
 
     Ok(saved)
 }

@@ -49,6 +49,19 @@ struct TemplateApplyContext<'a> {
     import_advanced_rules: bool,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedRoutingTemplate {
+    version_prefix: Option<String>,
+    items: Vec<RoutingItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RoutingTemplateApplyResult {
+    pub routing_ids: Vec<String>,
+    pub active_routing_id: Option<String>,
+    pub reused_existing_routing: bool,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct RoutingManager<'db> {
     database: &'db Database,
@@ -250,6 +263,173 @@ impl<'db> RoutingManager<'db> {
         self.ensure_active_routing(config).await?;
 
         Ok(imported)
+    }
+
+    /// Download and fully validate an external configuration-template routing source.
+    ///
+    /// This intentionally performs no database or configuration writes. Unlike the
+    /// legacy routing-page importer, every referenced child rules file is required
+    /// to download and parse successfully.
+    pub(crate) async fn prepare_external_config_template(
+        &self,
+        source_url: &str,
+        prefer_proxy: bool,
+        proxy_url: Option<&str>,
+    ) -> Result<PreparedRoutingTemplate> {
+        let source_url = source_url.trim();
+        if source_url.is_empty() {
+            return Err(RoutingManagerError::InvalidTemplate(
+                "routing template source URL is required".to_string(),
+            ));
+        }
+
+        let download = DownloadClient::new();
+        let response = download
+            .download_text(DownloadRequest {
+                url: source_url.to_string(),
+                user_agent: None,
+                prefer_proxy,
+                proxy_url: proxy_url.map(ToOwned::to_owned),
+                response_body_limit: Some(DEFAULT_TEXT_RESPONSE_LIMIT_BYTES),
+            })
+            .await?;
+        let template = parse_routing_template(&response.body)?;
+        let child_url_policy = TemplateChildUrlPolicy::from_source_url(source_url)
+            .map_err(RoutingManagerError::InvalidTemplate)?;
+        let version_prefix = template_version_prefix(&template.version);
+        let mut items = Vec::with_capacity(template.routing_items.len());
+
+        for (index, template_item) in template.routing_items.into_iter().enumerate() {
+            let mut item = template_item.into_routing_item().map_err(|error| {
+                RoutingManagerError::InvalidTemplate(format!(
+                    "routing item {index} is invalid: {error}"
+                ))
+            })?;
+            let rules = if item.rule_set.is_empty() {
+                let rule_url = item.url.trim();
+                if rule_url.is_empty() {
+                    return Err(RoutingManagerError::InvalidTemplate(format!(
+                        "routing item {index} does not contain rules or a rules URL"
+                    )));
+                }
+                child_url_policy
+                    .validate_child_url(rule_url)
+                    .map_err(|reason| {
+                        RoutingManagerError::InvalidTemplate(format!(
+                            "routing item {index} has an invalid rules URL: {reason}"
+                        ))
+                    })?;
+                let response = download
+                    .download_text(DownloadRequest {
+                        url: rule_url.to_string(),
+                        user_agent: None,
+                        prefer_proxy,
+                        proxy_url: proxy_url.map(ToOwned::to_owned),
+                        response_body_limit: Some(DEFAULT_TEXT_RESPONSE_LIMIT_BYTES),
+                    })
+                    .await?;
+                parse_rules(&response.body).map_err(|error| {
+                    RoutingManagerError::InvalidRules(format!(
+                        "routing item {index} rules are invalid: {error}"
+                    ))
+                })?
+            } else {
+                std::mem::take(&mut item.rule_set)
+            };
+            if rules.is_empty() {
+                return Err(RoutingManagerError::InvalidRules(format!(
+                    "routing item {index} contains no rules"
+                )));
+            }
+
+            item.id.clear();
+            item.rule_set = rules;
+            if let Some(prefix) = version_prefix.as_deref() {
+                item.remarks = format!("{prefix}{}", item.remarks.trim());
+            }
+            item.url.clear();
+            item.enabled = true;
+            item.is_active = false;
+            normalize_routing_item(&mut item);
+            items.push(item);
+        }
+
+        Ok(PreparedRoutingTemplate {
+            version_prefix,
+            items,
+        })
+    }
+
+    #[must_use]
+    pub(crate) fn prepare_builtin_config_template(&self) -> PreparedRoutingTemplate {
+        PreparedRoutingTemplate {
+            version_prefix: Some(BUILTIN_ROUTING_VERSION.to_string()),
+            items: builtin_routing_items(),
+        }
+    }
+
+    /// Persist a routing template that has already passed all network and parse checks.
+    pub(crate) async fn apply_prepared_config_template(
+        &self,
+        config: &mut AppConfig,
+        mut prepared: PreparedRoutingTemplate,
+    ) -> Result<RoutingTemplateApplyResult> {
+        let existing = self.database.routings().list().await?;
+        if let Some(prefix) = prepared.version_prefix.as_deref() {
+            if let Some(existing_item) = existing
+                .into_iter()
+                .find(|item| item.remarks.starts_with(prefix))
+            {
+                let mut active = existing_item;
+                if !active.enabled {
+                    active.enabled = true;
+                    self.database.routings().upsert(&active).await?;
+                }
+                self.database.routings().set_active(&active.id).await?;
+                config
+                    .routing_basic_item
+                    .routing_index_id
+                    .clone_from(&active.id);
+
+                return Ok(RoutingTemplateApplyResult {
+                    routing_ids: vec![active.id.clone()],
+                    active_routing_id: Some(active.id),
+                    reused_existing_routing: true,
+                });
+            }
+        }
+
+        if prepared.items.is_empty() {
+            return Err(RoutingManagerError::InvalidTemplate(
+                "template contains no importable routing items".to_string(),
+            ));
+        }
+
+        let mut max_sort = self.database.routings().max_sort().await?;
+        let mut routing_ids = Vec::with_capacity(prepared.items.len());
+        let mut active_routing_id = None;
+        for (index, item) in prepared.items.iter_mut().enumerate() {
+            max_sort += DEFAULT_ROUTING_SORT_STEP;
+            item.sort = max_sort;
+            item.is_active = index == 0;
+            normalize_routing_item(item);
+            self.database.routings().upsert(item).await?;
+            if index == 0 {
+                active_routing_id = Some(item.id.clone());
+            }
+            routing_ids.push(item.id.clone());
+        }
+
+        if let Some(active_id) = active_routing_id.as_deref() {
+            self.database.routings().set_active(active_id).await?;
+            config.routing_basic_item.routing_index_id = active_id.to_string();
+        }
+
+        Ok(RoutingTemplateApplyResult {
+            routing_ids,
+            active_routing_id,
+            reused_existing_routing: false,
+        })
     }
 
     pub async fn ensure_active_routing(
@@ -661,6 +841,11 @@ fn parse_routing_template(value: &str) -> Result<RoutingTemplate> {
     }
 
     Ok(template)
+}
+
+fn template_version_prefix(version: &str) -> Option<String> {
+    let version = version.trim().trim_end_matches('-').trim();
+    (!version.is_empty()).then(|| format!("{version}-"))
 }
 
 fn parse_rules(value: &str) -> Result<Vec<RulesItem>> {

@@ -305,7 +305,11 @@ pub struct RulesItem {
     pub network: Option<String>,
     #[serde(alias = "inboundTag", skip_serializing_if = "Option::is_none")]
     pub inbound_tag: Option<Vec<String>>,
-    #[serde(alias = "outboundTag", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        alias = "outboundTag",
+        alias = "outboundtag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub outbound_tag: Option<String>,
     #[serde(alias = "ip", skip_serializing_if = "Option::is_none")]
     pub ip: Option<Vec<String>>,
@@ -349,14 +353,30 @@ pub struct DnsItem {
     pub id: String,
     pub remarks: String,
     pub enabled: bool,
+    #[serde(alias = "useSystemHosts")]
     pub use_system_hosts: bool,
-    #[serde(rename = "NormalDNS", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NormalDNS",
+        alias = "normalDNS",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub normal_dns: Option<String>,
-    #[serde(rename = "TunDNS", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "TunDNS",
+        alias = "tunDNS",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tun_dns: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        alias = "domainStrategy4Freedom",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub domain_strategy4_freedom: Option<String>,
-    #[serde(rename = "DomainDNSAddress", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "DomainDNSAddress",
+        alias = "domainDNSAddress",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub domain_dns_address: Option<String>,
 }
 
@@ -605,6 +625,42 @@ mod tests {
             serde_json::to_string(&extra).expect("protocol extra should serialize to compact JSON"),
             r#"{"SsMethod":"2022-blake3-aes-256-gcm","MultipleLoad":4}"#
         );
+    }
+
+    #[test]
+    fn routing_rule_accepts_lowercase_outboundtag_from_regional_templates() {
+        let rule = serde_json::from_str::<RulesItem>(
+            r#"{"outboundtag":"direct","enabled":true,"remarks":"regional"}"#,
+        )
+        .expect("regional routing rule should deserialize");
+
+        assert_eq!(rule.outbound_tag.as_deref(), Some("direct"));
+    }
+
+    #[test]
+    fn dns_item_accepts_lower_camel_case_regional_template_fields() {
+        let dns = serde_json::from_str::<DnsItem>(
+            r#"{
+              "useSystemHosts": false,
+              "normalDNS": "https://example.test/normal.json",
+              "tunDNS": "https://example.test/tun.json",
+              "domainStrategy4Freedom": "UseIPv4",
+              "domainDNSAddress": "8.8.8.8"
+            }"#,
+        )
+        .expect("regional DNS template should deserialize");
+
+        assert!(!dns.use_system_hosts);
+        assert_eq!(
+            dns.normal_dns.as_deref(),
+            Some("https://example.test/normal.json")
+        );
+        assert_eq!(
+            dns.tun_dns.as_deref(),
+            Some("https://example.test/tun.json")
+        );
+        assert_eq!(dns.domain_strategy4_freedom.as_deref(), Some("UseIPv4"));
+        assert_eq!(dns.domain_dns_address.as_deref(), Some("8.8.8.8"));
     }
 
     #[test]

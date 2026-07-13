@@ -38,6 +38,96 @@ test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "About VoyaVPN" })).toContainText("Version 0.1.0");
 });
 
+test("imports the default configuration template from the Settings sources card", async ({ page }) => {
+  const sidebar = page.locator("aside");
+  await expect(sidebar.getByRole("button", { name: "Regional presets" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { exact: true, name: "Default" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { exact: true, name: "Russia" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { exact: true, name: "Iran" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
+  await expect(settingsDialog).toBeVisible();
+
+  const geoSource = settingsDialog.getByLabel("Geo files source");
+  const srsSource = settingsDialog.getByLabel("sing-box ruleset source");
+  const routingSource = settingsDialog.getByLabel("Routing template source");
+  const importButton = settingsDialog.getByRole("button", {
+    exact: true,
+    name: "Import configuration template",
+  });
+
+  await expect(settingsDialog.locator('[data-slot="card-title"]', { hasText: /^Sources$/ })).toBeVisible();
+  await expect(geoSource).toBeEnabled();
+  await expect(srsSource).toBeEnabled();
+  await expect(routingSource).toBeEnabled();
+  await expect(importButton).toBeVisible();
+
+  const drafts = {
+    geo: "https://draft.example.test/geo/{0}.dat",
+    routing: "https://draft.example.test/routing-template.json",
+    srs: "https://draft.example.test/rules/{1}.srs",
+  };
+  await geoSource.fill(drafts.geo);
+  await srsSource.fill(drafts.srs);
+  await routingSource.fill(drafts.routing);
+
+  await importButton.click();
+  let templateDialog = page.getByRole("dialog", { name: "Import configuration template" });
+  await expect(templateDialog).toBeVisible();
+
+  const optionNames = ["Default", "Russia", "Iran", "Custom"];
+  for (const optionName of optionNames) {
+    await expect(templateDialog.getByRole("button", { name: new RegExp(`^${optionName}`) })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  }
+
+  const applyButton = templateDialog.getByRole("button", { exact: true, name: "Import" });
+  await expect(applyButton).toBeDisabled();
+  await templateDialog.getByRole("button", { name: /^Custom/ }).click();
+  await expect(applyButton).toBeEnabled();
+  await templateDialog
+    .locator('[data-slot="dialog-footer"]')
+    .getByRole("button", { exact: true, name: "Close" })
+    .click();
+  await expect(templateDialog).toBeHidden();
+
+  await expect(geoSource).toHaveValue(drafts.geo);
+  await expect(srsSource).toHaveValue(drafts.srs);
+  await expect(routingSource).toHaveValue(drafts.routing);
+
+  await importButton.click();
+  templateDialog = page.getByRole("dialog", { name: "Import configuration template" });
+  await expect(templateDialog).toBeVisible();
+  await expect(templateDialog.getByRole("button", { exact: true, name: "Import" })).toBeDisabled();
+
+  await templateDialog.getByRole("button", { name: /^Default/ }).click();
+  await templateDialog.getByRole("button", { exact: true, name: "Import" }).click();
+
+  await expect(templateDialog).toBeHidden();
+  await expect(page.getByText("Configuration template imported", { exact: true })).toBeVisible();
+  await expect(geoSource).toHaveValue("");
+  await expect(srsSource).toHaveValue("");
+  await expect(routingSource).toHaveValue("");
+
+  const importCall = await page.evaluate(() => {
+    const state = window.__VOYA_SMOKE__.state as {
+      calls: Array<{ args: Record<string, unknown>; command: string }>;
+    };
+    return state.calls.filter((call) => call.command === "import_config_template").at(-1);
+  });
+  expect(importCall).toEqual({
+    args: {
+      preferProxy: true,
+      proxyUrl: null,
+      selection: { type: "default" },
+    },
+    command: "import_config_template",
+  });
+});
+
 test("adds and imports profiles, activates one, and connects through the fake runtime", async ({ page }) => {
   await page.getByRole("button", { exact: true, name: "Add" }).click();
   await expect(page.getByRole("dialog", { name: "Add profile" })).toBeVisible();

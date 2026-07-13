@@ -37,7 +37,10 @@ use voya_app::hotkeys::{
     GlobalHotkeyBinding, HotkeyManager, HotkeyManagerError, HotkeyRegistrar, HotkeyStatus,
 };
 use voya_app::input_safety::{self, InputSafetyError};
-use voya_app::presets::{PresetApplyOptions, PresetApplyResult, PresetManager, PresetManagerError};
+use voya_app::presets::{
+    ConfigTemplateImportOptions, ConfigTemplateImportResult, ConfigTemplateSelection,
+    PresetManager, PresetManagerError,
+};
 use voya_app::profiles::{ProfileManager, ProfileManagerError};
 use voya_app::qr::{QrCodeError, QrCodeImage, QrCodeManager, QrScanResult};
 use voya_app::routing::{RoutingManager, RoutingManagerError};
@@ -51,14 +54,14 @@ use voya_app::sysproxy::SystemProxyManagerError;
 use voya_app::templates::{FullConfigTemplateManager, FullConfigTemplateManagerError};
 use voya_app::tun::{TunManager, TunManagerError, TunProviderDiagnostics, TunStatus};
 use voya_app::updates::{
-    ManualAppUpdateLinks, RulesetGeoSourceSettings, UpdateManager, UpdateManagerError,
+    ConfigSourceSettings, ManualAppUpdateLinks, UpdateManager, UpdateManagerError,
     UpdateRequestOptions, UpdateResultStatus, UpdateRunResult, UpdateStatus,
 };
 use voya_core::{
     AppConfig, CoreType, FullConfigTemplateItem, GlobalHotkey, GroupChildCandidate, GroupPreview,
-    GroupValidationResult, ImportProfilesResult, KeyEventItem, MoveAction, PresetType,
-    ProfileDedupeResult, ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RuleMode,
-    RulesItem, SubItem, SubscriptionUpdateResult, SysProxyType,
+    GroupValidationResult, ImportProfilesResult, KeyEventItem, MoveAction, ProfileDedupeResult,
+    ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RuleMode, RulesItem, SubItem,
+    SubscriptionUpdateResult, SysProxyType,
 };
 use voya_platform::{
     coreinfo::{

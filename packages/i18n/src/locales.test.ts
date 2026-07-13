@@ -9,6 +9,7 @@ type LocaleTree = {
 };
 
 const desktopSourceRoot = resolve(findRepoRoot(process.cwd()), "apps/desktop/src");
+const overlaysRoot = resolve(findRepoRoot(process.cwd()), "packages/i18n/src/overlays");
 const sourceModules = readSourceModules(desktopSourceRoot);
 
 describe("i18n locales", () => {
@@ -40,6 +41,21 @@ describe("i18n locales", () => {
     }
   });
 
+  it("generates Voya-owned resources from aligned locale overlays", () => {
+    const englishOverlay = readLocaleFile(resolve(overlaysRoot, "en.json"));
+    const englishKeys = flattenKeys(englishOverlay).sort();
+
+    for (const locale of localeOptions) {
+      const overlay = readLocaleFile(resolve(overlaysRoot, `${locale.code}.json`));
+      const generated = { ...localeTree(locale.code) };
+
+      delete generated.resx;
+
+      expect(flattenKeys(overlay).sort(), locale.code).toEqual(englishKeys);
+      expect(generated, locale.code).toEqual(overlay);
+    }
+  });
+
   it("imports v2rayN ResUI resources into every locale", () => {
     const englishResx = localeTree("en").resx;
 
@@ -65,6 +81,9 @@ describe("i18n locales", () => {
       "modal.language",
       "modal.theme",
       "options.autostart",
+      "options.configTemplate.import",
+      "options.configTemplate.invalidSourceUrl",
+      "options.routeTemplateSource",
       "panes.logs.title",
       "panes.profiles.title",
       "panes.profiles.fields.flow",
@@ -118,6 +137,10 @@ describe("i18n locales", () => {
 
 function localeTree(locale: Locale) {
   return i18nResources[locale] as unknown as LocaleTree;
+}
+
+function readLocaleFile(path: string) {
+  return JSON.parse(readFileSync(path, "utf8")) as LocaleTree;
 }
 
 function flattenKeys(tree: LocaleTree, prefix = ""): string[] {

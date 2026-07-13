@@ -2,7 +2,7 @@ import { Database, Home, Network, Plug, Route, ScrollText, Shield } from "lucide
 import type { LucideIcon } from "lucide-react";
 
 import { BrandMark } from "@/assets/brand-mark";
-import { SidebarFooter, type RegionalPresetOption } from "@/components/app-shell/sidebar-footer";
+import { SidebarFooter } from "@/components/app-shell/sidebar-footer";
 import { SidebarNavItem } from "@/components/app-shell/sidebar-nav-item";
 import { SidebarSectionHeader } from "@/components/app-shell/sidebar-section-header";
 import { useI18n } from "@voya/i18n/use-i18n";
@@ -30,11 +30,7 @@ const networkNav: NavItem[] = [
   { icon: ScrollText, titleKey: "tabs.logs", value: "logs" },
 ];
 
-export function AppSidebar({
-  onSelectPreset,
-}: {
-  onSelectPreset: (option: RegionalPresetOption) => void;
-}) {
+export function AppSidebar() {
   const { t } = useI18n();
   const activeTab = useShellStore((state) => state.activeTab);
   const setActiveTab = useShellStore((state) => state.setActiveTab);
@@ -72,7 +68,7 @@ export function AppSidebar({
         </SidebarSectionHeader>
       </nav>
 
-      <SidebarFooter onSelectPreset={onSelectPreset} />
+      <SidebarFooter />
     </aside>
   );
 }

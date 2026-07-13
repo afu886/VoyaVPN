@@ -110,8 +110,7 @@ export const commands = {
 	saveRoutingRule: (routingId: string, rule: RulesItem_Deserialize) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("save_routing_rule", { routingId, rule })),
 	deleteRoutingRules: (routingId: string, ruleIds: string[]) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("delete_routing_rules", { routingId, ruleIds })),
 	moveRoutingRule: (routingId: string, ruleId: string, action: MoveAction, position: number | null) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("move_routing_rule", { routingId, ruleId, action, position })),
-	importRoutingTemplates: (preferProxy: boolean, proxyUrl: string | null, importAdvancedRules: boolean) => typedError<RoutingItem_Serialize[], AppError>(__TAURI_INVOKE("import_routing_templates", { preferProxy, proxyUrl, importAdvancedRules })),
-	applyRegionalPreset: (presetType: PresetType, preferProxy: boolean, proxyUrl: string | null) => typedError<PresetApplyResult, AppError>(__TAURI_INVOKE("apply_regional_preset", { presetType, preferProxy, proxyUrl })),
+	importConfigTemplate: (selection: ConfigTemplateSelection, preferProxy: boolean, proxyUrl: string | null) => typedError<ConfigTemplateImportResult, AppError>(__TAURI_INVOKE("import_config_template", { selection, preferProxy, proxyUrl })),
 	clashListProxies: () => typedError<ClashProxiesSnapshot, AppError>(__TAURI_INVOKE("clash_list_proxies")),
 	clashTestDelay: (proxyNames: string[]) => typedError<ClashDelayTestResult[], AppError>(__TAURI_INVOKE("clash_test_delay", { proxyNames })),
 	clashSelectProxy: (groupName: string, proxyName: string) => typedError<ClashProxiesSnapshot, AppError>(__TAURI_INVOKE("clash_select_proxy", { groupName, proxyName })),
@@ -128,8 +127,8 @@ export const commands = {
 	recordAppUpdateDiagnostic: (action: AppUpdateDiagnosticAction, result: AppUpdateDiagnosticResult, message: string | null) => typedError<null, AppError>(__TAURI_INVOKE("record_app_update_diagnostic", { action, result, message })),
 	updateStatus: () => typedError<UpdateStatus, AppError>(__TAURI_INVOKE("update_status")),
 	saveUpdatePreferences: (preRelease: boolean, selectedTargetIds: string[]) => typedError<UpdateStatus, AppError>(__TAURI_INVOKE("save_update_preferences", { preRelease, selectedTargetIds })),
-	loadRulesetGeoSources: () => typedError<RulesetGeoSourceSettings, AppError>(__TAURI_INVOKE("load_ruleset_geo_sources")),
-	saveRulesetGeoSources: (settings: RulesetGeoSourceSettings) => typedError<RulesetGeoSourceSettings, AppError>(__TAURI_INVOKE("save_ruleset_geo_sources", { settings })),
+	loadConfigSources: () => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("load_config_sources")),
+	saveConfigSources: (settings: ConfigSourceSettings) => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("save_config_sources", { settings })),
 	checkUpdates: (preRelease: boolean, selectedTargetIds: string[], preferProxy: boolean, proxyUrl: string | null) => typedError<UpdateRunResult, AppError>(__TAURI_INVOKE("check_updates", { preRelease, selectedTargetIds, preferProxy, proxyUrl })),
 	downloadUpdates: (preRelease: boolean, selectedTargetIds: string[], preferProxy: boolean, proxyUrl: string | null) => typedError<UpdateRunResult, AppError>(__TAURI_INVOKE("download_updates", { preRelease, selectedTargetIds, preferProxy, proxyUrl })),
 	manualAppUpdateLinks: (preRelease: boolean, preferProxy: boolean, proxyUrl: string | null) => typedError<ManualAppUpdateLinks, AppError>(__TAURI_INVOKE("manual_app_update_links", { preRelease, preferProxy, proxyUrl })),
@@ -366,6 +365,24 @@ export type ColumnItem = {
 	Index?: number,
 };
 
+export type ConfigSourceSettings = {
+	geoSourceUrl: string | null,
+	srsSourceUrl: string | null,
+	routeRulesTemplateSourceUrl: string | null,
+};
+
+export type ConfigTemplateImportResult = {
+	sources: ConfigSourceSettings,
+	routingIds: string[],
+	activeRoutingId: string | null,
+	reusedExistingRouting: boolean,
+	singboxDnsFetched: boolean,
+	simpleDnsFetched: boolean,
+	fallbackCustomDnsEnabled: boolean,
+};
+
+export type ConfigTemplateSelection = { type: "default" } | { type: "russia" } | { type: "iran" } | { type: "custom"; sources: ConfigSourceSettings };
+
 export type ConfigType = number;
 
 export type ConstItem = ConstItem_Serialize | ConstItem_Deserialize;
@@ -479,10 +496,19 @@ export type DnsItem_Deserialize = {
 	Id?: string,
 	Remarks?: string,
 	Enabled?: boolean,
+} & {
 	UseSystemHosts?: boolean,
+} | {
+	useSystemHosts?: boolean,
+} & {
 	NormalDNS?: string | null,
+} & {
 	TunDNS?: string | null,
+} & {
 	DomainStrategy4Freedom?: string | null,
+} | {
+	domainStrategy4Freedom?: string | null,
+} & {
 	DomainDNSAddress?: string | null,
 };
 
@@ -828,18 +854,6 @@ export type Mux4SboxItem_Serialize = {
 	Padding?: boolean | null,
 };
 
-export type PresetApplyResult = {
-	presetType: PresetType,
-	geoSourceUrl: string | null,
-	srsSourceUrl: string | null,
-	routeRulesTemplateSourceUrl: string | null,
-	singboxDnsFetched: boolean,
-	simpleDnsFetched: boolean,
-	fallbackCustomDnsEnabled: boolean,
-};
-
-export type PresetType = number;
-
 export type ProfileDedupeResult = {
 	total: number,
 	kept: number,
@@ -1135,6 +1149,8 @@ export type RulesItem_Deserialize = {
 	OutboundTag?: string | null,
 } | {
 	outboundTag?: string | null,
+} | {
+	outboundtag?: string | null,
 } & {
 	Ip?: string[] | null,
 } | {
@@ -1179,11 +1195,6 @@ export type RulesItem_Serialize = {
 	Enabled: boolean,
 	Remarks?: string | null,
 	RuleType?: RuleType | null,
-};
-
-export type RulesetGeoSourceSettings = {
-	geoSourceUrl: string | null,
-	srsSourceUrl: string | null,
 };
 
 export type RuntimeConnectionState = "disconnected" | "connected";

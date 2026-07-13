@@ -97,8 +97,17 @@ export function RuntimeConfigSettings() {
     setError(null);
     setSaved(false);
     try {
-      const savedConfig = await saveAppConfig(config);
-      setConfig(savedConfig);
+      const latestConfig = await loadAppConfig();
+      const savedConfig = await saveAppConfig({
+        ...config,
+        ConstItem: {
+          ...config.ConstItem,
+          GeoSourceUrl: latestConfig.ConstItem.GeoSourceUrl,
+          RouteRulesTemplateSourceUrl: latestConfig.ConstItem.RouteRulesTemplateSourceUrl,
+          SrsSourceUrl: latestConfig.ConstItem.SrsSourceUrl,
+        },
+      });
+      setConfig(withRuntimeDefaults(savedConfig));
       setSaved(true);
     } catch (error) {
       setError(getErrorMessage(error));
@@ -137,7 +146,6 @@ export function RuntimeConfigSettings() {
           <TabsTrigger value="core">{t("options.runtimeCore")}</TabsTrigger>
           <TabsTrigger value="network">{t("options.runtimeNetwork")}</TabsTrigger>
           <TabsTrigger value="tests">{t("options.runtimeTests")}</TabsTrigger>
-          <TabsTrigger value="mapping">{t("options.runtimeMapping")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="core">
@@ -152,9 +160,6 @@ export function RuntimeConfigSettings() {
           <TestSettingsTab config={config} onPatch={patchSection} />
         </TabsContent>
 
-        <TabsContent value="mapping">
-          <MappingSettingsTab config={config} onPatch={patchSection} />
-        </TabsContent>
       </Tabs>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -439,32 +444,6 @@ function TestSettingsTab({ config, onPatch }: { config: AppConfig_Serialize; onP
         onChange={(SubConvertUrl) => onPatch("ConstItem", { SubConvertUrl: nullableText(SubConvertUrl) })}
         value={config.ConstItem.SubConvertUrl ?? ""}
       />
-    </div>
-  );
-}
-
-function MappingSettingsTab({ config, onPatch }: { config: AppConfig_Serialize; onPatch: PatchSection }) {
-  return (
-    <div className="grid gap-3">
-      <div className="grid gap-3 md:grid-cols-2">
-        <TextField
-          label="Const.GeoSourceUrl"
-          onChange={(GeoSourceUrl) => onPatch("ConstItem", { GeoSourceUrl: nullableText(GeoSourceUrl) })}
-          value={config.ConstItem.GeoSourceUrl ?? ""}
-        />
-        <TextField
-          label="Const.SrsSourceUrl"
-          onChange={(SrsSourceUrl) => onPatch("ConstItem", { SrsSourceUrl: nullableText(SrsSourceUrl) })}
-          value={config.ConstItem.SrsSourceUrl ?? ""}
-        />
-        <TextField
-          label="Const.RouteRulesTemplateSourceUrl"
-          onChange={(RouteRulesTemplateSourceUrl) =>
-            onPatch("ConstItem", { RouteRulesTemplateSourceUrl: nullableText(RouteRulesTemplateSourceUrl) })
-          }
-          value={config.ConstItem.RouteRulesTemplateSourceUrl ?? ""}
-        />
-      </div>
     </div>
   );
 }

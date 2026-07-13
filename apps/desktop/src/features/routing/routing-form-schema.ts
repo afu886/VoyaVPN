@@ -41,8 +41,6 @@ export const routingProfileSchema = z.object({
   Url: optionalHttpsUrl,
 });
 
-export const routingTemplateUrlSchema = optionalHttpsUrl;
-
 export type ErrorMap = Record<string, string>;
 export type RoutingFormPayload = z.output<typeof routingProfileSchema>;
 export type RoutingRulePayload = z.output<typeof routingRuleSchema>;
@@ -51,10 +49,6 @@ export function zodIssuesToErrorMap(error: z.ZodError): ErrorMap {
   return Object.fromEntries(
     error.issues.map((issue) => [issue.path.join(".") || "form", issue.message]),
   );
-}
-
-export function firstZodMessage(error: z.ZodError) {
-  return error.issues[0]?.message ?? "Validation failed";
 }
 
 function validateHttpsUrl(value: string, context: z.RefinementCtx) {

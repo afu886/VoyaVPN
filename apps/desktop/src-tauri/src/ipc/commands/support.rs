@@ -889,6 +889,9 @@ pub(super) fn speedtest_error(error: SpeedtestError) -> AppError {
 pub(super) fn preset_error(error: PresetManagerError) -> AppError {
     match error {
         PresetManagerError::Database(error) => AppError::Database(error.to_string()),
+        PresetManagerError::Routing(RoutingManagerError::Database(error)) => {
+            AppError::Database(error.to_string())
+        }
         error => AppError::Preset(error.to_string()),
     }
 }

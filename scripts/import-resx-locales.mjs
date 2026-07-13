@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const check = process.argv.includes("--check");
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const localesDir = resolve(repoRoot, "packages/i18n/src/locales");
+const overlaysDir = resolve(repoRoot, "packages/i18n/src/overlays");
 const referenceResxDir = resolve(
   process.env.VOYAVPN_V2RAYN_RESX_DIR ?? resolve(repoRoot, "../v2rayN/v2rayN/ServiceLib/Resx"),
 );
@@ -21,29 +22,31 @@ const localeImports = [
 ];
 
 const neutralResxPath = resolve(referenceResxDir, "ResUI.resx");
-
-if (!existsSync(neutralResxPath)) {
-  console.log(`Skipping i18n ResX import: v2rayN neutral ResUI resource is not available at ${neutralResxPath}`);
-  process.exit(0);
-}
-
-const neutralResx = parseResx(readFileSync(neutralResxPath, "utf8"));
-const neutralApp = stripImportedResx(readLocaleJson("en") ?? {});
+const hasUpstreamResx = existsSync(neutralResxPath);
+const neutralResx = hasUpstreamResx ? parseResx(readFileSync(neutralResxPath, "utf8")) : null;
+const overlays = Object.fromEntries(localeImports.map(({ code }) => [code, readOverlayJson(code)]));
 const changed = [];
+
+validateOverlayAlignment(overlays);
+
+if (!hasUpstreamResx) {
+  console.log(
+    `v2rayN neutral ResUI resource is not available at ${neutralResxPath}; preserving the checked-in ResX snapshots while processing Voya overlays.`,
+  );
+}
 
 mkdirSync(localesDir, { recursive: true });
 
 for (const locale of localeImports) {
   const localePath = resolve(localesDir, `${locale.code}.json`);
   const current = readLocaleJson(locale.code);
-  const appResources = deepMerge(neutralApp, stripImportedResx(current ?? {}));
-  const localizedResxPath = resolve(referenceResxDir, locale.resx);
-  const localizedResx = existsSync(localizedResxPath)
-    ? parseResx(readFileSync(localizedResxPath, "utf8"))
-    : {};
+  const appResources = overlays[locale.code];
+  const resx = hasUpstreamResx
+    ? mergeUpstreamResx(locale, neutralResx)
+    : readCheckedInResx(locale.code, current);
   const nextResources = sortObject({
     ...appResources,
-    resx: sortObject({ ...neutralResx, ...localizedResx }),
+    resx: sortObject(resx),
   });
   const next = `${JSON.stringify(nextResources, null, 2)}\n`;
   const currentText = existsSync(localePath) ? readFileSync(localePath, "utf8") : "";
@@ -83,12 +86,73 @@ function readLocaleJson(locale) {
   return JSON.parse(readFileSync(localePath, "utf8"));
 }
 
-function stripImportedResx(resources) {
-  const appResources = { ...resources };
+function readOverlayJson(locale) {
+  const overlayPath = resolve(overlaysDir, `${locale}.json`);
 
-  delete appResources.resx;
+  if (!existsSync(overlayPath)) {
+    throw new Error(`Missing Voya locale overlay: ${relative(repoRoot, overlayPath)}`);
+  }
 
-  return appResources;
+  const overlay = JSON.parse(readFileSync(overlayPath, "utf8"));
+
+  if (!isPlainObject(overlay) || Object.hasOwn(overlay, "resx")) {
+    throw new Error(`Voya locale overlay must be an object without a resx namespace: ${relative(repoRoot, overlayPath)}`);
+  }
+
+  return overlay;
+}
+
+function mergeUpstreamResx(locale, neutral) {
+  const localizedResxPath = resolve(referenceResxDir, locale.resx);
+  const localizedResx = existsSync(localizedResxPath)
+    ? parseResx(readFileSync(localizedResxPath, "utf8"))
+    : {};
+
+  return { ...neutral, ...localizedResx };
+}
+
+function readCheckedInResx(locale, current) {
+  const resx = current?.resx;
+
+  if (!isPlainObject(resx) || Object.keys(resx).length === 0) {
+    throw new Error(
+      `Cannot process ${locale} without upstream ResX or a checked-in locale snapshot containing resx resources.`,
+    );
+  }
+
+  return resx;
+}
+
+function validateOverlayAlignment(resources) {
+  const englishKeys = flattenResourceKeys(resources.en).sort();
+
+  for (const { code } of localeImports) {
+    const keys = flattenResourceKeys(resources[code]).sort();
+
+    if (keys.length !== englishKeys.length || keys.some((key, index) => key !== englishKeys[index])) {
+      const missing = englishKeys.filter((key) => !keys.includes(key));
+      const extra = keys.filter((key) => !englishKeys.includes(key));
+      throw new Error(
+        `Voya locale overlay ${code} is not aligned with en (missing: ${missing.join(", ") || "none"}; extra: ${extra.join(", ") || "none"}).`,
+      );
+    }
+  }
+}
+
+function flattenResourceKeys(resources, prefix = "") {
+  return Object.entries(resources).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+
+    if (isPlainObject(value)) {
+      return flattenResourceKeys(value, path);
+    }
+
+    if (typeof value !== "string" || value.length === 0) {
+      throw new Error(`Voya locale overlay value must be a non-empty string: ${path}`);
+    }
+
+    return [path];
+  });
 }
 
 function parseResx(source) {
@@ -125,22 +189,6 @@ function decodeXml(value) {
     .replaceAll("&amp;", "&")
     .replace(/&#x([0-9a-f]+);/giu, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&#([0-9]+);/gu, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)));
-}
-
-function deepMerge(base, override) {
-  const merged = { ...base };
-
-  for (const [key, value] of Object.entries(override)) {
-    const current = merged[key];
-
-    if (isPlainObject(current) && isPlainObject(value)) {
-      merged[key] = deepMerge(current, value);
-    } else {
-      merged[key] = value;
-    }
-  }
-
-  return merged;
 }
 
 function sortObject(value) {

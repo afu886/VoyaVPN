@@ -4,29 +4,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteRoutingRules,
   deleteRoutings,
-  importRoutingTemplates,
   listRoutings,
-  loadAppConfig,
   moveRoutingRule,
-  saveAppConfig,
   saveRouting,
   saveRoutingRule,
   setActiveRouting,
 } from "@/ipc";
-import type {
-  AppConfig_Serialize,
-  MoveAction,
-  RoutingItem_Serialize,
-  RulesItem_Serialize,
-} from "@/ipc/bindings";
+import type { MoveAction, RoutingItem_Serialize, RulesItem_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 
-import {
-  firstZodMessage,
-  routingTemplateUrlSchema,
-  type RoutingFormPayload,
-  type RoutingRulePayload,
-} from "./routing-form-schema";
+import { type RoutingFormPayload, type RoutingRulePayload } from "./routing-form-schema";
 
 type RoutingDialogState =
   | { mode: "create"; routing?: null }
@@ -45,15 +32,9 @@ export function useRoutingScreen() {
   const [ruleDialog, setRuleDialog] = useState<RuleDialogState>(null);
   const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
-  const [templateUrlDraft, setTemplateUrlDraft] = useState<string | null>(null);
-  const [templateUrlError, setTemplateUrlError] = useState<string | null>(null);
   const routingsQuery = useQuery({
     queryFn: listRoutings,
     queryKey: ["routings"],
-  });
-  const configQuery = useQuery({
-    queryFn: loadAppConfig,
-    queryKey: ["app-config"],
   });
   const routings = useMemo(() => routingsQuery.data ?? [], [routingsQuery.data]);
   const selectedRouting = useMemo(
@@ -68,8 +49,6 @@ export function useRoutingScreen() {
     selectedRouting?.RuleSet.find((rule) => rule.Id === selectedRuleId) ??
     selectedRouting?.RuleSet[0] ??
     null;
-  const templateUrl = templateUrlDraft ?? configQuery.data?.ConstItem.RouteRulesTemplateSourceUrl ?? "";
-
   async function runOperation(operation: () => Promise<unknown>) {
     setOperationError(null);
     try {
@@ -80,39 +59,6 @@ export function useRoutingScreen() {
       setOperationError(getErrorMessage(error));
       return false;
     }
-  }
-
-  async function saveTemplateUrl(config: AppConfig_Serialize | undefined, url: string) {
-    const current = config ?? (await loadAppConfig());
-    await saveAppConfig({
-      ...current,
-      ConstItem: {
-        ...current.ConstItem,
-        RouteRulesTemplateSourceUrl: url || null,
-      },
-    });
-    setTemplateUrlDraft(url);
-    await queryClient.invalidateQueries({ queryKey: ["app-config"] });
-  }
-
-  function handleTemplateUrlChange(url: string) {
-    setTemplateUrlDraft(url);
-    setTemplateUrlError(null);
-  }
-
-  async function handleImportTemplates() {
-    const parsedTemplateUrl = routingTemplateUrlSchema.safeParse(templateUrl);
-    if (!parsedTemplateUrl.success) {
-      setTemplateUrlError(firstZodMessage(parsedTemplateUrl.error));
-      setOperationError("Routing template URL validation failed");
-      return;
-    }
-
-    setTemplateUrlError(null);
-    await runOperation(async () => {
-      await saveTemplateUrl(configQuery.data, parsedTemplateUrl.data);
-      await importRoutingTemplates(true, null, false);
-    });
   }
 
   async function handleSaveRouting(routing: RoutingFormPayload) {
@@ -176,10 +122,8 @@ export function useRoutingScreen() {
     activateSelectedRouting,
     deleteSelectedRouting,
     deleteSelectedRule,
-    handleImportTemplates,
     handleSaveRouting,
     handleSaveRule,
-    handleTemplateUrlChange,
     moveSelectedRule,
     operationError,
     routings,
@@ -191,8 +135,6 @@ export function useRoutingScreen() {
     setRoutingDialog,
     setRuleDialog,
     setSelectedRuleId,
-    templateUrl,
-    templateUrlError,
   };
 }
 
