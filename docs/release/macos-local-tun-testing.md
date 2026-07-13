@@ -71,8 +71,11 @@ pnpm build:mac:local
 
 The script runs preflight, then: `tauri:build --bundles app` →
 `native:macos:tunnel` → `native:macos:app:sign` → `native:macos:tunnel:verify`
-→ `native:macos:dmg` → installs the app into `/Applications/VoyaVPN.app`
-(replacing any previous copy; quit VoyaVPN first) → removes `Contents/PlugIns`
+→ `native:macos:dmg`. Before replacing the installed app, quit the VoyaVPN GUI.
+If only the VoyaVPN PacketTunnel remains active, the script stops the connection
+whose VPN provider is exactly `app.voyavpn.desktop`, then waits for the provider
+to exit. It never kills the provider or removes the VPN profile. The script then
+installs the app into `/Applications/VoyaVPN.app` → removes `Contents/PlugIns`
 from the leftover `target/` build and DMG-staging copies so they cannot win
 PlugInKit election → `native:macos:ne:doctor --fix --app
 /Applications/VoyaVPN.app`.

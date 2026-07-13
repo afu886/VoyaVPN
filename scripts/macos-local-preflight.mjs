@@ -190,7 +190,7 @@ function checkLibbox() {
 }
 
 function warnIfInstalledAppRunning() {
-  for (const executable of ["VoyaVPN", "VoyaPacketTunnel"]) {
+  for (const executable of ["voyavpn", "VoyaVPN", "VoyaPacketTunnel"]) {
     const result = spawnSync("pgrep", ["-x", executable], { encoding: "utf8" });
     if (result.status === 0) {
       warn(

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture, run, truthy } from "./lib/common.mjs";
+import { prepareVoyaForLocalBuild } from "./macos-local-runtime.mjs";
 import { resolveSigningIdentity } from "./macos-provisioning.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -114,9 +115,13 @@ function installedExecutableName() {
   }
 }
 
-function assertAppNotRunning() {
+function installedAppExecutableNames() {
+  return new Set([installedExecutableName(), "voyavpn", "VoyaVPN"]);
+}
+
+function runningExecutables(executables) {
   const running = [];
-  for (const executable of new Set([installedExecutableName(), "VoyaPacketTunnel"])) {
+  for (const executable of new Set(executables)) {
     const result = spawnSync("pgrep", ["-x", executable], {
       cwd: repoRoot,
       encoding: "utf8",
@@ -125,6 +130,20 @@ function assertAppNotRunning() {
       running.push(executable);
     }
   }
+  return running;
+}
+
+function assertInstalledAppGuiNotRunning() {
+  const running = runningExecutables(installedAppExecutableNames());
+  if (running.length) {
+    throw new Error(
+      `VoyaVPN is still running (${running.join(", ")}). Quit the app before pnpm build:mac:local replaces ${installedAppBundle}.`,
+    );
+  }
+}
+
+function assertAppNotRunning() {
+  const running = runningExecutables([...installedAppExecutableNames(), "VoyaPacketTunnel"]);
   if (running.length) {
     throw new Error(
       `VoyaVPN is still running (${running.join(", ")}). Quit the app and disable TUN before pnpm build:mac:local replaces ${installedAppBundle}.`,
@@ -207,7 +226,7 @@ function main() {
   const notarizationSkipped = skipNotarization();
 
   if (notarizationSkipped) {
-    assertAppNotRunning();
+    assertInstalledAppGuiNotRunning();
     run("node", ["scripts/macos-local-preflight.mjs"], commandOptions());
   }
 
@@ -269,6 +288,10 @@ function main() {
 
   commandStatus("xattr", ["-dr", "com.apple.quarantine", appBundle], commonEnv);
   if (notarizationSkipped) {
+    prepareVoyaForLocalBuild({
+      guiExecutables: [...installedAppExecutableNames()],
+      replacementTarget: installedAppBundle,
+    });
     installToApplications();
     stripLeftoverPacketTunnelCopies();
     runNetworkExtensionDoctor(installedAppBundle, commonEnv);
