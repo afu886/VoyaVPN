@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { changeLocale } from "@voya/i18n";
-import { SourceSettings } from "@/features/options/source-settings";
+import { SourcesTab } from "@/features/settings/sources-tab";
 import type {
   ConfigSourceSettings,
   ConfigTemplateImportResult,
@@ -26,7 +26,7 @@ const initialSources = {
   srsSourceUrl: "https://sources.example.test/srs.json",
 } satisfies ConfigSourceSettings;
 
-describe("SourceSettings", () => {
+describe("SourcesTab", () => {
   beforeEach(async () => {
     cleanup();
     vi.clearAllMocks();
@@ -237,7 +237,7 @@ function renderSettings() {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <SourceSettings />
+      <SourcesTab />
     </QueryClientProvider>,
   );
 

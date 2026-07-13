@@ -5,7 +5,9 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "@voya/ui/lib/utils";
 
-const scrollableDialogContentVariants = cva("overflow-hidden", {
+// The width variants must beat DialogContent's `sm:max-w-lg` in the cascade
+// (an sm-scoped rule outranks any unscoped max-w-*), so drop that cap here.
+const scrollableDialogContentVariants = cva("overflow-hidden sm:max-w-none", {
   variants: {
     height: {
       compact: "max-h-[86vh]",
@@ -16,7 +18,9 @@ const scrollableDialogContentVariants = cva("overflow-hidden", {
       "toolbar-body": "grid-rows-[auto_auto_minmax(0,1fr)_auto]",
     },
     width: {
-      "5xl": "max-w-5xl",
+      // Width-style (not max-w) so every variant survives the sm:max-w-none
+      // reset above; 5xl keeps its historical 64rem cap.
+      "5xl": "w-[min(96vw,64rem)]",
       "54rem": "w-[min(94vw,54rem)]",
       "56rem": "w-[min(96vw,56rem)]",
       "68rem": "w-[min(96vw,68rem)]",

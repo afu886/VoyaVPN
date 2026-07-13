@@ -58,6 +58,12 @@ export async function installTauriSmokeMock(page: Page) {
         platform: "linux",
       },
       calls: [] as Array<{ command: string; args: CommandArgs }>,
+      diagnostics: {
+        deliveryConfigured: false,
+        enabled: true,
+        queuedBytes: 0,
+        queuedEvents: 0,
+      },
       dns: makeDnsSettings(),
       hotkeys: makeHotkeyStatus(),
       profiles: [] as ProfileRow[],
@@ -402,6 +408,11 @@ export async function installTauriSmokeMock(page: Page) {
         case "set_autostart_enabled":
           state.autostart = { ...state.autostart, enabled: Boolean(args.enabled) };
           return Promise.resolve(clone(state.autostart));
+        case "diagnostics_status":
+          return Promise.resolve(clone(state.diagnostics));
+        case "set_diagnostics_enabled":
+          state.diagnostics = { ...state.diagnostics, enabled: Boolean(args.enabled) };
+          return Promise.resolve(clone(state.diagnostics));
         case "global_hotkey_status":
           return Promise.resolve(clone(state.hotkeys));
         case "save_global_hotkeys":

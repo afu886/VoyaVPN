@@ -122,7 +122,7 @@
     "fontSize": "Schriftgröße",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "Display, language, and font preferences.",
+    "settingsDescription": "General, sources, core, network, tests, hotkeys, and update preferences.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -567,5 +567,29 @@
     "saving": "Saving",
     "title": "Full Config Templates",
     "tunConfigJson": "TUN config JSON"
+  },
+  "settings": {
+    "startup": "Startup & diagnostics",
+    "tabGeneral": "General",
+    "tabHotkeys": "Hotkeys",
+    "tabTests": "Tests",
+    "tabUpdates": "Updates",
+    "fields": {
+      "cdnBaseUrl": "Update CDN base URL (optional)",
+      "cdnCoreManifestUrl": "Core manifest URL (optional)",
+      "cdnReleaseIndexUrl": "Release index URL (optional)",
+      "fragmentInterval": "Fragment interval",
+      "fragmentLength": "Fragment length",
+      "fragmentPackets": "Fragment packets",
+      "hysteriaDownMbps": "Hysteria max download bandwidth (Mbps)",
+      "hysteriaUpMbps": "Hysteria max upload bandwidth (Mbps)",
+      "muxConcurrency": "Mux concurrency (Xray)",
+      "muxMaxConnections": "sing-box Mux max connections",
+      "muxPadding": "sing-box Mux padding",
+      "muxXudpConcurrency": "XUDP concurrency (Xray)",
+      "muxXudpProxyUdp443": "XUDP proxy UDP/443 (reject / allow / skip)",
+      "speedTestDelayInterval": "Delay between speed test batches (seconds)",
+      "speedTestPageSize": "Servers per speed test batch"
+    }
   }
 }

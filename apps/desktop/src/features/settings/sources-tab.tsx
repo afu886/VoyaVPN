@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Globe2, Save } from "lucide-react";
+import { Download, FileJson2, Save } from "lucide-react";
 
 import { Alert, AlertDescription } from "@voya/ui/components/alert";
 import { Button } from "@voya/ui/components/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@voya/ui/components/card";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +13,17 @@ import {
   DialogTitle,
 } from "@voya/ui/components/dialog";
 import { Input } from "@voya/ui/components/input";
-import { Label } from "@voya/ui/components/label";
+import { Separator } from "@voya/ui/components/separator";
 import { cn } from "@voya/ui/lib/utils";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { importConfigTemplate, loadConfigSources, saveConfigSources } from "@/ipc";
 import type { ConfigSourceSettings, ConfigTemplateSelection } from "@/ipc/bindings";
+import { useModalStore } from "@/stores/modal-store";
 import { useToastStore } from "@/stores/toast-store";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
+
+import { SettingsGroup, SettingsRow } from "./settings-form";
 
 type SourceForm = {
   geoSourceUrl: string;
@@ -71,9 +66,10 @@ const templateOptions: Array<{
   },
 ];
 
-export function SourceSettings() {
+export function SourcesTab() {
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const openModal = useModalStore((state) => state.openModal);
   const pushToast = useToastStore((state) => state.pushToast);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<SourceForm>(emptyForm);
@@ -206,55 +202,62 @@ export function SourceSettings() {
   }
 
   return (
-    <>
-      <Card className="gap-4 rounded-md bg-background p-4 shadow-none">
-        <CardHeader className="p-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Globe2 className="size-4" aria-hidden="true" />
-            {t("options.sources")}
-          </CardTitle>
-          <CardDescription>{t("options.configTemplate.description")}</CardDescription>
-          <CardAction>
+    <div className="grid gap-4">
+      <SettingsGroup>
+        <SourceField
+          disabled={working}
+          id="ruleset-geo-source-url"
+          label={t("options.geoSource")}
+          onChange={(geoSourceUrl) => patchForm({ geoSourceUrl })}
+          value={form.geoSourceUrl}
+        />
+        <SourceField
+          disabled={working}
+          id="ruleset-srs-source-url"
+          label={t("options.srsSource")}
+          onChange={(srsSourceUrl) => patchForm({ srsSourceUrl })}
+          value={form.srsSourceUrl}
+        />
+        <SourceField
+          disabled={working}
+          id="routing-template-source-url"
+          label={t("options.routeTemplateSource")}
+          onChange={(routeRulesTemplateSourceUrl) => patchForm({ routeRulesTemplateSourceUrl })}
+          value={form.routeRulesTemplateSourceUrl}
+        />
+
+        <SettingsRow>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={working} onClick={() => void save()} size="sm" type="button" variant="outline">
+              <Save className="size-4" aria-hidden="true" />
+              {t("actions.save")}
+            </Button>
             <Button disabled={working} onClick={openImportDialog} size="sm" type="button" variant="outline">
               <Download className="size-4" aria-hidden="true" />
               {t("options.configTemplate.import")}
             </Button>
-          </CardAction>
-        </CardHeader>
-
-        <CardContent className="grid gap-3 p-0">
-          <SourceField
-            disabled={working}
-            id="ruleset-geo-source-url"
-            label={t("options.geoSource")}
-            onChange={(geoSourceUrl) => patchForm({ geoSourceUrl })}
-            value={form.geoSourceUrl}
-          />
-          <SourceField
-            disabled={working}
-            id="ruleset-srs-source-url"
-            label={t("options.srsSource")}
-            onChange={(srsSourceUrl) => patchForm({ srsSourceUrl })}
-            value={form.srsSourceUrl}
-          />
-          <SourceField
-            disabled={working}
-            id="routing-template-source-url"
-            label={t("options.routeTemplateSource")}
-            onChange={(routeRulesTemplateSourceUrl) => patchForm({ routeRulesTemplateSourceUrl })}
-            value={form.routeRulesTemplateSourceUrl}
-          />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button disabled={working} onClick={() => void save()} type="button" variant="outline">
-              <Save className="size-4" aria-hidden="true" />
-              {t("actions.save")}
-            </Button>
             {saved ? <span className="text-xs text-muted-foreground">{t("options.saved")}</span> : null}
             {error ? <span className="text-xs text-destructive">{error}</span> : null}
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-xs text-muted-foreground">{t("options.configTemplate.description")}</p>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <Separator />
+
+      <SettingsGroup>
+        <SettingsRow label={t("templates.title")}>
+          <Button
+            onClick={() => openModal("fullConfigTemplate")}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <FileJson2 className="size-4" aria-hidden="true" />
+            {t("templates.open")}
+          </Button>
+        </SettingsRow>
+      </SettingsGroup>
 
       <Dialog open={importOpen} onOpenChange={handleImportOpenChange}>
         <DialogContent className="max-w-2xl">
@@ -266,7 +269,7 @@ export function SourceSettings() {
             <DialogDescription>{t("options.configTemplate.selectPrompt")}</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3">
+          <div className="grid gap-3 px-6 py-4">
             <p className="text-sm text-muted-foreground">{t("options.configTemplate.advancedHint")}</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {templateOptions.map((option) => {
@@ -325,7 +328,7 @@ export function SourceSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
@@ -343,17 +346,15 @@ function SourceField({
   value: string;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <Label className="text-muted-foreground" htmlFor={id}>
-        {label}
-      </Label>
+    <SettingsRow htmlFor={id} label={label}>
       <Input
+        className="h-8 w-full max-w-md"
         disabled={disabled}
         id={id}
         onChange={(event) => onChange(event.currentTarget.value)}
         value={value}
       />
-    </div>
+    </SettingsRow>
   );
 }
 

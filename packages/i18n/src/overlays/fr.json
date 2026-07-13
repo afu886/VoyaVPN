@@ -122,7 +122,7 @@
     "fontSize": "Taille de police",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "Display, language, and font preferences.",
+    "settingsDescription": "Préférences générales, sources, cœur, réseau, tests, raccourcis et mises à jour.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -567,5 +567,29 @@
     "saving": "Saving",
     "title": "Full Config Templates",
     "tunConfigJson": "TUN config JSON"
+  },
+  "settings": {
+    "startup": "Démarrage et diagnostics",
+    "tabGeneral": "Général",
+    "tabHotkeys": "Raccourcis",
+    "tabTests": "Tests",
+    "tabUpdates": "Mises à jour",
+    "fields": {
+      "cdnBaseUrl": "URL de base du CDN de mise à jour (optionnel)",
+      "cdnCoreManifestUrl": "URL du manifeste des cores (optionnel)",
+      "cdnReleaseIndexUrl": "URL de l'index des versions (optionnel)",
+      "fragmentInterval": "Fragment : intervalle",
+      "fragmentLength": "Fragment : longueur",
+      "fragmentPackets": "Fragment : paquets",
+      "hysteriaDownMbps": "Bande passante descendante max Hysteria (Mbps)",
+      "hysteriaUpMbps": "Bande passante montante max Hysteria (Mbps)",
+      "muxConcurrency": "Concurrence Mux (Xray)",
+      "muxMaxConnections": "Connexions Mux max (sing-box)",
+      "muxPadding": "Remplissage Mux (sing-box)",
+      "muxXudpConcurrency": "Concurrence XUDP (Xray)",
+      "muxXudpProxyUdp443": "Traitement XUDP du trafic UDP/443 (reject / allow / skip)",
+      "speedTestDelayInterval": "Délai entre les lots de test de vitesse (secondes)",
+      "speedTestPageSize": "Serveurs par lot de test de vitesse"
+    }
   }
 }

@@ -2,8 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Dialog } from "@voya/ui/components/dialog";
-import { CheckUpdateDialog } from "@/features/updates/check-update-dialog";
+import { UpdatesPanel } from "@/features/updates/updates-panel";
 import { changeLocale } from "@voya/i18n";
 import type {
   AppUpdaterStatus,
@@ -35,7 +34,7 @@ vi.mock("@/ipc/updater", () => ({
   getVersion: tauriMocks.getVersion,
 }));
 
-describe("CheckUpdateDialog", () => {
+describe("UpdatesPanel", () => {
   beforeEach(async () => {
     cleanup();
     vi.clearAllMocks();
@@ -53,7 +52,7 @@ describe("CheckUpdateDialog", () => {
     const installUpdate = makeTauriUpdate();
     tauriMocks.check.mockResolvedValueOnce(checkUpdate).mockResolvedValueOnce(installUpdate);
 
-    renderDialog();
+    render(<UpdatesPanel />);
 
     expect(await screen.findByText("Manual 2.1.0 available")).toBeInTheDocument();
     expect(screen.getByText("App")).toBeInTheDocument();
@@ -85,12 +84,24 @@ describe("CheckUpdateDialog", () => {
     await waitFor(() => expect(tauriMocks.relaunch).toHaveBeenCalledTimes(1));
   });
 
+  it("renders every target as a bordered list row", async () => {
+    render(<UpdatesPanel />);
+
+    const list = await screen.findByRole("list");
+    const rows = screen.getAllByRole("listitem");
+    expect(list).toBeInTheDocument();
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("VoyaVPN");
+    expect(rows[1]).toHaveTextContent("Geo files");
+    expect(rows[2]).toHaveTextContent("sing-box rulesets");
+  });
+
   it("shows manual CDN links when the automatic updater status fails", async () => {
     ipcMocks.appUpdateStatus.mockRejectedValue(
       new Error("updater failed at https://updates.voyavpn.test/latest.json proxyUrl=http://127.0.0.1:8080"),
     );
 
-    renderDialog();
+    render(<UpdatesPanel />);
 
     const link = await screen.findByRole("link", {
       name: "APPIMAGE VoyaVPN-linux-x64.AppImage",
@@ -117,7 +128,7 @@ describe("CheckUpdateDialog", () => {
       return deferred.promise;
     });
 
-    renderDialog();
+    render(<UpdatesPanel />);
 
     const srs = await screen.findByRole("checkbox", { name: "Selected sing-box rulesets" });
     const geo = screen.getByRole("checkbox", { name: "Selected Geo files" });
@@ -157,21 +168,13 @@ describe("CheckUpdateDialog", () => {
   it("shows the no selected target state and disables check actions", async () => {
     ipcMocks.updateStatus.mockResolvedValue(makeStatus(allTargets.map((target) => ({ ...target, selected: false }))));
 
-    renderDialog();
+    render(<UpdatesPanel />);
 
     expect(await screen.findByText("Select at least one target to check or download.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
   });
 });
-
-function renderDialog() {
-  return render(
-    <Dialog open>
-      <CheckUpdateDialog />
-    </Dialog>,
-  );
-}
 
 function mockDefaultIpc() {
   ipcMocks.updateStatus.mockResolvedValue(makeStatus(allTargets));

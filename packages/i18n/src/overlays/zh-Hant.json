@@ -122,7 +122,7 @@
     "fontSize": "字型大小",
     "language": "語言",
     "settings": "設定",
-    "settingsDescription": "顯示、語言與字型偏好。",
+    "settingsDescription": "通用、來源、核心、網路、測試、快捷鍵與更新設定。",
     "theme": "主題",
     "version": "版本 0.1.0"
   },
@@ -567,5 +567,29 @@
     "saving": "儲存中",
     "title": "完整設定範本",
     "tunConfigJson": "TUN 設定 JSON"
+  },
+  "settings": {
+    "startup": "啟動與診斷",
+    "tabGeneral": "通用",
+    "tabHotkeys": "快捷鍵",
+    "tabTests": "測試",
+    "tabUpdates": "更新",
+    "fields": {
+      "cdnBaseUrl": "更新 CDN 基礎位址 (可選)",
+      "cdnCoreManifestUrl": "核心清單位址 (可選)",
+      "cdnReleaseIndexUrl": "發布索引位址 (可選)",
+      "fragmentInterval": "分片間隔 (interval)",
+      "fragmentLength": "分片長度 (length)",
+      "fragmentPackets": "分片封包類型 (packets)",
+      "hysteriaDownMbps": "Hysteria 最大下行頻寬 (Mbps)",
+      "hysteriaUpMbps": "Hysteria 最大上行頻寬 (Mbps)",
+      "muxConcurrency": "Mux 並發數 (Xray)",
+      "muxMaxConnections": "sing-box Mux 最大連線數",
+      "muxPadding": "sing-box Mux 填充 (padding)",
+      "muxXudpConcurrency": "XUDP 並發數 (Xray)",
+      "muxXudpProxyUdp443": "XUDP 代理 UDP/443 (reject / allow / skip)",
+      "speedTestDelayInterval": "測速批次間隔 (秒)",
+      "speedTestPageSize": "每批測速的伺服器數量"
+    }
   }
 }

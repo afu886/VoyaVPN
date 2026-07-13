@@ -122,7 +122,7 @@
     "fontSize": "Betűméret",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "Display, language, and font preferences.",
+    "settingsDescription": "Általános, források, mag, hálózat, tesztek, gyorsbillentyűk és frissítési beállítások.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -567,5 +567,29 @@
     "saving": "Saving",
     "title": "Full Config Templates",
     "tunConfigJson": "TUN config JSON"
+  },
+  "settings": {
+    "startup": "Indítás és diagnosztika",
+    "tabGeneral": "Általános",
+    "tabHotkeys": "Gyorsbillentyűk",
+    "tabTests": "Tesztek",
+    "tabUpdates": "Frissítések",
+    "fields": {
+      "cdnBaseUrl": "Frissítési CDN alap URL (opcionális)",
+      "cdnCoreManifestUrl": "Core manifest URL (opcionális)",
+      "cdnReleaseIndexUrl": "Kiadási index URL (opcionális)",
+      "fragmentInterval": "Fragment intervallum (interval)",
+      "fragmentLength": "Fragment hossz (length)",
+      "fragmentPackets": "Fragment csomagok (packets)",
+      "hysteriaDownMbps": "Hysteria max letöltési sávszélesség (Mbps)",
+      "hysteriaUpMbps": "Hysteria max feltöltési sávszélesség (Mbps)",
+      "muxConcurrency": "Mux párhuzamosság (Xray)",
+      "muxMaxConnections": "sing-box Mux maximális kapcsolatok",
+      "muxPadding": "sing-box Mux kitöltés (padding)",
+      "muxXudpConcurrency": "XUDP párhuzamosság (Xray)",
+      "muxXudpProxyUdp443": "XUDP UDP/443 kezelése (reject / allow / skip)",
+      "speedTestDelayInterval": "Késleltetés a sebességteszt-kötegek között (másodperc)",
+      "speedTestPageSize": "Szerverek száma sebességteszt-kötegenként"
+    }
   }
 }

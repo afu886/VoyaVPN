@@ -133,7 +133,7 @@
     "fontSize": "اندازه فونت",
     "language": "زبان",
     "settings": "تنظیمات",
-    "settingsDescription": "تنظیمات نما، زبان، و فونت.",
+    "settingsDescription": "تنظیمات عمومی، منابع، هسته، شبکه، تست‌ها، کلیدهای میانبر و به‌روزرسانی‌ها.",
     "theme": "پوسته",
     "version": "نسخه 0.1.0"
   },
@@ -982,6 +982,30 @@
     "TransportRequestHostTip4": "*QUIC securty",
     "TransportRequestHostTip5": "RPC Authority",
     "UpgradeAppNotExistTip": "برنامه ارتقا وجود ندارد"
+  },
+  "settings": {
+    "fields": {
+      "cdnBaseUrl": "آدرس پایه CDN به‌روزرسانی (اختیاری)",
+      "cdnCoreManifestUrl": "آدرس مانیفست هسته (اختیاری)",
+      "cdnReleaseIndexUrl": "آدرس فهرست نسخه‌ها (اختیاری)",
+      "fragmentInterval": "فرگمنت: فاصله (interval)",
+      "fragmentLength": "فرگمنت: طول (length)",
+      "fragmentPackets": "فرگمنت: بسته‌ها (packets)",
+      "hysteriaDownMbps": "حداکثر پهنای باند دانلود هیستریا (Mbps)",
+      "hysteriaUpMbps": "حداکثر پهنای باند آپلود هیستریا (Mbps)",
+      "muxConcurrency": "همزمانی Mux (Xray)",
+      "muxMaxConnections": "حداکثر اتصالات Mux برای sing-box",
+      "muxPadding": "پدینگ Mux برای sing-box",
+      "muxXudpConcurrency": "همزمانی XUDP (Xray)",
+      "muxXudpProxyUdp443": "پروکسی XUDP برای UDP/443 (reject / allow / skip)",
+      "speedTestDelayInterval": "فاصله بین دسته‌های تست سرعت (ثانیه)",
+      "speedTestPageSize": "تعداد سرورها در هر دسته تست سرعت"
+    },
+    "startup": "راه‌اندازی و عیب‌یابی",
+    "tabGeneral": "عمومی",
+    "tabHotkeys": "کلیدهای میانبر",
+    "tabTests": "تست‌ها",
+    "tabUpdates": "به‌روزرسانی‌ها"
   },
   "status": {
     "aria": "وضعیت اتصال",

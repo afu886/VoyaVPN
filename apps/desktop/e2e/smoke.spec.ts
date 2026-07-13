@@ -13,18 +13,22 @@ test.beforeEach(async ({ page }) => {
 test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "VoyaVPN" })).toBeVisible();
   await expect(page.getByTestId("status-bar")).toContainText("Disconnected");
-  await expect(page.getByRole("tab", { name: "Profiles" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
 
   await page.getByRole("button", { name: "Settings" }).click();
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
   await expect(settingsDialog).toBeVisible();
+  await expect(settingsDialog.getByRole("tab", { name: "General" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(page.getByText("Autostart", { exact: true })).toBeVisible();
-  await expect(page.getByText("Global hotkeys", { exact: true })).toBeVisible();
+  await settingsDialog.getByRole("tab", { name: "Hotkeys" }).click();
+  await expect(page.getByText("Show window", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(settingsDialog).toBeHidden();
 
-  await page.getByRole("menuitem", { exact: true, name: "Tools" }).click();
-  await page.getByRole("menuitem", { name: "QR" }).click();
+  await page.getByRole("button", { exact: true, name: "QR" }).click();
   const qrDialog = page.getByRole("dialog", { name: "QR" });
   await expect(qrDialog).toBeVisible();
   await page.getByLabel("Content").fill(importFixture);
@@ -32,10 +36,6 @@ test("loads the app shell and key dialogs", async ({ page }) => {
   await expect(page.getByAltText("Generated QR code")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(qrDialog).toBeHidden();
-
-  await page.getByRole("menuitem", { exact: true, name: "Help" }).click();
-  await page.getByRole("menuitem", { name: "About VoyaVPN" }).click();
-  await expect(page.getByRole("dialog", { name: "About VoyaVPN" })).toContainText("Version 0.1.0");
 });
 
 test("imports the default configuration template from the Settings sources card", async ({ page }) => {
@@ -48,6 +48,7 @@ test("imports the default configuration template from the Settings sources card"
   await page.getByRole("button", { name: "Settings" }).click();
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
   await expect(settingsDialog).toBeVisible();
+  await settingsDialog.getByRole("tab", { name: "Sources" }).click();
 
   const geoSource = settingsDialog.getByLabel("Geo files source");
   const srsSource = settingsDialog.getByLabel("sing-box ruleset source");
@@ -57,7 +58,10 @@ test("imports the default configuration template from the Settings sources card"
     name: "Import configuration template",
   });
 
-  await expect(settingsDialog.locator('[data-slot="card-title"]', { hasText: /^Sources$/ })).toBeVisible();
+  await expect(settingsDialog.getByRole("tab", { name: "Sources" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(geoSource).toBeEnabled();
   await expect(srsSource).toBeEnabled();
   await expect(routingSource).toBeEnabled();
@@ -129,6 +133,7 @@ test("imports the default configuration template from the Settings sources card"
 });
 
 test("adds and imports profiles, activates one, and connects through the fake runtime", async ({ page }) => {
+  await page.getByRole("tab", { name: "Profiles" }).click();
   await page.getByRole("button", { exact: true, name: "Add" }).click();
   await expect(page.getByRole("dialog", { name: "Add profile" })).toBeVisible();
   await page.getByRole("combobox", { name: "Protocol" }).click();
@@ -142,18 +147,20 @@ test("adds and imports profiles, activates one, and connects through the fake ru
   await expect(page.getByText("Smoke Manual VLESS")).toBeVisible();
   await expect(page.getByText("manual.example.test")).toBeVisible();
 
-  await page.getByRole("button", { name: "Import" }).click();
-  await page.getByLabel("Import payload").fill(importFixture);
-  await page.getByRole("button", { name: "Import payload" }).click();
+  await page.getByRole("menuitem", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { exact: true, name: "Import" }).click();
+  await page.getByRole("textbox", { name: "Import payload" }).fill(importFixture);
+  await page.getByRole("button", { exact: true, name: "Import payload" }).click();
   await expect(page.getByText("Smoke Imported VLESS")).toBeVisible();
 
   await page.getByLabel("Select Smoke Imported VLESS").check();
   await page.getByRole("button", { name: "Activate" }).click();
   await expect(page.getByTestId("active-profile-marker")).toBeVisible();
 
+  await page.getByRole("tab", { name: "Home" }).click();
   await page.getByRole("button", { exact: true, name: "Connect" }).click();
   await expect(page.getByTestId("status-bar")).toContainText("Connected");
-  await expect(page.getByTestId("status-bar")).toContainText("sing-box");
+  await expect(page.getByTestId("status-bar")).toContainText("PID 4242");
 
   await page.getByRole("button", { exact: true, name: "Disconnect" }).click();
   await expect(page.getByTestId("status-bar")).toContainText("Disconnected");

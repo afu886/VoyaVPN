@@ -133,7 +133,7 @@
     "fontSize": "Размер шрифта",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "Display, language, and font preferences.",
+    "settingsDescription": "Общие настройки, источники, ядро, сеть, тесты, горячие клавиши и обновления.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -982,6 +982,30 @@
     "TransportRequestHostTip4": "Безопасность *QUIC",
     "TransportRequestHostTip5": "gRPC Authority (HTTP/2 псевдозаголовок :authority)",
     "UpgradeAppNotExistTip": "Приложение для обновления не найдено"
+  },
+  "settings": {
+    "fields": {
+      "cdnBaseUrl": "Базовый URL CDN обновлений (необязательно)",
+      "cdnCoreManifestUrl": "URL манифеста ядра (необязательно)",
+      "cdnReleaseIndexUrl": "URL индекса релизов (необязательно)",
+      "fragmentInterval": "Фрагментация: интервал (interval)",
+      "fragmentLength": "Фрагментация: длина (length)",
+      "fragmentPackets": "Фрагментация: пакеты (packets)",
+      "hysteriaDownMbps": "Максимальная пропускная способность Hysteria: загрузка (Мбит/с)",
+      "hysteriaUpMbps": "Максимальная пропускная способность Hysteria: отдача (Мбит/с)",
+      "muxConcurrency": "Конкурентность Mux (Xray)",
+      "muxMaxConnections": "Максимум соединений Mux для sing-box",
+      "muxPadding": "Заполнение Mux (padding) для sing-box",
+      "muxXudpConcurrency": "Конкурентность XUDP (Xray)",
+      "muxXudpProxyUdp443": "Обработка UDP/443 в XUDP (reject / allow / skip)",
+      "speedTestDelayInterval": "Пауза между партиями теста скорости (секунды)",
+      "speedTestPageSize": "Серверов в одной партии теста скорости"
+    },
+    "startup": "Автозапуск и диагностика",
+    "tabGeneral": "Общие",
+    "tabHotkeys": "Горячие клавиши",
+    "tabTests": "Тесты",
+    "tabUpdates": "Обновления"
   },
   "status": {
     "aria": "Connection status",

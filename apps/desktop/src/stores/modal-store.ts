@@ -2,12 +2,9 @@ import { create } from "zustand";
 
 import type { CoreType } from "@/ipc/bindings";
 
-export type ModalKind =
-  | "fullConfigTemplate"
-  | "missingCore"
-  | "qr"
-  | "settings"
-  | "updates";
+export type ModalKind = "fullConfigTemplate" | "missingCore" | "qr" | "settings";
+
+export type SettingsTab = "core" | "general" | "hotkeys" | "network" | "sources" | "tests" | "updates";
 
 export type MissingCorePayload = {
   coreType: CoreType;
@@ -19,17 +16,20 @@ export type ModalEntry = {
   kind: ModalKind;
   missingCore?: MissingCorePayload;
   qrContent?: string;
+  settingsTab?: SettingsTab;
 };
 
 type ModalOptions = {
   missingCore?: MissingCorePayload;
   qrContent?: string;
+  settingsTab?: SettingsTab;
 };
 
 type ModalState = {
   closeModal: (id: string) => void;
   closeTopModal: () => void;
   openModal: (kind: ModalKind, options?: ModalOptions) => string;
+  setModalSettingsTab: (id: string, tab: SettingsTab) => void;
   stack: ModalEntry[];
 };
 
@@ -51,11 +51,16 @@ export const useModalStore = create<ModalState>((set) => ({
           kind,
           missingCore: options?.missingCore,
           qrContent: options?.qrContent,
+          settingsTab: options?.settingsTab,
         },
       ],
     }));
 
     return id;
   },
+  setModalSettingsTab: (id, tab) =>
+    set((state) => ({
+      stack: state.stack.map((modal) => (modal.id === id ? { ...modal, settingsTab: tab } : modal)),
+    })),
   stack: [],
 }));

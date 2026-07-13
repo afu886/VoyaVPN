@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cpu, FileJson2, Languages, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { Cpu } from "lucide-react";
 
 import { Button } from "@voya/ui/components/button";
 import {
@@ -10,30 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@voya/ui/components/dialog";
-import { Separator } from "@voya/ui/components/separator";
-import { IntegrationSettings, RuntimeConfigSettings, SourceSettings } from "@/features/options";
 import { QrDialog } from "@/features/qr";
+import { SettingsDialog } from "@/features/settings";
 import { FullConfigTemplateDialog } from "@/features/templates";
-import { CheckUpdateDialog } from "@/features/updates";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { connectActiveProfile, installCoreSeed } from "@/ipc";
-import { type ThemeMode, usePreferencesStore } from "@/stores/preferences-store";
 import { type MissingCorePayload, useModalStore } from "@/stores/modal-store";
 import { formatCoreType } from "@/lib/core-types";
 import { getErrorMessage } from "@voya/utils/error";
-import { cn } from "@voya/ui/lib/utils";
-
-const themeOptions: Array<{ icon: typeof Monitor; labelKey: string; value: ThemeMode }> = [
-  { icon: Monitor, labelKey: "menu.themeSystem", value: "system" },
-  { icon: Sun, labelKey: "menu.themeLight", value: "light" },
-  { icon: Moon, labelKey: "menu.themeDark", value: "dark" },
-];
-
-// Selected option buttons (theme/language) read blue — an accent-blue-light
-// tint with a blue border/text, matching the sidebar's active-row treatment —
-// instead of the neutral secondary fill. Applied on the `aria-pressed` button.
-const selectedOptionClass =
-  "border border-primary bg-accent-blue-light text-brand hover:bg-accent-blue-light hover:text-brand";
 
 export function ModalHost() {
   const closeTopModal = useModalStore((state) => state.closeTopModal);
@@ -42,11 +26,12 @@ export function ModalHost() {
 
   return (
     <Dialog open={Boolean(modal)} onOpenChange={(open) => !open && closeTopModal()}>
-      {modal?.kind === "settings" ? <SettingsDialog /> : null}
+      {modal?.kind === "settings" ? (
+        <SettingsDialog entryId={modal.id} initialTab={modal.settingsTab} key={modal.id} />
+      ) : null}
       {modal?.kind === "fullConfigTemplate" ? <FullConfigTemplateDialog /> : null}
       {modal?.kind === "qr" ? <QrDialog initialContent={modal.qrContent} key={modal.id} /> : null}
       {modal?.kind === "missingCore" ? <MissingCoreDialog payload={modal.missingCore} /> : null}
-      {modal?.kind === "updates" ? <CheckUpdateDialog /> : null}
     </Dialog>
   );
 }
@@ -110,112 +95,6 @@ function MissingCoreDialog({ payload }: { payload?: MissingCorePayload }) {
           </Button>
         )}
       </DialogFooter>
-    </DialogContent>
-  );
-}
-
-function SettingsDialog() {
-  const { language, localeOptions, setLocale, t } = useI18n();
-  const setThemeMode = usePreferencesStore((state) => state.setThemeMode);
-  const themeMode = usePreferencesStore((state) => state.themeMode);
-  const openModal = useModalStore((state) => state.openModal);
-
-  return (
-    <DialogContent className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-3xl gap-0 overflow-hidden p-0">
-      <DialogHeader className="pe-12 px-6 pb-4 pt-6">
-        <DialogTitle className="flex items-center gap-2">
-          <Settings className="size-4" aria-hidden="true" />
-          {t("modal.settings")}
-        </DialogTitle>
-        <DialogDescription className="sr-only">{t("modal.settings")}</DialogDescription>
-      </DialogHeader>
-
-      <div className="grid max-h-[calc(90dvh-5rem)] gap-5 overflow-y-auto px-6 pb-6">
-        <section className="grid gap-3">
-          <h3 className="flex items-center gap-2 text-sm font-medium">
-            <Monitor className="size-4" aria-hidden="true" />
-            {t("modal.theme")}
-          </h3>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {themeOptions.map((option) => {
-              const Icon = option.icon;
-
-              return (
-                <Button
-                  key={option.value}
-                  aria-pressed={themeMode === option.value}
-                  className={cn(
-                    "h-9 min-w-0 justify-start px-3",
-                    themeMode === option.value && selectedOptionClass,
-                  )}
-                  onClick={() => setThemeMode(option.value)}
-                  type="button"
-                  variant={themeMode === option.value ? "secondary" : "outline"}
-                >
-                  <Icon className="size-4" aria-hidden="true" />
-                  <span className="truncate">{t(option.labelKey)}</span>
-                </Button>
-              );
-            })}
-          </div>
-        </section>
-
-        <Separator />
-
-        <SourceSettings />
-
-        <Separator />
-
-        <RuntimeConfigSettings />
-
-        <Separator />
-
-        <section className="grid gap-3">
-          <h3 className="flex items-center gap-2 text-sm font-medium">
-            <FileJson2 className="size-4" aria-hidden="true" />
-            {t("templates.title")}
-          </h3>
-          <Button
-            className="w-fit"
-            onClick={() => openModal("fullConfigTemplate")}
-            type="button"
-            variant="outline"
-          >
-            <FileJson2 className="size-4" aria-hidden="true" />
-            {t("templates.open")}
-          </Button>
-        </section>
-
-        <Separator />
-
-        <IntegrationSettings />
-
-        <Separator />
-
-        <section className="grid gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-medium">
-            <Languages className="size-4" aria-hidden="true" />
-            {t("modal.language")}
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {localeOptions.map((locale) => (
-              <Button
-                key={locale.code}
-                aria-pressed={language === locale.code}
-                className={cn(
-                  "h-8 min-w-12 px-2 text-xs",
-                  language === locale.code && selectedOptionClass,
-                )}
-                onClick={() => void setLocale(locale.code)}
-                type="button"
-                variant={language === locale.code ? "secondary" : "outline"}
-              >
-                {locale.label}
-              </Button>
-            ))}
-          </div>
-        </section>
-      </div>
     </DialogContent>
   );
 }

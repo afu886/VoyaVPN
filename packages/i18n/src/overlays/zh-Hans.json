@@ -122,7 +122,7 @@
     "fontSize": "字体大小",
     "language": "语言",
     "settings": "设置",
-    "settingsDescription": "显示、语言和字体偏好。",
+    "settingsDescription": "通用、来源、核心、网络、测试、热键与更新设置。",
     "theme": "主题",
     "version": "版本 0.1.0"
   },
@@ -567,5 +567,29 @@
     "saving": "保存中",
     "title": "完整配置模板",
     "tunConfigJson": "TUN 配置 JSON"
+  },
+  "settings": {
+    "startup": "启动与诊断",
+    "tabGeneral": "通用",
+    "tabHotkeys": "热键",
+    "tabTests": "测试",
+    "tabUpdates": "更新",
+    "fields": {
+      "cdnBaseUrl": "更新 CDN 基础地址 (可选)",
+      "cdnCoreManifestUrl": "核心清单地址 (可选)",
+      "cdnReleaseIndexUrl": "发布索引地址 (可选)",
+      "fragmentInterval": "分片间隔 (interval)",
+      "fragmentLength": "分片长度 (length)",
+      "fragmentPackets": "分片包类型 (packets)",
+      "hysteriaDownMbps": "Hysteria 最大下行带宽 (Mbps)",
+      "hysteriaUpMbps": "Hysteria 最大上行带宽 (Mbps)",
+      "muxConcurrency": "Mux 并发数 (Xray)",
+      "muxMaxConnections": "sing-box Mux 最大连接数",
+      "muxPadding": "sing-box Mux 填充 (padding)",
+      "muxXudpConcurrency": "XUDP 并发数 (Xray)",
+      "muxXudpProxyUdp443": "XUDP 代理 UDP/443 (reject / allow / skip)",
+      "speedTestDelayInterval": "测速批次间隔 (秒)",
+      "speedTestPageSize": "每批测速的服务器数量"
+    }
   }
 }

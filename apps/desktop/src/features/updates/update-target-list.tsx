@@ -2,15 +2,6 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 import { Badge } from "@voya/ui/components/badge";
 import { Checkbox } from "@voya/ui/components/checkbox";
-import { ScrollArea } from "@voya/ui/components/scroll-area";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@voya/ui/components/table";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { cn } from "@voya/ui/lib/utils";
 import type {
@@ -25,73 +16,53 @@ import type {
 import { redactUpdateMessage } from "./update-dialog-utils";
 import type { CheckUpdateDialogController } from "./use-check-update-dialog";
 
-export function UpdateTargetTable({ controller }: { controller: CheckUpdateDialogController }) {
+// macOS-preferences bordered list: one row per update target, selection
+// checkbox leading, live status badge trailing, metadata folded into a
+// muted second line.
+export function UpdateTargetList({ controller }: { controller: CheckUpdateDialogController }) {
   const { manualLinks, manualLinksError, resultByTarget, selectedIds, status, t, toggleTarget, working } = controller;
 
   return (
-    <ScrollArea className="h-[24rem] rounded-md border">
-      <Table className="min-w-[42rem]">
-        <TableHeader className="sticky top-0 z-10 bg-card">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-12 px-3" scope="col">
-              <span className="sr-only">{t("updates.selected")}</span>
-            </TableHead>
-            <TableHead className="px-3" scope="col">
-              {t("updates.target")}
-            </TableHead>
-            <TableHead className="px-3" scope="col">
-              {t("updates.version")}
-            </TableHead>
-            <TableHead className="px-3" scope="col">
-              {t("updates.status")}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(status?.targets ?? []).map((target) => {
-            const result = resultByTarget.get(target.id);
+    <ul className="grid divide-y rounded-md border">
+      {(status?.targets ?? []).map((target) => {
+        const result = resultByTarget.get(target.id);
 
-            return (
-              <TableRow key={target.id}>
-                <TableCell className="px-3 py-2 align-top">
-                  <Checkbox
-                    aria-label={`${t("updates.selected")} ${target.name}`}
-                    checked={selectedIds.has(target.id)}
-                    disabled={working !== null}
-                    onCheckedChange={(checked) => toggleTarget(target.id, checked === true)}
-                  />
-                </TableCell>
-                <TableCell className="min-w-48 whitespace-normal px-3 py-2 align-top">
-                  <div className="grid gap-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium">{target.name}</span>
-                      <TargetKindBadge kind={target.kind} />
-                      <UpdateSupportBadge target={target} />
-                      {target.kind === "app" ? (
-                        <ManualStateBadge manualLinks={manualLinks} manualLinksError={manualLinksError} />
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <AcquisitionBadge acquisition={target.acquisition} />
-                      {target.license ? <Badge variant="outline">{target.license}</Badge> : null}
-                    </div>
-                    <span className="break-words text-xs text-muted-foreground">{target.remarks}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="px-3 py-2 align-top text-muted-foreground">
-                  {result?.remoteVersion ?? result?.currentVersion ?? "-"}
-                </TableCell>
-                <TableCell className="min-w-56 px-3 py-2 align-top">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <UpdateResultBadge result={result} target={target} />
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </ScrollArea>
+        return (
+          <li key={target.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 p-3">
+            <Checkbox
+              aria-label={`${t("updates.selected")} ${target.name}`}
+              checked={selectedIds.has(target.id)}
+              className="mt-0.5 rounded-sm"
+              disabled={working !== null}
+              onCheckedChange={(checked) => toggleTarget(target.id, checked === true)}
+            />
+            <div className="grid min-w-0 gap-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-sm font-medium">{target.name}</span>
+                <TargetKindBadge kind={target.kind} />
+                <UpdateSupportBadge target={target} />
+                {target.kind === "app" ? (
+                  <ManualStateBadge manualLinks={manualLinks} manualLinksError={manualLinksError} />
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <AcquisitionBadge acquisition={target.acquisition} />
+                {target.license ? <Badge variant="outline">{target.license}</Badge> : null}
+                {result?.remoteVersion ?? result?.currentVersion ? (
+                  <span>{result?.remoteVersion ?? result?.currentVersion}</span>
+                ) : null}
+              </div>
+              {target.remarks ? (
+                <span className="break-words text-xs text-muted-foreground">{target.remarks}</span>
+              ) : null}
+            </div>
+            <div className="flex max-w-64 justify-end">
+              <UpdateResultBadge result={result} target={target} />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -115,7 +86,7 @@ function UpdateResultBadge({
   return (
     <Badge
       className={cn(
-        "max-w-full items-start justify-start gap-2 whitespace-normal px-2 py-1 text-left",
+        "max-w-full items-start justify-start gap-2 whitespace-normal px-2 py-1 text-start",
         tone,
       )}
       variant="outline"

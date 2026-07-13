@@ -1,1 +1,1 @@
-export { CheckUpdateDialog } from "@/features/updates/check-update-dialog";
+export { UpdatesPanel } from "@/features/updates/updates-panel";
