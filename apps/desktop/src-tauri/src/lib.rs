@@ -67,6 +67,7 @@ pub(crate) struct AppState {
     system_proxy_manager: SystemProxyManager,
     clash_monitor_controller: ClashMonitorController,
     diagnostics_client: Arc<AsyncMutex<DiagnosticsClient>>,
+    settings_window_lock: AsyncMutex<()>,
 }
 
 impl AppState {
@@ -117,6 +118,10 @@ impl AppState {
     pub(crate) fn diagnostics_client(&self) -> Arc<AsyncMutex<DiagnosticsClient>> {
         Arc::clone(&self.diagnostics_client)
     }
+
+    pub(crate) fn settings_window_lock(&self) -> &AsyncMutex<()> {
+        &self.settings_window_lock
+    }
 }
 
 pub fn export_bindings(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
@@ -140,6 +145,14 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(specta_builder.invoke_handler())
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(move |app| {
             let app_config_dir = app.path().app_config_dir()?;
             let runtime_paths = AppPaths::new(&app_config_dir, StorageMode::UserData);
@@ -262,6 +275,7 @@ pub fn run() {
                 system_proxy_manager,
                 clash_monitor_controller: ClashMonitorController::new(),
                 diagnostics_client: Arc::new(AsyncMutex::new(DiagnosticsClient::new())),
+                settings_window_lock: AsyncMutex::new(()),
             });
 
             specta_builder.mount_events(app);

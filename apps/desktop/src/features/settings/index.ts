@@ -1,1 +1,2 @@
-export { SettingsDialog } from "@/features/settings/settings-dialog";
+export { SettingsSurface, type SettingsTab } from "@/features/settings/settings-dialog";
+export { SettingsWindow } from "@/features/settings/settings-window";

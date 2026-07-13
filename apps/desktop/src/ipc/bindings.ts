@@ -8,6 +8,8 @@ export const commands = {
 	appHealth: () => typedError<string, AppError>(__TAURI_INVOKE("app_health")),
 	loadAppConfig: () => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("load_app_config")),
 	saveAppConfig: (config: AppConfig_Deserialize) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("save_app_config", { config })),
+	loadUiPreferences: () => typedError<UiPreferences, AppError>(__TAURI_INVOKE("load_ui_preferences")),
+	saveUiPreferences: (preferences: UiPreferences) => typedError<UiPreferences, AppError>(__TAURI_INVOKE("save_ui_preferences", { preferences })),
 	diagnosticsStatus: () => typedError<DiagnosticsStatus, AppError>(__TAURI_INVOKE("diagnostics_status")),
 	setDiagnosticsEnabled: (enabled: boolean) => typedError<DiagnosticsStatus, AppError>(__TAURI_INVOKE("set_diagnostics_enabled", { enabled })),
 	autostartStatus: () => typedError<AutostartStatus, AppError>(__TAURI_INVOKE("autostart_status")),
@@ -145,6 +147,12 @@ export const commands = {
 	 *  web fallback (no Tauri runtime) resolves to `none` on the frontend.
 	 */
 	getWindowChromeConfig: () => typedError<WindowChromeConfig, AppError>(__TAURI_INVOKE("get_window_chrome_config")),
+	/**
+	 *  Open the settings window from its fixed Tauri configuration template.
+	 *  Serializing creation avoids a check-then-create race when the user invokes
+	 *  the command more than once before the first webview has finished building.
+	 */
+	openSettingsWindow: () => typedError<null, AppError>(__TAURI_INVOKE("open_settings_window")),
 	/**
 	 *  Tint the Windows Acrylic blur material to match the in-app light/dark theme.
 	 *  The frontend drives its own (non-system) theme, so this command sets the tint
@@ -1543,6 +1551,13 @@ export type UiItem_Serialize = {
 	MainColumnItem: ColumnItem[],
 	WindowSizeItem: WindowSizeItem[],
 };
+
+export type UiPreferences = {
+	language: string,
+	theme: UiThemeMode,
+};
+
+export type UiThemeMode = "system" | "light" | "dark";
 
 export type UpdateAcquisition = "appPackage" | "optionalDownload";
 

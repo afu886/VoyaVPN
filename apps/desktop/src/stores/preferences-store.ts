@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { UiItem_Serialize } from "@/ipc/bindings";
-
 export type ThemeMode = "system" | "light" | "dark";
 
 type PersistedPreferences = {
@@ -10,8 +8,6 @@ type PersistedPreferences = {
 };
 
 type PreferencesState = {
-  appConfigLoaded: boolean;
-  hydrateFromConfig: (uiItem: UiItem_Serialize | null | undefined) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   themeMode: ThemeMode;
 };
@@ -19,12 +15,6 @@ type PreferencesState = {
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
-      appConfigLoaded: false,
-      hydrateFromConfig: (uiItem) =>
-        set({
-          ...preferencesFromConfig(uiItem),
-          appConfigLoaded: true,
-        }),
       setThemeMode: (themeMode) => set({ themeMode }),
       themeMode: "system",
     }),
@@ -51,45 +41,8 @@ export function resolveThemeMode(themeMode: ThemeMode) {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function preferencesFromConfig(
-  uiItem: UiItem_Serialize | null | undefined,
-): PersistedPreferences {
-  return {
-    themeMode: themeModeFromConfig(uiItem?.CurrentTheme),
-  };
-}
-
-export function uiItemWithoutLegacyColor(
-  uiItem: UiItem_Serialize | null | undefined,
-): Partial<UiItem_Serialize> {
-  const nextUiItem: Partial<UiItem_Serialize> = { ...(uiItem ?? {}) };
-  delete nextUiItem.ColorPrimaryName;
-  return nextUiItem;
-}
-
-export function themeModeFromConfig(value: string | null | undefined): ThemeMode {
-  switch ((value ?? "").trim().toLowerCase()) {
-    case "dark":
-      return "dark";
-    case "light":
-      return "light";
-    case "followsystem":
-    case "follow-system":
-    case "system":
-    default:
-      return "system";
-  }
-}
-
-export function themeModeToConfig(themeMode: ThemeMode) {
-  switch (themeMode) {
-    case "dark":
-      return "Dark";
-    case "light":
-      return "Light";
-    case "system":
-      return "FollowSystem";
-  }
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "system" || value === "light" || value === "dark";
 }
 
 function mergePersistedPreferences(persistedState: unknown, currentState: PreferencesState): PreferencesState {
@@ -99,7 +52,7 @@ function mergePersistedPreferences(persistedState: unknown, currentState: Prefer
 
   return {
     ...currentState,
-    themeMode: typeof persistedState.themeMode === "string" ? themeModeFromConfig(persistedState.themeMode) : "system",
+    themeMode: isThemeMode(persistedState.themeMode) ? persistedState.themeMode : "system",
   };
 }
 

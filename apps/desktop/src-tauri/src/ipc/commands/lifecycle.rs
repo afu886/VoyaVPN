@@ -228,6 +228,29 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
+pub(super) fn emit_ui_preferences_invalidation<R>(
+    app: &tauri::AppHandle<R>,
+    reason: &str,
+) -> Result<(), AppError>
+where
+    R: tauri::Runtime,
+{
+    InvalidateEvent {
+        keys: [
+            vec!["ui-preferences".to_string()],
+            vec!["app-config".to_string()],
+        ]
+        .into_iter()
+        .map(|query_key| QueryInvalidation {
+            query_key,
+            reason: reason.to_string(),
+        })
+        .collect(),
+    }
+    .emit(app)
+    .map_err(|error| AppError::EventEmit(error.to_string()))
+}
+
 pub(crate) fn emit_tun_changed<R>(
     app: &tauri::AppHandle<R>,
     status: &TunStatus,

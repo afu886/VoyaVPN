@@ -1,0 +1,68 @@
+import { cleanup, render, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { PreferencesBridge } from "@/components/preferences-bridge";
+import { changeLocale } from "@voya/i18n";
+import { UI_PREFERENCES_QUERY_KEY } from "@/features/settings/ui-preferences";
+import { usePreferencesStore } from "@/stores/preferences-store";
+
+const preferencesMocks = vi.hoisted(() => ({
+  loadUiPreferences: vi.fn(),
+}));
+
+vi.mock("@/ipc", () => preferencesMocks);
+
+describe("PreferencesBridge", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await changeLocale("en");
+    usePreferencesStore.getState().setThemeMode("system");
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        addEventListener: vi.fn(),
+        matches: false,
+        removeEventListener: vi.fn(),
+      })),
+    });
+  });
+
+  afterEach(async () => {
+    cleanup();
+    document.documentElement.classList.remove("dark");
+    document.documentElement.style.colorScheme = "";
+    await changeLocale("en");
+  });
+
+  it("applies backend theme, locale, and direction again after cross-window invalidation", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    preferencesMocks.loadUiPreferences.mockResolvedValueOnce({ language: "fa", theme: "dark" });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PreferencesBridge />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveClass("dark");
+      expect(document.documentElement).toHaveAttribute("lang", "fa");
+      expect(document.documentElement).toHaveAttribute("dir", "rtl");
+    });
+    expect(usePreferencesStore.getState().themeMode).toBe("dark");
+
+    preferencesMocks.loadUiPreferences.mockResolvedValueOnce({ language: "en", theme: "light" });
+    await queryClient.invalidateQueries({ queryKey: UI_PREFERENCES_QUERY_KEY });
+
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveClass("dark");
+      expect(document.documentElement.style.colorScheme).toBe("light");
+      expect(document.documentElement).toHaveAttribute("lang", "en");
+      expect(document.documentElement).toHaveAttribute("dir", "ltr");
+    });
+    expect(usePreferencesStore.getState().themeMode).toBe("light");
+  });
+});

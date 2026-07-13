@@ -3,10 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Dialog } from "@voya/ui/components/dialog";
-import { SettingsDialog } from "@/features/settings/settings-dialog";
+import { SettingsSurface, type SettingsTab } from "@/features/settings/settings-dialog";
+import { SettingsWindow } from "@/features/settings/settings-window";
 import { changeLocale } from "@voya/i18n";
-import { useModalStore, type SettingsTab } from "@/stores/modal-store";
+import { useModalStore } from "@/stores/modal-store";
 
 const ipcMocks = vi.hoisted(() => ({
   appUpdateStatus: vi.fn(),
@@ -15,14 +15,17 @@ const ipcMocks = vi.hoisted(() => ({
   diagnosticsStatus: vi.fn(),
   downloadUpdates: vi.fn(),
   globalHotkeyStatus: vi.fn(),
+  getWindowChromeConfig: vi.fn(),
   importConfigTemplate: vi.fn(),
   loadAppConfig: vi.fn(),
   loadConfigSources: vi.fn(),
+  loadUiPreferences: vi.fn(),
   manualAppUpdateLinks: vi.fn(),
   recordAppUpdateDiagnostic: vi.fn(),
   saveAppConfig: vi.fn(),
   saveConfigSources: vi.fn(),
   saveGlobalHotkeys: vi.fn(),
+  saveUiPreferences: vi.fn(),
   saveUpdatePreferences: vi.fn(),
   setAutostartEnabled: vi.fn(),
   setDiagnosticsEnabled: vi.fn(),
@@ -30,18 +33,24 @@ const ipcMocks = vi.hoisted(() => ({
 }));
 const tauriMocks = vi.hoisted(() => ({
   check: vi.fn(),
+  closeWindow: vi.fn(),
   getVersion: vi.fn(),
   relaunch: vi.fn(),
+  setWindowTitle: vi.fn(),
 }));
 
 vi.mock("@/ipc", () => ipcMocks);
+vi.mock("@/ipc/window", () => ({
+  closeWindow: tauriMocks.closeWindow,
+  setWindowTitle: tauriMocks.setWindowTitle,
+}));
 vi.mock("@/ipc/process", () => ({ relaunch: tauriMocks.relaunch }));
 vi.mock("@/ipc/updater", () => ({
   check: tauriMocks.check,
   getVersion: tauriMocks.getVersion,
 }));
 
-describe("SettingsDialog", () => {
+describe("SettingsSurface", () => {
   beforeEach(async () => {
     cleanup();
     vi.clearAllMocks();
@@ -57,7 +66,7 @@ describe("SettingsDialog", () => {
   it("opens on the General tab and switches panes through the tab strip", async () => {
     const user = userEvent.setup();
 
-    renderDialog();
+    renderSurface();
 
     expect(await screen.findByRole("tab", { name: "General", selected: true })).toBeInTheDocument();
     expect(screen.getByText("Theme")).toBeInTheDocument();
@@ -70,7 +79,7 @@ describe("SettingsDialog", () => {
   });
 
   it("deep-links to the requested tab via initialTab", async () => {
-    renderDialog({ initialTab: "updates" });
+    renderSurface({ initialTab: "updates" });
 
     expect(await screen.findByRole("tab", { name: "Updates", selected: true })).toBeInTheDocument();
     expect(await screen.findByRole("checkbox", { name: "Pre-release" })).toBeInTheDocument();
@@ -80,7 +89,7 @@ describe("SettingsDialog", () => {
   it("mounts the updates pane on first visit only and keeps it mounted afterwards", async () => {
     const user = userEvent.setup();
 
-    renderDialog();
+    renderSurface();
 
     await screen.findByRole("tab", { name: "General", selected: true });
     expect(ipcMocks.updateStatus).not.toHaveBeenCalled();
@@ -102,7 +111,7 @@ describe("SettingsDialog", () => {
   it("keeps unsaved runtime edits when switching between runtime tabs", async () => {
     const user = userEvent.setup();
 
-    renderDialog();
+    renderSurface();
 
     await user.click(await screen.findByRole("tab", { name: "Core" }));
     const userAgent = await screen.findByDisplayValue("agent-before-edit");
@@ -117,9 +126,8 @@ describe("SettingsDialog", () => {
     expect(ipcMocks.loadAppConfig).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the dialog open when Escape is pressed while recording a hotkey", async () => {
+  it("keeps the settings window open when Escape is pressed while recording a hotkey", async () => {
     const user = userEvent.setup();
-    const onOpenChange = vi.fn();
     ipcMocks.globalHotkeyStatus.mockResolvedValue({
       actions: [{ action: 0, label: "Show window" }],
       registered: [],
@@ -130,55 +138,86 @@ describe("SettingsDialog", () => {
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <Dialog onOpenChange={onOpenChange} open>
-          <SettingsDialog />
-        </Dialog>
+        <SettingsWindow />
       </QueryClientProvider>,
     );
+    await waitFor(() => expect(tauriMocks.setWindowTitle).toHaveBeenCalledWith("Settings"));
 
     await user.click(await screen.findByRole("tab", { name: "Hotkeys" }));
     const capture = await screen.findByRole("textbox", { name: "Hotkey key" });
     capture.focus();
     fireEvent.keyDown(capture, { key: "Escape", keyCode: 27 });
 
-    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
     expect(capture).toHaveValue("Esc");
 
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(tauriMocks.closeWindow).toHaveBeenCalledTimes(1);
   });
 
-  it("persists the active tab onto its modal entry so stacked dialogs can restore it", async () => {
+  it("does not close the settings window while an internal dialog is open", async () => {
     const user = userEvent.setup();
-    useModalStore.setState({ stack: [{ id: "settings-1", kind: "settings" }] });
-
-    renderDialog({ entryId: "settings-1" });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsWindow />
+      </QueryClientProvider>,
+    );
 
     await user.click(await screen.findByRole("tab", { name: "Sources" }));
+    await user.click(await screen.findByRole("button", { name: "Import configuration template" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
 
-    expect(useModalStore.getState().stack[0]?.settingsTab).toBe("sources");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
+  });
+
+  it("lets an open runtime select consume Escape without closing the settings window", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsWindow />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("tab", { name: "Core" }));
+    const logLevel = await screen.findByRole("combobox");
+    await user.click(logLevel);
+    const warningOption = await screen.findByRole("option", { name: "warning" });
+
+    fireEvent.keyDown(warningOption, { key: "Escape" });
+
+    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
   });
 });
 
-function renderDialog(props: { entryId?: string; initialTab?: SettingsTab } = {}) {
+function renderSurface(props: { initialTab?: SettingsTab } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { gcTime: 0, retry: false } },
   });
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <Dialog open>
-        <SettingsDialog {...props} />
-      </Dialog>
+      <SettingsSurface {...props} />
     </QueryClientProvider>,
   );
 }
 
 function mockDefaultIpc() {
+  ipcMocks.getWindowChromeConfig.mockResolvedValue({ titleBarLayout: "none" });
+  tauriMocks.closeWindow.mockResolvedValue(undefined);
+  tauriMocks.setWindowTitle.mockResolvedValue(undefined);
   ipcMocks.loadAppConfig.mockResolvedValue({
     CoreBasicItem: { DefUserAgent: "agent-before-edit" },
   });
+  ipcMocks.loadUiPreferences.mockResolvedValue({ language: "en", theme: "system" });
   ipcMocks.saveAppConfig.mockImplementation(async (config: unknown) => config);
+  ipcMocks.saveUiPreferences.mockImplementation(async (preferences: unknown) => preferences);
   ipcMocks.autostartStatus.mockResolvedValue({
     artifactKind: null,
     artifactName: null,

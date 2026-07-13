@@ -1,5 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +30,7 @@ vi.mock("@/features/updates", () => ({
   UpdatesPanel: () => <div data-testid="updates-panel" />,
 }));
 
-describe("ModalHost settings tab restore", () => {
+describe("ModalHost", () => {
   beforeEach(async () => {
     cleanup();
     vi.clearAllMocks();
@@ -63,8 +62,7 @@ describe("ModalHost settings tab restore", () => {
     cleanup();
   });
 
-  it("restores the active settings tab after a stacked dialog closes", async () => {
-    const user = userEvent.setup();
+  it("hosts child dialogs without owning the settings surface", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { gcTime: 0, retry: false } },
     });
@@ -76,26 +74,16 @@ describe("ModalHost settings tab restore", () => {
     );
 
     act(() => {
-      useModalStore.getState().openModal("settings");
-    });
-
-    await user.click(await screen.findByRole("tab", { name: "Sources" }));
-    await screen.findByLabelText("Geo files source");
-
-    // The templates dialog stacks above Settings; ModalHost only renders the
-    // top of the stack, so the settings content unmounts entirely.
-    act(() => {
       useModalStore.getState().openModal("fullConfigTemplate");
     });
+
     await screen.findByTestId("templates-dialog");
-    await waitFor(() =>
-      expect(screen.queryByRole("tab", { name: "Sources" })).not.toBeInTheDocument(),
-    );
+    expect(screen.queryByRole("tab", { name: "General" })).not.toBeInTheDocument();
 
     act(() => {
       useModalStore.getState().closeTopModal();
     });
 
-    expect(await screen.findByRole("tab", { name: "Sources", selected: true })).toBeInTheDocument();
+    expect(screen.queryByTestId("templates-dialog")).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 
 import { AppSidebar, SHELL_PANEL_ID } from "@/components/app-shell/app-sidebar";
 import { ModalHost } from "@/components/app-shell/modal-host";
@@ -7,7 +7,6 @@ import { TitleBar } from "@/components/app-shell/title-bar";
 import { Toaster } from "@/components/app-shell/toaster";
 import { useAcrylicWindow } from "@/components/app-shell/use-acrylic-window";
 import { useWindowChrome } from "@/components/app-shell/use-window-chrome";
-import { applyDocumentLocale } from "@voya/i18n";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { HomeScreen } from "@/features/home";
 import { ProfilesScreen } from "@/features/profiles";
@@ -15,22 +14,8 @@ import { RoutingScreen } from "@/features/routing";
 import { DnsScreen } from "@/features/dns";
 import { ClashConnectionsScreen, ClashProxiesScreen } from "@/features/clash";
 import { LogsScreen } from "@/features/logs";
-import {
-  clashStartMonitor,
-  clashStopMonitor,
-  loadAppConfig,
-  saveAppConfig,
-  useRuntimeEventStore,
-} from "@/ipc";
-import type { AppConfig_Deserialize, ClashMonitorStatus } from "@/ipc/bindings";
-import { useMountedRef } from "@voya/utils/use-mounted-ref";
-import {
-  resolveThemeMode,
-  themeModeToConfig,
-  type ThemeMode,
-  uiItemWithoutLegacyColor,
-  usePreferencesStore,
-} from "@/stores/preferences-store";
+import { clashStartMonitor, clashStopMonitor, useRuntimeEventStore } from "@/ipc";
+import type { ClashMonitorStatus } from "@/ipc/bindings";
 import { type ShellTab, useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
@@ -60,20 +45,13 @@ function renderActiveScreen(tab: ShellTab) {
 }
 
 export function AppShell() {
-  const { direction, language } = useI18n();
+  const { direction } = useI18n();
   const activeTab = useShellStore((state) => state.activeTab);
-  const themeMode = usePreferencesStore((state) => state.themeMode);
   const { titleBarLayout } = useWindowChrome();
 
-  usePersistedPreferences(language);
-  useThemeEffects(themeMode);
   useClashMonitorLifecycle(activeTab);
   // Windows borderless chrome is the only Acrylic target; the hook no-ops elsewhere.
   useAcrylicWindow(titleBarLayout === "windows");
-
-  useEffect(() => {
-    applyDocumentLocale(language);
-  }, [language]);
 
   return (
     <main className="bg-background text-foreground" dir={direction}>
@@ -108,74 +86,6 @@ export function AppShell() {
       <Toaster />
     </main>
   );
-}
-
-function usePersistedPreferences(language: string) {
-  const appConfigLoaded = usePreferencesStore((state) => state.appConfigLoaded);
-  const hydrateFromConfig = usePreferencesStore((state) => state.hydrateFromConfig);
-  const themeMode = usePreferencesStore((state) => state.themeMode);
-  const lastPersistedKeyRef = useRef<string | null>(null);
-  const loadGenerationRef = useRef(0);
-  const mountedRef = useMountedRef();
-  const persistQueueRef = useRef<Promise<void> | null>(null);
-  const persistSequenceRef = useRef(0);
-  const preferenceSnapshot = useMemo<PreferenceConfigSnapshot>(
-    () => ({ language, themeMode }),
-    [language, themeMode],
-  );
-
-  useEffect(() => {
-    if (appConfigLoaded) {
-      return undefined;
-    }
-
-    const generation = ++loadGenerationRef.current;
-
-    void loadAppConfig()
-      .then((config) => {
-        if (!mountedRef.current || generation !== loadGenerationRef.current) {
-          return;
-        }
-
-        hydrateFromConfig(config.UIItem);
-        lastPersistedKeyRef.current = preferenceConfigKey({
-          language,
-          themeMode: usePreferencesStore.getState().themeMode,
-        });
-      })
-      .catch(() => undefined);
-
-    return () => {
-      loadGenerationRef.current += 1;
-    };
-  }, [appConfigLoaded, hydrateFromConfig, language, mountedRef]);
-
-  useEffect(() => {
-    if (!appConfigLoaded || lastPersistedKeyRef.current === null) {
-      return undefined;
-    }
-
-    const persistKey = preferenceConfigKey(preferenceSnapshot);
-    if (lastPersistedKeyRef.current === persistKey) {
-      return undefined;
-    }
-
-    const sequence = ++persistSequenceRef.current;
-    const timeout = window.setTimeout(() => {
-      const queuedPersistence = persistQueueRef.current ?? Promise.resolve();
-      persistQueueRef.current = queuedPersistence
-        .catch(() => undefined)
-        .then(() => persistPreferenceConfig(preferenceSnapshot))
-        .then(() => {
-          if (persistSequenceRef.current === sequence) {
-            lastPersistedKeyRef.current = persistKey;
-          }
-        })
-        .catch(() => undefined);
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [appConfigLoaded, preferenceSnapshot]);
 }
 
 function useClashMonitorLifecycle(activeTab: ShellTab) {
@@ -372,58 +282,4 @@ function isClashTab(tab: ShellTab) {
 
 function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
-
-type PreferenceConfigSnapshot = {
-  language: string;
-  themeMode: ThemeMode;
-};
-
-function preferenceConfigKey({ language, themeMode }: PreferenceConfigSnapshot) {
-  return JSON.stringify({
-    language,
-    themeMode,
-  });
-}
-
-async function persistPreferenceConfig({
-  language,
-  themeMode,
-}: PreferenceConfigSnapshot) {
-  const config = await loadAppConfig();
-  const nextConfig = {
-    ...config,
-    UIItem: {
-      ...uiItemWithoutLegacyColor(config.UIItem),
-      CurrentLanguage: language,
-      CurrentTheme: themeModeToConfig(themeMode),
-    },
-  } satisfies AppConfig_Deserialize;
-
-  await saveAppConfig(nextConfig);
-}
-
-function useThemeEffects(themeMode: ThemeMode) {
-  useEffect(() => {
-    const root = document.documentElement;
-    const media =
-      typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : undefined;
-
-    const applyTheme = () => {
-      const resolvedTheme = resolveThemeMode(themeMode);
-
-      root.classList.toggle("dark", resolvedTheme === "dark");
-      root.style.colorScheme = resolvedTheme;
-    };
-
-    applyTheme();
-
-    if (themeMode !== "system" || !media) {
-      return undefined;
-    }
-
-    media.addEventListener("change", applyTheme);
-
-    return () => media.removeEventListener("change", applyTheme);
-  }, [themeMode]);
 }

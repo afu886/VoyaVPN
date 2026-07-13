@@ -23,6 +23,18 @@ export function closeWindow(): Promise<void> {
   return getCurrentWindow().close();
 }
 
+export function setWindowTitle(title: string): Promise<void> {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
+    return Promise.resolve();
+  }
+
+  try {
+    return getCurrentWindow().setTitle(title);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
 export function isWindowMaximized(): Promise<boolean> {
   return getCurrentWindow().isMaximized();
 }

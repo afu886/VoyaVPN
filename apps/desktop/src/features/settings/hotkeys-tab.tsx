@@ -223,9 +223,8 @@ function keyCodeFromEvent(event: KeyboardEvent<HTMLInputElement>): number | null
   }
 
   // Recording swallows the key's default action. Escape-dismissal of the
-  // Settings dialog is vetoed separately: Radix listens on document in the
-  // capture phase, so the guard lives in settings-dialog.tsx's
-  // onEscapeKeyDown, keyed off the data-hotkey-capture attribute.
+  // Settings window is vetoed separately by settings-window.tsx's capture
+  // listener, keyed off the data-hotkey-capture attribute.
   event.preventDefault();
   return event.keyCode || event.which || null;
 }

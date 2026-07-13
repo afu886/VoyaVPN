@@ -1,5 +1,20 @@
 use super::{lifecycle::*, support::*, *};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum UiThemeMode {
+    System,
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPreferences {
+    pub language: String,
+    pub theme: UiThemeMode,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn app_health() -> Result<String, AppError> {
@@ -21,6 +36,72 @@ pub fn load_app_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, A
     *guard = config.clone();
 
     Ok(config)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn load_ui_preferences(state: tauri::State<'_, AppState>) -> Result<UiPreferences, AppError> {
+    let config = current_config(&state)?;
+
+    Ok(ui_preferences_from_config(&config))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_ui_preferences<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    preferences: UiPreferences,
+) -> Result<UiPreferences, AppError> {
+    let language = preferences.language.trim();
+    validate_required_ipc_text(language, "UI language", IPC_NAME_MAX_CHARS, AppError::State)?;
+
+    let original = current_config(&state)?;
+    let mut config = original.clone();
+    config.ui_item.current_language = language.to_string();
+    config.ui_item.current_theme = Some(ui_theme_mode_to_config(preferences.theme).to_string());
+    config.ui_item.color_primary_name = None;
+    let changed = original != config;
+
+    persist_config_if_changed(&state, &original, &config)?;
+    if changed {
+        if let Err(error) = emit_ui_preferences_invalidation(&app, "ui-preferences-saved") {
+            // The preference update is already durable at this point. Treat
+            // notification delivery as best-effort so callers do not roll a
+            // successful save back to a stale local snapshot.
+            tracing::warn!(?error, "failed to broadcast UI preference invalidation");
+        }
+    }
+
+    Ok(ui_preferences_from_config(&config))
+}
+
+fn ui_preferences_from_config(config: &AppConfig) -> UiPreferences {
+    let language = config.ui_item.current_language.trim();
+    UiPreferences {
+        language: if language.is_empty() {
+            voya_core::DEFAULT_LANGUAGE.to_string()
+        } else {
+            language.to_string()
+        },
+        theme: ui_theme_mode_from_config(config.ui_item.current_theme.as_deref()),
+    }
+}
+
+fn ui_theme_mode_from_config(value: Option<&str>) -> UiThemeMode {
+    match value.map(str::trim) {
+        Some(value) if value.eq_ignore_ascii_case("dark") => UiThemeMode::Dark,
+        Some(value) if value.eq_ignore_ascii_case("light") => UiThemeMode::Light,
+        _ => UiThemeMode::System,
+    }
+}
+
+fn ui_theme_mode_to_config(theme: UiThemeMode) -> &'static str {
+    match theme {
+        UiThemeMode::System => "FollowSystem",
+        UiThemeMode::Light => "Light",
+        UiThemeMode::Dark => "Dark",
+    }
 }
 
 #[tauri::command]
@@ -255,6 +336,40 @@ mod tests {
         updated.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
 
         assert!(!saved_config_requires_runtime_restart(&original, &updated));
+    }
+
+    #[test]
+    fn ui_preferences_normalize_stored_language_and_theme() {
+        let mut config = AppConfig::default();
+        config.ui_item.current_language = "  fa  ".to_string();
+        config.ui_item.current_theme = Some("dArK".to_string());
+
+        assert_eq!(
+            ui_preferences_from_config(&config),
+            UiPreferences {
+                language: "fa".to_string(),
+                theme: UiThemeMode::Dark,
+            }
+        );
+
+        config.ui_item.current_language.clear();
+        config.ui_item.current_theme = Some("FollowSystem".to_string());
+        assert_eq!(
+            ui_preferences_from_config(&config),
+            UiPreferences {
+                language: voya_core::DEFAULT_LANGUAGE.to_string(),
+                theme: UiThemeMode::System,
+            }
+        );
+    }
+
+    #[test]
+    fn ui_theme_modes_use_existing_config_values() {
+        assert_eq!(ui_theme_mode_to_config(UiThemeMode::System), "FollowSystem");
+        assert_eq!(ui_theme_mode_to_config(UiThemeMode::Light), "Light");
+        assert_eq!(ui_theme_mode_to_config(UiThemeMode::Dark), "Dark");
+        assert_eq!(ui_theme_mode_from_config(Some("light")), UiThemeMode::Light);
+        assert_eq!(ui_theme_mode_from_config(None), UiThemeMode::System);
     }
 
     #[test]

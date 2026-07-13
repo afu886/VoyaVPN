@@ -10,47 +10,75 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("loads the app shell and key dialogs", async ({ page }) => {
+test("loads the app shell and requests the settings window", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "VoyaVPN" })).toBeVisible();
   await expect(page.getByTestId("status-bar")).toContainText("Disconnected");
   await expect(page.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { exact: true, name: "QR" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Settings" }).click();
-  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
-  await expect(settingsDialog).toBeVisible();
-  await expect(settingsDialog.getByRole("tab", { name: "General" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByText("Autostart", { exact: true })).toBeVisible();
-  await settingsDialog.getByRole("tab", { name: "Hotkeys" }).click();
-  await expect(page.getByText("Show window", { exact: true })).toBeVisible();
+
+  const openCall = await page.evaluate(() => {
+    const state = window.__VOYA_SMOKE__.state as {
+      calls: Array<{ args: Record<string, unknown>; command: string }>;
+    };
+    return state.calls.filter((call) => call.command === "open_settings_window").at(-1);
+  });
+  expect(openCall).toEqual({ args: {}, command: "open_settings_window" });
+  await expect(page.getByRole("dialog", { name: "Settings" })).toHaveCount(0);
+});
+
+test("loads the dedicated settings surface", async ({ page }) => {
+  await page.goto("/?window=settings");
+
+  const settings = page.getByRole("region", { name: "Settings" });
+  await expect(settings).toBeVisible();
+  await expect(settings.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+  await expect(settings.getByText("Autostart", { exact: true })).toBeVisible();
+
+  await settings.getByRole("tab", { name: "Hotkeys" }).click();
+  await expect(settings.getByText("Show window", { exact: true })).toBeVisible();
+
+  const hotkeyCapture = settings.getByRole("textbox", { name: "Hotkey key" }).first();
+  await hotkeyCapture.focus();
   await page.keyboard.press("Escape");
-  await expect(settingsDialog).toBeHidden();
+  await expect(hotkeyCapture).toHaveValue("Esc");
+
+  const closeCallsWhileRecording = await page.evaluate(() => {
+    const state = window.__VOYA_SMOKE__.state as {
+      calls: Array<{ command: string }>;
+    };
+    return state.calls.filter((call) => call.command === "plugin:window|close").length;
+  });
+  expect(closeCallsWhileRecording).toBe(0);
+
+  await hotkeyCapture.blur();
+  await page.keyboard.press("Escape");
+  await expect.poll(async () =>
+    page.evaluate(() => {
+      const state = window.__VOYA_SMOKE__.state as {
+        calls: Array<{ command: string }>;
+      };
+      return state.calls.filter((call) => call.command === "plugin:window|close").length;
+    }),
+  ).toBe(1);
 });
 
 test("imports the default configuration template from the Settings sources card", async ({ page }) => {
-  const sidebar = page.locator("aside");
-  await expect(sidebar.getByRole("button", { name: "Regional presets" })).toHaveCount(0);
-  await expect(sidebar.getByRole("button", { exact: true, name: "Default" })).toHaveCount(0);
-  await expect(sidebar.getByRole("button", { exact: true, name: "Russia" })).toHaveCount(0);
-  await expect(sidebar.getByRole("button", { exact: true, name: "Iran" })).toHaveCount(0);
+  await page.goto("/?window=settings");
 
-  await page.getByRole("button", { name: "Settings" }).click();
-  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
-  await expect(settingsDialog).toBeVisible();
-  await settingsDialog.getByRole("tab", { name: "Sources" }).click();
+  const settings = page.getByRole("region", { name: "Settings" });
+  await settings.getByRole("tab", { name: "Sources" }).click();
 
-  const geoSource = settingsDialog.getByLabel("Geo files source");
-  const srsSource = settingsDialog.getByLabel("sing-box ruleset source");
-  const routingSource = settingsDialog.getByLabel("Routing template source");
-  const importButton = settingsDialog.getByRole("button", {
+  const geoSource = settings.getByLabel("Geo files source");
+  const srsSource = settings.getByLabel("sing-box ruleset source");
+  const routingSource = settings.getByLabel("Routing template source");
+  const importButton = settings.getByRole("button", {
     exact: true,
     name: "Import configuration template",
   });
 
-  await expect(settingsDialog.getByRole("tab", { name: "Sources" })).toHaveAttribute(
+  await expect(settings.getByRole("tab", { name: "Sources" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
@@ -84,11 +112,9 @@ test("imports the default configuration template from the Settings sources card"
   await expect(applyButton).toBeDisabled();
   await templateDialog.getByRole("button", { name: /^Custom/ }).click();
   await expect(applyButton).toBeEnabled();
-  await templateDialog
-    .locator('[data-slot="dialog-footer"]')
-    .getByRole("button", { exact: true, name: "Close" })
-    .click();
+  await page.keyboard.press("Escape");
   await expect(templateDialog).toBeHidden();
+  await expect(settings).toBeVisible();
 
   await expect(geoSource).toHaveValue(drafts.geo);
   await expect(srsSource).toHaveValue(drafts.srs);

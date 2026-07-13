@@ -11,7 +11,9 @@ import {
   clashStartMonitor,
   clashStopMonitor,
   loadAppConfig,
+  loadUiPreferences,
   saveAppConfig,
+  saveUiPreferences,
 } from "@/ipc";
 import type {
   AppConfig_Serialize,
@@ -276,8 +278,10 @@ vi.mock("@/ipc", () => ({
       },
     }),
   ),
+  loadUiPreferences: vi.fn(() => Promise.resolve({ language: "en", theme: "system" })),
   moveRoutingRule: vi.fn(),
   moveProfile: vi.fn(),
+  openSettingsWindow: vi.fn(() => Promise.resolve()),
   previewGroupProfile: vi.fn(() =>
     Promise.resolve({
       validation: { childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] },
@@ -301,6 +305,7 @@ vi.mock("@/ipc", () => ({
   saveRoutingRule: vi.fn(),
   saveConfigSources: vi.fn((settings) => Promise.resolve(settings)),
   saveAppConfig: vi.fn((config) => Promise.resolve(config)),
+  saveUiPreferences: vi.fn((preferences) => Promise.resolve(preferences)),
   saveDnsSettings: vi.fn(),
   saveSubscription: vi.fn(),
   setActiveProfile: vi.fn(),
@@ -460,17 +465,16 @@ describe("App", () => {
     runtimeStoreMock.reset();
     useShellStore.setState({ activeTab: "profiles" });
     useToastStore.setState({ toasts: [] });
-    // Reset the persisted preferences singleton so each test re-hydrates from
-    // its own loadAppConfig mock; otherwise a prior test leaves appConfigLoaded
-    // true and the theme hydration effect short-circuits.
-    usePreferencesStore.setState({
-      appConfigLoaded: false,
-      themeMode: "system",
-    });
+    usePreferencesStore.setState({ themeMode: "system" });
+    window.history.replaceState({}, "", "/");
     window.localStorage.clear();
     document.documentElement.className = "";
     vi.mocked(loadAppConfig).mockClear();
+    vi.mocked(loadUiPreferences).mockReset();
+    vi.mocked(loadUiPreferences).mockResolvedValue({ language: "en", theme: "system" });
     vi.mocked(saveAppConfig).mockClear();
+    vi.mocked(saveUiPreferences).mockReset();
+    vi.mocked(saveUiPreferences).mockImplementation(async (preferences) => preferences);
     vi.mocked(clashCloseConnection).mockClear();
     vi.mocked(clashListConnections).mockClear();
     vi.mocked(clashStartMonitor).mockClear();
@@ -523,57 +527,30 @@ describe("App", () => {
     expect(screen.getByTestId("status-bar")).toHaveTextContent("Route: /home");
   });
 
-  it("switches document direction through the RTL locale", async () => {
-    const user = userEvent.setup();
-
+  it("applies the backend RTL locale to the main surface", async () => {
+    vi.mocked(loadUiPreferences).mockResolvedValue({ language: "fa", theme: "system" });
     renderApp();
 
-    // Language selection now lives in the Settings modal rather than a header
-    // toggle, so reach the RTL locale through the status bar's Settings entry.
-    await user.click(screen.getByRole("button", { name: "Settings" }));
-    await user.click(screen.getByRole("button", { name: "FA" }));
-
     await waitFor(() => expect(document.documentElement).toHaveAttribute("dir", "rtl"));
-
-    // The modal traps focus and hides the rest of the tree, so close it before
-    // asserting the now-Farsi sidebar nav.
-    await user.click(screen.getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
     expect(screen.getByRole("tab", { name: /نمایه/ })).toBeInTheDocument();
   });
 
-  it("hydrates and persists the theme through app config", async () => {
-    const user = userEvent.setup();
-    vi.mocked(loadAppConfig).mockResolvedValue(
-      makeAppConfig({
-        UIItem: makeUiItem({
-          ColorPrimaryName: "Rose",
-          CurrentTheme: "Dark",
-        }),
-      }),
-    );
+  it("hydrates the theme through the dedicated preferences query", async () => {
+    vi.mocked(loadUiPreferences).mockResolvedValue({ language: "en", theme: "dark" });
 
     renderApp();
 
     await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+  });
 
-    await user.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.queryByRole("heading", { name: "Font" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Font size")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Light" }));
+  it("renders the settings surface only for the internal settings window URL", async () => {
+    window.history.replaceState({}, "", "/?window=settings");
 
-    await waitFor(() => {
-      const savedConfig = vi.mocked(saveAppConfig).mock.calls.at(-1)?.[0];
+    renderApp();
 
-      expect(savedConfig?.UIItem).toMatchObject({ CurrentTheme: "Light" });
-      expect(savedConfig?.UIItem).not.toHaveProperty("CurrentFontFamily");
-      expect(savedConfig?.UIItem).not.toHaveProperty("CurrentFontSize");
-      expect(savedConfig?.UIItem).not.toHaveProperty("ColorPrimaryName");
-    });
-
-    await user.click(screen.getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
   });
 
   it("shows Clash Connections immediately and defers monitor plus query work", async () => {

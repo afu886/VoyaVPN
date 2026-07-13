@@ -10,6 +10,8 @@ macro_rules! collect_ipc_commands {
             commands::app_health,
             commands::load_app_config,
             commands::save_app_config::<tauri::Wry>,
+            commands::load_ui_preferences,
+            commands::save_ui_preferences::<tauri::Wry>,
             commands::diagnostics_status,
             commands::set_diagnostics_enabled,
             commands::autostart_status,
@@ -93,6 +95,7 @@ macro_rules! collect_ipc_commands {
             commands::manual_app_update_links,
             commands::install_core_seed,
             window::get_window_chrome_config,
+            window::open_settings_window::<tauri::Wry>,
             window::set_window_acrylic,
             $($extra_command)*
         ]
@@ -146,6 +149,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::updates::UpdateAcquisition>()
         .typ::<voya_app::updates::UpdateResultStatus>()
         .typ::<voya_app::updates::ConfigSourceSettings>()
+        .typ::<commands::UiPreferences>()
+        .typ::<commands::UiThemeMode>()
         .typ::<commands::AppUpdateDiagnosticAction>()
         .typ::<commands::AppUpdateDiagnosticResult>()
         .typ::<voya_app::autostart::AutostartStatus>()

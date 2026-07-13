@@ -131,6 +131,8 @@ export async function installTauriSmokeMock(page: Page) {
         case "plugin:event|emit":
         case "plugin:event|emit_to":
         case "plugin:resources|close":
+        case "plugin:window|close":
+        case "plugin:window|set_title":
           return Promise.resolve(null);
         case "plugin:app|version":
           return Promise.resolve("0.1.0");
@@ -153,6 +155,17 @@ export async function installTauriSmokeMock(page: Page) {
         case "save_app_config": {
           state.appConfig = mergeDeep(state.appConfig, readRecord(args, "config"));
           return Promise.resolve(clone(state.appConfig));
+        }
+        case "open_settings_window":
+          return Promise.resolve(null);
+        case "load_ui_preferences":
+          return Promise.resolve(uiPreferencesFromConfig());
+        case "save_ui_preferences": {
+          const preferences = readRecord(args, "preferences");
+          state.appConfig.UIItem.ColorPrimaryName = null;
+          state.appConfig.UIItem.CurrentLanguage = String(preferences.language ?? "en");
+          state.appConfig.UIItem.CurrentTheme = themeModeToConfig(preferences.theme);
+          return Promise.resolve(uiPreferencesFromConfig());
         }
         case "runtime_status":
           return Promise.resolve(clone(state.runtime));
@@ -481,6 +494,11 @@ export async function installTauriSmokeMock(page: Page) {
 
     window.__TAURI_INTERNALS__ = {
       invoke,
+      metadata: {
+        currentWindow: {
+          label: window.location.search.includes("window=settings") ? "settings" : "main",
+        },
+      },
       transformCallback(callback: Callback) {
         const id = nextCallbackId++;
         callbacks.set(id, callback);
@@ -723,11 +741,31 @@ export async function installTauriSmokeMock(page: Page) {
         },
         TunModeItem: {},
         UIItem: {
-          ColorPrimaryName: "Teal",
+          ColorPrimaryName: "Teal" as string | null,
           CurrentLanguage: "en",
           CurrentTheme: "FollowSystem",
         },
       };
+    }
+
+    function uiPreferencesFromConfig() {
+      const currentTheme = String(state.appConfig.UIItem.CurrentTheme ?? "").toLowerCase();
+
+      return {
+        language: String(state.appConfig.UIItem.CurrentLanguage ?? "en"),
+        theme: currentTheme === "dark" ? "dark" : currentTheme === "light" ? "light" : "system",
+      };
+    }
+
+    function themeModeToConfig(theme: unknown) {
+      switch (theme) {
+        case "dark":
+          return "Dark";
+        case "light":
+          return "Light";
+        default:
+          return "FollowSystem";
+      }
     }
 
     function makeDnsSettings() {
@@ -839,6 +877,11 @@ declare global {
     };
     __TAURI_INTERNALS__: {
       invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+      metadata: {
+        currentWindow: {
+          label: string;
+        };
+      };
       transformCallback: (callback: (event: { id: number; event: string; payload: unknown }) => void) => number;
       unregisterCallback: (id: number) => void;
     };

@@ -20,7 +20,13 @@ type RegisteredUnlisten = {
   unlisten: Unlisten;
 };
 
-export function EventBridge() {
+export type EventBridgeSurface = "main" | "settings";
+
+type EventBridgeProps = {
+  surface?: EventBridgeSurface;
+};
+
+export function EventBridge({ surface = "main" }: EventBridgeProps) {
   const queryClient = useQueryClient();
   const mountedRef = useMountedRef();
   const listenerGenerationRef = useRef(0);
@@ -30,33 +36,42 @@ export function EventBridge() {
       return undefined;
     }
 
-    void useRuntimeEventStore
-      .getState()
-      .refreshSpeedtestStatus()
-      .catch((error: unknown) => {
-        reportEventBridgeError("failed to refresh speedtest status", error);
-      });
+    if (surface === "main") {
+      void useRuntimeEventStore
+        .getState()
+        .refreshSpeedtestStatus()
+        .catch((error: unknown) => {
+          reportEventBridgeError("failed to refresh speedtest status", error);
+        });
+    }
 
     const generation = ++listenerGenerationRef.current;
     const unlisteners: RegisteredUnlisten[] = [];
 
-    void Promise.allSettled([
+    const listenerRegistrations = [
       registerEventListener("invalidateEvent", () =>
         events.invalidateEvent.listen((event) => {
           routeInvalidation(event.payload, queryClient);
         }),
       ),
-      registerEventListener("transientStreamEvent", () =>
-        events.transientStreamEvent.listen((event) => {
-          routeTransientStream(event.payload);
-        }),
-      ),
       registerEventListener("appEvent", () =>
         events.appEvent.listen((event) => {
-          routeAppEvent(event.payload);
+          routeAppEvent(event.payload, surface);
         }),
       ),
-    ]);
+    ];
+
+    if (surface === "main") {
+      listenerRegistrations.push(
+        registerEventListener("transientStreamEvent", () =>
+          events.transientStreamEvent.listen((event) => {
+            routeTransientStream(event.payload);
+          }),
+        ),
+      );
+    }
+
+    void Promise.allSettled(listenerRegistrations);
 
     function registerEventListener(eventName: string, listen: () => Promise<Unlisten>) {
       let registration: Promise<Unlisten>;
@@ -86,7 +101,7 @@ export function EventBridge() {
       listenerGenerationRef.current += 1;
       drainUnlisteners(unlisteners);
     };
-  }, [mountedRef, queryClient]);
+  }, [mountedRef, queryClient, surface]);
 
   return null;
 }
@@ -129,7 +144,7 @@ function routeTransientStream(event: TransientStreamEvent) {
   useRuntimeEventStore.getState().pushTransientEvent(event);
 }
 
-function routeAppEvent(event: AppEvent) {
+function routeAppEvent(event: AppEvent, surface: EventBridgeSurface) {
   switch (event.kind) {
     case "notice":
       useToastStore.getState().pushToast({
@@ -138,7 +153,9 @@ function routeAppEvent(event: AppEvent) {
       });
       return;
     case "selectTab":
-      useShellStore.getState().setActiveTab(toShellTab(event.payload));
+      if (surface === "main") {
+        useShellStore.getState().setActiveTab(toShellTab(event.payload));
+      }
       return;
   }
 }

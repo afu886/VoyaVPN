@@ -55,6 +55,7 @@ import type {
   SystemProxyStatusResponse,
   TunProviderDiagnostics,
   TunStatus,
+  UiPreferences,
   UpdateRunResult,
   UpdateStatus,
   WindowChromeConfig,
@@ -82,6 +83,18 @@ export async function loadAppConfig(): Promise<AppConfig_Serialize> {
 
 export async function saveAppConfig(config: AppConfig_Deserialize): Promise<AppConfig_Serialize> {
   return unwrapCommandResult(await commands.saveAppConfig(config));
+}
+
+export async function loadUiPreferences(): Promise<UiPreferences> {
+  return unwrapCommandResult(await commands.loadUiPreferences());
+}
+
+export async function saveUiPreferences(preferences: UiPreferences): Promise<UiPreferences> {
+  return unwrapCommandResult(await commands.saveUiPreferences(preferences));
+}
+
+export async function openSettingsWindow(): Promise<void> {
+  unwrapCommandResult(await commands.openSettingsWindow());
 }
 
 export async function diagnosticsStatus(): Promise<DiagnosticsStatus> {

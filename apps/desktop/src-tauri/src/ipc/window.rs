@@ -1,7 +1,11 @@
 use serde::Serialize;
 use specta::Type;
+use tauri::Manager;
 
 use super::commands::AppError;
+use crate::AppState;
+
+const SETTINGS_WINDOW_LABEL: &str = "settings";
 
 /// Title-bar layout selected per platform. Windows uses a fully self-drawn
 /// borderless bar (minimize/maximize/close + drag region); every other platform
@@ -34,6 +38,53 @@ pub fn get_window_chrome_config() -> Result<WindowChromeConfig, AppError> {
     let title_bar_layout = TitleBarLayout::None;
 
     Ok(WindowChromeConfig { title_bar_layout })
+}
+
+/// Open the settings window from its fixed Tauri configuration template.
+/// Serializing creation avoids a check-then-create race when the user invokes
+/// the command more than once before the first webview has finished building.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_settings_window<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let _creation_guard = state.settings_window_lock().lock().await;
+
+    if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
+        return restore_settings_window(&window);
+    }
+
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|config| config.label == SETTINGS_WINDOW_LABEL)
+        .cloned()
+        .ok_or_else(|| AppError::State("settings window configuration is missing".to_string()))?;
+    let window = tauri::WebviewWindowBuilder::from_config(&app, &config)
+        .map_err(|error| AppError::State(error.to_string()))?
+        .build()
+        .map_err(|error| AppError::State(error.to_string()))?;
+
+    restore_settings_window(&window)
+}
+
+fn restore_settings_window<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) -> Result<(), AppError> {
+    window
+        .unminimize()
+        .map_err(|error| AppError::State(error.to_string()))?;
+    window
+        .show()
+        .map_err(|error| AppError::State(error.to_string()))?;
+    window
+        .set_focus()
+        .map_err(|error| AppError::State(error.to_string()))?;
+
+    Ok(())
 }
 
 /// Tint the Windows Acrylic blur material to match the in-app light/dark theme.

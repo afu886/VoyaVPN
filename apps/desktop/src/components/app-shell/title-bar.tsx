@@ -12,14 +12,14 @@ import { useI18n } from "@voya/i18n/use-i18n";
  * and never mounts this (see `app-shell.tsx`). The app name lives in the sidebar
  * `h1`, so the brand text here is a plain label rather than a second heading.
  */
-export function TitleBar() {
+export function TitleBar({ title }: { title?: string }) {
   const { t } = useI18n();
 
   return (
     <header className="col-span-2 flex h-10 shrink-0 items-center bg-sidebar text-sidebar-foreground select-none">
       <div className="flex shrink-0 items-center gap-2 ps-3 pe-2">
         <BrandMark className="size-4 shrink-0 rounded-sm" aria-hidden="true" />
-        <span className="text-xs font-semibold leading-none">{t("app.name")}</span>
+        <span className="text-xs font-semibold leading-none">{title ?? t("app.name")}</span>
       </div>
 
       <div data-tauri-drag-region className="min-w-0 flex-1 self-stretch" />
