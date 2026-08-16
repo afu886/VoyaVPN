@@ -102,7 +102,6 @@ export function SecurityPanel({
         <SelectField control={control} label={t("panes.profiles.fields.tlsMode")} name="StreamSecurity" options={SECURITY_OPTIONS} />
         <TextField label={t("panes.profiles.fields.sni")} {...register("Sni")} />
         <TextField label={t("panes.profiles.fields.alpn")} {...register("Alpn")} />
-        <TextField label={t("panes.profiles.fields.fingerprint")} {...register("Fingerprint")} />
         <TextField
           label={reality ? t("panes.profiles.fields.realityPublicKey") : t("panes.profiles.fields.publicKey")}
           {...register("PublicKey")}

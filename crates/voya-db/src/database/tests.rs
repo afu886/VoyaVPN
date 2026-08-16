@@ -3,8 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::AppConfigStore;
 use sqlx::Row;
 use voya_core::{
-    ConfigType, FullConfigTemplateItem, ProfileExItem, ProfileItem, ProtocolExtraItem, RoutingItem,
-    RuleType, RulesItem, ServerStatItem, SubItem, SysProxyType, TransportExtraItem,
+    ConfigType, ProfileExItem, ProfileItem, ProtocolExtraItem, RoutingItem, RuleType, RulesItem,
+    ServerStatItem, SubItem, SysProxyType, TransportExtraItem,
 };
 
 use super::*;
@@ -39,6 +39,9 @@ async fn migrated_profile_schema_omits_obsolete_columns() {
         "id",
         "security",
         "core_type",
+        "allow_insecure",
+        "fingerprint",
+        "mux_enabled",
     ] {
         assert!(
             !columns.iter().any(|column| column == obsolete),
@@ -51,67 +54,87 @@ async fn migrated_profile_schema_omits_obsolete_columns() {
 }
 
 #[tokio::test]
-async fn full_config_template_repository_round_trips_default_template() {
+async fn retired_raw_dns_and_full_template_tables_are_absent() {
     let database = Database::connect_in_memory()
         .await
         .expect("database test operation should succeed");
-    let item = FullConfigTemplateItem {
-        id: "template-sing-box".to_string(),
-        remarks: "sing-box template".to_string(),
-        enabled: true,
-        config: Some(r#"{"outbounds":[]}"#.to_string()),
-        tun_config: Some(r#"{"inbounds":[]}"#.to_string()),
-        add_proxy_only: Some(true),
-        proxy_detour: Some("proxy".to_string()),
-    };
-
-    database
-        .full_config_templates()
-        .upsert(&item)
-        .await
-        .expect("database test operation should succeed");
-    let loaded = database
-        .full_config_templates()
-        .get_default()
-        .await
-        .expect("database test operation should succeed")
-        .expect("template should be present");
-
-    assert_eq!(loaded, item);
-}
-
-#[tokio::test]
-async fn dns_schema_omits_core_type_column() {
-    let database = Database::connect_in_memory()
-        .await
-        .expect("database test operation should succeed");
-    let rows = sqlx::query("PRAGMA table_info(dns_items)")
+    let rows = sqlx::query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('dns_items', 'full_config_template_items')",
+    )
         .fetch_all(database.pool())
         .await
         .expect("database test operation should succeed");
-    let columns = rows
-        .iter()
-        .map(|row| row.get::<String, _>("name"))
-        .collect::<Vec<_>>();
 
-    assert!(!columns.iter().any(|column| column == "core_type"));
+    assert!(rows.is_empty());
 }
 
 #[tokio::test]
-async fn full_config_template_schema_omits_core_type_column() {
-    let database = Database::connect_in_memory()
+async fn convergence_migration_discards_node_overrides_and_raw_configuration() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
         .await
         .expect("database test operation should succeed");
-    let rows = sqlx::query("PRAGMA table_info(full_config_template_items)")
-        .fetch_all(database.pool())
+    sqlx::raw_sql(include_str!("../../migrations/0001_fresh_schema.sql"))
+        .execute(&pool)
         .await
-        .expect("database test operation should succeed");
-    let columns = rows
-        .iter()
-        .map(|row| row.get::<String, _>("name"))
-        .collect::<Vec<_>>();
+        .expect("initial schema should apply");
+    sqlx::raw_sql(include_str!(
+        "../../migrations/0002_drop_core_type_columns.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("second migration should apply");
+    sqlx::query(
+        r#"INSERT INTO profile_items (
+            index_id, config_type, allow_insecure, fingerprint, mux_enabled, protocol_extra
+        ) VALUES ('legacy', 7, 'true', 'firefox', 1,
+            '{"UpMbps":80,"DownMbps":160,"HopInterval":"20","Ports":"443-445"}')"#,
+    )
+    .execute(&pool)
+    .await
+    .expect("legacy profile should insert");
+    sqlx::query(
+        "INSERT INTO dns_items (id, remarks, enabled, use_system_hosts) VALUES ('dns', 'raw', 1, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect("legacy DNS should insert");
+    sqlx::query(
+        "INSERT INTO full_config_template_items (id, remarks, enabled) VALUES ('template', 'raw', 1)",
+    )
+    .execute(&pool)
+    .await
+    .expect("legacy template should insert");
 
-    assert!(!columns.iter().any(|column| column == "core_type"));
+    sqlx::raw_sql(include_str!(
+        "../../migrations/0003_converge_global_profile_dns_templates.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("convergence migration should apply");
+
+    let protocol_extra: String =
+        sqlx::query_scalar("SELECT protocol_extra FROM profile_items WHERE index_id = 'legacy'")
+            .fetch_one(&pool)
+            .await
+            .expect("migrated profile should remain");
+    let extra: serde_json::Value =
+        serde_json::from_str(&protocol_extra).expect("protocol extra should remain valid JSON");
+    assert_eq!(
+        extra.get("Ports").and_then(serde_json::Value::as_str),
+        Some("443-445")
+    );
+    for retired in ["UpMbps", "DownMbps", "HopInterval"] {
+        assert!(extra.get(retired).is_none(), "{retired} should be removed");
+    }
+    let retired_tables: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('dns_items', 'full_config_template_items')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("table catalog should be readable");
+    assert_eq!(retired_tables, 0);
 }
 
 #[tokio::test]

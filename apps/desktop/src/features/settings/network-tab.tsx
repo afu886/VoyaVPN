@@ -1,136 +1,64 @@
 import { Separator } from "@voya/ui/components/separator";
 import { useI18n } from "@voya/i18n/use-i18n";
-import type { SysProxyType } from "@/ipc/bindings";
 
-import { CheckboxField, NumberField, SelectField, TextField } from "./runtime-fields";
-import { RuntimeSaveRow } from "./runtime-save-row";
+import { CheckboxField, NumberField, TextField } from "./runtime-fields";
 import { SettingsCheckboxGroup, SettingsGroup, SettingsRow } from "./settings-form";
-import { nullableText, type RuntimeConfigController } from "./use-runtime-config";
+import type { SettingsBundleController } from "./use-settings-bundle";
 
-const sysProxyOptions: Array<{ labelKey: string; value: SysProxyType }> = [
-  { labelKey: "resx.menuSystemProxyClear", value: 0 },
-  { labelKey: "resx.menuSystemProxySet", value: 1 },
-  { labelKey: "resx.menuSystemProxyNothing", value: 2 },
-  { labelKey: "resx.menuSystemProxyPac", value: 3 },
-];
-
-export function NetworkTab({ controller }: { controller: RuntimeConfigController }) {
+export function NetworkTab({ controller }: { controller: SettingsBundleController }) {
   const { t } = useI18n();
-  const { config, error, patchSection, working } = controller;
+  const { bundle, error, update, working } = controller;
 
-  if (!config) {
+  if (!bundle) {
     return <p className="text-xs text-muted-foreground">{working ? t("options.loading") : error}</p>;
   }
+
+  const patchTun = (patch: Partial<typeof bundle.network.tun>) =>
+    update((current) => ({
+      ...current,
+      network: {
+        ...current.network,
+        tun: { ...current.network.tun, ...patch },
+      },
+    }));
+  const patchSystemProxy = (patch: Partial<typeof bundle.network.systemProxy>) =>
+    update((current) => ({
+      ...current,
+      network: {
+        ...current.network,
+        systemProxy: { ...current.network.systemProxy, ...patch },
+      },
+    }));
 
   return (
     <div className="grid gap-4">
       <SettingsGroup>
         <SettingsCheckboxGroup id="rt-tun-group" label={t("resx.TbSettingsTunMode")}>
-          <CheckboxField
-            checked={config.TunModeItem.EnableTun ?? false}
-            label={t("resx.TbEnableTunAs")}
-            onChange={(EnableTun) => patchSection("TunModeItem", { EnableTun })}
-          />
-          <CheckboxField
-            checked={config.TunModeItem.AutoRoute ?? false}
-            label={t("resx.TbSettingsTunAutoRoute")}
-            onChange={(AutoRoute) => patchSection("TunModeItem", { AutoRoute })}
-          />
-          <CheckboxField
-            checked={config.TunModeItem.StrictRoute ?? false}
-            label={t("resx.TbSettingsTunStrictRoute")}
-            onChange={(StrictRoute) => patchSection("TunModeItem", { StrictRoute })}
-          />
-          <CheckboxField
-            checked={config.TunModeItem.EnableIPv6Address ?? false}
-            label={t("resx.TbSettingsEnableIPv6Address")}
-            onChange={(EnableIPv6Address) => patchSection("TunModeItem", { EnableIPv6Address })}
-          />
-          <CheckboxField
-            checked={config.TunModeItem.EnableLegacyProtect ?? false}
-            label={t("resx.TbLegacyProtect")}
-            onChange={(EnableLegacyProtect) => patchSection("TunModeItem", { EnableLegacyProtect })}
-          />
+          <CheckboxField checked={bundle.network.tun.autoRoute} label={t("resx.TbSettingsTunAutoRoute")} onChange={(autoRoute) => patchTun({ autoRoute })} />
+          <CheckboxField checked={bundle.network.tun.strictRoute} label={t("resx.TbSettingsTunStrictRoute")} onChange={(strictRoute) => patchTun({ strictRoute })} />
+          <CheckboxField checked={bundle.network.tun.enableIpv6Address} label={t("resx.TbSettingsEnableIPv6Address")} onChange={(enableIpv6Address) => patchTun({ enableIpv6Address })} />
+          <CheckboxField checked={bundle.network.tun.enableLegacyProtect} label={t("resx.TbLegacyProtect")} onChange={(enableLegacyProtect) => patchTun({ enableLegacyProtect })} />
         </SettingsCheckboxGroup>
-        <TextField
-          id="rt-tun-stack"
-          label={t("resx.TbSettingsTunStack")}
-          onChange={(Stack) => patchSection("TunModeItem", { Stack })}
-          value={config.TunModeItem.Stack ?? ""}
-        />
-        <NumberField
-          id="rt-tun-mtu"
-          label={t("resx.TbMtu")}
-          onChange={(Mtu) => patchSection("TunModeItem", { Mtu: Mtu ?? 0 })}
-          value={config.TunModeItem.Mtu ?? null}
-        />
-        <TextField
-          id="rt-tun-icmp-routing"
-          label={t("resx.TbIcmpRoutingPolicy")}
-          onChange={(IcmpRouting) => patchSection("TunModeItem", { IcmpRouting })}
-          value={config.TunModeItem.IcmpRouting ?? ""}
-        />
+        <TextField id="rt-tun-stack" label={t("resx.TbSettingsTunStack")} onChange={(stack) => patchTun({ stack })} value={bundle.network.tun.stack} />
+        <NumberField id="rt-tun-mtu" label={t("resx.TbMtu")} onChange={(mtu) => patchTun({ mtu: mtu ?? 1500 })} value={bundle.network.tun.mtu} />
+        <TextField id="rt-tun-icmp-routing" label={t("resx.TbIcmpRoutingPolicy")} onChange={(icmpRouting) => patchTun({ icmpRouting })} value={bundle.network.tun.icmpRouting} />
       </SettingsGroup>
 
       <Separator />
 
       <SettingsGroup>
-        <SelectField
-          id="rt-sysproxy-type"
-          label={t("resx.menuSystemproxy")}
-          onChange={(value) => patchSection("SystemProxyItem", { SysProxyType: Number(value) })}
-          optionLabel={(value) =>
-            t(sysProxyOptions.find((option) => option.value === Number(value))?.labelKey ?? value)
-          }
-          options={sysProxyOptions.map((option) => String(option.value))}
-          value={String(config.SystemProxyItem.SysProxyType)}
-        />
         <SettingsRow>
-          <CheckboxField
-            checked={config.SystemProxyItem.NotProxyLocalAddress}
-            label={t("resx.TbSettingsNotProxyLocalAddress")}
-            onChange={(NotProxyLocalAddress) => patchSection("SystemProxyItem", { NotProxyLocalAddress })}
-          />
+          <CheckboxField checked={bundle.network.systemProxy.notProxyLocalAddress} label={t("resx.TbSettingsNotProxyLocalAddress")} onChange={(notProxyLocalAddress) => patchSystemProxy({ notProxyLocalAddress })} />
         </SettingsRow>
-        <TextField
-          id="rt-sysproxy-exceptions"
-          label={t("resx.TbSettingsException")}
-          onChange={(SystemProxyExceptions) => patchSection("SystemProxyItem", { SystemProxyExceptions })}
-          value={config.SystemProxyItem.SystemProxyExceptions}
-        />
-        <TextField
-          id="rt-sysproxy-advanced-protocol"
-          label={t("resx.TbSettingsAdvancedProtocol")}
-          onChange={(SystemProxyAdvancedProtocol) =>
-            patchSection("SystemProxyItem", { SystemProxyAdvancedProtocol })
-          }
-          value={config.SystemProxyItem.SystemProxyAdvancedProtocol}
-        />
-        <TextField
-          id="rt-sysproxy-pac-path"
-          label={t("resx.TbSettingsCustomSystemProxyPacPath")}
-          onChange={(CustomSystemProxyPacPath) =>
-            patchSection("SystemProxyItem", { CustomSystemProxyPacPath: nullableText(CustomSystemProxyPacPath) })
-          }
-          value={config.SystemProxyItem.CustomSystemProxyPacPath ?? ""}
-        />
-        <TextField
-          id="rt-sysproxy-script-path"
-          label={t("resx.TbSettingsCustomSystemProxyScriptPath")}
-          onChange={(CustomSystemProxyScriptPath) =>
-            patchSection("SystemProxyItem", {
-              CustomSystemProxyScriptPath: nullableText(CustomSystemProxyScriptPath),
-            })
-          }
-          value={config.SystemProxyItem.CustomSystemProxyScriptPath ?? ""}
-        />
+        <TextField id="rt-sysproxy-exceptions" label={t("resx.TbSettingsException")} onChange={(systemProxyExceptions) => patchSystemProxy({ systemProxyExceptions })} value={bundle.network.systemProxy.systemProxyExceptions} />
+        <TextField id="rt-sysproxy-advanced-protocol" label={t("resx.TbSettingsAdvancedProtocol")} onChange={(systemProxyAdvancedProtocol) => patchSystemProxy({ systemProxyAdvancedProtocol })} value={bundle.network.systemProxy.systemProxyAdvancedProtocol} />
+        <TextField id="rt-sysproxy-pac-path" label={t("resx.TbSettingsCustomSystemProxyPacPath")} onChange={(value) => patchSystemProxy({ customSystemProxyPacPath: nullableText(value) })} value={bundle.network.systemProxy.customSystemProxyPacPath ?? ""} />
+        <TextField id="rt-sysproxy-script-path" label={t("resx.TbSettingsCustomSystemProxyScriptPath")} onChange={(value) => patchSystemProxy({ customSystemProxyScriptPath: nullableText(value) })} value={bundle.network.systemProxy.customSystemProxyScriptPath ?? ""} />
       </SettingsGroup>
-
-      <Separator />
-
-      <SettingsRow>
-        <RuntimeSaveRow controller={controller} />
-      </SettingsRow>
     </div>
   );
+}
+
+function nullableText(value: string): string | null {
+  return value.trim() ? value : null;
 }

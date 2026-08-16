@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use thiserror::Error;
-use voya_core::{AppConfig, DnsItem, RoutingItem};
+use voya_core::{AppConfig, RoutingItem};
 use voya_db::{Database, DbError};
 use voya_net::ruleset::{
     collect_singbox_ruleset_assets, discover_local_singbox_ruleset_paths, geo_assets,
@@ -19,6 +19,11 @@ pub enum UpdateManagerError {
     Database(#[from] DbError),
     #[error(transparent)]
     RulesetGeo(#[from] RulesetGeoError),
+    #[error("invalid {label}: {reason}")]
+    InvalidSourceUrl {
+        label: &'static str,
+        reason: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
@@ -91,8 +96,7 @@ impl<'db> UpdateManager<'db> {
         proxy_url: Option<String>,
     ) -> Result<Vec<ResourceUpdateFile>> {
         let routings = self.database.routings().list().await?;
-        let dns_items = self.database.dns().list().await?;
-        let assets = collect_srs_assets(config, &routings, &dns_items);
+        let assets = collect_srs_assets(config, &routings);
         let srs_dir = self.paths.bin_dir().join("srss");
         let acquired = self
             .ruleset_geo
@@ -112,7 +116,7 @@ pub fn source_settings(config: &AppConfig) -> ConfigSourceSettings {
     }
 }
 
-pub(crate) fn apply_source_settings(
+pub fn apply_source_settings(
     config: &mut AppConfig,
     settings: ConfigSourceSettings,
 ) -> ConfigSourceSettings {
@@ -123,22 +127,37 @@ pub(crate) fn apply_source_settings(
     source_settings(config)
 }
 
+pub fn validate_optional_source_url(label: &'static str, value: Option<&str>) -> Result<()> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    let parsed = reqwest::Url::parse(value).map_err(|_| UpdateManagerError::InvalidSourceUrl {
+        label,
+        reason: "expected an absolute HTTP or HTTPS URL",
+    })?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+        return Err(UpdateManagerError::InvalidSourceUrl {
+            label,
+            reason: "expected an absolute HTTP or HTTPS URL",
+        });
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(UpdateManagerError::InvalidSourceUrl {
+            label,
+            reason: "embedded credentials are not allowed",
+        });
+    }
+    Ok(())
+}
+
 #[must_use]
 pub fn local_singbox_ruleset_paths(paths: &AppPaths) -> BTreeMap<String, String> {
     discover_local_singbox_ruleset_paths(paths.bin_dir().join("srss"))
 }
 
 #[must_use]
-pub fn collect_srs_assets(
-    config: &AppConfig,
-    routings: &[RoutingItem],
-    dns_items: &[DnsItem],
-) -> Vec<SrsAsset> {
-    collect_singbox_ruleset_assets(
-        config.const_item.srs_source_url.as_deref(),
-        routings,
-        dns_items,
-    )
+pub fn collect_srs_assets(config: &AppConfig, routings: &[RoutingItem]) -> Vec<SrsAsset> {
+    collect_singbox_ruleset_assets(config.const_item.srs_source_url.as_deref(), routings)
 }
 
 fn asset_acquisition_options(proxy_url: Option<String>) -> AssetAcquisitionOptions {
@@ -189,6 +208,27 @@ mod tests {
             saved.route_rules_template_source_url.as_deref(),
             Some("https://example.com/routing.json")
         );
+    }
+
+    #[test]
+    fn source_url_validation_accepts_templates_and_rejects_unsafe_shapes() {
+        validate_optional_source_url("Geo source URL", Some("https://example.com/geo/{0}.dat"))
+            .expect("template URL should be valid");
+        validate_optional_source_url(
+            "subscription converter URL",
+            Some("http://localhost:25500/sub"),
+        )
+        .expect("local converter URL should be valid");
+
+        assert!(validate_optional_source_url("source URL", Some("../rules.json")).is_err());
+        assert!(
+            validate_optional_source_url("source URL", Some("ftp://example.com/rules")).is_err()
+        );
+        assert!(validate_optional_source_url(
+            "source URL",
+            Some("https://user:secret@example.com/rules")
+        )
+        .is_err());
     }
 
     #[test]

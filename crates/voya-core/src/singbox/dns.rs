@@ -1,15 +1,6 @@
 use super::*;
 
 pub(super) fn gen_dns(config: &mut SingboxConfig, context: &CoreConfigContext) {
-    if context
-        .raw_dns_item
-        .as_ref()
-        .is_some_and(|item| item.enabled)
-    {
-        gen_dns_custom(config, context);
-        return;
-    }
-
     gen_dns_servers(config, context);
     gen_dns_rules(config, context);
 
@@ -366,93 +357,6 @@ fn dns_rule_has_matcher(rule: &SingboxRule) -> bool {
             .rule_set
             .as_ref()
             .is_some_and(|items| !items.is_empty())
-}
-
-fn gen_dns_custom(config: &mut SingboxConfig, context: &CoreConfigContext) {
-    let Some(item) = context.raw_dns_item.as_ref() else {
-        return;
-    };
-    let custom_dns = if context.is_tun_enabled {
-        item.tun_dns.as_deref()
-    } else {
-        item.normal_dns.as_deref()
-    }
-    .filter(|value| !value.trim().is_empty())
-    .unwrap_or(DEFAULT_SINGBOX_DNS_NORMAL);
-    let Ok(mut dns) = serde_json::from_str::<SingboxDns>(custom_dns) else {
-        return;
-    };
-    gen_dns_protect_custom(&mut dns, context);
-    apply_tun_dns_reverse_mapping(&mut dns, context);
-    config.dns = Some(dns);
-}
-
-fn gen_dns_protect_custom(dns: &mut SingboxDns, context: &CoreConfigContext) {
-    let final_dns_address = context
-        .raw_dns_item
-        .as_ref()
-        .and_then(|item| nonempty_string(item.domain_dns_address.as_deref()))
-        .unwrap_or_else(|| DEFAULT_BOOTSTRAP_DNS.to_string());
-    if !dns_server_tag_exists(dns, SINGBOX_LOCAL_DNS_TAG) {
-        if let Some(mut local_dns_server) = parse_dns_address(&final_dns_address) {
-            local_dns_server.tag = SINGBOX_LOCAL_DNS_TAG.to_string();
-            dns.servers.push(local_dns_server);
-        }
-    }
-
-    let global_server_tag = custom_dns_global_server_tag(dns);
-    if let Some(global_server_tag) = global_server_tag.as_ref() {
-        dns.rules.insert(
-            0,
-            SingboxRule {
-                server: Some(global_server_tag.clone()),
-                clash_mode: Some("Global".to_string()),
-                ..SingboxRule::default()
-            },
-        );
-    }
-
-    if dns_server_tag_exists(dns, SINGBOX_LOCAL_DNS_TAG) {
-        dns.rules.insert(
-            0,
-            SingboxRule {
-                server: Some(SINGBOX_LOCAL_DNS_TAG.to_string()),
-                clash_mode: Some("Direct".to_string()),
-                ..SingboxRule::default()
-            },
-        );
-    }
-
-    if let Some(global_server_tag) = global_server_tag.as_deref() {
-        dns.rules.insert(
-            0,
-            priority_proxy_dns_rule(global_server_tag, priority_proxy_dns_strategy(context)),
-        );
-    }
-
-    if !context.protect_domain_list.is_empty() && dns_server_tag_exists(dns, SINGBOX_LOCAL_DNS_TAG)
-    {
-        dns.rules.insert(
-            0,
-            SingboxRule {
-                server: Some(SINGBOX_LOCAL_DNS_TAG.to_string()),
-                domain: Some(context.protect_domain_list.clone()),
-                ..SingboxRule::default()
-            },
-        );
-    }
-}
-
-fn custom_dns_global_server_tag(dns: &SingboxDns) -> Option<String> {
-    dns.servers
-        .iter()
-        .find(|server| server.detour.as_deref() == Some(PROXY_TAG))
-        .or_else(|| dns.servers.first())
-        .map(|server| server.tag.clone())
-}
-
-fn dns_server_tag_exists(dns: &SingboxDns, tag: &str) -> bool {
-    dns.servers.iter().any(|server| server.tag == tag)
 }
 
 fn final_dns_uses_direct(context: &CoreConfigContext) -> bool {

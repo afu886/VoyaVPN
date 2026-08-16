@@ -15,6 +15,50 @@ pub struct UiPreferences {
     pub theme: UiThemeMode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TunAdvancedSettings {
+    pub auto_route: bool,
+    pub strict_route: bool,
+    pub stack: String,
+    pub mtu: i32,
+    pub enable_ipv6_address: bool,
+    pub icmp_routing: String,
+    pub enable_legacy_protect: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemProxyAdvancedSettings {
+    pub system_proxy_exceptions: String,
+    pub not_proxy_local_address: bool,
+    pub system_proxy_advanced_protocol: String,
+    pub custom_system_proxy_pac_path: Option<String>,
+    pub custom_system_proxy_script_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkSettings {
+    pub tun: TunAdvancedSettings,
+    pub system_proxy: SystemProxyAdvancedSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsBundle {
+    pub ui_preferences: UiPreferences,
+    pub autostart_enabled: bool,
+    pub show_window_hotkey: KeyEventItem,
+    pub sources: ConfigSourceSettings,
+    pub sub_convert_url: Option<String>,
+    pub core_basic_item: voya_core::CoreBasicItem,
+    pub mux4_sbox_item: voya_core::Mux4SboxItem,
+    pub hysteria_item: voya_core::HysteriaItem,
+    pub network: NetworkSettings,
+    pub speed_test_item: voya_core::SpeedTestItem,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn app_health() -> Result<String, AppError> {
@@ -48,32 +92,257 @@ pub fn load_ui_preferences(state: tauri::State<'_, AppState>) -> Result<UiPrefer
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_ui_preferences<R: tauri::Runtime>(
+pub fn load_settings_bundle(state: tauri::State<'_, AppState>) -> Result<SettingsBundle, AppError> {
+    Ok(settings_bundle_from_config(&current_config(&state)?))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_settings_bundle<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    preferences: UiPreferences,
-) -> Result<UiPreferences, AppError> {
-    let language = preferences.language.trim();
-    validate_required_ipc_text(language, "UI language", IPC_NAME_MAX_CHARS, AppError::State)?;
+    bundle: SettingsBundle,
+) -> Result<SettingsBundle, AppError> {
+    validate_settings_bundle(&bundle)?;
 
     let original = current_config(&state)?;
-    let mut config = original.clone();
-    config.ui_item.current_language = language.to_string();
-    config.ui_item.current_theme = Some(ui_theme_mode_to_config(preferences.theme).to_string());
-    config.ui_item.color_primary_name = None;
-    let changed = original != config;
+    let target = apply_settings_bundle(&original, bundle)?;
+    let runtime_changed = saved_config_requires_runtime_restart(&original, &target);
+    let system_proxy_changed = original.system_proxy_item != target.system_proxy_item;
+    let side_effects = TauriSettingsSideEffects {
+        autostart: AutostartManager::new(),
+        hotkeys: HotkeyManager::new(std::sync::Arc::new(TauriHotkeyRegistrar {
+            app: app.clone(),
+        })),
+    };
+    let applied_side_effects = match apply_settings_side_effects(&side_effects, &original, &target)
+    {
+        Ok(applied) => applied,
+        Err(failure) => {
+            tracing::error!(stage = ?failure.stage, error = ?failure.source, "settings side effect failed");
+            log_settings_compensation_errors(&failure.compensation_errors);
+            return Err(failure.source);
+        }
+    };
 
-    persist_config_if_changed(&state, &original, &config)?;
-    if changed {
-        if let Err(error) = emit_ui_preferences_invalidation(&app, "ui-preferences-saved") {
-            // The preference update is already durable at this point. Treat
-            // notification delivery as best-effort so callers do not roll a
-            // successful save back to a stale local snapshot.
-            tracing::warn!(?error, "failed to broadcast UI preference invalidation");
+    if let Err(error) = persist_config_if_changed(&state, &original, &target) {
+        let compensation_errors =
+            compensate_settings_side_effects(&side_effects, &original, applied_side_effects);
+        log_settings_compensation_errors(&compensation_errors);
+        return Err(error);
+    }
+
+    let apply_result = match settings_runtime_action(runtime_changed, system_proxy_changed) {
+        SettingsRuntimeAction::Restart => {
+            restart_if_connected_after_config_change(&app, &state, &target, "Settings saved").await
+        }
+        SettingsRuntimeAction::ReapplySystemProxy => {
+            apply_system_proxy_if_connected_after_config_change(&app, &state, &target).await
+        }
+        SettingsRuntimeAction::None => Ok(()),
+    };
+
+    if let Err(error) = apply_result {
+        if let Err(rollback_error) = persist_config_if_changed(&state, &target, &original) {
+            tracing::error!(?rollback_error, "failed to roll back settings persistence");
+        }
+        let compensation_errors =
+            compensate_settings_side_effects(&side_effects, &original, applied_side_effects);
+        log_settings_compensation_errors(&compensation_errors);
+        return Err(error);
+    }
+
+    if original != target {
+        if let Err(error) = emit_settings_bundle_invalidation(&app, "settings-bundle-saved") {
+            tracing::error!(
+                ?error,
+                "failed to broadcast committed settings invalidation"
+            );
         }
     }
 
-    Ok(ui_preferences_from_config(&config))
+    Ok(settings_bundle_from_config(&target))
+}
+
+fn settings_bundle_from_config(config: &AppConfig) -> SettingsBundle {
+    let mut show_window_hotkey = config
+        .global_hotkeys
+        .iter()
+        .find(|item| item.global_hotkey == GlobalHotkey::ShowForm)
+        .cloned()
+        .unwrap_or_default();
+    show_window_hotkey.global_hotkey = GlobalHotkey::ShowForm;
+
+    SettingsBundle {
+        ui_preferences: ui_preferences_from_config(config),
+        autostart_enabled: config.gui_item.auto_run,
+        show_window_hotkey,
+        sources: voya_app::updates::source_settings(config),
+        sub_convert_url: config.const_item.sub_convert_url.clone(),
+        core_basic_item: config.core_basic_item.clone(),
+        mux4_sbox_item: config.mux4_sbox_item.clone(),
+        hysteria_item: config.hysteria_item.clone(),
+        network: NetworkSettings {
+            tun: TunAdvancedSettings {
+                auto_route: config.tun_mode_item.auto_route,
+                strict_route: config.tun_mode_item.strict_route,
+                stack: config.tun_mode_item.stack.clone(),
+                mtu: config.tun_mode_item.mtu,
+                enable_ipv6_address: config.tun_mode_item.enable_ipv6_address,
+                icmp_routing: config.tun_mode_item.icmp_routing.clone(),
+                enable_legacy_protect: config.tun_mode_item.enable_legacy_protect,
+            },
+            system_proxy: SystemProxyAdvancedSettings {
+                system_proxy_exceptions: config.system_proxy_item.system_proxy_exceptions.clone(),
+                not_proxy_local_address: config.system_proxy_item.not_proxy_local_address,
+                system_proxy_advanced_protocol: config
+                    .system_proxy_item
+                    .system_proxy_advanced_protocol
+                    .clone(),
+                custom_system_proxy_pac_path: config
+                    .system_proxy_item
+                    .custom_system_proxy_pac_path
+                    .clone(),
+                custom_system_proxy_script_path: config
+                    .system_proxy_item
+                    .custom_system_proxy_script_path
+                    .clone(),
+            },
+        },
+        speed_test_item: config.speed_test_item.clone(),
+    }
+}
+
+fn apply_settings_bundle(
+    latest: &AppConfig,
+    mut bundle: SettingsBundle,
+) -> Result<AppConfig, AppError> {
+    let mut target = latest.clone();
+    target.ui_item.current_language = bundle.ui_preferences.language.trim().to_string();
+    target.ui_item.current_theme =
+        Some(ui_theme_mode_to_config(bundle.ui_preferences.theme).to_string());
+    target.ui_item.color_primary_name = None;
+    target.gui_item.auto_run = bundle.autostart_enabled;
+
+    bundle.show_window_hotkey.global_hotkey = GlobalHotkey::ShowForm;
+    HotkeyManager::new(std::sync::Arc::new(voya_app::hotkeys::NoopHotkeyRegistrar))
+        .save_settings(&mut target, vec![bundle.show_window_hotkey])
+        .map_err(hotkey_error)?;
+
+    voya_app::updates::apply_source_settings(&mut target, bundle.sources);
+    target.const_item.sub_convert_url = clean_optional_setting(bundle.sub_convert_url);
+    target.core_basic_item = bundle.core_basic_item;
+    target.mux4_sbox_item = bundle.mux4_sbox_item;
+    target.hysteria_item = bundle.hysteria_item;
+    target.speed_test_item = bundle.speed_test_item;
+
+    target.tun_mode_item.auto_route = bundle.network.tun.auto_route;
+    target.tun_mode_item.strict_route = bundle.network.tun.strict_route;
+    target.tun_mode_item.stack = bundle.network.tun.stack.trim().to_string();
+    target.tun_mode_item.mtu = bundle.network.tun.mtu;
+    target.tun_mode_item.enable_ipv6_address = bundle.network.tun.enable_ipv6_address;
+    target.tun_mode_item.icmp_routing = bundle.network.tun.icmp_routing.trim().to_string();
+    target.tun_mode_item.enable_legacy_protect = bundle.network.tun.enable_legacy_protect;
+
+    target.system_proxy_item.system_proxy_exceptions = bundle
+        .network
+        .system_proxy
+        .system_proxy_exceptions
+        .trim()
+        .to_string();
+    target.system_proxy_item.not_proxy_local_address =
+        bundle.network.system_proxy.not_proxy_local_address;
+    target.system_proxy_item.system_proxy_advanced_protocol = bundle
+        .network
+        .system_proxy
+        .system_proxy_advanced_protocol
+        .trim()
+        .to_string();
+    target.system_proxy_item.custom_system_proxy_pac_path =
+        clean_optional_setting(bundle.network.system_proxy.custom_system_proxy_pac_path);
+    target.system_proxy_item.custom_system_proxy_script_path =
+        clean_optional_setting(bundle.network.system_proxy.custom_system_proxy_script_path);
+
+    Ok(target)
+}
+
+fn validate_settings_bundle(bundle: &SettingsBundle) -> Result<(), AppError> {
+    validate_required_ipc_text(
+        bundle.ui_preferences.language.trim(),
+        "UI language",
+        IPC_NAME_MAX_CHARS,
+        AppError::State,
+    )?;
+    for (label, value) in [
+        ("Geo source URL", bundle.sources.geo_source_url.as_deref()),
+        ("SRS source URL", bundle.sources.srs_source_url.as_deref()),
+        (
+            "routing template source URL",
+            bundle.sources.route_rules_template_source_url.as_deref(),
+        ),
+        (
+            "subscription converter URL",
+            bundle.sub_convert_url.as_deref(),
+        ),
+    ] {
+        validate_optional_ipc_text(value, label, IPC_PROXY_URL_MAX_CHARS, AppError::State)?;
+        voya_app::updates::validate_optional_source_url(label, value)
+            .map_err(|error| AppError::State(error.to_string()))?;
+    }
+    if !(576..=65_535).contains(&bundle.network.tun.mtu) {
+        return Err(AppError::State(
+            "TUN MTU must be between 576 and 65535".to_string(),
+        ));
+    }
+    if bundle.hysteria_item.up_mbps < 0 || bundle.hysteria_item.down_mbps < 0 {
+        return Err(AppError::State(
+            "Hysteria bandwidth values cannot be negative".to_string(),
+        ));
+    }
+    if bundle.hysteria_item.hop_interval < 5 {
+        return Err(AppError::State(
+            "Hysteria hop interval must be at least 5 seconds".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn clean_optional_setting(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[derive(Clone)]
+struct TauriSettingsSideEffects {
+    autostart: AutostartManager,
+    hotkeys: HotkeyManager,
+}
+
+impl SettingsSideEffectAdapter for TauriSettingsSideEffects {
+    type Error = AppError;
+
+    fn apply_autostart(&self, config: &AppConfig) -> Result<(), Self::Error> {
+        let mut config = config.clone();
+        let enabled = config.gui_item.auto_run;
+        self.autostart
+            .set_enabled(&mut config, enabled)
+            .map(|_| ())
+            .map_err(autostart_error)
+    }
+
+    fn apply_hotkeys(&self, config: &AppConfig) -> Result<(), Self::Error> {
+        self.hotkeys
+            .register_from_config(config)
+            .map(|_| ())
+            .map_err(hotkey_error)
+    }
+}
+
+fn log_settings_compensation_errors(errors: &[AppError]) {
+    for error in errors {
+        tracing::error!(?error, "failed to compensate settings side effect");
+    }
 }
 
 fn ui_preferences_from_config(config: &AppConfig) -> UiPreferences {
@@ -102,95 +371,6 @@ fn ui_theme_mode_to_config(theme: UiThemeMode) -> &'static str {
         UiThemeMode::Light => "Light",
         UiThemeMode::Dark => "Dark",
     }
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn save_app_config<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    config: AppConfig,
-) -> Result<AppConfig, AppError> {
-    let original = current_config(&state)?;
-    let runtime_changed = saved_config_requires_runtime_restart(&original, &config);
-    let system_proxy_changed = original.system_proxy_item != config.system_proxy_item;
-    let tun_enabled_changed = original.tun_mode_item.enable_tun != config.tun_mode_item.enable_tun;
-
-    persist_config_if_changed(&state, &original, &config)?;
-
-    if original != config {
-        if tun_enabled_changed {
-            let status = tun_manager(&state).status(&config).map_err(tun_error)?;
-            emit_tun_changed(&app, &status)?;
-        }
-        if runtime_changed {
-            restart_if_connected_after_config_change(&app, &state, &config, "Config saved").await?;
-        } else if system_proxy_changed {
-            apply_system_proxy_if_connected_after_config_change(&app, &state, &config).await?;
-        }
-        crate::refresh_tray_menu(&app).map_err(|error| AppError::State(error.to_string()))?;
-    }
-
-    Ok(config)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn autostart_status(state: tauri::State<'_, AppState>) -> Result<AutostartStatus, AppError> {
-    let config = current_config(&state)?;
-
-    AutostartManager::new()
-        .status(&config)
-        .map_err(autostart_error)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn set_autostart_enabled<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    enabled: bool,
-) -> Result<AutostartStatus, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let status = AutostartManager::new()
-        .set_enabled(&mut config, enabled)
-        .map_err(autostart_error)?;
-
-    persist_config_if_changed(&state, &original, &config)?;
-    emit_app_config_invalidation(&app, "autostart-updated")?;
-
-    Ok(status)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn global_hotkey_status(state: tauri::State<'_, AppState>) -> Result<HotkeyStatus, AppError> {
-    let config = current_config(&state)?;
-
-    HotkeyManager::new(std::sync::Arc::new(voya_app::hotkeys::NoopHotkeyRegistrar))
-        .status(&config)
-        .map_err(hotkey_error)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn save_global_hotkeys<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    settings: Vec<KeyEventItem>,
-) -> Result<HotkeyStatus, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let registrar = std::sync::Arc::new(TauriHotkeyRegistrar { app: app.clone() });
-    let status = HotkeyManager::new(registrar)
-        .save_settings(&mut config, settings)
-        .map_err(hotkey_error)?;
-
-    persist_config_if_changed(&state, &original, &config)?;
-    emit_app_config_invalidation(&app, "global-hotkeys-updated")?;
-
-    Ok(status)
 }
 
 #[tauri::command]
@@ -337,6 +517,36 @@ mod tests {
         assert_eq!(ui_theme_mode_to_config(UiThemeMode::Dark), "Dark");
         assert_eq!(ui_theme_mode_from_config(Some("light")), UiThemeMode::Light);
         assert_eq!(ui_theme_mode_from_config(None), UiThemeMode::System);
+    }
+
+    #[test]
+    fn settings_bundle_preserves_home_owned_tun_and_proxy_modes() {
+        let mut latest = AppConfig::default();
+        latest.tun_mode_item.enable_tun = true;
+        latest.system_proxy_item.sys_proxy_type = SysProxyType::Pac;
+        let mut bundle = settings_bundle_from_config(&latest);
+        bundle.network.tun.mtu = 8_500;
+        bundle.network.system_proxy.system_proxy_exceptions = "localhost".to_string();
+
+        let target = apply_settings_bundle(&latest, bundle).expect("bundle should apply");
+
+        assert!(target.tun_mode_item.enable_tun);
+        assert_eq!(target.system_proxy_item.sys_proxy_type, SysProxyType::Pac);
+        assert_eq!(target.tun_mode_item.mtu, 8_500);
+        assert_eq!(
+            target.system_proxy_item.system_proxy_exceptions,
+            "localhost"
+        );
+    }
+
+    #[test]
+    fn settings_bundle_validation_rejects_the_complete_draft_before_apply() {
+        let config = AppConfig::default();
+        let mut bundle = settings_bundle_from_config(&config);
+        bundle.network.tun.mtu = 100;
+
+        assert!(validate_settings_bundle(&bundle).is_err());
+        assert_eq!(config, AppConfig::default());
     }
 
     #[test]

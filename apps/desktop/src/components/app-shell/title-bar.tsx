@@ -12,7 +12,7 @@ import { useI18n } from "@voya/i18n/use-i18n";
  * and never mounts this (see `app-shell.tsx`). The app name lives in the sidebar
  * `h1`, so the brand text here is a plain label rather than a second heading.
  */
-export function TitleBar({ title }: { title?: string }) {
+export function TitleBar({ onClose, title }: { onClose?: () => void; title?: string }) {
   const { t } = useI18n();
 
   return (
@@ -24,7 +24,7 @@ export function TitleBar({ title }: { title?: string }) {
 
       <div data-tauri-drag-region className="min-w-0 flex-1 self-stretch" />
 
-      <WindowControls />
+      <WindowControls onClose={onClose} />
     </header>
   );
 }

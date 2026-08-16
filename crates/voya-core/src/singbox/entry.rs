@@ -22,7 +22,7 @@ pub fn generate_singbox_config_value(
     context: &CoreConfigContext,
 ) -> Result<Value, SingboxConfigError> {
     let config = generate_singbox_config(context)?;
-    Ok(apply_full_config_template(context, &config))
+    Ok(value_from_config(&config))
 }
 
 pub fn generate_singbox_config_json(

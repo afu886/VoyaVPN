@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use thiserror::Error;
 use voya_core::{
-    export_inner_share_links, export_share_link, generate_singbox_config_json, AppConfig,
-    CoreConfigContextBuilder, ProfileItem, ShareError, SingboxConfigError,
+    export_inner_share_links, export_share_link_with_options, generate_singbox_config_json,
+    AppConfig, CoreConfigContextBuilder, ProfileItem, ShareError, ShareLinkOptions,
+    SingboxConfigError,
 };
 use voya_db::{Database, DbError};
 use voya_platform::{coreinfo::TargetOs, paths::AppPaths};
@@ -70,9 +71,9 @@ impl<'db> ExportManager<'db> {
     ) -> Result<ExportProfilesResult> {
         let profiles = self.load_profiles(&request.index_ids).await?;
         let text = match request.format {
-            ExportProfilesFormat::ShareLinks => export_share_links(&profiles)?,
+            ExportProfilesFormat::ShareLinks => export_share_links(&profiles, config)?,
             ExportProfilesFormat::ShareLinksBase64 => {
-                BASE64_STANDARD.encode(export_share_links(&profiles)?)
+                BASE64_STANDARD.encode(export_share_links(&profiles, config)?)
             }
             ExportProfilesFormat::InnerLinks => export_inner_share_links(&profiles)?,
             ExportProfilesFormat::ClientConfig => {
@@ -124,10 +125,17 @@ impl<'db> ExportManager<'db> {
     }
 }
 
-fn export_share_links(profiles: &[ProfileItem]) -> Result<String> {
+fn export_share_links(profiles: &[ProfileItem], config: &AppConfig) -> Result<String> {
+    let options = ShareLinkOptions {
+        allow_insecure: config.core_basic_item.def_allow_insecure,
+        fingerprint: config.core_basic_item.def_fingerprint.clone(),
+        hysteria_up_mbps: config.hysteria_item.up_mbps,
+        hysteria_down_mbps: config.hysteria_item.down_mbps,
+        hysteria_hop_interval: config.hysteria_item.hop_interval,
+    };
     profiles
         .iter()
-        .map(export_share_link)
+        .map(|profile| export_share_link_with_options(profile, &options))
         .collect::<std::result::Result<Vec<_>, _>>()
         .map(|links| links.join("\n"))
         .map_err(ExportManagerError::from)

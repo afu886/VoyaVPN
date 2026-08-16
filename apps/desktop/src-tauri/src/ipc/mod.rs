@@ -9,13 +9,9 @@ macro_rules! collect_ipc_commands {
         collect_commands![
             commands::app_health,
             commands::load_app_config,
-            commands::save_app_config::<tauri::Wry>,
             commands::load_ui_preferences,
-            commands::save_ui_preferences::<tauri::Wry>,
-            commands::autostart_status,
-            commands::set_autostart_enabled::<tauri::Wry>,
-            commands::global_hotkey_status,
-            commands::save_global_hotkeys::<tauri::Wry>,
+            commands::load_settings_bundle,
+            commands::save_settings_bundle::<tauri::Wry>,
             commands::generate_qr_code,
             commands::scan_screen_qr,
             commands::fetch_certificate,
@@ -33,8 +29,6 @@ macro_rules! collect_ipc_commands {
             commands::set_tun_enabled::<tauri::Wry>,
             commands::load_dns_settings,
             commands::save_dns_settings::<tauri::Wry>,
-            commands::load_full_config_templates,
-            commands::save_full_config_template::<tauri::Wry>,
             commands::list_profiles,
             commands::get_profile,
             commands::save_profile::<tauri::Wry>,
@@ -84,7 +78,6 @@ macro_rules! collect_ipc_commands {
             commands::speedtest_status,
             commands::app_update_status::<tauri::Wry>,
             commands::load_config_sources,
-            commands::save_config_sources::<tauri::Wry>,
             commands::update_geo_assets,
             commands::update_srs_assets,
             commands::install_core_seed,
@@ -116,7 +109,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_core::SubscriptionUpdateResult>()
         .typ::<voya_core::RoutingItem>()
         .typ::<voya_core::RulesItem>()
-        .typ::<voya_core::DnsItem>()
         .typ::<voya_app::dns::DnsSettings>()
         .typ::<voya_app::dns::DnsValidationIssue>()
         .typ::<voya_app::presets::ConfigTemplateSelection>()
@@ -137,6 +129,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::updates::ConfigSourceSettings>()
         .typ::<commands::UiPreferences>()
         .typ::<commands::UiThemeMode>()
+        .typ::<commands::SettingsBundle>()
+        .typ::<commands::NetworkSettings>()
         .typ::<voya_app::autostart::AutostartStatus>()
         .typ::<voya_app::autostart::AutostartPlatform>()
         .typ::<voya_app::hotkeys::HotkeyStatus>()
@@ -164,7 +158,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_core::GroupPreviewBalancer>()
         .typ::<voya_core::ProfileSortKey>()
         .typ::<voya_core::MoveAction>()
-        .typ::<voya_core::FullConfigTemplateItem>()
         .typ::<voya_core::ServerStatItem>()
         .typ::<window::WindowChromeConfig>()
         .commands(ipc_commands())

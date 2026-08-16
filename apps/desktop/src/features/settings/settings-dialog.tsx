@@ -1,20 +1,23 @@
 import { useState } from "react";
-import { Cpu, Gauge, Globe2, Keyboard, Network, RefreshCw, Settings2, type LucideIcon } from "lucide-react";
+import { Cpu, Gauge, Globe2, Network, RefreshCw, Settings2, type LucideIcon } from "lucide-react";
 
+import { Button } from "@voya/ui/components/button";
 import { Tabs, TabsContent } from "@voya/ui/components/tabs";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { UpdatesPanel } from "@/features/updates";
 
 import { CoreTab } from "./core-tab";
 import { GeneralTab } from "./general-tab";
-import { HotkeysTab } from "./hotkeys-tab";
 import { NetworkTab } from "./network-tab";
 import { SettingsTabBar, SettingsTabTrigger } from "./settings-tabs";
 import { SourcesTab } from "./sources-tab";
 import { TestsTab } from "./tests-tab";
-import { useRuntimeConfig } from "./use-runtime-config";
+import {
+  useSettingsBundle,
+  type SettingsBundleController,
+} from "./use-settings-bundle";
 
-export type SettingsTab = "core" | "general" | "hotkeys" | "network" | "sources" | "tests" | "updates";
+export type SettingsTab = "core" | "general" | "network" | "sources" | "tests" | "updates";
 
 const tabDefs: Array<{ icon: LucideIcon; labelKey: string; value: SettingsTab }> = [
   { icon: Settings2, labelKey: "settings.tabGeneral", value: "general" },
@@ -22,25 +25,42 @@ const tabDefs: Array<{ icon: LucideIcon; labelKey: string; value: SettingsTab }>
   { icon: Cpu, labelKey: "options.runtimeCore", value: "core" },
   { icon: Network, labelKey: "options.runtimeNetwork", value: "network" },
   { icon: Gauge, labelKey: "settings.tabTests", value: "tests" },
-  { icon: Keyboard, labelKey: "settings.tabHotkeys", value: "hotkeys" },
   { icon: RefreshCw, labelKey: "settings.tabUpdates", value: "updates" },
 ];
 
 const tabValues = new Set<SettingsTab>(tabDefs.map((def) => def.value));
 
-export function SettingsSurface({ initialTab = "general" }: { initialTab?: SettingsTab }) {
+export function SettingsSurface({
+  controller,
+  initialTab = "general",
+}: {
+  controller?: SettingsBundleController;
+  initialTab?: SettingsTab;
+}) {
+  if (controller) {
+    return <SettingsSurfaceView controller={controller} initialTab={initialTab} />;
+  }
+  return <OwnedSettingsSurface initialTab={initialTab} />;
+}
+
+function OwnedSettingsSurface({ initialTab }: { initialTab: SettingsTab }) {
+  const controller = useSettingsBundle();
+  return <SettingsSurfaceView controller={controller} initialTab={initialTab} />;
+}
+
+function SettingsSurfaceView({
+  controller,
+  initialTab,
+}: {
+  controller: SettingsBundleController;
+  initialTab: SettingsTab;
+}) {
   const { direction, t } = useI18n();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
-  // Panes mount lazily on first visit and then stay mounted (hidden) so tab
-  // switches never drop in-flight work or unsaved sources/hotkeys drafts, while
-  // per-tab IPC still only fires on explicit intent.
   const [visited, setVisited] = useState<ReadonlySet<SettingsTab>>(() => new Set([initialTab]));
-  const runtime = useRuntimeConfig();
 
   function handleTabChange(value: string) {
-    if (!tabValues.has(value as SettingsTab)) {
-      return;
-    }
+    if (!tabValues.has(value as SettingsTab)) return;
     const next = value as SettingsTab;
     setTab(next);
     setVisited((current) => (current.has(next) ? current : new Set(current).add(next)));
@@ -52,12 +72,8 @@ export function SettingsSurface({ initialTab = "general" }: { initialTab?: Setti
       aria-labelledby="settings-window-title"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <h1 className="sr-only" id="settings-window-title">
-        {t("modal.settings")}
-      </h1>
-      <p className="sr-only" id="settings-window-description">
-        {t("modal.settingsDescription")}
-      </p>
+      <h1 className="sr-only" id="settings-window-title">{t("modal.settings")}</h1>
+      <p className="sr-only" id="settings-window-description">{t("modal.settingsDescription")}</p>
       <Tabs className="flex min-h-0 flex-1 flex-col gap-0" dir={direction} onValueChange={handleTabChange} value={tab}>
         <SettingsTabBar>
           {tabDefs.map((def) => (
@@ -66,36 +82,54 @@ export function SettingsSurface({ initialTab = "general" }: { initialTab?: Setti
         </SettingsTabBar>
         <div className="min-h-0 flex-1">
           {tabDefs.map((def) => (
-            <TabsContent
-              key={def.value}
-              className="h-full overflow-y-auto px-8 py-6 data-[state=inactive]:hidden"
-              forceMount
-              value={def.value}
-            >
-              {visited.has(def.value) ? <SettingsPane runtime={runtime} tab={def.value} /> : null}
+            <TabsContent key={def.value} className="h-full overflow-y-auto px-8 py-6 data-[state=inactive]:hidden" forceMount value={def.value}>
+              {visited.has(def.value) ? <SettingsPane controller={controller} tab={def.value} /> : null}
             </TabsContent>
           ))}
         </div>
       </Tabs>
+
+      <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t bg-background px-8 py-3">
+        <Button disabled={!controller.dirty || controller.working} onClick={() => void controller.save()} type="button">
+          {t("settings.saveAll")}
+        </Button>
+        <Button disabled={!controller.dirty || controller.working} onClick={() => void controller.discard()} type="button" variant="outline">
+          {t("settings.discardChanges")}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {controller.dirty ? t("settings.unsavedChanges") : controller.saved ? t("options.saved") : null}
+        </span>
+        {controller.error ? <span className="text-xs text-destructive" role="alert">{controller.error}</span> : null}
+      </footer>
     </section>
   );
 }
 
-function SettingsPane({ runtime, tab }: { runtime: ReturnType<typeof useRuntimeConfig>; tab: SettingsTab }) {
+function SettingsPane({
+  controller,
+  tab,
+}: {
+  controller: SettingsBundleController;
+  tab: SettingsTab;
+}) {
+  const { t } = useI18n();
   switch (tab) {
     case "general":
-      return <GeneralTab />;
+      return <GeneralTab controller={controller} />;
     case "sources":
-      return <SourcesTab />;
+      return <SourcesTab controller={controller} />;
     case "core":
-      return <CoreTab controller={runtime} />;
+      return <CoreTab controller={controller} />;
     case "network":
-      return <NetworkTab controller={runtime} />;
+      return <NetworkTab controller={controller} />;
     case "tests":
-      return <TestsTab controller={runtime} />;
-    case "hotkeys":
-      return <HotkeysTab />;
+      return <TestsTab controller={controller} />;
     case "updates":
-      return <UpdatesPanel />;
+      return (
+        <fieldset className="grid gap-2" disabled={controller.dirty}>
+          {controller.dirty ? <p className="text-xs text-muted-foreground">{t("settings.saveBeforeActions")}</p> : null}
+          <UpdatesPanel />
+        </fieldset>
+      );
   }
 }

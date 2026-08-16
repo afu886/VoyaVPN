@@ -3,13 +3,7 @@ use std::collections::BTreeSet;
 use thiserror::Error;
 use voya_core::{GlobalHotkey, KeyEventItem};
 
-pub const HOTKEY_ACTIONS: [GlobalHotkey; 5] = [
-    GlobalHotkey::ShowForm,
-    GlobalHotkey::SystemProxyClear,
-    GlobalHotkey::SystemProxySet,
-    GlobalHotkey::SystemProxyUnchanged,
-    GlobalHotkey::SystemProxyPac,
-];
+pub const HOTKEY_ACTIONS: [GlobalHotkey; 1] = [GlobalHotkey::ShowForm];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyRegistration {
@@ -18,7 +12,7 @@ pub struct HotkeyRegistration {
 }
 
 #[must_use]
-pub fn all_hotkey_actions() -> &'static [GlobalHotkey; 5] {
+pub fn all_hotkey_actions() -> &'static [GlobalHotkey; 1] {
     &HOTKEY_ACTIONS
 }
 
@@ -132,14 +126,6 @@ fn validate_hotkey_modifiers(
 ) -> Result<(), HotkeyError> {
     match action {
         GlobalHotkey::ShowForm if control || alt => Ok(()),
-        GlobalHotkey::SystemProxyClear
-        | GlobalHotkey::SystemProxySet
-        | GlobalHotkey::SystemProxyUnchanged
-        | GlobalHotkey::SystemProxyPac
-            if control && alt =>
-        {
-            Ok(())
-        }
         _ => Err(HotkeyError::UnsupportedModifierChord(
             accelerator.to_string(),
         )),
@@ -279,24 +265,17 @@ mod hotkey_tests {
     use super::*;
 
     #[test]
-    fn hotkey_normalization_represents_the_five_global_actions() {
+    fn hotkey_normalization_only_represents_show_window() {
         let normalized = normalize_key_event_items(&[]);
 
-        assert_eq!(normalized.len(), 5);
+        assert_eq!(normalized.len(), 1);
         assert_eq!(normalized[0].global_hotkey, GlobalHotkey::ShowForm);
-        assert_eq!(normalized[1].global_hotkey, GlobalHotkey::SystemProxyClear);
-        assert_eq!(normalized[2].global_hotkey, GlobalHotkey::SystemProxySet);
-        assert_eq!(
-            normalized[3].global_hotkey,
-            GlobalHotkey::SystemProxyUnchanged
-        );
-        assert_eq!(normalized[4].global_hotkey, GlobalHotkey::SystemProxyPac);
     }
 
     #[test]
     fn hotkey_registration_builds_accelerators_from_key_events() {
         let registrations = hotkey_registrations(&[KeyEventItem {
-            global_hotkey: GlobalHotkey::SystemProxySet,
+            global_hotkey: GlobalHotkey::ShowForm,
             control: true,
             alt: true,
             shift: false,
@@ -307,37 +286,10 @@ mod hotkey_tests {
         assert_eq!(
             registrations,
             vec![HotkeyRegistration {
-                action: GlobalHotkey::SystemProxySet,
+                action: GlobalHotkey::ShowForm,
                 accelerator: "Ctrl+Alt+KeyS".to_string()
             }]
         );
-    }
-
-    #[test]
-    fn hotkey_registration_rejects_duplicate_accelerators() {
-        let items = vec![
-            KeyEventItem {
-                global_hotkey: GlobalHotkey::ShowForm,
-                control: true,
-                alt: true,
-                shift: false,
-                key_code: Some(72),
-            },
-            KeyEventItem {
-                global_hotkey: GlobalHotkey::SystemProxyClear,
-                control: true,
-                alt: true,
-                shift: false,
-                key_code: Some(72),
-            },
-        ];
-
-        let error = hotkey_registrations(&items).expect_err("duplicate should fail");
-
-        assert!(matches!(
-            error,
-            HotkeyError::DuplicateAccelerator(accelerator) if accelerator == "Ctrl+Alt+KeyH"
-        ));
     }
 
     #[test]
@@ -355,40 +307,6 @@ mod hotkey_tests {
             error,
             HotkeyError::UnsupportedModifierChord(accelerator) if accelerator == "KeyH"
         ));
-    }
-
-    #[test]
-    fn hotkey_registration_requires_ctrl_alt_for_proxy_actions() {
-        let error = hotkey_registrations(&[KeyEventItem {
-            global_hotkey: GlobalHotkey::SystemProxySet,
-            control: true,
-            alt: false,
-            shift: false,
-            key_code: Some(83),
-        }])
-        .expect_err("proxy hotkey without Ctrl+Alt should fail");
-
-        assert!(matches!(
-            error,
-            HotkeyError::UnsupportedModifierChord(accelerator) if accelerator == "Ctrl+KeyS"
-        ));
-
-        let registrations = hotkey_registrations(&[KeyEventItem {
-            global_hotkey: GlobalHotkey::SystemProxySet,
-            control: true,
-            alt: true,
-            shift: false,
-            key_code: Some(83),
-        }])
-        .expect("Ctrl+Alt proxy hotkey should be allowed");
-
-        assert_eq!(
-            registrations,
-            vec![HotkeyRegistration {
-                action: GlobalHotkey::SystemProxySet,
-                accelerator: "Ctrl+Alt+KeyS".to_string()
-            }]
-        );
     }
 
     #[test]

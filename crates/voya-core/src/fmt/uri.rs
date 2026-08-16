@@ -176,7 +176,6 @@ pub(super) fn to_uri_query(
         query.push(("security".to_string(), default_value.to_string()));
     }
     push_encoded_str(query, "sni", &item.sni);
-    push_encoded_str(query, "fp", &item.fingerprint);
     push_encoded_str(query, "pbk", &item.public_key);
     push_encoded_str(query, "sid", &item.short_id);
     push_encoded_str(query, "spx", &item.spider_x);
@@ -184,7 +183,6 @@ pub(super) fn to_uri_query(
 
     if item.stream_security == STREAM_SECURITY_TLS {
         push_encoded_str(query, "alpn", &item.alpn);
-        to_uri_query_allow_insecure(item, query);
     }
     push_encoded_str(query, "ech", &item.ech_config_list);
     push_encoded_str(query, "pcs", &item.cert_sha);
@@ -269,24 +267,12 @@ pub(super) fn to_uri_query(
 pub(super) fn to_uri_query_lite(item: &ProfileItem, query: &mut QueryPairs) {
     push_encoded_str(query, "sni", &item.sni);
     push_encoded_str(query, "alpn", &item.alpn);
-    to_uri_query_allow_insecure(item, query);
-}
-
-pub(super) fn to_uri_query_allow_insecure(item: &ProfileItem, query: &mut QueryPairs) {
-    let value = if item.allow_insecure == ALLOW_INSECURE_TRUE {
-        "1"
-    } else {
-        "0"
-    };
-    query.push(("insecure".to_string(), value.to_string()));
-    query.push(("allowInsecure".to_string(), value.to_string()));
 }
 
 pub(super) fn resolve_uri_query(query: &Query, item: &mut ProfileItem) {
     item.stream_security = query.value_or("security", "");
     item.sni = query.value_or("sni", "");
     item.alpn = query.decoded_or("alpn", "");
-    item.fingerprint = query.decoded_or("fp", "");
     item.public_key = query.decoded_or("pbk", "");
     item.short_id = query.decoded_or("sid", "");
     item.spider_x = query.decoded_or("spx", "");
@@ -300,20 +286,6 @@ pub(super) fn resolve_uri_query(query: &Query, item: &mut ProfileItem) {
     } else {
         pretty_json_or_self(&finalmask)
     };
-
-    if ["insecure", "allowInsecure", "allow_insecure"]
-        .iter()
-        .any(|key| query.decoded_or(key, "") == "1")
-    {
-        item.allow_insecure = ALLOW_INSECURE_TRUE.to_string();
-    } else if ["insecure", "allowInsecure", "allow_insecure"]
-        .iter()
-        .any(|key| query.decoded_or(key, "") == "0")
-    {
-        item.allow_insecure = ALLOW_INSECURE_FALSE.to_string();
-    } else {
-        item.allow_insecure.clear();
-    }
 
     let mut network = query.value_or("type", DEFAULT_NETWORK);
     if network == RAW_NETWORK_ALIAS {

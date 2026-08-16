@@ -12,8 +12,11 @@
     "import": "درون ریزی",
     "pause": "توقف",
     "refresh": "تازه سازی",
+    "refreshRuntimeState": "Refresh runtime state",
     "reload": "بارگذاری دوباره",
+    "reloadCoreConfig": "Reload core configuration",
     "restart": "شروع دوباره",
+    "runningProxyGroupDelayTest": "Running proxy group delay test",
     "save": "ذخیره",
     "settings": "تنظیمات",
     "testSelected": "آزمون انتخاب شده"
@@ -106,7 +109,7 @@
     "fontSize": "اندازه فونت",
     "language": "زبان",
     "settings": "تنظیمات",
-    "settingsDescription": "تنظیمات عمومی، منابع، هسته، شبکه، تست‌ها، کلیدهای میانبر و به‌روزرسانی‌ها.",
+    "settingsDescription": "تنظیمات عمومی، منابع، هسته، شبکه، تست‌ها و به‌روزرسانی‌ها.",
     "theme": "پوسته",
     "version": "نسخه 0.1.0"
   },
@@ -115,7 +118,7 @@
     "autostartOff": "غیرفعال",
     "autostartOn": "فعال",
     "configTemplate": {
-      "advancedHint": "این عملیات منابع و پیش‌تنظیم‌های DNS و مسیریابی را درون‌ریزی می‌کند. «الگوهای کامل پیکربندی» یک قابلیت پیشرفتهٔ جداگانه است و بدون تغییر می‌ماند.",
+      "advancedHint": "این عملیات منابع ساختاریافته و پیش‌تنظیم‌های Simple DNS و مسیریابی را درون‌ریزی می‌کند.",
       "applied": "الگوی پیکربندی درون‌ریزی شد",
       "appliedDescription": "منابع، DNS و تنظیمات مسیریابی به‌روزرسانی شدند و مسیر درون‌ریزی‌شده فعال شد.",
       "apply": "درون‌ریزی",
@@ -309,7 +312,8 @@
         "clipboard": "Import from clipboard",
         "clipboardEmpty": "Clipboard is empty.",
         "clipboardResult": "Imported {{count}} profile(s) from clipboard.",
-        "clipboardUnavailable": "Clipboard text read is unavailable in this WebView."
+        "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
+        "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
       "loading": "در حال بارگذاری نمایه ها",
       "menu": {
@@ -317,6 +321,7 @@
         "copy": "Copy",
         "delete": "Delete",
         "edit": "Edit",
+        "move": "Move",
         "moveBottom": "Move to bottom",
         "moveDown": "Move down",
         "moveTop": "Move to top",
@@ -391,6 +396,8 @@
   "proxy": {
     "active": "فعال",
     "chain": "زنجیره",
+    "cumulativeDownload": "Cumulative download {{total}}",
+    "cumulativeUpload": "Cumulative upload {{total}}",
     "delay": "تاخیر",
     "destination": "مقصد",
     "download": "دریافت",
@@ -1017,6 +1024,9 @@
     "UpgradeAppNotExistTip": "Upgrade App does not exist"
   },
   "settings": {
+    "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
+    "closeUnsavedTitle": "Unsaved settings",
+    "discardChanges": "Discard changes",
     "fields": {
       "hysteriaDownMbps": "حداکثر پهنای باند دانلود هیستریا (Mbps)",
       "hysteriaUpMbps": "حداکثر پهنای باند آپلود هیستریا (Mbps)",
@@ -1025,11 +1035,13 @@
       "speedTestDelayInterval": "فاصله بین دسته‌های تست سرعت (ثانیه)",
       "speedTestPageSize": "تعداد سرورها در هر دسته تست سرعت"
     },
+    "saveAll": "Save all",
+    "saveBeforeActions": "Save or discard pending changes before running this action.",
     "startup": "راه‌اندازی",
     "tabGeneral": "عمومی",
-    "tabHotkeys": "کلیدهای میانبر",
     "tabTests": "تست‌ها",
-    "tabUpdates": "به‌روزرسانی‌ها"
+    "tabUpdates": "به‌روزرسانی‌ها",
+    "unsavedChanges": "Unsaved changes"
   },
   "status": {
     "aria": "وضعیت اتصال",
@@ -1074,19 +1086,6 @@
     "proxyConnections": "اتصال‌ها",
     "proxyGroups": "گروه‌های پراکسی",
     "routing": "مسیریابی"
-  },
-  "templates": {
-    "addProxyOnly": "Add proxy only",
-    "configJson": "Config JSON",
-    "description": "Edit full config templates used by sing-box generation.",
-    "enabled": "Enabled",
-    "open": "Open template settings",
-    "proxyDetour": "Proxy detour",
-    "remarks": "Remarks",
-    "saved": "{{core}} template saved.",
-    "saving": "Saving",
-    "title": "Full Config Templates",
-    "tunConfigJson": "TUN config JSON"
   },
   "updates": {
     "appInstalled": "به روزرسانی برنامه نصب شد: {{version}}",

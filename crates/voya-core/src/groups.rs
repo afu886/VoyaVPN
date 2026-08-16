@@ -369,8 +369,7 @@ mod tests {
 
     use crate::{
         generate_singbox_config_value, AppConfig, CoreConfigContextBuilder, CoreGenEnv,
-        CoreGenPlatform, DnsItem, FullConfigTemplateItem, InboundProtocol, MultipleLoad,
-        ProtocolExtraItem, RoutingItem, SubItem,
+        CoreGenPlatform, InboundProtocol, MultipleLoad, ProtocolExtraItem, RoutingItem, SubItem,
     };
 
     use super::*;
@@ -575,14 +574,6 @@ mod tests {
         }
 
         fn get_sub_item(&self, _subid: &str) -> Option<SubItem> {
-            None
-        }
-
-        fn get_full_config_template_item(&self) -> Option<FullConfigTemplateItem> {
-            None
-        }
-
-        fn get_dns_item(&self) -> Option<DnsItem> {
             None
         }
 

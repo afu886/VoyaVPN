@@ -125,29 +125,6 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-pub(super) fn emit_full_config_template_invalidation<R>(
-    app: &tauri::AppHandle<R>,
-    reason: &str,
-) -> Result<(), AppError>
-where
-    R: tauri::Runtime,
-{
-    InvalidateEvent {
-        keys: [
-            vec!["full-config-templates".to_string()],
-            vec!["app-config".to_string()],
-        ]
-        .into_iter()
-        .map(|query_key| QueryInvalidation {
-            query_key,
-            reason: reason.to_string(),
-        })
-        .collect(),
-    }
-    .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
-}
-
 pub(super) fn emit_preset_invalidation<R>(
     app: &tauri::AppHandle<R>,
     reason: &str,
@@ -205,49 +182,6 @@ where
     if let Err(error) = TransientStreamEvent::ProxyMonitorStatus(status.clone()).emit(app) {
         tracing::warn!(?error, ?status, "failed to emit proxy monitor status event");
     }
-}
-
-pub(super) fn emit_app_config_invalidation<R>(
-    app: &tauri::AppHandle<R>,
-    reason: &str,
-) -> Result<(), AppError>
-where
-    R: tauri::Runtime,
-{
-    InvalidateEvent {
-        keys: [vec!["app-config".to_string()]]
-            .into_iter()
-            .map(|query_key| QueryInvalidation {
-                query_key,
-                reason: reason.to_string(),
-            })
-            .collect(),
-    }
-    .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
-}
-
-pub(super) fn emit_ui_preferences_invalidation<R>(
-    app: &tauri::AppHandle<R>,
-    reason: &str,
-) -> Result<(), AppError>
-where
-    R: tauri::Runtime,
-{
-    InvalidateEvent {
-        keys: [
-            vec!["ui-preferences".to_string()],
-            vec!["app-config".to_string()],
-        ]
-        .into_iter()
-        .map(|query_key| QueryInvalidation {
-            query_key,
-            reason: reason.to_string(),
-        })
-        .collect(),
-    }
-    .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
 pub(crate) fn emit_tun_changed<R>(
@@ -394,6 +328,26 @@ pub(super) fn saved_config_requires_runtime_restart(
         || original.proxy_ui_item != updated.proxy_ui_item
         || original.inbound != updated.inbound
         || original.simple_dns_item != updated.simple_dns_item
+}
+
+pub(super) fn emit_settings_bundle_invalidation<R>(
+    app: &tauri::AppHandle<R>,
+    reason: &str,
+) -> Result<(), AppError>
+where
+    R: tauri::Runtime,
+{
+    InvalidateEvent {
+        keys: ["app-config", "ui-preferences", "config-sources"]
+            .into_iter()
+            .map(|key| QueryInvalidation {
+                query_key: vec![key.to_string()],
+                reason: reason.to_string(),
+            })
+            .collect(),
+    }
+    .emit(app)
+    .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
 pub(super) fn emit_sysproxy_changed<R>(

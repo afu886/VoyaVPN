@@ -136,10 +136,7 @@ fn status_from_settings(settings: &[KeyEventItem]) -> Result<HotkeyStatus, Hotke
 const fn action_label(action: GlobalHotkey) -> &'static str {
     match action {
         GlobalHotkey::ShowForm => "Show window",
-        GlobalHotkey::SystemProxyClear => "Clear system proxy",
-        GlobalHotkey::SystemProxySet => "Set system proxy",
-        GlobalHotkey::SystemProxyUnchanged => "Leave system proxy unchanged",
-        GlobalHotkey::SystemProxyPac => "Set PAC proxy",
+        _ => "Retired action",
     }
 }
 
@@ -209,26 +206,20 @@ mod hotkey_app_tests {
             )
             .expect("save hotkeys");
 
-        assert_eq!(status.actions.len(), 5);
-        assert_eq!(config.global_hotkeys.len(), 5);
+        assert_eq!(status.actions.len(), 1);
+        assert_eq!(config.global_hotkeys.len(), 1);
         assert_eq!(
             registrar.registered.lock().expect("registered")[0],
-            vec![
-                GlobalHotkeyBinding {
-                    action: GlobalHotkey::ShowForm,
-                    accelerator: "Ctrl+Alt+KeyV".to_string(),
-                },
-                GlobalHotkeyBinding {
-                    action: GlobalHotkey::SystemProxyPac,
-                    accelerator: "Ctrl+Alt+Shift+KeyP".to_string(),
-                },
-            ]
+            vec![GlobalHotkeyBinding {
+                action: GlobalHotkey::ShowForm,
+                accelerator: "Ctrl+Alt+KeyV".to_string(),
+            },]
         );
         assert_eq!(*registrar.unregisters.lock().expect("unregisters"), 1);
     }
 
     #[test]
-    fn hotkey_manager_dispatches_five_global_hotkey_actions() {
+    fn hotkey_manager_dispatches_show_window_action() {
         let manager = HotkeyManager::new(Arc::new(NoopHotkeyRegistrar));
         let sink = FakeActionSink {
             actions: Mutex::new(Vec::new()),
@@ -244,66 +235,5 @@ mod hotkey_app_tests {
             sink.actions.lock().expect("actions").as_slice(),
             all_hotkey_actions()
         );
-    }
-
-    #[test]
-    fn hotkey_manager_rejects_duplicate_settings_before_registering() {
-        let registrar = Arc::new(FakeHotkeyRegistrar::default());
-        let manager = HotkeyManager::new(registrar.clone());
-        let mut config = AppConfig::default();
-
-        let error = manager
-            .save_settings(
-                &mut config,
-                vec![
-                    KeyEventItem {
-                        global_hotkey: GlobalHotkey::ShowForm,
-                        control: true,
-                        alt: true,
-                        shift: false,
-                        key_code: Some(65),
-                    },
-                    KeyEventItem {
-                        global_hotkey: GlobalHotkey::SystemProxySet,
-                        control: true,
-                        alt: true,
-                        shift: false,
-                        key_code: Some(65),
-                    },
-                ],
-            )
-            .expect_err("duplicate");
-
-        assert!(matches!(
-            error,
-            HotkeyManagerError::Platform(HotkeyError::DuplicateAccelerator(_))
-        ));
-        assert!(registrar.registered.lock().expect("registered").is_empty());
-    }
-
-    #[test]
-    fn hotkey_manager_rejects_unsafe_proxy_modifier_chord_before_registering() {
-        let registrar = Arc::new(FakeHotkeyRegistrar::default());
-        let manager = HotkeyManager::new(registrar.clone());
-        let mut config = AppConfig::default();
-
-        let error = manager
-            .save_settings(
-                &mut config,
-                vec![KeyEventItem {
-                    global_hotkey: GlobalHotkey::SystemProxySet,
-                    control: true,
-                    alt: false,
-                    shift: false,
-                    key_code: Some(83),
-                }],
-            )
-            .expect_err("unsafe proxy chord");
-
-        assert!(matches!(
-            error,
-            HotkeyManagerError::Platform(HotkeyError::UnsupportedModifierChord(_))
-        ));
-        assert!(registrar.registered.lock().expect("registered").is_empty());
     }
 }

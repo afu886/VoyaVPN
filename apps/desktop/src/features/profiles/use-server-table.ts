@@ -49,7 +49,6 @@ type DialogState =
 
 export function useServerTable() {
   const [dialogState, setDialogState] = useState<DialogState>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [importingFromClipboard, setImportingFromClipboard] = useState(false);
@@ -224,7 +223,7 @@ export function useServerTable() {
 
   async function handleDialogImport(result: ImportProfilesResult) {
     setOperationError(null);
-    setOperationMessage(formatImportOperationMessage(result));
+    setOperationMessage(formatImportOperationMessage(result, t));
     const importedIndexIds = result.importedIndexIds ?? [];
     if (importedIndexIds.length > 0) {
       setFilterText("");
@@ -295,7 +294,6 @@ export function useServerTable() {
     allVisibleCheckboxState,
     confirmDelete,
     dialogState,
-    draggedId,
     filterText,
     gridMinWidth,
     gridTemplateColumns,
@@ -327,7 +325,6 @@ export function useServerTable() {
     selectedIds,
     selectedIdsArray,
     setDialogState,
-    setDraggedId,
     setFilterText,
     setImportOpen,
     setPendingDelete,

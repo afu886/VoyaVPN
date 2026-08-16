@@ -241,6 +241,7 @@ fn singbox_vless_ws_tls_mux_outbound() -> Value {
     let mut config = AppConfig::default();
     config.core_basic_item.enable_fragment = true;
     config.core_basic_item.mux_enabled = true;
+    config.core_basic_item.def_fingerprint = "firefox".to_string();
     config.core_basic_item.def_user_agent = "chrome".to_string();
 
     let node = ProfileItem {
@@ -254,9 +255,7 @@ fn singbox_vless_ws_tls_mux_outbound() -> Value {
         stream_security: "tls".to_string(),
         sni: "tls.example".to_string(),
         alpn: "h2,http/1.1".to_string(),
-        fingerprint: "firefox".to_string(),
         ech_config_list: "ech.example+https://dns.example/dns-query".to_string(),
-        mux_enabled: Some(true),
         protocol_extra: ProtocolExtraItem {
             vless_encryption: Some("none".to_string()),
             ..ProtocolExtraItem::default()
@@ -282,6 +281,8 @@ fn singbox_vless_ws_tls_mux_outbound() -> Value {
 }
 
 fn singbox_tuic_tls_outbound() -> Value {
+    let mut config = AppConfig::default();
+    config.core_basic_item.def_fingerprint = "chrome".to_string();
     let node = ProfileItem {
         index_id: "n-tuic".to_string(),
         config_type: ConfigType::TUIC,
@@ -293,7 +294,6 @@ fn singbox_tuic_tls_outbound() -> Value {
         stream_security: "tls".to_string(),
         sni: "tuic.example".to_string(),
         alpn: "h3".to_string(),
-        fingerprint: "chrome".to_string(),
         protocol_extra: ProtocolExtraItem {
             congestion_control: Some("bbr".to_string()),
             ..ProtocolExtraItem::default()
@@ -301,10 +301,12 @@ fn singbox_tuic_tls_outbound() -> Value {
         ..ProfileItem::default()
     };
 
-    singbox_proxy_outbound(AppConfig::default(), node)
+    singbox_proxy_outbound(config, node)
 }
 
 fn singbox_anytls_tls_outbound() -> Value {
+    let mut config = AppConfig::default();
+    config.core_basic_item.def_fingerprint = "safari".to_string();
     let node = ProfileItem {
         index_id: "n-anytls".to_string(),
         config_type: ConfigType::Anytls,
@@ -315,14 +317,15 @@ fn singbox_anytls_tls_outbound() -> Value {
         stream_security: "tls".to_string(),
         sni: "anytls.example".to_string(),
         alpn: "h2,http/1.1".to_string(),
-        fingerprint: "safari".to_string(),
         ..ProfileItem::default()
     };
 
-    singbox_proxy_outbound(AppConfig::default(), node)
+    singbox_proxy_outbound(config, node)
 }
 
 fn singbox_naive_quic_tls_outbound() -> Value {
+    let mut config = AppConfig::default();
+    config.core_basic_item.def_fingerprint = "edge".to_string();
     let node = ProfileItem {
         index_id: "n-naive".to_string(),
         config_type: ConfigType::Naive,
@@ -334,7 +337,6 @@ fn singbox_naive_quic_tls_outbound() -> Value {
         stream_security: "tls".to_string(),
         sni: "naive.example".to_string(),
         alpn: "h3".to_string(),
-        fingerprint: "edge".to_string(),
         protocol_extra: ProtocolExtraItem {
             naive_quic: Some(true),
             congestion_control: Some("bbr".to_string()),
@@ -345,7 +347,7 @@ fn singbox_naive_quic_tls_outbound() -> Value {
         ..ProfileItem::default()
     };
 
-    singbox_proxy_outbound(AppConfig::default(), node)
+    singbox_proxy_outbound(config, node)
 }
 
 fn singbox_proxy_outbound(config: AppConfig, node: ProfileItem) -> Value {
@@ -539,7 +541,6 @@ fn singbox_socks_node(index_id: &str, remarks: &str) -> ProfileItem {
         username: "user".to_string(),
         password: "pass".to_string(),
         network: "raw".to_string(),
-        mux_enabled: Some(false),
         ..ProfileItem::default()
     }
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Gauge, Inbox, Network, RefreshCw, RotateCw, Wifi, WifiOff } from "lucide-react";
+import { Check, Gauge, Inbox, Network, RefreshCw, RotateCw, Wifi, WifiOff } from "lucide-react";
 
 import {
   dataTableHeader,
@@ -28,7 +28,7 @@ import type {
   ProxyNode,
   TrafficMode,
 } from "@/ipc/bindings";
-import { formatBytesPerSecond, formatDelay } from "@voya/utils/formatting";
+import { formatDelay } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
 import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-badge";
@@ -43,7 +43,6 @@ export function ProxyGroupsScreen() {
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const monitorStatus = useRuntimeEventStore((state) => state.proxyMonitorStatus);
-  const traffic = useRuntimeEventStore((state) => state.proxyTraffic);
   const [delayResults, setDelayResults] = useState<Record<string, ProxyDelayTestResult>>({});
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
 
@@ -114,11 +113,6 @@ export function ProxyGroupsScreen() {
     <PageSection aria-label={t("tabs.proxyGroups")}>
       <PageHeader>
         <PageHeaderHeading icon={Network} title={t("tabs.proxyGroups")}>
-          <Badge className="gap-2 bg-background px-2 py-1 font-normal text-muted-foreground" variant="outline">
-            <Activity className="size-4 text-muted-foreground" aria-hidden="true" />
-            <span className="tabular-nums">{t("status.upload", { speed: formatBytesPerSecond(traffic?.up ?? 0) })}</span>
-            <span className="tabular-nums">{t("status.download", { speed: formatBytesPerSecond(traffic?.down ?? 0) })}</span>
-          </Badge>
           <ProxyMonitorStatusBadge className="max-w-[15rem]" status={monitorStatus} />
         </PageHeaderHeading>
         <PageHeaderActions>
@@ -141,34 +135,37 @@ export function ProxyGroupsScreen() {
             ))}
           </div>
           <Button
-            aria-label={t("actions.reload")}
+            aria-label={t("actions.reloadCoreConfig")}
             disabled={reloadMutation.isPending}
             onClick={() => void reloadMutation.mutateAsync()}
-            size="icon"
+            size="sm"
             type="button"
             variant="outline"
           >
             <RotateCw className="size-4" aria-hidden="true" />
+            {t("actions.reloadCoreConfig")}
           </Button>
           <Button
-            aria-label={t("actions.delayTest")}
+            aria-label={t("actions.runningProxyGroupDelayTest")}
             disabled={delayMutation.isPending}
             onClick={() => runDelayTest([])}
-            size="icon"
+            size="sm"
             type="button"
             variant="outline"
           >
             <Gauge className="size-4" aria-hidden="true" />
+            {t("actions.runningProxyGroupDelayTest")}
           </Button>
           <Button
-            aria-label={t("actions.refresh")}
+            aria-label={t("actions.refreshRuntimeState")}
             disabled={groupsQuery.isFetching}
             onClick={() => void groupsQuery.refetch()}
-            size="icon"
+            size="sm"
             type="button"
             variant="secondary"
           >
             <RefreshCw className={cn("size-4", groupsQuery.isFetching && "animate-spin")} aria-hidden="true" />
+            {t("actions.refreshRuntimeState")}
           </Button>
         </PageHeaderActions>
       </PageHeader>

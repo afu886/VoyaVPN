@@ -24,7 +24,10 @@
     "restart": "شروع دوباره",
     "save": "ذخیره",
     "settings": "تنظیمات",
-    "testSelected": "آزمون انتخاب شده"
+    "testSelected": "آزمون انتخاب شده",
+    "refreshRuntimeState": "Refresh runtime state",
+    "reloadCoreConfig": "Reload core configuration",
+    "runningProxyGroupDelayTest": "Running proxy group delay test"
   },
   "app": {
     "name": "VoyaVPN"
@@ -61,6 +64,8 @@
     "delay": "تاخیر",
     "destination": "مقصد",
     "download": "دریافت",
+    "cumulativeDownload": "Cumulative download {{total}}",
+    "cumulativeUpload": "Cumulative upload {{total}}",
     "filterConnections": "فیلتر اتصال ها",
     "groups": "گروه ها",
     "host": "میزبان",
@@ -121,7 +126,7 @@
     "fontSize": "اندازه فونت",
     "language": "زبان",
     "settings": "تنظیمات",
-    "settingsDescription": "تنظیمات عمومی، منابع، هسته، شبکه، تست‌ها، کلیدهای میانبر و به‌روزرسانی‌ها.",
+    "settingsDescription": "تنظیمات عمومی، منابع، هسته، شبکه، تست‌ها و به‌روزرسانی‌ها.",
     "theme": "پوسته",
     "version": "نسخه 0.1.0"
   },
@@ -135,7 +140,7 @@
       "import": "درون‌ریزی الگوی پیکربندی",
       "title": "درون‌ریزی الگوی پیکربندی",
       "description": "الگوی پیکربندی موردنظر برای درون‌ریزی را انتخاب کنید. نخستین مسیر درون‌ریزی‌شده به‌طور خودکار فعال می‌شود.",
-      "advancedHint": "این عملیات منابع و پیش‌تنظیم‌های DNS و مسیریابی را درون‌ریزی می‌کند. «الگوهای کامل پیکربندی» یک قابلیت پیشرفتهٔ جداگانه است و بدون تغییر می‌ماند.",
+      "advancedHint": "این عملیات منابع ساختاریافته و پیش‌تنظیم‌های Simple DNS و مسیریابی را درون‌ریزی می‌کند.",
       "selectPrompt": "یک الگو انتخاب کنید",
       "default": "پیش‌فرض",
       "defaultDescription": "منابع منطقه‌ای را پاک می‌کند، DNS داخلی را بازمی‌گرداند و الگوی مسیریابی داخلی را درون‌ریزی می‌کند.",
@@ -322,6 +327,7 @@
         "edit": "Edit",
         "copy": "Copy",
         "delete": "Delete",
+        "move": "Move",
         "moveTop": "Move to top",
         "moveUp": "Move up",
         "moveDown": "Move down",
@@ -357,7 +363,8 @@
         "clipboard": "Import from clipboard",
         "clipboardEmpty": "Clipboard is empty.",
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
-        "clipboardResult": "Imported {{count}} profile(s) from clipboard."
+        "clipboardResult": "Imported {{count}} profile(s) from clipboard.",
+        "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
       "aria": {
         "filter": "Filter profiles",
@@ -511,23 +518,15 @@
     "download": "دریافت",
     "duration": "متصل از"
   },
-  "templates": {
-    "addProxyOnly": "Add proxy only",
-    "configJson": "Config JSON",
-    "description": "Edit full config templates used by sing-box generation.",
-    "enabled": "Enabled",
-    "open": "Open template settings",
-    "proxyDetour": "Proxy detour",
-    "remarks": "Remarks",
-    "saved": "{{core}} template saved.",
-    "saving": "Saving",
-    "title": "Full Config Templates",
-    "tunConfigJson": "TUN config JSON"
-  },
   "settings": {
+    "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
+    "closeUnsavedTitle": "Unsaved settings",
+    "discardChanges": "Discard changes",
+    "saveAll": "Save all",
+    "saveBeforeActions": "Save or discard pending changes before running this action.",
     "startup": "راه‌اندازی",
+    "unsavedChanges": "Unsaved changes",
     "tabGeneral": "عمومی",
-    "tabHotkeys": "کلیدهای میانبر",
     "tabTests": "تست‌ها",
     "tabUpdates": "به‌روزرسانی‌ها",
     "fields": {

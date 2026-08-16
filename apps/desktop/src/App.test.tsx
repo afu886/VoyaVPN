@@ -12,8 +12,6 @@ import {
   proxyStopMonitor,
   loadAppConfig,
   loadUiPreferences,
-  saveAppConfig,
-  saveUiPreferences,
 } from "@/ipc";
 import type {
   AppConfig_Serialize,
@@ -28,6 +26,15 @@ import { useToastStore } from "@/stores/toast-store";
 
 vi.mock("@/ipc/process", () => ({
   relaunch: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("@/ipc/window", () => ({
+  closeWindow: vi.fn(() => Promise.resolve()),
+  isWindowMaximized: vi.fn(() => Promise.resolve(false)),
+  minimizeWindow: vi.fn(() => Promise.resolve()),
+  onWindowCloseRequested: vi.fn(() => Promise.resolve(() => undefined)),
+  onWindowResized: vi.fn(() => Promise.resolve(() => undefined)),
+  setWindowTitle: vi.fn(() => Promise.resolve()),
+  toggleMaximizeWindow: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("@/ipc/updater", () => ({
   check: vi.fn(() => Promise.resolve(null)),
@@ -169,15 +176,6 @@ vi.mock("@/ipc", () => ({
   connectActiveProfile: vi.fn(),
   EventBridge: () => null,
   appUpdateStatus: vi.fn(() => Promise.resolve({ currentVersion: "0.1.0", state: "unconfigured", message: null })),
-  autostartStatus: vi.fn(() =>
-    Promise.resolve({
-      artifactKind: "linuxDesktopFile",
-      artifactName: "VoyaVPN.desktop",
-      artifactPath: "/home/test/.config/autostart/VoyaVPN.desktop",
-      enabled: false,
-      platform: "linux",
-    }),
-  ),
   proxyCloseConnection: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
   proxyListConnections: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
   proxyListGroups: vi.fn(() => Promise.resolve({ groups: [], trafficMode: 0 })),
@@ -196,25 +194,6 @@ vi.mock("@/ipc", () => ({
   disconnectCore: vi.fn(),
   generateQrCode: vi.fn(() => Promise.resolve({ mimeType: "image/svg+xml", svg: "<svg />" })),
   getWindowChromeConfig: vi.fn(() => Promise.resolve({ titleBarLayout: "none" })),
-  globalHotkeyStatus: vi.fn(() =>
-    Promise.resolve({
-      actions: [
-        { action: 0, label: "Show window" },
-        { action: 1, label: "Clear system proxy" },
-        { action: 2, label: "Set system proxy" },
-        { action: 3, label: "Leave system proxy unchanged" },
-        { action: 4, label: "Set PAC proxy" },
-      ],
-      registered: [],
-      settings: [
-        { Alt: false, Control: false, EGlobalHotkey: 0, KeyCode: null, Shift: false },
-        { Alt: false, Control: false, EGlobalHotkey: 1, KeyCode: null, Shift: false },
-        { Alt: false, Control: false, EGlobalHotkey: 2, KeyCode: null, Shift: false },
-        { Alt: false, Control: false, EGlobalHotkey: 3, KeyCode: null, Shift: false },
-        { Alt: false, Control: false, EGlobalHotkey: 4, KeyCode: null, Shift: false },
-      ],
-    }),
-  ),
   importConfigTemplate: vi.fn(() =>
     Promise.resolve({
       sources: {
@@ -225,9 +204,7 @@ vi.mock("@/ipc", () => ({
       routingIds: ["routing-default"],
       activeRoutingId: "routing-default",
       reusedExistingRouting: false,
-      singboxDnsFetched: false,
       simpleDnsFetched: false,
-      fallbackCustomDnsEnabled: false,
     }),
   ),
   importProfilesFromText: vi.fn(),
@@ -236,16 +213,6 @@ vi.mock("@/ipc", () => ({
   loadDnsSettings: vi.fn(() =>
     Promise.resolve({
       simpleDnsItem: {},
-      singboxDnsItem: {
-        Id: "dns-singbox",
-        Remarks: "sing-box",
-        Enabled: false,
-        UseSystemHosts: false,
-      },
-      defaults: {
-        singboxNormalDns: "{\"servers\":[]}",
-        singboxTunDns: "{\"servers\":[]}",
-      },
     }),
   ),
   loadConfigSources: vi.fn(() =>
@@ -270,6 +237,7 @@ vi.mock("@/ipc", () => ({
       },
     }),
   ),
+  loadSettingsBundle: vi.fn(() => new Promise(() => undefined)),
   loadUiPreferences: vi.fn(() => Promise.resolve({ language: "en", theme: "system" })),
   moveRoutingRule: vi.fn(),
   moveProfile: vi.fn(),
@@ -292,9 +260,9 @@ vi.mock("@/ipc", () => ({
   ),
   saveProfile: vi.fn(),
   saveGroupProfile: vi.fn(),
-  saveGlobalHotkeys: vi.fn((settings) => Promise.resolve({ actions: [], registered: [], settings })),
   saveRouting: vi.fn(),
   saveRoutingRule: vi.fn(),
+  saveSettingsBundle: vi.fn(),
   saveConfigSources: vi.fn((settings) => Promise.resolve(settings)),
   saveAppConfig: vi.fn((config) => Promise.resolve(config)),
   saveUiPreferences: vi.fn((preferences) => Promise.resolve(preferences)),
@@ -423,9 +391,6 @@ describe("App", () => {
     vi.mocked(loadAppConfig).mockClear();
     vi.mocked(loadUiPreferences).mockReset();
     vi.mocked(loadUiPreferences).mockResolvedValue({ language: "en", theme: "system" });
-    vi.mocked(saveAppConfig).mockClear();
-    vi.mocked(saveUiPreferences).mockReset();
-    vi.mocked(saveUiPreferences).mockImplementation(async (preferences) => preferences);
     vi.mocked(proxyCloseConnection).mockClear();
     vi.mocked(proxyListConnections).mockClear();
     vi.mocked(proxyStartMonitor).mockClear();
@@ -435,7 +400,6 @@ describe("App", () => {
     vi.mocked(proxyStartMonitor).mockResolvedValue({ state: "running", running: true, stale: false, message: null });
     vi.mocked(proxyStopMonitor).mockResolvedValue({ state: "stopped", running: false, stale: true, message: null });
     vi.mocked(loadAppConfig).mockResolvedValue(makeAppConfig());
-    vi.mocked(saveAppConfig).mockImplementation(async (config) => config as AppConfig_Serialize);
     await changeLocale("en");
   });
 
@@ -660,18 +624,18 @@ describe("App", () => {
     await user.click(screen.getByRole("tab", { name: /Proxy Groups/ }));
 
     expect(screen.getByRole("status", { name: "Stale: Stopped" })).toBeInTheDocument();
-    expect(screen.getByText("Up 512 B/s")).toBeInTheDocument();
-    expect(screen.getByText("Down 2.0 KB/s")).toBeInTheDocument();
     // Scope toolbar-control assertions to the Proxy Groups region. The home
     // hero's system-proxy selector also exposes "Direct"/"Global" buttons, so
     // scoping keeps these queries unambiguous and robust to shell layout.
     const proxies = screen.getByRole("region", { name: "Proxy Groups" });
+    expect(within(proxies).queryByText(/Up .*\/s/)).not.toBeInTheDocument();
+    expect(within(proxies).queryByText(/Down .*\/s/)).not.toBeInTheDocument();
     expect(within(proxies).getByRole("button", { name: "Rule" })).toBeInTheDocument();
     expect(within(proxies).getByRole("button", { name: "Global" })).toBeInTheDocument();
     expect(within(proxies).getByRole("button", { name: "Direct" })).toBeInTheDocument();
-    expect(within(proxies).getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    expect(within(proxies).getByRole("button", { name: "Delay test" })).toBeInTheDocument();
-    expect(within(proxies).getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(within(proxies).getByRole("button", { name: "Reload core configuration" })).toBeInTheDocument();
+    expect(within(proxies).getByRole("button", { name: "Running proxy group delay test" })).toBeInTheDocument();
+    expect(within(proxies).getByRole("button", { name: "Refresh runtime state" })).toBeInTheDocument();
   });
 
   it("shows failed monitor status with its message in Connections while keeping data controls visible", async () => {
@@ -691,8 +655,8 @@ describe("App", () => {
 
     expect(screen.getByRole("status", { name: `Failed: ${message}` })).toBeInTheDocument();
     expect(screen.getByText(message)).toBeInTheDocument();
-    expect(screen.getByText("Up 1.0 KB")).toBeInTheDocument();
-    expect(screen.getByText("Down 4.0 KB")).toBeInTheDocument();
+    expect(screen.getByText("Cumulative upload 1.0 KB")).toBeInTheDocument();
+    expect(screen.getByText("Cumulative download 4.0 KB")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Filter connections" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close all" })).toBeInTheDocument();

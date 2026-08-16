@@ -221,6 +221,7 @@ describe("ProfilesScreen", () => {
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Speed" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Select Server 0"));
 
     // Speed is now a probe inside the speedtest split-button menu.
     await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
@@ -240,7 +241,7 @@ describe("ProfilesScreen", () => {
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("Select Server 0"));
-    await userEvent.click(screen.getByRole("button", { name: /Activate/ }));
+    expect(screen.queryByRole("button", { name: /Activate/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Copy/ }));
     // Delete now routes through a confirmation dialog before the IPC call fires.
     await userEvent.click(screen.getByRole("button", { name: /Delete/ }));
@@ -249,7 +250,7 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Remarks" }));
 
-    expect(ipcMocks.setActiveProfile).toHaveBeenCalledWith("profile-0");
+    expect(ipcMocks.setActiveProfile).not.toHaveBeenCalled();
     expect(ipcMocks.copyProfiles).toHaveBeenCalledWith(["profile-0"]);
     expect(ipcMocks.deleteProfiles).toHaveBeenCalledWith(["profile-0"]);
     expect(ipcMocks.sortProfiles).toHaveBeenCalledWith(null, "remarks", true);
@@ -283,18 +284,19 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(speedButton).toBeEnabled());
   });
 
-  it("runs realping for all profiles when no rows are selected", async () => {
+  it("runs realping only for the selected profiles", async () => {
     ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
 
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Select Server 0"));
 
     // Real ping moved into the speedtest split-button menu.
     await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Real" }));
 
-    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith(SPEED_ACTIONS.Realping, []);
+    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith(SPEED_ACTIONS.Realping, ["profile-0"]);
   });
 
   it("reflects an already running speedtest from the runtime store", async () => {
@@ -304,6 +306,7 @@ describe("ProfilesScreen", () => {
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Select Server 0"));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Fast" })).toBeDisabled());
 
@@ -406,20 +409,15 @@ describe("ProfilesScreen", () => {
     expect(await screen.findByText("profile list failed")).toBeInTheDocument();
   });
 
-  it("runs import and subscription update actions through subscription IPC wrappers", async () => {
+  it("keeps import and subscription management without a duplicate update-all action", async () => {
     ipcMocks.listProfiles.mockResolvedValue([]);
 
     renderProfiles();
 
-    // Import and subscription actions now live in the toolbar overflow menu.
-    // Trigger the subscription update first: a successful import keeps the dialog
-    // open to show its result summary, and the open modal makes the toolbar
-    // aria-hidden, so "Update subs" must be exercised before importing.
+    // Import and subscription management live in the toolbar overflow menu;
+    // update-all is intentionally available only inside subscription management.
     await userEvent.click(await screen.findByRole("menuitem", { name: "More actions" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Update subs" }));
-    expect(ipcMocks.updateSubscriptions).toHaveBeenCalledWith(null, true, null);
-
-    await userEvent.click(screen.getByRole("menuitem", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Update subs" })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole("menuitem", { name: "Import" }));
     fireEvent.change(screen.getByLabelText("Import payload"), {
       target: { value: "vless://uuid@example.test:443#US" },
@@ -433,6 +431,7 @@ describe("ProfilesScreen", () => {
         false,
       ),
     );
+    expect(ipcMocks.updateSubscriptions).not.toHaveBeenCalled();
   });
 
   it("refreshes and selects imported profiles after dialog import", async () => {
@@ -646,7 +645,7 @@ describe("ProfilesScreen", () => {
     );
   });
 
-  it("moves rows with drag and drop through the move IPC command", async () => {
+  it("moves the selected row through the explicit keyboard-accessible move menu", async () => {
     ipcMocks.listProfiles.mockResolvedValue(makeProfiles(3));
 
     renderProfiles();
@@ -654,19 +653,13 @@ describe("ProfilesScreen", () => {
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
 
     const rows = screen.getAllByTestId("server-row");
-    const data = new Map<string, string>();
-    const dataTransfer = {
-      effectAllowed: "",
-      getData: vi.fn((type: string) => data.get(type) ?? ""),
-      setData: vi.fn((type: string, value: string) => data.set(type, value)),
-    };
-
-    fireEvent.dragStart(rows[0], { dataTransfer });
-    fireEvent.dragOver(rows[1], { dataTransfer });
-    fireEvent.drop(rows[1], { dataTransfer });
+    expect(rows[0]).not.toHaveAttribute("draggable");
+    await userEvent.click(screen.getByLabelText("Select Server 0"));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Move down" }));
 
     await waitFor(() =>
-      expect(ipcMocks.moveProfile).toHaveBeenCalledWith(null, "profile-0", MOVE_ACTIONS.Position, 1),
+      expect(ipcMocks.moveProfile).toHaveBeenCalledWith(null, "profile-0", MOVE_ACTIONS.Down, null),
     );
   });
 
@@ -805,7 +798,6 @@ function makeProfile(index: number, overrides: ProfileItem_Deserialize = {}): Pr
     isActive: index === 0,
     profile: {
       Address: `node-${index}.example.test`,
-      AllowInsecure: "false",
       Alpn: "",
       Cert: "",
       CertSha: "",
@@ -814,11 +806,9 @@ function makeProfile(index: number, overrides: ProfileItem_Deserialize = {}): Pr
       DisplayLog: true,
       EchConfigList: "",
       Finalmask: "",
-      Fingerprint: "",
       IndexId: indexId,
       IsSub: false,
       Mldsa65Verify: "",
-      MuxEnabled: false,
       Network: "tcp",
       Password: `uuid-${index}`,
       Port: 443,

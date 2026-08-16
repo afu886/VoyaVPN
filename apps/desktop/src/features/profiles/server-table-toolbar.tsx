@@ -1,12 +1,14 @@
 import {
+  ArrowDown,
+  ArrowUp,
   ClipboardPaste,
   Columns3,
   Copy,
+  ChevronsDown,
+  ChevronsUp,
   FilePlus2,
   Filter,
   Pencil,
-  Play,
-  RefreshCw,
   RotateCcw,
   Rows3,
   Rss,
@@ -30,11 +32,12 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@voya/ui/components/menubar";
-import { copyProfiles, dedupeProfiles, setActiveProfile, updateSubscriptions } from "@/ipc";
+import { copyProfiles, dedupeProfiles, moveProfile } from "@/ipc";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { COLUMN_LABEL_KEY_BY_ID } from "./server-table-columns";
 import { ExportMenuItems, SpeedtestSplitButton } from "./server-table-menus";
+import { MOVE_ACTIONS } from "./profile-constants";
 import type { ServerTableController } from "./use-server-table";
 
 export function ServerTableToolbar({ controller }: { controller: ServerTableController }) {
@@ -98,12 +101,6 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
         </ToolbarGroup>
 
         <ToolbarGroup>
-          <SpeedtestSplitButton
-            disabled={profiles.length === 0}
-            onCancel={handleCancelSpeedtest}
-            onRun={handleSpeedtest}
-            running={speedtestRunning}
-          />
           <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
             <MenubarMenu>
               <MenubarTrigger asChild>
@@ -154,22 +151,10 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
               <Rss className="size-4" aria-hidden="true" />
               {t("panes.profiles.toolbar.subscriptions")}
             </MenubarItem>
-            <MenubarItem onSelect={() => void runOperation(() => updateSubscriptions(null, true, null))}>
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t("panes.profiles.toolbar.updateSubs")}
-            </MenubarItem>
-            <MenubarSeparator />
             <MenubarItem onSelect={() => void runOperation(() => dedupeProfiles(null, null))}>
               <Filter className="size-4" aria-hidden="true" />
               {t("panes.profiles.toolbar.dedupe")}
             </MenubarItem>
-            <MenubarSeparator />
-            <ExportMenuItems
-              onExport={(kind) => void handleExport(kind)}
-              onSave={(kind) => void handleExport(kind, selectedIdsArray, false, true)}
-              onShowQr={() => void handleExport("shareLinks", selectedIdsArray, true)}
-              t={t}
-            />
           </ToolbarOverflow>
         </ToolbarGroup>
       </Toolbar>
@@ -181,17 +166,7 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
           </span>
           <div className="ms-auto flex items-center gap-2">
             <Button
-              onClick={() =>
-                primarySelection && void runOperation(() => setActiveProfile(primarySelection.profile.IndexId))
-              }
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Play className="size-4" aria-hidden="true" />
-              {t("panes.profiles.toolbar.activate")}
-            </Button>
-            <Button
+              disabled={selected.length !== 1}
               onClick={() => primarySelection && setDialogState({ mode: "edit", profile: primarySelection })}
               size="sm"
               type="button"
@@ -209,6 +184,48 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
               <Copy className="size-4" aria-hidden="true" />
               {t("panes.profiles.toolbar.copy")}
             </Button>
+            <SpeedtestSplitButton
+              disabled={selected.length === 0}
+              onCancel={handleCancelSpeedtest}
+              onRun={handleSpeedtest}
+              running={speedtestRunning}
+            />
+            <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
+              <MenubarMenu>
+                <MenubarTrigger asChild>
+                  <Button disabled={selected.length !== 1} size="sm" type="button" variant="outline">
+                    <ArrowDown className="size-4" aria-hidden="true" />
+                    {t("panes.profiles.menu.move")}
+                  </Button>
+                </MenubarTrigger>
+                <MenubarContent align="end">
+                  <MenubarItem
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Top, null))}
+                  >
+                    <ChevronsUp className="size-4" aria-hidden="true" />
+                    {t("panes.profiles.menu.moveTop")}
+                  </MenubarItem>
+                  <MenubarItem
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Up, null))}
+                  >
+                    <ArrowUp className="size-4" aria-hidden="true" />
+                    {t("panes.profiles.menu.moveUp")}
+                  </MenubarItem>
+                  <MenubarItem
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Down, null))}
+                  >
+                    <ArrowDown className="size-4" aria-hidden="true" />
+                    {t("panes.profiles.menu.moveDown")}
+                  </MenubarItem>
+                  <MenubarItem
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Bottom, null))}
+                  >
+                    <ChevronsDown className="size-4" aria-hidden="true" />
+                    {t("panes.profiles.menu.moveBottom")}
+                  </MenubarItem>
+                </MenubarContent>
+              </MenubarMenu>
+            </Menubar>
             <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
               <MenubarMenu>
                 <MenubarTrigger asChild>

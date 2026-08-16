@@ -3,12 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { IpcCommandError, loadDnsSettings, saveDnsSettings } from "@/ipc";
-import type { DnsItem_Serialize, DnsSettings_Serialize } from "@/ipc/bindings";
+import type { DnsSettings_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { dnsSettingsSchema, zodIssuesToErrorMap } from "./dns-form-schema";
-
-type DnsCoreKey = "singboxDnsItem";
 
 export function useDnsSettings() {
   const queryClient = useQueryClient();
@@ -88,28 +86,6 @@ export function useDnsSettings() {
     );
   }
 
-  function updateCore(core: DnsCoreKey, patch: Partial<DnsItem_Serialize>) {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            [core]: {
-              ...current[core],
-              ...patch,
-            },
-          }
-        : dnsQuery.data
-          ? {
-              ...dnsQuery.data,
-              [core]: {
-                ...dnsQuery.data[core],
-                ...patch,
-              },
-            }
-          : current,
-    );
-  }
-
   return {
     dnsQuery,
     fieldErrors,
@@ -119,7 +95,6 @@ export function useDnsSettings() {
     isDirty,
     issueCount,
     operationError,
-    updateCore,
     updateSimple,
   };
 }

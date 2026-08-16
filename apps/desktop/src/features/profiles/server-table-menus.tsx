@@ -1,25 +1,15 @@
-import type * as React from "react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   Activity,
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
-  ChevronsDown,
-  ChevronsUp,
   Clock,
-  Copy,
   Download,
   FileJson2,
   Gauge,
   Link,
-  Pencil,
-  Play,
   QrCode,
   Radio,
   Share2,
   Square,
-  Trash2,
   Wifi,
   Zap,
 } from "lucide-react";
@@ -34,10 +24,10 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@voya/ui/components/menubar";
-import type { ProfileListItem_Serialize, SpeedActionType } from "@/ipc/bindings";
+import type { SpeedActionType } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 
-import { MOVE_ACTIONS, SPEED_ACTIONS } from "./profile-constants";
+import { SPEED_ACTIONS } from "./profile-constants";
 import type { ProfileExportKind } from "./server-table-actions";
 import type { TranslateFn } from "./server-table-columns";
 
@@ -186,64 +176,6 @@ export function ExportMenuItems({
   );
 }
 
-export function ProfileRowContextMenu({
-  children,
-  item,
-  onActivate,
-  onCopy,
-  onDelete,
-  onEdit,
-  onExport,
-  onMove,
-  onSave,
-  onSelectOnly,
-  onShowQr,
-}: {
-  children: React.ReactNode;
-  item: ProfileListItem_Serialize;
-  onActivate: () => void;
-  onCopy: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
-  onExport: (kind: ProfileExportKind) => void;
-  onMove: (action: number) => void;
-  onSave: (kind: ProfileExportKind) => void;
-  onSelectOnly: () => void;
-  onShowQr: () => void;
-}) {
-  const { t } = useI18n();
-
-  return (
-    <ContextMenu.Root onOpenChange={(open) => open && onSelectOnly()}>
-      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content className="z-50 min-w-48 rounded-md border bg-card p-1 text-sm shadow-xl outline-none">
-          <ContextMenu.Label className="truncate px-2 py-1.5 text-xs text-muted-foreground">
-            {item.profile.Remarks || t("panes.profiles.untitled")}
-          </ContextMenu.Label>
-          <ContextItem icon={Play} label={t("panes.profiles.menu.activate")} onSelect={onActivate} />
-          <ContextItem icon={Pencil} label={t("panes.profiles.menu.edit")} onSelect={onEdit} />
-          <ContextItem icon={Copy} label={t("panes.profiles.menu.copy")} onSelect={onCopy} />
-          <ContextItem icon={Trash2} label={t("panes.profiles.menu.delete")} onSelect={onDelete} />
-          <ContextMenu.Separator className="my-1 h-px bg-border" />
-          <ContextItem icon={Link} label={t("panes.profiles.export.shareLinks")} onSelect={() => onExport("shareLinks")} />
-          <ContextItem icon={Share2} label={t("panes.profiles.export.shareBase64")} onSelect={() => onExport("shareBase64")} />
-          <ContextItem icon={Link} label={t("panes.profiles.export.innerLinks")} onSelect={() => onExport("innerLinks")} />
-          <ContextItem icon={FileJson2} label={t("panes.profiles.export.clientConfig")} onSelect={() => onExport("clientConfig")} />
-          <ContextItem icon={QrCode} label={t("panes.profiles.export.showQr")} onSelect={onShowQr} />
-          <ContextItem icon={Download} label={t("panes.profiles.export.saveShareLinks")} onSelect={() => onSave("shareLinks")} />
-          <ContextItem icon={FileJson2} label={t("panes.profiles.export.saveClientConfig")} onSelect={() => onSave("clientConfig")} />
-          <ContextMenu.Separator className="my-1 h-px bg-border" />
-          <ContextItem icon={ChevronsUp} label={t("panes.profiles.menu.moveTop")} onSelect={() => onMove(MOVE_ACTIONS.Top)} />
-          <ContextItem icon={ArrowUp} label={t("panes.profiles.menu.moveUp")} onSelect={() => onMove(MOVE_ACTIONS.Up)} />
-          <ContextItem icon={ArrowDown} label={t("panes.profiles.menu.moveDown")} onSelect={() => onMove(MOVE_ACTIONS.Down)} />
-          <ContextItem icon={ChevronsDown} label={t("panes.profiles.menu.moveBottom")} onSelect={() => onMove(MOVE_ACTIONS.Bottom)} />
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
-  );
-}
-
 function SpeedMenuItem({
   action,
   disabled,
@@ -262,25 +194,5 @@ function SpeedMenuItem({
       <Icon className="size-4" aria-hidden="true" />
       {label}
     </MenubarItem>
-  );
-}
-
-function ContextItem({
-  icon: Icon,
-  label,
-  onSelect,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onSelect: () => void;
-}) {
-  return (
-    <ContextMenu.Item
-      className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 outline-none focus:bg-accent focus:text-accent-foreground"
-      onSelect={onSelect}
-    >
-      <Icon className="size-4" aria-hidden="true" />
-      {label}
-    </ContextMenu.Item>
   );
 }

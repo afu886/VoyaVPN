@@ -12,8 +12,11 @@
     "import": "匯入",
     "pause": "暫停",
     "refresh": "重新整理",
+    "refreshRuntimeState": "重新整理執行狀態",
     "reload": "重新載入",
+    "reloadCoreConfig": "重新載入核心設定",
     "restart": "重新啟動",
+    "runningProxyGroupDelayTest": "執行中代理群組延遲測試",
     "save": "儲存",
     "settings": "設定",
     "testSelected": "測試所選"
@@ -106,7 +109,7 @@
     "fontSize": "字型大小",
     "language": "語言",
     "settings": "設定",
-    "settingsDescription": "通用、來源、核心、網路、測試、快捷鍵與更新設定。",
+    "settingsDescription": "通用、來源、核心、網路、測試與更新設定。",
     "theme": "主題",
     "version": "版本 0.1.0"
   },
@@ -115,7 +118,7 @@
     "autostartOff": "已停用",
     "autostartOn": "已啟用",
     "configTemplate": {
-      "advancedHint": "此操作會匯入來源、DNS 與路由預設。「完整設定範本」是獨立的進階功能，不受影響。",
+      "advancedHint": "此操作會匯入結構化來源、Simple DNS 與路由預設。",
       "applied": "設定範本已匯入",
       "appliedDescription": "已更新來源、DNS 與路由設定，並啟用匯入的路由。",
       "apply": "匯入",
@@ -309,7 +312,8 @@
         "clipboard": "從剪貼簿匯入",
         "clipboardEmpty": "剪貼簿為空。",
         "clipboardResult": "已從剪貼簿匯入 {{count}} 個設定檔。",
-        "clipboardUnavailable": "目前 WebView 不支援讀取剪貼簿文字。"
+        "clipboardUnavailable": "目前 WebView 不支援讀取剪貼簿文字。",
+        "discardedNodeOverrides": "已捨棄 {{count}} 個節點級覆寫項，將使用全域設定。"
       },
       "loading": "正在載入設定檔",
       "menu": {
@@ -317,6 +321,7 @@
         "copy": "複製",
         "delete": "刪除",
         "edit": "編輯",
+        "move": "移動",
         "moveBottom": "移至底部",
         "moveDown": "下移",
         "moveTop": "移至頂部",
@@ -391,6 +396,8 @@
   "proxy": {
     "active": "活動",
     "chain": "鏈",
+    "cumulativeDownload": "累計下載 {{total}}",
+    "cumulativeUpload": "累計上傳 {{total}}",
     "delay": "延遲",
     "destination": "目標",
     "download": "下行",
@@ -1017,6 +1024,9 @@
     "UpgradeAppNotExistTip": "升級工具 App 不存在"
   },
   "settings": {
+    "closeUnsavedDescription": "儲存全部修改、放棄修改，或繼續編輯。",
+    "closeUnsavedTitle": "設定尚未儲存",
+    "discardChanges": "放棄修改",
     "fields": {
       "hysteriaDownMbps": "Hysteria 最大下行頻寬 (Mbps)",
       "hysteriaUpMbps": "Hysteria 最大上行頻寬 (Mbps)",
@@ -1025,11 +1035,13 @@
       "speedTestDelayInterval": "測速批次間隔 (秒)",
       "speedTestPageSize": "每批測速的伺服器數量"
     },
+    "saveAll": "儲存全部",
+    "saveBeforeActions": "請先儲存或放棄待處理的修改，再執行此操作。",
     "startup": "啟動",
     "tabGeneral": "通用",
-    "tabHotkeys": "快捷鍵",
     "tabTests": "測試",
-    "tabUpdates": "更新"
+    "tabUpdates": "更新",
+    "unsavedChanges": "存在未儲存的修改"
   },
   "status": {
     "aria": "連線狀態",
@@ -1074,19 +1086,6 @@
     "proxyConnections": "連線",
     "proxyGroups": "代理群組",
     "routing": "路由"
-  },
-  "templates": {
-    "addProxyOnly": "僅新增代理",
-    "configJson": "設定 JSON",
-    "description": "編輯 sing-box 生成時使用的完整設定範本。",
-    "enabled": "啟用",
-    "open": "開啟範本設定",
-    "proxyDetour": "代理繞行",
-    "remarks": "備註",
-    "saved": "已儲存 {{core}} 範本。",
-    "saving": "儲存中",
-    "title": "完整設定範本",
-    "tunConfigJson": "TUN 設定 JSON"
   },
   "updates": {
     "appInstalled": "應用程式更新已安裝：{{version}}",

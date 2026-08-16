@@ -414,14 +414,8 @@ fn fill_hysteria2_fields(
         });
     }
 
-    let up_mbps = protocol_extra
-        .up_mbps
-        .filter(|value| *value >= 0)
-        .unwrap_or(context.app_config.hysteria_item.up_mbps);
-    let down_mbps = protocol_extra
-        .down_mbps
-        .filter(|value| *value >= 0)
-        .unwrap_or(context.app_config.hysteria_item.down_mbps);
+    let up_mbps = context.app_config.hysteria_item.up_mbps;
+    let down_mbps = context.app_config.hysteria_item.down_mbps;
     outbound.up_mbps = (up_mbps > 0).then_some(up_mbps);
     outbound.down_mbps = (down_mbps > 0).then_some(down_mbps);
 
@@ -455,49 +449,15 @@ fn fill_hysteria2_fields(
     } else {
         DEFAULT_HYSTERIA2_HOP_INTERVAL
     };
-    let interval = protocol_extra
-        .hop_interval
-        .as_deref()
-        .and_then(parse_hysteria_hop_interval)
-        .filter(|value| *value >= 5)
-        .unwrap_or(default_interval);
-    outbound.hop_interval = Some(format!("{interval}s"));
-}
-
-pub(super) fn parse_hysteria_hop_interval(value: &str) -> Option<i32> {
-    let value = value.trim();
-    if let Ok(value) = value.parse::<i64>() {
-        return Some(clamp_i64_to_i32(value));
-    }
-    let (left, right) = value.split_once('-')?;
-    let left = left.trim().parse::<i64>().ok()?;
-    let right = right.trim().parse::<i64>().ok()?;
-    let midpoint = left.checked_add(right).map_or_else(
-        || {
-            if left.is_negative() && right.is_negative() {
-                i64::MIN
-            } else {
-                i64::MAX
-            }
-        },
-        |sum| sum / 2,
-    );
-    Some(clamp_i64_to_i32(midpoint))
-}
-
-fn clamp_i64_to_i32(value: i64) -> i32 {
-    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+    outbound.hop_interval = Some(format!("{default_interval}s"));
 }
 
 fn fill_outbound_mux(
     outbound: &mut SingboxOutbound,
     context: &CoreConfigContext,
-    node: &ProfileItem,
+    _node: &ProfileItem,
 ) {
-    let mux_enabled = node
-        .mux_enabled
-        .unwrap_or(context.app_config.core_basic_item.mux_enabled);
-    if !mux_enabled {
+    if !context.app_config.core_basic_item.mux_enabled {
         return;
     }
     let protocol = trimmed(&context.app_config.mux4_sbox_item.protocol);
@@ -660,7 +620,7 @@ fn fill_outbound_tls(
     let mut tls = SingboxTls {
         enabled: true,
         server_name,
-        insecure: Some(allow_insecure(node, context)),
+        insecure: Some(allow_insecure(context)),
         alpn: split_list(&node.alpn).filter(|items| !items.is_empty()),
         record_fragment: context
             .app_config
@@ -671,7 +631,7 @@ fn fill_outbound_tls(
         ..SingboxTls::default()
     };
 
-    if let Some(fingerprint) = effective_fingerprint(node, context) {
+    if let Some(fingerprint) = effective_fingerprint(context) {
         tls.utls = Some(SingboxUtls {
             enabled: true,
             fingerprint,

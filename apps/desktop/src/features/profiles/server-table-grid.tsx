@@ -11,33 +11,23 @@ import {
 import { Checkbox } from "@voya/ui/components/checkbox";
 import { EmptyState } from "@voya/ui/components/empty-state";
 import { Skeleton } from "@voya/ui/components/skeleton";
-import { copyProfiles, moveProfile, setActiveProfile } from "@/ipc";
 import { cn } from "@voya/ui/lib/utils";
 
 import { cellTitle, sortAriaValue } from "./server-table-columns";
-import { ProfileRowContextMenu } from "./server-table-menus";
-import { MOVE_ACTIONS } from "./profile-constants";
 import type { ServerTableController } from "./use-server-table";
 
 export function ServerTableGrid({ controller }: { controller: ServerTableController }) {
   const {
     allVisibleCheckboxState,
-    draggedId,
     gridMinWidth,
     gridTemplateColumns,
-    handleExport,
     handleSort,
     profilesQuery,
     renderedRows,
-    requestDelete,
     rows,
     rowVirtualizer,
-    runOperation,
     selectOnly,
     selectedIds,
-    selectedIdsArray,
-    setDialogState,
-    setDraggedId,
     sortState,
     t,
     toggleAllVisible,
@@ -142,26 +132,8 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                   const isSelected = selectedIds.has(indexId);
 
                   return (
-                    <ProfileRowContextMenu
-                      item={item}
-                      key={row.id}
-                      onActivate={() => void runOperation(() => setActiveProfile(indexId))}
-                      onCopy={() => void runOperation(() => copyProfiles(selectedIds.has(indexId) ? selectedIdsArray : [indexId]))}
-                      onDelete={() => requestDelete(selectedIds.has(indexId) ? selectedIdsArray : [indexId])}
-                      onEdit={() => setDialogState({ mode: "edit", profile: item })}
-                      onExport={(kind) =>
-                        void handleExport(kind, selectedIds.has(indexId) ? selectedIdsArray : [indexId])
-                      }
-                      onSave={(kind) =>
-                        void handleExport(kind, selectedIds.has(indexId) ? selectedIdsArray : [indexId], false, true)
-                      }
-                      onMove={(action) => void runOperation(() => moveProfile(null, indexId, action, null))}
-                      onSelectOnly={() => selectOnly(indexId)}
-                      onShowQr={() =>
-                        void handleExport("shareLinks", selectedIds.has(indexId) ? selectedIdsArray : [indexId], true)
-                      }
-                    >
-                      <tr
+                    <tr
+                        key={row.id}
                         aria-rowindex={virtualRow.index + 2}
                         aria-selected={isSelected}
                         className={cn(
@@ -174,7 +146,6 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                               ),
                         )}
                         data-testid="server-row"
-                        draggable
                         onClick={(event) => {
                           if (event.metaKey || event.ctrlKey) {
                             toggleSelection(indexId, !isSelected);
@@ -182,30 +153,11 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                             selectOnly(indexId);
                           }
                         }}
-                        onDoubleClick={() => void runOperation(() => setActiveProfile(indexId))}
                         onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void runOperation(() => setActiveProfile(indexId));
-                          }
-                          if (event.key === " ") {
+                          if (event.key === " " || event.key === "Enter") {
                             event.preventDefault();
                             toggleSelection(indexId, !isSelected);
                           }
-                        }}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDragStart={(event) => {
-                          setDraggedId(indexId);
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/profile-id", indexId);
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          const sourceId = event.dataTransfer.getData("text/profile-id") || draggedId;
-                          if (sourceId && sourceId !== indexId) {
-                            void runOperation(() => moveProfile(null, sourceId, MOVE_ACTIONS.Position, virtualRow.index));
-                          }
-                          setDraggedId(null);
                         }}
                         style={{
                           gridTemplateColumns,
@@ -235,8 +187,7 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                             </td>
                           );
                         })}
-                      </tr>
-                    </ProfileRowContextMenu>
+                    </tr>
                   );
                 })
               )}

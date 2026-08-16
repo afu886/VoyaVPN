@@ -328,8 +328,6 @@ pub(crate) async fn load_runtime_core_gen_env(
         SnapshotCoreGenData {
             profiles: database.profiles().list().await?,
             routings: database.routings().list().await?,
-            dns_items: database.dns().list().await?,
-            full_config_templates: database.full_config_templates().list().await?,
             subs: database.subscriptions().list().await?,
         },
     )
@@ -354,9 +352,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use voya_core::{
-        ConfigType, CoreGenEnv, CoreType, DnsItem, ProfileItem, RoutingItem, RuleType, RulesItem,
-    };
+    use voya_core::{ConfigType, CoreType, ProfileItem, RoutingItem, RuleType, RulesItem};
     use voya_db::Database;
     use voya_platform::{
         coreinfo::{core_type_dir_name, executable_name_for_current_os},
@@ -395,33 +391,6 @@ mod tests {
         assert_eq!(launch.arguments, "run -c config.json --disable-color");
         assert_eq!(launch.working_dir, paths.bin_config_dir());
         assert!(launch.environment.is_empty());
-    }
-
-    #[tokio::test]
-    async fn runtime_dns_context_env_loads_persisted_dns_items() {
-        let database = Database::connect_in_memory()
-            .await
-            .expect("runtime test operation should succeed");
-        let item = DnsItem {
-            id: "dns-sing-box".to_string(),
-            remarks: "sing-box".to_string(),
-            enabled: true,
-            normal_dns: Some(r#"{"servers":[{"tag":"direct","address":"1.1.1.1"}]}"#.to_string()),
-            ..DnsItem::default()
-        };
-        database
-            .dns()
-            .upsert(&item)
-            .await
-            .expect("runtime test operation should succeed");
-
-        let paths = temp_paths();
-        let env =
-            load_runtime_core_gen_env(&database, &paths, &AppConfig::default(), TargetOs::Linux)
-                .await
-                .expect("runtime test operation should succeed");
-
-        assert_eq!(env.get_dns_item(), Some(item));
     }
 
     #[tokio::test]

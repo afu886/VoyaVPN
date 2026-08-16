@@ -35,13 +35,7 @@ pub struct ProtocolExtraItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub salamander_pass: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub up_mbps: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub down_mbps: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub ports: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hop_interval: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub insecure_concurrency: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,16 +97,12 @@ pub struct ProfileItem {
     pub username: String,
     pub network: String,
     pub stream_security: String,
-    pub allow_insecure: String,
     pub sni: String,
     pub alpn: String,
-    pub fingerprint: String,
     pub public_key: String,
     pub short_id: String,
     pub spider_x: String,
     pub mldsa65_verify: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mux_enabled: Option<bool>,
     pub cert: String,
     pub cert_sha: String,
     pub ech_config_list: String,
@@ -138,15 +128,12 @@ impl Default for ProfileItem {
             username: String::new(),
             network: String::new(),
             stream_security: String::new(),
-            allow_insecure: String::new(),
             sni: String::new(),
             alpn: String::new(),
-            fingerprint: String::new(),
             public_key: String::new(),
             short_id: String::new(),
             spider_x: String::new(),
             mldsa65_verify: String::new(),
-            mux_enabled: None,
             cert: String::new(),
             cert_sha: String::new(),
             ech_config_list: String::new(),
@@ -225,6 +212,7 @@ pub struct ImportProfilesResult {
     pub failed: u32,
     pub removed_existing: u32,
     pub removed_duplicates: u32,
+    pub discarded_node_overrides: u32,
     pub subid: Option<String>,
     pub imported_index_ids: Vec<String>,
     pub updated_index_ids: Vec<String>,
@@ -345,39 +333,6 @@ impl Default for RulesItem {
             rule_type: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DnsItem {
-    pub id: String,
-    pub remarks: String,
-    pub enabled: bool,
-    #[serde(alias = "useSystemHosts")]
-    pub use_system_hosts: bool,
-    #[serde(
-        rename = "NormalDNS",
-        alias = "normalDNS",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub normal_dns: Option<String>,
-    #[serde(
-        rename = "TunDNS",
-        alias = "tunDNS",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub tun_dns: Option<String>,
-    #[serde(
-        alias = "domainStrategy4Freedom",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub domain_strategy4_freedom: Option<String>,
-    #[serde(
-        rename = "DomainDNSAddress",
-        alias = "domainDNSAddress",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub domain_dns_address: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
@@ -512,7 +467,6 @@ pub fn profile_items_match(left: &ProfileItem, right: &ProfileItem, compare_rema
         )
         && text_equal(Some(&left.sni), Some(&right.sni))
         && text_equal(Some(&left.alpn), Some(&right.alpn))
-        && text_equal(Some(&left.fingerprint), Some(&right.fingerprint))
         && text_equal(Some(&left.public_key), Some(&right.public_key))
         && text_equal(Some(&left.short_id), Some(&right.short_id))
         && text_equal(Some(&left.finalmask), Some(&right.finalmask))
@@ -525,36 +479,6 @@ fn text_equal(left: Option<&String>, right: Option<&String>) -> bool {
         (Some(left), None) => left.is_empty(),
         (None, Some(right)) => right.is_empty(),
         (None, None) => true,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct FullConfigTemplateItem {
-    pub id: String,
-    pub remarks: String,
-    pub enabled: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tun_config: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub add_proxy_only: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proxy_detour: Option<String>,
-}
-
-impl Default for FullConfigTemplateItem {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            remarks: String::new(),
-            enabled: false,
-            config: None,
-            tun_config: None,
-            add_proxy_only: Some(false),
-            proxy_detour: None,
-        }
     }
 }
 
@@ -635,32 +559,6 @@ mod tests {
         .expect("regional routing rule should deserialize");
 
         assert_eq!(rule.outbound_tag.as_deref(), Some("direct"));
-    }
-
-    #[test]
-    fn dns_item_accepts_lower_camel_case_regional_template_fields() {
-        let dns = serde_json::from_str::<DnsItem>(
-            r#"{
-              "useSystemHosts": false,
-              "normalDNS": "https://example.test/normal.json",
-              "tunDNS": "https://example.test/tun.json",
-              "domainStrategy4Freedom": "UseIPv4",
-              "domainDNSAddress": "8.8.8.8"
-            }"#,
-        )
-        .expect("regional DNS template should deserialize");
-
-        assert!(!dns.use_system_hosts);
-        assert_eq!(
-            dns.normal_dns.as_deref(),
-            Some("https://example.test/normal.json")
-        );
-        assert_eq!(
-            dns.tun_dns.as_deref(),
-            Some("https://example.test/tun.json")
-        );
-        assert_eq!(dns.domain_strategy4_freedom.as_deref(), Some("UseIPv4"));
-        assert_eq!(dns.domain_dns_address.as_deref(), Some("8.8.8.8"));
     }
 
     #[test]

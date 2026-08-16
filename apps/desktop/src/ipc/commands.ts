@@ -1,10 +1,8 @@
 import { commands } from "@/ipc/bindings";
 import type {
-  AppConfig_Deserialize,
   AppConfig_Serialize,
   AppError,
   AppUpdaterStatus,
-  AutostartStatus,
   CertificateFetchRequest,
   CertificateFetchResult,
   ProxyConnectionsSnapshot,
@@ -16,14 +14,10 @@ import type {
   DnsSettings_Deserialize,
   DnsSettings_Serialize,
   ExportProfilesResult,
-  FullConfigTemplateItem_Deserialize,
-  FullConfigTemplateItem_Serialize,
   GroupChildCandidate,
   GroupPreview,
   GroupValidationResult,
-  HotkeyStatus_Serialize,
   ImportProfilesResult,
-  KeyEventItem_Deserialize,
   MoveAction,
   ConfigSourceSettings,
   ConfigTemplateImportResult,
@@ -53,6 +47,8 @@ import type {
   TunProviderDiagnostics,
   TunStatus,
   UiPreferences,
+  SettingsBundle_Deserialize,
+  SettingsBundle_Serialize,
   WindowChromeConfig,
 } from "@/ipc/bindings";
 
@@ -76,38 +72,22 @@ export async function loadAppConfig(): Promise<AppConfig_Serialize> {
   return unwrapCommandResult(await commands.loadAppConfig());
 }
 
-export async function saveAppConfig(config: AppConfig_Deserialize): Promise<AppConfig_Serialize> {
-  return unwrapCommandResult(await commands.saveAppConfig(config));
-}
-
 export async function loadUiPreferences(): Promise<UiPreferences> {
   return unwrapCommandResult(await commands.loadUiPreferences());
 }
 
-export async function saveUiPreferences(preferences: UiPreferences): Promise<UiPreferences> {
-  return unwrapCommandResult(await commands.saveUiPreferences(preferences));
+export async function loadSettingsBundle(): Promise<SettingsBundle_Serialize> {
+  return unwrapCommandResult(await commands.loadSettingsBundle());
+}
+
+export async function saveSettingsBundle(
+  bundle: SettingsBundle_Deserialize,
+): Promise<SettingsBundle_Serialize> {
+  return unwrapCommandResult(await commands.saveSettingsBundle(bundle));
 }
 
 export async function openSettingsWindow(): Promise<void> {
   unwrapCommandResult(await commands.openSettingsWindow());
-}
-
-export async function autostartStatus(): Promise<AutostartStatus> {
-  return unwrapCommandResult(await commands.autostartStatus());
-}
-
-export async function setAutostartEnabled(enabled: boolean): Promise<AutostartStatus> {
-  return unwrapCommandResult(await commands.setAutostartEnabled(enabled));
-}
-
-export async function globalHotkeyStatus(): Promise<HotkeyStatus_Serialize> {
-  return unwrapCommandResult(await commands.globalHotkeyStatus());
-}
-
-export async function saveGlobalHotkeys(
-  settings: KeyEventItem_Deserialize[],
-): Promise<HotkeyStatus_Serialize> {
-  return unwrapCommandResult(await commands.saveGlobalHotkeys(settings));
 }
 
 export async function generateQrCode(content: string): Promise<QrCodeImage> {
@@ -178,16 +158,6 @@ export async function loadDnsSettings(): Promise<DnsSettings_Serialize> {
 
 export async function saveDnsSettings(settings: DnsSettings_Deserialize): Promise<DnsSettings_Serialize> {
   return unwrapCommandResult(await commands.saveDnsSettings(settings));
-}
-
-export async function loadFullConfigTemplates(): Promise<FullConfigTemplateItem_Serialize[]> {
-  return unwrapCommandResult(await commands.loadFullConfigTemplates());
-}
-
-export async function saveFullConfigTemplate(
-  template: FullConfigTemplateItem_Deserialize,
-): Promise<FullConfigTemplateItem_Serialize> {
-  return unwrapCommandResult(await commands.saveFullConfigTemplate(template));
 }
 
 export async function listProfiles(
@@ -450,12 +420,6 @@ export async function loadConfigSources(): Promise<ConfigSourceSettings> {
   return unwrapCommandResult(await commands.loadConfigSources());
 }
 
-export async function saveConfigSources(
-  settings: ConfigSourceSettings,
-): Promise<ConfigSourceSettings> {
-  return unwrapCommandResult(await commands.saveConfigSources(settings));
-}
-
 export async function updateGeoAssets(): Promise<ResourceUpdateFile[]> {
   return unwrapCommandResult(await commands.updateGeoAssets());
 }
@@ -535,8 +499,6 @@ function formatAppError(error: AppError): string {
     case "sysProxy":
       return error.message;
     case "state":
-      return error.message;
-    case "template":
       return error.message;
     case "tun":
       return error.message;

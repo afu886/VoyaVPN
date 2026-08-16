@@ -89,20 +89,7 @@ export function ProtocolPanel({
         ) : null}
         {configType === CONFIG_TYPES.Hysteria2 ? (
           <>
-            <TextField
-              inputMode="numeric"
-              label={t("panes.profiles.fields.upMbps")}
-              type="number"
-              {...register("ProtocolExtra.UpMbps", { setValueAs: optionalNumber })}
-            />
-            <TextField
-              inputMode="numeric"
-              label={t("panes.profiles.fields.downMbps")}
-              type="number"
-              {...register("ProtocolExtra.DownMbps", { setValueAs: optionalNumber })}
-            />
             <TextField label={t("panes.profiles.fields.ports")} {...register("ProtocolExtra.Ports")} />
-            <TextField label={t("panes.profiles.fields.hopInterval")} {...register("ProtocolExtra.HopInterval")} />
             <TextField label={t("panes.profiles.fields.salamanderPassword")} {...register("ProtocolExtra.SalamanderPass")} />
           </>
         ) : null}

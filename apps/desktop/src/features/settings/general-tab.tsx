@@ -1,142 +1,47 @@
-import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import type { KeyboardEvent } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 
 import { Button } from "@voya/ui/components/button";
+import { Input } from "@voya/ui/components/input";
 import { Separator } from "@voya/ui/components/separator";
-import { useI18n } from "@voya/i18n/use-i18n";
-import { autostartStatus, loadUiPreferences, saveUiPreferences, setAutostartEnabled } from "@/ipc";
-import type { AutostartStatus, UiPreferences } from "@/ipc/bindings";
-import { type ThemeMode, usePreferencesStore } from "@/stores/preferences-store";
-import { useMountedRef } from "@voya/utils/use-mounted-ref";
-import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
+import { useI18n } from "@voya/i18n/use-i18n";
+import type { ThemeMode } from "@/stores/preferences-store";
 
-import { SettingsCheckbox, SettingsCheckboxGroup, SettingsGroup, SettingsRow } from "./settings-form";
 import {
-  applyUiPreferences,
-  normalizeUiPreferences,
-  UI_PREFERENCES_QUERY_KEY,
-  useUiPreferencesQuery,
-} from "./ui-preferences";
+  SettingsCheckbox,
+  SettingsCheckboxGroup,
+  SettingsGroup,
+  SettingsRow,
+} from "./settings-form";
+import type { SettingsBundleController } from "./use-settings-bundle";
 
-const themeOptions: Array<{ icon: typeof Monitor; labelKey: string; value: ThemeMode }> = [
+const themeOptions: Array<{
+  icon: typeof Monitor;
+  labelKey: string;
+  value: ThemeMode;
+}> = [
   { icon: Monitor, labelKey: "menu.themeSystem", value: "system" },
   { icon: Sun, labelKey: "menu.themeLight", value: "light" },
   { icon: Moon, labelKey: "menu.themeDark", value: "dark" },
 ];
 
-// Selected option buttons (theme/language) read blue — an accent-blue-light
-// tint with a blue border/text, matching the sidebar's active-row treatment —
-// instead of the neutral secondary fill. Applied on the `aria-pressed` button.
 export const selectedOptionClass =
   "border border-primary bg-accent-blue-light text-brand hover:bg-accent-blue-light hover:text-brand";
 
-export function GeneralTab() {
-  const { language, localeOptions, t } = useI18n();
-  const queryClient = useQueryClient();
-  const themeMode = usePreferencesStore((state) => state.themeMode);
-  const preferencesQuery = useUiPreferencesQuery();
+export function GeneralTab({ controller }: { controller: SettingsBundleController }) {
+  const { localeOptions, t } = useI18n();
+  const { bundle, setUiPreferences, update, working } = controller;
 
-  const [autostart, setAutostart] = useState<AutostartStatus | null>(null);
-  const [autostartError, setAutostartError] = useState<string | null>(null);
-  const [autostartWorking, setAutostartWorking] = useState(false);
-  const [preferencesError, setPreferencesError] = useState<string | null>(null);
-  const [preferencesWorking, setPreferencesWorking] = useState(false);
-  const generationRef = useRef(0);
-  const preferencesWorkingRef = useRef(false);
-  const mountedRef = useMountedRef();
-
-  useEffect(() => {
-    const generation = ++generationRef.current;
-    const isCurrent = () => mountedRef.current && generation === generationRef.current;
-
-    void autostartStatus()
-      .then((status) => {
-        if (isCurrent()) {
-          setAutostart(status);
-        }
-      })
-      .catch((error: unknown) => {
-        if (isCurrent()) {
-          setAutostartError(getErrorMessage(error));
-        }
-      });
-
-    return () => {
-      generationRef.current += 1;
-    };
-  }, [mountedRef]);
-
-  async function toggleAutostart(enabled: boolean) {
-    setAutostartWorking(true);
-    setAutostartError(null);
-    try {
-      setAutostart(await setAutostartEnabled(enabled));
-    } catch (error) {
-      setAutostartError(getErrorMessage(error));
-    } finally {
-      setAutostartWorking(false);
-    }
+  if (!bundle) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {working ? t("options.loading") : controller.error}
+      </p>
+    );
   }
 
-  async function persistPreferences(nextPreferences: UiPreferences) {
-    const previousPreferences = preferencesQuery.data;
-    if (!previousPreferences || preferencesWorkingRef.current) {
-      return;
-    }
-
-    preferencesWorkingRef.current = true;
-    setPreferencesWorking(true);
-    setPreferencesError(null);
-
-    try {
-      await queryClient.cancelQueries({ queryKey: UI_PREFERENCES_QUERY_KEY });
-      queryClient.setQueryData(UI_PREFERENCES_QUERY_KEY, nextPreferences);
-      await applyUiPreferences(nextPreferences).catch(() => undefined);
-
-      const savedPreferences = normalizeUiPreferences(
-        await saveUiPreferences(nextPreferences),
-      );
-      queryClient.setQueryData(UI_PREFERENCES_QUERY_KEY, savedPreferences);
-      try {
-        await applyUiPreferences(savedPreferences);
-      } catch (error) {
-        if (mountedRef.current) {
-          setPreferencesError(getErrorMessage(error));
-        }
-      }
-    } catch (error) {
-      let authoritativePreferences = previousPreferences;
-      try {
-        authoritativePreferences = normalizeUiPreferences(await loadUiPreferences());
-      } catch {
-        // If the authoritative reload also fails, the pre-mutation snapshot is
-        // the safest available rollback value.
-      }
-      queryClient.setQueryData(UI_PREFERENCES_QUERY_KEY, authoritativePreferences);
-      await applyUiPreferences(authoritativePreferences).catch(() => undefined);
-      if (mountedRef.current) {
-        setPreferencesError(getErrorMessage(error));
-      }
-    } finally {
-      preferencesWorkingRef.current = false;
-      if (mountedRef.current) {
-        setPreferencesWorking(false);
-      }
-    }
-  }
-
-  const preferences = preferencesQuery.data;
-  const preferencesDisabled = !preferences || preferencesWorking;
-  const displayedPreferencesError = preferencesError ??
-    (preferencesQuery.error ? getErrorMessage(preferencesQuery.error) : null);
-
-  const artifact = autostart?.artifactPath
-    ? autostart.artifactName
-      ? `${autostart.artifactName} · ${autostart.artifactPath}`
-      : autostart.artifactPath
-    : (autostart?.artifactName ?? "");
+  const hotkey = bundle.showWindowHotkey;
 
   return (
     <div className="grid gap-4">
@@ -145,20 +50,18 @@ export function GeneralTab() {
           <div className="flex flex-wrap gap-2">
             {themeOptions.map((option) => {
               const Icon = option.icon;
-
+              const selected = bundle.uiPreferences.theme === option.value;
               return (
                 <Button
                   key={option.value}
-                  aria-pressed={themeMode === option.value}
-                  className={cn("h-8 min-w-0 px-3", themeMode === option.value && selectedOptionClass)}
-                  disabled={preferencesDisabled}
-                  onClick={() => {
-                    if (preferences && preferences.theme !== option.value) {
-                      void persistPreferences({ ...preferences, theme: option.value });
-                    }
-                  }}
+                  aria-pressed={selected}
+                  className={cn("h-8 min-w-0 px-3", selected && selectedOptionClass)}
+                  disabled={working}
+                  onClick={() =>
+                    setUiPreferences({ ...bundle.uiPreferences, theme: option.value })
+                  }
                   type="button"
-                  variant={themeMode === option.value ? "secondary" : "outline"}
+                  variant={selected ? "secondary" : "outline"}
                 >
                   <Icon className="size-4" aria-hidden="true" />
                   <span className="truncate">{t(option.labelKey)}</span>
@@ -170,30 +73,26 @@ export function GeneralTab() {
 
         <SettingsRow align="start" label={t("modal.language")}>
           <div className="flex flex-wrap gap-2">
-            {localeOptions.map((locale) => (
-              <Button
-                key={locale.code}
-                aria-pressed={language === locale.code}
-                className={cn("h-8 min-w-12 px-2 text-xs", language === locale.code && selectedOptionClass)}
-                disabled={preferencesDisabled}
-                onClick={() => {
-                  if (preferences && preferences.language !== locale.code) {
-                    void persistPreferences({ ...preferences, language: locale.code });
+            {localeOptions.map((locale) => {
+              const selected = bundle.uiPreferences.language === locale.code;
+              return (
+                <Button
+                  key={locale.code}
+                  aria-pressed={selected}
+                  className={cn("h-8 min-w-12 px-2 text-xs", selected && selectedOptionClass)}
+                  disabled={working}
+                  onClick={() =>
+                    setUiPreferences({ ...bundle.uiPreferences, language: locale.code })
                   }
-                }}
-                type="button"
-                variant={language === locale.code ? "secondary" : "outline"}
-              >
-                {locale.label}
-              </Button>
-            ))}
+                  type="button"
+                  variant={selected ? "secondary" : "outline"}
+                >
+                  {locale.label}
+                </Button>
+              );
+            })}
           </div>
         </SettingsRow>
-        {displayedPreferencesError ? (
-          <p className="text-xs text-destructive" role="alert">
-            {displayedPreferencesError}
-          </p>
-        ) : null}
       </SettingsGroup>
 
       <Separator />
@@ -201,15 +100,104 @@ export function GeneralTab() {
       <SettingsGroup>
         <SettingsCheckboxGroup id="settings-startup-group" label={t("settings.startup")}>
           <SettingsCheckbox
-            checked={autostart?.enabled ?? false}
-            description={artifact || null}
-            disabled={!autostart || autostartWorking}
+            checked={bundle.autostartEnabled}
+            disabled={working}
             label={t("options.autostart")}
-            onCheckedChange={(checked) => void toggleAutostart(checked === true)}
+            onCheckedChange={(checked) =>
+              update((current) => ({ ...current, autostartEnabled: checked === true }))
+            }
           />
         </SettingsCheckboxGroup>
-        {autostartError ? <p className="text-xs text-destructive">{autostartError}</p> : null}
+
+        <SettingsRow label={t("options.hotkeyShowWindow")}>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["Control", "Alt", "Shift"] as const).map((modifier) => (
+              <Button
+                key={modifier}
+                aria-pressed={hotkey[modifier]}
+                className="h-8 px-2 text-xs"
+                onClick={() =>
+                  update((current) => ({
+                    ...current,
+                    showWindowHotkey: {
+                      ...current.showWindowHotkey,
+                      [modifier]: !current.showWindowHotkey[modifier],
+                    },
+                  }))
+                }
+                type="button"
+                variant={hotkey[modifier] ? "secondary" : "outline"}
+              >
+                {modifier === "Control" ? "Ctrl" : modifier}
+              </Button>
+            ))}
+            <Input
+              aria-label={t("options.hotkeyKey")}
+              className="h-8 w-28 px-2 text-sm"
+              data-hotkey-capture=""
+              onKeyDown={(event) => {
+                const keyCode = keyCodeFromEvent(event);
+                if (keyCode !== null) {
+                  update((current) => ({
+                    ...current,
+                    showWindowHotkey: { ...current.showWindowHotkey, KeyCode: keyCode },
+                  }));
+                }
+              }}
+              readOnly
+              value={keyCodeLabel(hotkey.KeyCode ?? null)}
+            />
+            <Button
+              className="h-7 px-2 text-xs"
+              onClick={() =>
+                update((current) => ({
+                  ...current,
+                  showWindowHotkey: { ...current.showWindowHotkey, KeyCode: null },
+                }))
+              }
+              type="button"
+              variant="ghost"
+            >
+              {t("actions.clear")}
+            </Button>
+          </div>
+        </SettingsRow>
       </SettingsGroup>
     </div>
+  );
+}
+
+function keyCodeFromEvent(event: KeyboardEvent<HTMLInputElement>): number | null {
+  if (["Alt", "Control", "Meta", "Shift"].includes(event.key)) {
+    return null;
+  }
+  event.preventDefault();
+  return event.keyCode || event.which || null;
+}
+
+function keyCodeLabel(keyCode: number | null): string {
+  if (!keyCode) return "";
+  if ((keyCode >= 48 && keyCode <= 57) || (keyCode >= 65 && keyCode <= 90)) {
+    return String.fromCharCode(keyCode);
+  }
+  if (keyCode >= 112 && keyCode <= 135) return `F${keyCode - 111}`;
+  return (
+    {
+      8: "Backspace",
+      9: "Tab",
+      13: "Enter",
+      27: "Esc",
+      32: "Space",
+      33: "Page Up",
+      34: "Page Down",
+      35: "End",
+      36: "Home",
+      37: "Left",
+      38: "Up",
+      39: "Right",
+      40: "Down",
+      45: "Insert",
+      46: "Delete",
+    }[keyCode] ?? `Key ${keyCode}`
   );
 }

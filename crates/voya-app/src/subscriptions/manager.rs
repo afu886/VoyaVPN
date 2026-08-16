@@ -204,6 +204,8 @@ impl<'db> SubscriptionManager<'db> {
                 failed: u32::try_from(parsed_import.failed_lines).unwrap_or(u32::MAX),
                 removed_existing: 0,
                 removed_duplicates: 0,
+                discarded_node_overrides: u32::try_from(parsed_import.discarded_node_overrides)
+                    .unwrap_or(u32::MAX),
                 subid: subid.map(str::to_string),
                 imported_index_ids: Vec::new(),
                 updated_index_ids: Vec::new(),
@@ -303,6 +305,8 @@ impl<'db> SubscriptionManager<'db> {
             failed: u32::try_from(parsed_import.failed_lines).unwrap_or(u32::MAX),
             removed_existing: u32::try_from(removed_existing).unwrap_or(u32::MAX),
             removed_duplicates: u32::try_from(removed_duplicates).unwrap_or(u32::MAX),
+            discarded_node_overrides: u32::try_from(parsed_import.discarded_node_overrides)
+                .unwrap_or(u32::MAX),
             subid: subid.map(str::to_string),
             imported_index_ids,
             updated_index_ids,
@@ -473,6 +477,7 @@ impl<'db> SubscriptionManager<'db> {
         let mut profiles = Vec::new();
         let mut added_subscription = false;
         let mut failed_lines = 0_usize;
+        let mut discarded_node_overrides = 0_usize;
         let mut messages = Vec::new();
         let allow_subscription_import = !is_sub && subid.trim().is_empty();
         let mut contents = Vec::new();
@@ -482,6 +487,8 @@ impl<'db> SubscriptionManager<'db> {
         contents.push(text.to_string());
 
         for content in contents {
+            discarded_node_overrides =
+                discarded_node_overrides.saturating_add(count_discarded_node_overrides(&content));
             let mut lines_seen = BTreeSet::new();
             for (line_index, line) in content
                 .lines()
@@ -534,6 +541,7 @@ impl<'db> SubscriptionManager<'db> {
         } else {
             Ok(ParsedImportText {
                 failed_lines,
+                discarded_node_overrides,
                 messages,
                 profiles,
             })
@@ -545,7 +553,23 @@ impl<'db> SubscriptionManager<'db> {
 struct ParsedImportText {
     profiles: Vec<ProfileItem>,
     failed_lines: usize,
+    discarded_node_overrides: usize,
     messages: Vec<String>,
+}
+
+fn count_discarded_node_overrides(content: &str) -> usize {
+    let query_count = Regex::new(
+        r"(?i)(?:\?|&)(?:allowinsecure|allow_insecure|insecure|fp|muxenabled|mux_enabled|upmbps|downmbps|hopinterval)=",
+    )
+    .map(|pattern| pattern.find_iter(content).count())
+    .unwrap_or(0);
+    let json_count = Regex::new(
+        r#"(?i)"(?:fingerprint|fp|allowinsecure|allow_insecure|muxenabled|mux_enabled|upmbps|downmbps|hopinterval)"\s*:"#,
+    )
+    .map(|pattern| pattern.find_iter(content).count())
+    .unwrap_or(0);
+
+    query_count.saturating_add(json_count)
 }
 
 // Share-link schemes recognized by `parse_share_link`. A parse failure on a
@@ -1197,6 +1221,7 @@ mod tests {
         assert_eq!(result.filtered, 0);
         assert_eq!(result.deduped, 0);
         assert_eq!(result.failed, 0);
+        assert_eq!(result.discarded_node_overrides, 3);
         assert_eq!(result.imported_index_ids.len(), 7);
         assert!(result.messages.is_empty());
 

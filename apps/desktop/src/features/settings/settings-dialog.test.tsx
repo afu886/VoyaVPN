@@ -1,242 +1,171 @@
+import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SettingsSurface, type SettingsTab } from "@/features/settings/settings-dialog";
-import { SettingsWindow } from "@/features/settings/settings-window";
 import { changeLocale } from "@voya/i18n";
-import { useModalStore } from "@/stores/modal-store";
+import type { SettingsBundle_Serialize } from "@/ipc/bindings";
+
+import { SettingsSurface } from "./settings-dialog";
+import { SettingsWindow } from "./settings-window";
 
 const ipcMocks = vi.hoisted(() => ({
   appUpdateStatus: vi.fn(),
-  autostartStatus: vi.fn(),
-  globalHotkeyStatus: vi.fn(),
   getWindowChromeConfig: vi.fn(),
-  importConfigTemplate: vi.fn(),
-  loadAppConfig: vi.fn(),
-  loadConfigSources: vi.fn(),
-  loadUiPreferences: vi.fn(),
-  saveAppConfig: vi.fn(),
-  saveConfigSources: vi.fn(),
-  saveGlobalHotkeys: vi.fn(),
-  saveUiPreferences: vi.fn(),
-  setAutostartEnabled: vi.fn(),
+  loadSettingsBundle: vi.fn(),
+  saveSettingsBundle: vi.fn(),
   updateGeoAssets: vi.fn(),
   updateSrsAssets: vi.fn(),
 }));
-const tauriMocks = vi.hoisted(() => ({
+const updaterMocks = vi.hoisted(() => ({
   check: vi.fn(),
-  closeWindow: vi.fn(),
   getVersion: vi.fn(),
-  relaunch: vi.fn(),
+}));
+const windowMocks = vi.hoisted(() => ({
+  closeWindow: vi.fn(),
+  onWindowCloseRequested: vi.fn(),
   setWindowTitle: vi.fn(),
 }));
 
 vi.mock("@/ipc", () => ipcMocks);
-vi.mock("@/ipc/window", () => ({
-  closeWindow: tauriMocks.closeWindow,
-  setWindowTitle: tauriMocks.setWindowTitle,
-}));
-vi.mock("@/ipc/process", () => ({ relaunch: tauriMocks.relaunch }));
-vi.mock("@/ipc/updater", () => ({
-  check: tauriMocks.check,
-  getVersion: tauriMocks.getVersion,
-}));
+vi.mock("@/ipc/window", () => windowMocks);
+vi.mock("@/ipc/process", () => ({ relaunch: vi.fn() }));
+vi.mock("@/ipc/updater", () => updaterMocks);
 
-describe("SettingsSurface", () => {
+describe("unified settings surface", () => {
   beforeEach(async () => {
     cleanup();
     vi.clearAllMocks();
     await changeLocale("en");
-    useModalStore.setState({ stack: [] });
-    mockDefaultIpc();
+    ipcMocks.getWindowChromeConfig.mockResolvedValue({ titleBarLayout: "none" });
+    ipcMocks.appUpdateStatus.mockResolvedValue({ currentVersion: "0.1.0", message: null, state: "ready" });
+    ipcMocks.loadSettingsBundle.mockResolvedValue(makeBundle());
+    ipcMocks.saveSettingsBundle.mockImplementation(async (bundle) => bundle);
+    ipcMocks.updateGeoAssets.mockResolvedValue([]);
+    ipcMocks.updateSrsAssets.mockResolvedValue([]);
+    updaterMocks.check.mockResolvedValue(null);
+    updaterMocks.getVersion.mockResolvedValue("0.1.0");
+    windowMocks.closeWindow.mockResolvedValue(undefined);
+    windowMocks.onWindowCloseRequested.mockResolvedValue(() => undefined);
+    windowMocks.setWindowTitle.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
-    cleanup();
-  });
+  afterEach(cleanup);
 
-  it("opens on the General tab and switches panes through the tab strip", async () => {
+  it("keeps one draft across tabs and exposes no Hotkeys tab", async () => {
     const user = userEvent.setup();
-
     renderSurface();
 
     expect(await screen.findByRole("tab", { name: "General", selected: true })).toBeInTheDocument();
-    expect(screen.getByText("Theme")).toBeInTheDocument();
-    expect(ipcMocks.loadConfigSources).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("tab", { name: "Sources" }));
-
-    expect(await screen.findByLabelText("Geo files source")).toBeInTheDocument();
-    await waitFor(() => expect(ipcMocks.loadConfigSources).toHaveBeenCalledTimes(1));
-  });
-
-  it("deep-links to the requested tab via initialTab", async () => {
-    renderSurface({ initialTab: "updates" });
-
-    expect(await screen.findByRole("tab", { name: "Updates", selected: true })).toBeInTheDocument();
-    expect(await screen.findByText("Automatic app updater is ready.")).toBeInTheDocument();
-    await waitFor(() => expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1));
-  });
-
-  it("mounts the updates pane on first visit only and keeps it mounted afterwards", async () => {
-    const user = userEvent.setup();
-
-    renderSurface();
-
-    await screen.findByRole("tab", { name: "General", selected: true });
-    expect(ipcMocks.appUpdateStatus).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("tab", { name: "Updates" }));
-    await waitFor(() => expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1));
-    const appUpdater = await screen.findByText("Automatic app updater is ready.");
-
-    await user.click(screen.getByRole("tab", { name: "General" }));
-    // Hidden, not unmounted: the controller instance survives tab switches.
-    expect(appUpdater).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Updates" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Updates" })).toHaveAttribute("aria-selected", "true"));
-    expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps unsaved runtime edits when switching between runtime tabs", async () => {
-    const user = userEvent.setup();
-
-    renderSurface();
-
-    await user.click(await screen.findByRole("tab", { name: "Core" }));
+    expect(screen.queryByRole("tab", { name: "Hotkeys" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Core" }));
     const userAgent = await screen.findByDisplayValue("agent-before-edit");
     await user.clear(userAgent);
     await user.type(userAgent, "agent-after-edit");
-
     await user.click(screen.getByRole("tab", { name: "Network" }));
     expect(await screen.findByLabelText("MTU")).toBeInTheDocument();
-
     await user.click(screen.getByRole("tab", { name: "Core" }));
+
     expect(screen.getByDisplayValue("agent-after-edit")).toBeInTheDocument();
-    expect(ipcMocks.loadAppConfig).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(ipcMocks.loadSettingsBundle).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the settings window open when Escape is pressed while recording a hotkey", async () => {
+  it("persists all edits through the single Save all action", async () => {
     const user = userEvent.setup();
-    ipcMocks.globalHotkeyStatus.mockResolvedValue({
-      actions: [{ action: 0, label: "Show window" }],
-      registered: [],
-      settings: [{ Alt: false, Control: false, EGlobalHotkey: 0, KeyCode: null, Shift: false }],
-    });
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { gcTime: 0, retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <SettingsWindow />
-      </QueryClientProvider>,
-    );
-    await waitFor(() => expect(tauriMocks.setWindowTitle).toHaveBeenCalledWith("Settings"));
-
-    await user.click(await screen.findByRole("tab", { name: "Hotkeys" }));
-    const capture = await screen.findByRole("textbox", { name: "Hotkey key" });
-    capture.focus();
-    fireEvent.keyDown(capture, { key: "Escape", keyCode: 27 });
-
-    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
-    expect(capture).toHaveValue("Esc");
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(tauriMocks.closeWindow).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not close the settings window while an internal dialog is open", async () => {
-    const user = userEvent.setup();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { gcTime: 0, retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <SettingsWindow />
-      </QueryClientProvider>,
-    );
-
-    await user.click(await screen.findByRole("tab", { name: "Sources" }));
-    await user.click(await screen.findByRole("button", { name: "Import configuration template" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
-  });
-
-  it("lets an open runtime select consume Escape without closing the settings window", async () => {
-    const user = userEvent.setup();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { gcTime: 0, retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <SettingsWindow />
-      </QueryClientProvider>,
-    );
-
+    renderSurface();
     await user.click(await screen.findByRole("tab", { name: "Core" }));
-    const logLevel = await screen.findByRole("combobox");
-    await user.click(logLevel);
-    const warningOption = await screen.findByRole("option", { name: "warning" });
+    const userAgent = await screen.findByDisplayValue("agent-before-edit");
+    await user.clear(userAgent);
+    await user.type(userAgent, "saved-agent");
 
-    fireEvent.keyDown(warningOption, { key: "Escape" });
+    await user.click(screen.getByRole("button", { name: "Save all" }));
 
-    expect(tauriMocks.closeWindow).not.toHaveBeenCalled();
+    await waitFor(() => expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledTimes(1));
+    expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coreBasicItem: expect.objectContaining({ DefUserAgent: "saved-agent" }),
+      }),
+    );
+  });
+
+  it("guards Escape close with save, discard, and cancel choices", async () => {
+    const user = userEvent.setup();
+    renderWindow();
+    await user.click(await screen.findByRole("button", { name: "Light" }));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Unsaved settings");
+    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(windowMocks.closeWindow).toHaveBeenCalledTimes(1));
   });
 });
 
-function renderSurface(props: { initialTab?: SettingsTab } = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { gcTime: 0, retry: false } },
-  });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsSurface {...props} />
-    </QueryClientProvider>,
-  );
+function renderSurface() {
+  return renderWithQuery(<SettingsSurface />);
 }
 
-function mockDefaultIpc() {
-  ipcMocks.getWindowChromeConfig.mockResolvedValue({ titleBarLayout: "none" });
-  tauriMocks.closeWindow.mockResolvedValue(undefined);
-  tauriMocks.setWindowTitle.mockResolvedValue(undefined);
-  ipcMocks.loadAppConfig.mockResolvedValue({
-    CoreBasicItem: { DefUserAgent: "agent-before-edit" },
-  });
-  ipcMocks.loadUiPreferences.mockResolvedValue({ language: "en", theme: "system" });
-  ipcMocks.saveAppConfig.mockImplementation(async (config: unknown) => config);
-  ipcMocks.saveUiPreferences.mockImplementation(async (preferences: unknown) => preferences);
-  ipcMocks.autostartStatus.mockResolvedValue({
-    artifactKind: null,
-    artifactName: null,
-    artifactPath: null,
-    enabled: false,
-    platform: "macos",
-  });
-  ipcMocks.setAutostartEnabled.mockImplementation(async (enabled: boolean) => ({
-    artifactKind: null,
-    artifactName: null,
-    artifactPath: null,
-    enabled,
-    platform: "macos",
-  }));
-  ipcMocks.loadConfigSources.mockResolvedValue({
-    geoSourceUrl: null,
-    routeRulesTemplateSourceUrl: null,
-    srsSourceUrl: null,
-  });
-  ipcMocks.saveConfigSources.mockImplementation(async (settings: unknown) => settings);
-  ipcMocks.globalHotkeyStatus.mockResolvedValue({ actions: [], registered: [], settings: [] });
-  ipcMocks.saveGlobalHotkeys.mockResolvedValue({ actions: [], registered: [], settings: [] });
-  ipcMocks.appUpdateStatus.mockResolvedValue({ currentVersion: "1.0.0", message: null, state: "ready" });
-  ipcMocks.updateGeoAssets.mockResolvedValue([]);
-  ipcMocks.updateSrsAssets.mockResolvedValue([]);
-  tauriMocks.check.mockResolvedValue(null);
-  tauriMocks.getVersion.mockResolvedValue("1.0.0");
-  tauriMocks.relaunch.mockResolvedValue(undefined);
+function renderWindow() {
+  return renderWithQuery(<SettingsWindow />);
+}
+
+function renderWithQuery(children: ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
+}
+
+function makeBundle(): SettingsBundle_Serialize {
+  return {
+    uiPreferences: { language: "en", theme: "system" },
+    autostartEnabled: false,
+    showWindowHotkey: { EGlobalHotkey: 0, Alt: true, Control: true, Shift: false, KeyCode: 86 },
+    sources: { geoSourceUrl: null, routeRulesTemplateSourceUrl: null, srsSourceUrl: null },
+    subConvertUrl: null,
+    coreBasicItem: {
+      LogEnabled: false,
+      Loglevel: "warning",
+      MuxEnabled: false,
+      DefAllowInsecure: false,
+      DefFingerprint: "chrome",
+      DefUserAgent: "agent-before-edit",
+      EnableFragment: false,
+      EnableCacheFile4Sbox: true,
+    },
+    mux4SboxItem: { Protocol: "h2mux", MaxConnections: 4, Padding: false },
+    hysteriaItem: { UpMbps: 100, DownMbps: 100, HopInterval: 30 },
+    network: {
+      tun: {
+        autoRoute: true,
+        strictRoute: true,
+        stack: "system",
+        mtu: 9000,
+        enableIpv6Address: false,
+        icmpRouting: "",
+        enableLegacyProtect: false,
+      },
+      systemProxy: {
+        systemProxyExceptions: "",
+        notProxyLocalAddress: true,
+        systemProxyAdvancedProtocol: "",
+        customSystemProxyPacPath: null,
+        customSystemProxyScriptPath: null,
+      },
+    },
+    speedTestItem: {
+      SpeedTestTimeout: 10,
+      SpeedTestUrl: "https://speed.example.test",
+      SpeedPingTestUrl: "https://ping.example.test",
+      MixedConcurrencyCount: 4,
+      IPAPIUrl: "https://ip.example.test",
+      UdpTestTarget: "1.1.1.1:53",
+      SpeedTestPageSize: 10,
+      SpeedTestDelayInterval: 1,
+    },
+  };
 }

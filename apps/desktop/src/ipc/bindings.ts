@@ -7,13 +7,9 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	appHealth: () => typedError<string, AppError>(__TAURI_INVOKE("app_health")),
 	loadAppConfig: () => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("load_app_config")),
-	saveAppConfig: (config: AppConfig_Deserialize) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("save_app_config", { config })),
 	loadUiPreferences: () => typedError<UiPreferences, AppError>(__TAURI_INVOKE("load_ui_preferences")),
-	saveUiPreferences: (preferences: UiPreferences) => typedError<UiPreferences, AppError>(__TAURI_INVOKE("save_ui_preferences", { preferences })),
-	autostartStatus: () => typedError<AutostartStatus, AppError>(__TAURI_INVOKE("autostart_status")),
-	setAutostartEnabled: (enabled: boolean) => typedError<AutostartStatus, AppError>(__TAURI_INVOKE("set_autostart_enabled", { enabled })),
-	globalHotkeyStatus: () => typedError<HotkeyStatus_Serialize, AppError>(__TAURI_INVOKE("global_hotkey_status")),
-	saveGlobalHotkeys: (settings: KeyEventItem_Deserialize[]) => typedError<HotkeyStatus_Serialize, AppError>(__TAURI_INVOKE("save_global_hotkeys", { settings })),
+	loadSettingsBundle: () => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("load_settings_bundle")),
+	saveSettingsBundle: (bundle: SettingsBundle_Deserialize) => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("save_settings_bundle", { bundle })),
 	generateQrCode: (content: string) => typedError<QrCodeImage, AppError>(__TAURI_INVOKE("generate_qr_code", { content })),
 	scanScreenQr: () => typedError<QrScanResult, AppError>(__TAURI_INVOKE("scan_screen_qr")),
 	fetchCertificate: (request: CertificateFetchRequest) => typedError<CertificateFetchResult, AppError>(__TAURI_INVOKE("fetch_certificate", { request })),
@@ -39,8 +35,6 @@ export const commands = {
 	setTunEnabled: (enabled: boolean) => typedError<TunStatus, AppError>(__TAURI_INVOKE("set_tun_enabled", { enabled })),
 	loadDnsSettings: () => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("load_dns_settings")),
 	saveDnsSettings: (settings: DnsSettings_Deserialize) => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("save_dns_settings", { settings })),
-	loadFullConfigTemplates: () => typedError<FullConfigTemplateItem_Serialize[], AppError>(__TAURI_INVOKE("load_full_config_templates")),
-	saveFullConfigTemplate: (template: FullConfigTemplateItem_Deserialize) => typedError<FullConfigTemplateItem_Serialize, AppError>(__TAURI_INVOKE("save_full_config_template", { template })),
 	listProfiles: (subid: string | null, filter: string | null) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("list_profiles", { subid, filter })),
 	getProfile: (indexId: string) => typedError<{
 	profile: ProfileItem_Serialize,
@@ -125,7 +119,6 @@ export const commands = {
 	speedtestStatus: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("speedtest_status")),
 	appUpdateStatus: () => typedError<AppUpdaterStatus, AppError>(__TAURI_INVOKE("app_update_status")),
 	loadConfigSources: () => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("load_config_sources")),
-	saveConfigSources: (settings: ConfigSourceSettings) => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("save_config_sources", { settings })),
 	updateGeoAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_geo_assets")),
 	updateSrsAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_srs_assets")),
 	/**
@@ -212,7 +205,7 @@ export type AppConfig_Serialize = {
 	SimpleDNSItem: SimpleDnsItem_Serialize,
 };
 
-export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "template"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
+export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
 
 export type AppEvent = { kind: "notice"; payload: AppNotice } | { kind: "selectTab"; payload: ShellTabTarget };
 
@@ -274,9 +267,7 @@ export type ConfigTemplateImportResult = {
 	routingIds: string[],
 	activeRoutingId: string | null,
 	reusedExistingRouting: boolean,
-	singboxDnsFetched: boolean,
 	simpleDnsFetched: boolean,
-	fallbackCustomDnsEnabled: boolean,
 };
 
 export type ConfigTemplateSelection = { type: "default" } | { type: "russia" } | { type: "iran" } | { type: "custom"; sources: ConfigSourceSettings };
@@ -361,56 +352,14 @@ export type DnsCommandError = {
 	issues: DnsValidationIssue[],
 };
 
-export type DnsItem = DnsItem_Serialize | DnsItem_Deserialize;
-
-export type DnsItem_Deserialize = {
-	Id?: string,
-	Remarks?: string,
-	Enabled?: boolean,
-} & {
-	UseSystemHosts?: boolean,
-} | {
-	useSystemHosts?: boolean,
-} & {
-	NormalDNS?: string | null,
-} & {
-	TunDNS?: string | null,
-} & {
-	DomainStrategy4Freedom?: string | null,
-} | {
-	domainStrategy4Freedom?: string | null,
-} & {
-	DomainDNSAddress?: string | null,
-};
-
-export type DnsItem_Serialize = {
-	Id: string,
-	Remarks: string,
-	Enabled: boolean,
-	UseSystemHosts: boolean,
-	NormalDNS?: string | null,
-	TunDNS?: string | null,
-	DomainStrategy4Freedom?: string | null,
-	DomainDNSAddress?: string | null,
-};
-
 export type DnsSettings = DnsSettings_Serialize | DnsSettings_Deserialize;
-
-export type DnsSettingsDefaults = {
-	singboxNormalDns: string,
-	singboxTunDns: string,
-};
 
 export type DnsSettings_Deserialize = {
 	simpleDnsItem: SimpleDnsItem_Deserialize,
-	singboxDnsItem: DnsItem_Deserialize,
-	defaults: DnsSettingsDefaults,
 };
 
 export type DnsSettings_Serialize = {
 	simpleDnsItem: SimpleDnsItem_Serialize,
-	singboxDnsItem: DnsItem_Serialize,
-	defaults: DnsSettingsDefaults,
 };
 
 export type DnsValidationIssue = {
@@ -429,28 +378,6 @@ export type ExportProfilesResult = {
 	text: string,
 	count: number,
 	format: ExportProfilesFormat,
-};
-
-export type FullConfigTemplateItem = FullConfigTemplateItem_Serialize | FullConfigTemplateItem_Deserialize;
-
-export type FullConfigTemplateItem_Deserialize = {
-	Id?: string,
-	Remarks?: string,
-	Enabled?: boolean,
-	Config?: string | null,
-	TunConfig?: string | null,
-	AddProxyOnly?: boolean | null,
-	ProxyDetour?: string | null,
-};
-
-export type FullConfigTemplateItem_Serialize = {
-	Id: string,
-	Remarks: string,
-	Enabled: boolean,
-	Config?: string | null,
-	TunConfig?: string | null,
-	AddProxyOnly?: boolean | null,
-	ProxyDetour?: string | null,
 };
 
 export type GlobalHotkey = number;
@@ -564,6 +491,7 @@ export type ImportProfilesResult = {
 	failed?: number,
 	removedExisting?: number,
 	removedDuplicates?: number,
+	discardedNodeOverrides?: number,
 	subid?: string | null,
 	importedIndexIds?: string[],
 	updatedIndexIds?: string[],
@@ -668,6 +596,11 @@ export type Mux4SboxItem_Serialize = {
 	Padding?: boolean | null,
 };
 
+export type NetworkSettings = {
+	tun: TunAdvancedSettings,
+	systemProxy: SystemProxyAdvancedSettings,
+};
+
 export type ProfileDedupeResult = {
 	total: number,
 	kept: number,
@@ -711,15 +644,12 @@ export type ProfileItem_Deserialize = {
 	Username?: string,
 	Network?: string,
 	StreamSecurity?: string,
-	AllowInsecure?: string,
 	Sni?: string,
 	Alpn?: string,
-	Fingerprint?: string,
 	PublicKey?: string,
 	ShortId?: string,
 	SpiderX?: string,
 	Mldsa65Verify?: string,
-	MuxEnabled?: boolean | null,
 	Cert?: string,
 	CertSha?: string,
 	EchConfigList?: string,
@@ -743,15 +673,12 @@ export type ProfileItem_Serialize = {
 	Username: string,
 	Network: string,
 	StreamSecurity: string,
-	AllowInsecure: string,
 	Sni: string,
 	Alpn: string,
-	Fingerprint: string,
 	PublicKey: string,
 	ShortId: string,
 	SpiderX: string,
 	Mldsa65Verify: string,
-	MuxEnabled?: boolean | null,
 	Cert: string,
 	CertSha: string,
 	EchConfigList: string,
@@ -795,10 +722,7 @@ export type ProtocolExtraItem_Deserialize = {
 	WgReserved?: string | null,
 	WgMtu?: number | null,
 	SalamanderPass?: string | null,
-	UpMbps?: number | null,
-	DownMbps?: number | null,
 	Ports?: string | null,
-	HopInterval?: string | null,
 	InsecureConcurrency?: number | null,
 	NaiveQuic?: boolean | null,
 	GroupType?: string | null,
@@ -823,10 +747,7 @@ export type ProtocolExtraItem_Serialize = {
 	WgReserved?: string | null,
 	WgMtu?: number | null,
 	SalamanderPass?: string | null,
-	UpMbps?: number | null,
-	DownMbps?: number | null,
 	Ports?: string | null,
-	HopInterval?: string | null,
 	InsecureConcurrency?: number | null,
 	NaiveQuic?: boolean | null,
 	GroupType?: string | null,
@@ -1104,6 +1025,34 @@ export type ServerStatItem = {
 	DateNow?: number | null,
 };
 
+export type SettingsBundle = SettingsBundle_Serialize | SettingsBundle_Deserialize;
+
+export type SettingsBundle_Deserialize = {
+	uiPreferences: UiPreferences,
+	autostartEnabled: boolean,
+	showWindowHotkey: KeyEventItem_Deserialize,
+	sources: ConfigSourceSettings,
+	subConvertUrl: string | null,
+	coreBasicItem: CoreBasicItem_Deserialize,
+	mux4SboxItem: Mux4SboxItem_Deserialize,
+	hysteriaItem: HysteriaItem,
+	network: NetworkSettings,
+	speedTestItem: SpeedTestItem_Deserialize,
+};
+
+export type SettingsBundle_Serialize = {
+	uiPreferences: UiPreferences,
+	autostartEnabled: boolean,
+	showWindowHotkey: KeyEventItem_Serialize,
+	sources: ConfigSourceSettings,
+	subConvertUrl: string | null,
+	coreBasicItem: CoreBasicItem_Serialize,
+	mux4SboxItem: Mux4SboxItem_Serialize,
+	hysteriaItem: HysteriaItem,
+	network: NetworkSettings,
+	speedTestItem: SpeedTestItem_Serialize,
+};
+
 export type ShellTabTarget = "profiles" | "proxyGroups" | "proxyConnections" | "logs";
 
 export type SimpleDnsItem = SimpleDnsItem_Serialize | SimpleDnsItem_Deserialize;
@@ -1257,6 +1206,14 @@ export type SysProxyMode = "unchanged" | "forcedChange" | "forcedClear" | "pac";
 
 export type SysProxyType = number;
 
+export type SystemProxyAdvancedSettings = {
+	systemProxyExceptions: string,
+	notProxyLocalAddress: boolean,
+	systemProxyAdvancedProtocol: string,
+	customSystemProxyPacPath: string | null,
+	customSystemProxyScriptPath: string | null,
+};
+
 export type SystemProxyItem = SystemProxyItem_Serialize | SystemProxyItem_Deserialize;
 
 export type SystemProxyItem_Deserialize = {
@@ -1325,6 +1282,16 @@ export type TransportExtraItem_Serialize = {
 	KcpHeaderType?: string | null,
 	KcpSeed?: string | null,
 	KcpMtu?: number | null,
+};
+
+export type TunAdvancedSettings = {
+	autoRoute: boolean,
+	strictRoute: boolean,
+	stack: string,
+	mtu: number,
+	enableIpv6Address: boolean,
+	icmpRouting: string,
+	enableLegacyProtect: boolean,
 };
 
 export type TunBackend = "process" | "macosPacketTunnel" | "windowsService" | "unsupported";

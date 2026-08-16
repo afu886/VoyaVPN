@@ -232,18 +232,7 @@ pub(super) fn handle_global_hotkey<R: tauri::Runtime>(
 ) {
     match action {
         GlobalHotkey::ShowForm => toggle_main_window(app),
-        GlobalHotkey::SystemProxyClear => {
-            spawn_global_hotkey_proxy_mode(app, SysProxyType::ForcedClear);
-        }
-        GlobalHotkey::SystemProxySet => {
-            spawn_global_hotkey_proxy_mode(app, SysProxyType::ForcedChange);
-        }
-        GlobalHotkey::SystemProxyUnchanged => {
-            spawn_global_hotkey_proxy_mode(app, SysProxyType::Unchanged);
-        }
-        GlobalHotkey::SystemProxyPac => {
-            spawn_global_hotkey_proxy_mode(app, SysProxyType::Pac);
-        }
+        _ => tracing::warn!(?action, "ignored retired global hotkey action"),
     }
 }
 
@@ -267,19 +256,6 @@ pub(super) fn toggle_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
             }
         }
     }
-}
-
-pub(super) fn spawn_global_hotkey_proxy_mode<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    mode: SysProxyType,
-) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        if let Err(error) = set_system_proxy_mode(app.clone(), state, mode) {
-            tracing::warn!(?error, "global hotkey system proxy mode switch failed");
-        }
-    });
 }
 
 pub(super) fn apply_system_proxy<R>(
@@ -687,13 +663,6 @@ pub(super) fn certificate_error(error: CertificateError) -> AppError {
     AppError::Certificate(error.to_string())
 }
 
-pub(super) fn template_error(error: FullConfigTemplateManagerError) -> AppError {
-    match error {
-        FullConfigTemplateManagerError::Db(error) => AppError::Database(error.to_string()),
-        error => AppError::Template(error.to_string()),
-    }
-}
-
 pub(super) fn export_error(error: ExportManagerError) -> AppError {
     match error {
         ExportManagerError::Database(error) => AppError::Database(error.to_string()),
@@ -707,7 +676,6 @@ pub(super) fn proxy_runtime_error(error: ProxyRuntimeError) -> AppError {
 
 pub(super) fn dns_error(error: DnsManagerError) -> AppError {
     match error {
-        DnsManagerError::Database(error) => AppError::Database(error.to_string()),
         DnsManagerError::Validation(issues) => AppError::Dns(DnsCommandError {
             message: "DNS settings validation failed".to_string(),
             issues,

@@ -19,12 +19,12 @@ pub mod qr;
 pub mod redaction;
 pub mod routing;
 pub mod runtime;
+pub mod settings_save;
 pub mod speedtest;
 pub mod statistics;
 pub mod subscriptions;
 pub mod supervisor;
 pub mod sysproxy;
-pub mod templates;
 pub mod tun;
 pub mod updates;
 

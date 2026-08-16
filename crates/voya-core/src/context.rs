@@ -9,8 +9,8 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    AppConfig, ConfigType, CoreType, DnsItem, FullConfigTemplateItem, InboundProtocol, ProfileItem,
-    ProtocolExtraItem, RoutingItem, RulesItem, SimpleDnsItem, SubItem,
+    AppConfig, ConfigType, CoreType, InboundProtocol, ProfileItem, ProtocolExtraItem, RoutingItem,
+    RulesItem, SimpleDnsItem, SubItem,
 };
 
 pub const PROXY_TAG: &str = "proxy";
@@ -138,11 +138,9 @@ pub struct CoreConfigContext {
     pub node: ProfileItem,
     pub run_core_type: CoreType,
     pub routing_item: Option<RoutingItem>,
-    pub raw_dns_item: Option<DnsItem>,
     pub simple_dns_item: SimpleDnsItem,
     pub all_proxies_map: BTreeMap<String, ProfileItem>,
     pub app_config: AppConfig,
-    pub full_config_template: Option<FullConfigTemplateItem>,
     pub server_test_item_map: BTreeMap<String, String>,
     pub is_tun_enabled: bool,
     pub protect_domain_list: Vec<String>,
@@ -163,11 +161,9 @@ impl Default for CoreConfigContext {
             node: ProfileItem::default(),
             run_core_type: CoreType::sing_box,
             routing_item: None,
-            raw_dns_item: None,
             simple_dns_item: SimpleDnsItem::default(),
             all_proxies_map: BTreeMap::new(),
             app_config: AppConfig::default(),
-            full_config_template: None,
             server_test_item_map: BTreeMap::new(),
             is_tun_enabled: false,
             protect_domain_list: Vec::new(),
@@ -269,10 +265,6 @@ pub trait CoreGenEnv {
 
     fn get_sub_item(&self, subid: &str) -> Option<SubItem>;
 
-    fn get_full_config_template_item(&self) -> Option<FullConfigTemplateItem>;
-
-    fn get_dns_item(&self) -> Option<DnsItem>;
-
     fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem>;
 
     fn get_local_port(&self, protocol: InboundProtocol) -> i32;
@@ -320,11 +312,9 @@ where
             node: node.clone(),
             run_core_type,
             routing_item: self.env.get_default_routing(config),
-            raw_dns_item: self.env.get_dns_item(),
             simple_dns_item: config.simple_dns_item.clone(),
             all_proxies_map: BTreeMap::new(),
             app_config: config.clone(),
-            full_config_template: self.env.get_full_config_template_item(),
             server_test_item_map: BTreeMap::new(),
             is_tun_enabled: config.tun_mode_item.enable_tun,
             protect_domain_list: Vec::new(),
@@ -1064,8 +1054,6 @@ mod tests {
         profiles: Vec<ProfileItem>,
         subs: Vec<SubItem>,
         routings: Vec<RoutingItem>,
-        dns_items: Vec<DnsItem>,
-        templates: Vec<FullConfigTemplateItem>,
         local_socks_port: i32,
     }
 
@@ -1076,8 +1064,6 @@ mod tests {
                 profiles: Vec::new(),
                 subs: Vec::new(),
                 routings: Vec::new(),
-                dns_items: Vec::new(),
-                templates: Vec::new(),
                 local_socks_port: 10808,
             }
         }
@@ -1121,14 +1107,6 @@ mod tests {
             self.subs.iter().find(|sub| sub.id == subid).cloned()
         }
 
-        fn get_full_config_template_item(&self) -> Option<FullConfigTemplateItem> {
-            self.templates.first().cloned()
-        }
-
-        fn get_dns_item(&self) -> Option<DnsItem> {
-            self.dns_items.first().cloned()
-        }
-
         fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem> {
             self.routings
                 .iter()
@@ -1152,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn context_build_active_resolves_template_dns_routing_and_active_node() {
+    fn context_build_active_resolves_structured_dns_routing_and_active_node() {
         let active = vless_profile("active", "Active", "active.example.com");
         let config = app_config("active");
         let env = MemoryEnv {
@@ -1161,15 +1139,6 @@ mod tests {
                 id: "routing".to_string(),
                 is_active: true,
                 ..RoutingItem::default()
-            }],
-            dns_items: vec![DnsItem {
-                id: "dns".to_string(),
-                ..DnsItem::default()
-            }],
-            templates: vec![FullConfigTemplateItem {
-                id: "template".to_string(),
-                enabled: true,
-                ..FullConfigTemplateItem::default()
             }],
             ..MemoryEnv::default()
         };
@@ -1185,18 +1154,7 @@ mod tests {
             result.context.routing_item.as_ref().map(|item| &item.id),
             Some(&"routing".to_string())
         );
-        assert_eq!(
-            result.context.raw_dns_item.as_ref().map(|item| &item.id),
-            Some(&"dns".to_string())
-        );
-        assert_eq!(
-            result
-                .context
-                .full_config_template
-                .as_ref()
-                .map(|item| &item.id),
-            Some(&"template".to_string())
-        );
+        assert_eq!(result.context.simple_dns_item, config.simple_dns_item);
     }
 
     #[test]

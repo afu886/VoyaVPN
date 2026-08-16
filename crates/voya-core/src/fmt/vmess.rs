@@ -83,15 +83,6 @@ impl ShareFmt for VmessFmt {
             ("tls", Value::String(item.stream_security.clone())),
             ("sni", Value::String(item.sni.clone())),
             ("alpn", Value::String(item.alpn.clone())),
-            ("fp", Value::String(item.fingerprint.clone())),
-            (
-                "insecure",
-                Value::String(if item.allow_insecure == ALLOW_INSECURE_TRUE {
-                    "1".to_string()
-                } else {
-                    "0".to_string()
-                }),
-            ),
         ]);
 
         let payload = serde_json::to_string(&vmess).map_err(|error| ShareError::InvalidJson {
@@ -138,12 +129,6 @@ fn parse_vmess_base64(input: &str) -> Result<ProfileItem, ShareError> {
         stream_security: value_string(object, "tls"),
         sni: value_string(object, "sni"),
         alpn: value_string(object, "alpn"),
-        fingerprint: value_string(object, "fp"),
-        allow_insecure: if value_string(object, "insecure") == "1" {
-            ALLOW_INSECURE_TRUE.to_string()
-        } else {
-            String::new()
-        },
         protocol_extra: ProtocolExtraItem {
             alter_id: Some(value_i32(object, "aid").unwrap_or(0).to_string()),
             vmess_security: Some({

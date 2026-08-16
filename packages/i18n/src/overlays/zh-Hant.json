@@ -24,7 +24,10 @@
     "restart": "重新啟動",
     "save": "儲存",
     "settings": "設定",
-    "testSelected": "測試所選"
+    "testSelected": "測試所選",
+    "refreshRuntimeState": "重新整理執行狀態",
+    "reloadCoreConfig": "重新載入核心設定",
+    "runningProxyGroupDelayTest": "執行中代理群組延遲測試"
   },
   "app": {
     "name": "VoyaVPN"
@@ -61,6 +64,8 @@
     "delay": "延遲",
     "destination": "目標",
     "download": "下行",
+    "cumulativeDownload": "累計下載 {{total}}",
+    "cumulativeUpload": "累計上傳 {{total}}",
     "filterConnections": "過濾連線",
     "groups": "分組",
     "host": "主機",
@@ -121,7 +126,7 @@
     "fontSize": "字型大小",
     "language": "語言",
     "settings": "設定",
-    "settingsDescription": "通用、來源、核心、網路、測試、快捷鍵與更新設定。",
+    "settingsDescription": "通用、來源、核心、網路、測試與更新設定。",
     "theme": "主題",
     "version": "版本 0.1.0"
   },
@@ -135,7 +140,7 @@
       "import": "匯入設定範本",
       "title": "匯入設定範本",
       "description": "選擇要匯入的設定範本。匯入後將自動啟用第一條路由。",
-      "advancedHint": "此操作會匯入來源、DNS 與路由預設。「完整設定範本」是獨立的進階功能，不受影響。",
+      "advancedHint": "此操作會匯入結構化來源、Simple DNS 與路由預設。",
       "selectPrompt": "請選擇範本",
       "default": "預設",
       "defaultDescription": "清除區域來源、還原內建 DNS，並匯入內建路由範本。",
@@ -322,6 +327,7 @@
         "edit": "編輯",
         "copy": "複製",
         "delete": "刪除",
+        "move": "移動",
         "moveTop": "移至頂部",
         "moveUp": "上移",
         "moveDown": "下移",
@@ -357,7 +363,8 @@
         "clipboard": "從剪貼簿匯入",
         "clipboardEmpty": "剪貼簿為空。",
         "clipboardUnavailable": "目前 WebView 不支援讀取剪貼簿文字。",
-        "clipboardResult": "已從剪貼簿匯入 {{count}} 個設定檔。"
+        "clipboardResult": "已從剪貼簿匯入 {{count}} 個設定檔。",
+        "discardedNodeOverrides": "已捨棄 {{count}} 個節點級覆寫項，將使用全域設定。"
       },
       "aria": {
         "filter": "篩選設定檔",
@@ -511,23 +518,15 @@
     "download": "下行",
     "duration": "已連線"
   },
-  "templates": {
-    "addProxyOnly": "僅新增代理",
-    "configJson": "設定 JSON",
-    "description": "編輯 sing-box 生成時使用的完整設定範本。",
-    "enabled": "啟用",
-    "open": "開啟範本設定",
-    "proxyDetour": "代理繞行",
-    "remarks": "備註",
-    "saved": "已儲存 {{core}} 範本。",
-    "saving": "儲存中",
-    "title": "完整設定範本",
-    "tunConfigJson": "TUN 設定 JSON"
-  },
   "settings": {
+    "closeUnsavedDescription": "儲存全部修改、放棄修改，或繼續編輯。",
+    "closeUnsavedTitle": "設定尚未儲存",
+    "discardChanges": "放棄修改",
+    "saveAll": "儲存全部",
+    "saveBeforeActions": "請先儲存或放棄待處理的修改，再執行此操作。",
     "startup": "啟動",
+    "unsavedChanges": "存在未儲存的修改",
     "tabGeneral": "通用",
-    "tabHotkeys": "快捷鍵",
     "tabTests": "測試",
     "tabUpdates": "更新",
     "fields": {

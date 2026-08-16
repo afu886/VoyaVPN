@@ -84,12 +84,6 @@ pub struct PresetDnsTemplateFetchOptions {
     pub proxy_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PresetDnsTemplates {
-    pub singbox_template: Option<String>,
-    pub simple_template: Option<String>,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct PresetDnsTemplateClient {
     download: DownloadClient,
@@ -107,19 +101,14 @@ impl PresetDnsTemplateClient {
         &self,
         source_url: &str,
         options: &PresetDnsTemplateFetchOptions,
-    ) -> PresetDnsTemplates {
+    ) -> Option<String> {
         let source_url = source_url.trim();
         if source_url.is_empty() {
-            return PresetDnsTemplates::default();
+            return None;
         }
 
-        let singbox_url = join_url_path(source_url, "sing_box.json");
         let simple_url = join_url_path(source_url, "simple_dns.json");
-
-        PresetDnsTemplates {
-            singbox_template: self.fetch_optional(&singbox_url, options).await,
-            simple_template: self.fetch_optional(&simple_url, options).await,
-        }
+        self.fetch_optional(&simple_url, options).await
     }
 
     pub async fn fetch_optional(
@@ -550,17 +539,11 @@ mod tests {
     async fn preset_dns_template_client_fetches_regional_templates() {
         let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
         let base = spawn_http_fixture(
-            HashMap::from([
-                (
-                    "/preset/sing_box.json".to_string(),
-                    r#"{"NormalDNS":"sing-box"}"#.to_string(),
-                ),
-                (
-                    "/preset/simple_dns.json".to_string(),
-                    r#"{"DirectDNS":"1.1.1.1"}"#.to_string(),
-                ),
-            ]),
-            2,
+            HashMap::from([(
+                "/preset/simple_dns.json".to_string(),
+                r#"{"DirectDNS":"1.1.1.1"}"#.to_string(),
+            )]),
+            1,
             Arc::clone(&seen_user_agents),
         )
         .await;
@@ -572,24 +555,17 @@ mod tests {
             )
             .await;
 
-        assert_eq!(
-            templates.singbox_template.as_deref(),
-            Some(r#"{"NormalDNS":"sing-box"}"#)
-        );
-        assert_eq!(
-            templates.simple_template.as_deref(),
-            Some(r#"{"DirectDNS":"1.1.1.1"}"#)
-        );
+        assert_eq!(templates.as_deref(), Some(r#"{"DirectDNS":"1.1.1.1"}"#));
         assert_eq!(
             seen_user_agents.lock().await.as_slice(),
-            [USER_AGENT_PREFIX, USER_AGENT_PREFIX]
+            [USER_AGENT_PREFIX]
         );
     }
 
     #[tokio::test]
     async fn preset_dns_template_client_returns_none_for_missing_templates() {
         let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
-        let base = spawn_http_fixture(HashMap::new(), 2, Arc::clone(&seen_user_agents)).await;
+        let base = spawn_http_fixture(HashMap::new(), 1, Arc::clone(&seen_user_agents)).await;
 
         let templates = PresetDnsTemplateClient::new()
             .fetch(
@@ -598,7 +574,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(templates, PresetDnsTemplates::default());
-        assert_eq!(seen_user_agents.lock().await.len(), 2);
+        assert_eq!(templates, None);
+        assert_eq!(seen_user_agents.lock().await.len(), 1);
     }
 }

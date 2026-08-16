@@ -5,6 +5,7 @@ import {
   exportProfileShareLinksBase64,
 } from "@/ipc";
 import type { ExportProfilesResult, ImportProfilesResult } from "@/ipc/bindings";
+import type { TranslateFn } from "./server-table-columns";
 
 export type ProfileExportKind = "clientConfig" | "innerLinks" | "shareBase64" | "shareLinks";
 
@@ -44,7 +45,7 @@ export function exportFileFilter(kind: ProfileExportKind) {
     : { extensions: ["txt"], name: "Text" };
 }
 
-export function formatImportOperationMessage(result: ImportProfilesResult) {
+export function formatImportOperationMessage(result: ImportProfilesResult, t: TranslateFn) {
   const imported = result.imported ?? 0;
   const updated = result.updated ?? 0;
   const skipped = result.skipped ?? 0;
@@ -52,6 +53,7 @@ export function formatImportOperationMessage(result: ImportProfilesResult) {
   const filtered = result.filtered ?? 0;
   const deduped = result.deduped ?? 0;
   const removedDuplicates = result.removedDuplicates ?? 0;
+  const discardedNodeOverrides = result.discardedNodeOverrides ?? 0;
   const parts = [`Imported ${imported.toLocaleString()} profile${imported === 1 ? "" : "s"}.`];
 
   if (updated > 0) {
@@ -73,6 +75,13 @@ export function formatImportOperationMessage(result: ImportProfilesResult) {
   }
   if (deduped > 0) {
     parts.push(`${deduped.toLocaleString()} duplicate${deduped === 1 ? "" : "s"} skipped from payload.`);
+  }
+  if (discardedNodeOverrides > 0) {
+    parts.push(
+      t("panes.profiles.import.discardedNodeOverrides", {
+        count: discardedNodeOverrides.toLocaleString(),
+      }),
+    );
   }
 
   return parts.join(" ");

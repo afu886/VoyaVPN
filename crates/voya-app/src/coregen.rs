@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use voya_core::{
-    AppConfig, CoreGenEnv, CoreGenPlatform, DnsItem, FullConfigTemplateItem, InboundProtocol,
-    ProfileItem, RoutingItem, SubItem,
+    AppConfig, CoreGenEnv, CoreGenPlatform, InboundProtocol, ProfileItem, RoutingItem, SubItem,
 };
 
 #[derive(Debug, Clone)]
@@ -11,8 +10,6 @@ pub(crate) struct SnapshotCoreGenEnv {
     platform: CoreGenPlatform,
     profiles: Vec<ProfileItem>,
     routings: Vec<RoutingItem>,
-    dns_items: Vec<DnsItem>,
-    full_config_templates: Vec<FullConfigTemplateItem>,
     subs: Vec<SubItem>,
     singbox_ruleset_paths: BTreeMap<String, String>,
 }
@@ -21,8 +18,6 @@ pub(crate) struct SnapshotCoreGenEnv {
 pub(crate) struct SnapshotCoreGenData {
     pub(crate) profiles: Vec<ProfileItem>,
     pub(crate) routings: Vec<RoutingItem>,
-    pub(crate) dns_items: Vec<DnsItem>,
-    pub(crate) full_config_templates: Vec<FullConfigTemplateItem>,
     pub(crate) subs: Vec<SubItem>,
 }
 
@@ -40,8 +35,6 @@ impl SnapshotCoreGenEnv {
             platform,
             profiles: data.profiles,
             routings: data.routings,
-            dns_items: data.dns_items,
-            full_config_templates: data.full_config_templates,
             subs: data.subs,
             singbox_ruleset_paths: BTreeMap::new(),
         }
@@ -92,14 +85,6 @@ impl CoreGenEnv for SnapshotCoreGenEnv {
 
     fn get_sub_item(&self, subid: &str) -> Option<SubItem> {
         self.subs.iter().find(|sub| sub.id == subid).cloned()
-    }
-
-    fn get_full_config_template_item(&self) -> Option<FullConfigTemplateItem> {
-        self.full_config_templates.first().cloned()
-    }
-
-    fn get_dns_item(&self) -> Option<DnsItem> {
-        self.dns_items.first().cloned()
     }
 
     fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem> {

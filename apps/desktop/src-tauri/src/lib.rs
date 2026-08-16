@@ -6,7 +6,7 @@ use std::{
 
 use specta_typescript::Typescript;
 use tauri::{
-    menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     Manager, RunEvent,
 };
@@ -27,7 +27,7 @@ use voya_app::{
     supervisor::{CoreSupervisor, NativeTunExitEvent, SupervisorDeps, SupervisorEventSink},
     sysproxy::SystemProxyManager,
 };
-use voya_core::{AppConfig, ProfileItem, SysProxyType};
+use voya_core::AppConfig;
 use voya_db::{AppConfigStore, Database, DATABASE_NAME};
 use voya_platform::{
     coreinfo::{copy_seed_core_assets, TargetOs},
@@ -41,20 +41,6 @@ mod ipc;
 const TRAY_SHOW: &str = "tray-show";
 const TRAY_HIDE: &str = "tray-hide";
 const TRAY_QUIT: &str = "tray-quit";
-const TRAY_CONNECT: &str = "tray-connect";
-const TRAY_DISCONNECT: &str = "tray-disconnect";
-const TRAY_PROXY_CLEAR: &str = "tray-proxy-clear";
-const TRAY_PROXY_SET: &str = "tray-proxy-set";
-const TRAY_PROXY_UNCHANGED: &str = "tray-proxy-unchanged";
-const TRAY_PROXY_PAC: &str = "tray-proxy-pac";
-const TRAY_SERVER_PREFIX: &str = "tray-server:";
-
-enum TrayPrivilegedAction {
-    Connect,
-    Disconnect,
-    Proxy(SysProxyType),
-}
-
 pub(crate) struct AppState {
     database: Database,
     config_store: AppConfigStore,
@@ -292,13 +278,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
                     shutdown_for_exit(app);
                     app.exit(0);
                 }
-                id => {
-                    if let Some(action) = tray_privileged_action(id) {
-                        handle_tray_privileged_action(app, action);
-                    } else if let Some(server_id) = id.strip_prefix(TRAY_SERVER_PREFIX) {
-                        spawn_tray_set_active_server(app, server_id.to_string());
-                    }
-                }
+                _ => {}
             },
         );
 
@@ -311,35 +291,6 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn tray_privileged_action(id: &str) -> Option<TrayPrivilegedAction> {
-    match id {
-        TRAY_CONNECT => Some(TrayPrivilegedAction::Connect),
-        TRAY_DISCONNECT => Some(TrayPrivilegedAction::Disconnect),
-        TRAY_PROXY_CLEAR => Some(TrayPrivilegedAction::Proxy(SysProxyType::ForcedClear)),
-        TRAY_PROXY_SET => Some(TrayPrivilegedAction::Proxy(SysProxyType::ForcedChange)),
-        TRAY_PROXY_UNCHANGED => Some(TrayPrivilegedAction::Proxy(SysProxyType::Unchanged)),
-        TRAY_PROXY_PAC if tray_pac_available() => {
-            Some(TrayPrivilegedAction::Proxy(SysProxyType::Pac))
-        }
-        _ => None,
-    }
-}
-
-fn tray_pac_available() -> bool {
-    cfg!(any(target_os = "windows", target_os = "macos"))
-}
-
-fn handle_tray_privileged_action<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    action: TrayPrivilegedAction,
-) {
-    match action {
-        TrayPrivilegedAction::Connect => spawn_tray_connect(app),
-        TrayPrivilegedAction::Disconnect => spawn_tray_disconnect(app),
-        TrayPrivilegedAction::Proxy(mode) => spawn_tray_proxy_mode(app, mode),
-    }
-}
-
 pub(crate) fn refresh_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let Some(tray) = app.tray_by_id("main") else {
         return Ok(());
@@ -349,143 +300,15 @@ pub(crate) fn refresh_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) ->
 }
 
 fn build_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let state = app.state::<AppState>();
-    let config = state
-        .config()
-        .read()
-        .map(|guard| guard.clone())
-        .unwrap_or_default();
-    let profiles = tauri::async_runtime::block_on(state.database().profiles().list())
-        .unwrap_or_else(|error| {
-            tracing::warn!(?error, "failed to load profiles for tray menu");
-            Vec::new()
-        });
-
     let show = MenuItem::with_id(app, TRAY_SHOW, "Show VoyaVPN", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, TRAY_HIDE, "Hide Window", true, None::<&str>)?;
-    let connect = MenuItem::with_id(app, TRAY_CONNECT, "Connect", true, None::<&str>)?;
-    let disconnect = MenuItem::with_id(app, TRAY_DISCONNECT, "Disconnect", true, None::<&str>)?;
-    let servers_menu = build_tray_servers_menu(app, &config, profiles)?;
-    let proxy_menu = build_tray_proxy_menu(app, &config)?;
     let quit = MenuItem::with_id(app, TRAY_QUIT, "Quit", true, None::<&str>)?;
-    let status_separator = PredefinedMenuItem::separator(app)?;
     let quit_separator = PredefinedMenuItem::separator(app)?;
 
     Menu::with_items(
         app,
-        &[
-            &show as &dyn IsMenuItem<R>,
-            &hide,
-            &status_separator,
-            &connect,
-            &disconnect,
-            &servers_menu,
-            &proxy_menu,
-            &quit_separator,
-            &quit,
-        ],
+        &[&show as &dyn IsMenuItem<R>, &hide, &quit_separator, &quit],
     )
-}
-
-fn build_tray_servers_menu<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    config: &AppConfig,
-    profiles: Vec<ProfileItem>,
-) -> tauri::Result<Submenu<R>> {
-    let limit = usize::try_from(config.gui_item.tray_menu_servers_limit.max(0)).unwrap_or(0);
-    if limit == 0 || profiles.is_empty() {
-        let empty = MenuItem::with_id(
-            app,
-            "tray-server-empty",
-            "No recent servers",
-            false,
-            None::<&str>,
-        )?;
-        return Submenu::with_id_and_items(app, "tray-servers", "Recent Servers", true, &[&empty]);
-    }
-    if profiles.len() > limit {
-        let hidden = MenuItem::with_id(
-            app,
-            "tray-server-hidden",
-            "Recent servers hidden by limit",
-            false,
-            None::<&str>,
-        )?;
-        return Submenu::with_id_and_items(app, "tray-servers", "Recent Servers", true, &[&hidden]);
-    }
-
-    let mut items = Vec::new();
-    for profile in profiles {
-        let active = profile.index_id == config.index_id;
-        let label = if active {
-            format!("✓ {}", tray_profile_label(&profile))
-        } else {
-            tray_profile_label(&profile)
-        };
-        items.push(MenuItem::with_id(
-            app,
-            format!("{TRAY_SERVER_PREFIX}{}", profile.index_id),
-            label,
-            true,
-            None::<&str>,
-        )?);
-    }
-    let refs = items
-        .iter()
-        .map(|item| item as &dyn IsMenuItem<R>)
-        .collect::<Vec<_>>();
-
-    Submenu::with_id_and_items(app, "tray-servers", "Recent Servers", true, &refs)
-}
-
-fn build_tray_proxy_menu<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    config: &AppConfig,
-) -> tauri::Result<Submenu<R>> {
-    let active = config.system_proxy_item.sys_proxy_type;
-    let pac_available = tray_pac_available();
-    let mut items = vec![
-        CheckMenuItem::with_id(
-            app,
-            TRAY_PROXY_CLEAR,
-            "Clear System Proxy",
-            true,
-            active == SysProxyType::ForcedClear,
-            None::<&str>,
-        )?,
-        CheckMenuItem::with_id(
-            app,
-            TRAY_PROXY_SET,
-            "Set System Proxy",
-            true,
-            active == SysProxyType::ForcedChange,
-            None::<&str>,
-        )?,
-        CheckMenuItem::with_id(
-            app,
-            TRAY_PROXY_UNCHANGED,
-            "Do Not Change",
-            true,
-            active == SysProxyType::Unchanged,
-            None::<&str>,
-        )?,
-    ];
-    if pac_available {
-        items.push(CheckMenuItem::with_id(
-            app,
-            TRAY_PROXY_PAC,
-            "PAC",
-            true,
-            active == SysProxyType::Pac,
-            None::<&str>,
-        )?);
-    }
-    let refs = items
-        .iter()
-        .map(|item| item as &dyn IsMenuItem<R>)
-        .collect::<Vec<_>>();
-
-    Submenu::with_id_and_items(app, "tray-proxy", "System Proxy", true, &refs)
 }
 
 struct TauriProcessLogSink {
@@ -622,68 +445,6 @@ fn process_role_label(role: ProcessRole) -> &'static str {
         ProcessRole::Probe => "probe",
         ProcessRole::Autostart => "autostart",
     }
-}
-
-fn tray_profile_label(profile: &ProfileItem) -> String {
-    let mut label = if profile.remarks.trim().is_empty() {
-        profile.address.clone()
-    } else {
-        profile.remarks.clone()
-    };
-    if label.chars().count() > 64 {
-        label = label.chars().take(61).collect::<String>();
-        label.push_str("...");
-    }
-    label
-}
-
-fn spawn_tray_connect<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        if let Err(error) = ipc::commands::connect_active_profile(app.clone(), state).await {
-            tracing::warn!(?error, "tray connect failed");
-        }
-        if let Err(error) = refresh_tray_menu(&app) {
-            tracing::warn!(?error, "failed to refresh tray after connect");
-        }
-    });
-}
-
-fn spawn_tray_disconnect<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        if let Err(error) = ipc::commands::disconnect_core(app.clone(), state).await {
-            tracing::warn!(?error, "tray disconnect failed");
-        }
-        if let Err(error) = refresh_tray_menu(&app) {
-            tracing::warn!(?error, "failed to refresh tray after disconnect");
-        }
-    });
-}
-
-fn spawn_tray_proxy_mode<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mode: SysProxyType) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        if let Err(error) = ipc::commands::set_system_proxy_mode(app.clone(), state, mode) {
-            tracing::warn!(?error, "tray system proxy mode switch failed");
-        }
-    });
-}
-
-fn spawn_tray_set_active_server<R: tauri::Runtime>(app: &tauri::AppHandle<R>, index_id: String) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        if let Err(error) = ipc::commands::set_active_profile(app.clone(), state, index_id).await {
-            tracing::warn!(?error, "tray server switch failed");
-        }
-        if let Err(error) = refresh_tray_menu(&app) {
-            tracing::warn!(?error, "failed to refresh tray after server switch");
-        }
-    });
 }
 
 fn shutdown_for_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {

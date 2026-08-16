@@ -12,8 +12,11 @@
     "import": "Import",
     "pause": "Pause",
     "refresh": "Refresh",
+    "refreshRuntimeState": "Refresh runtime state",
     "reload": "Reload",
+    "reloadCoreConfig": "Reload core configuration",
     "restart": "Restart",
+    "runningProxyGroupDelayTest": "Running proxy group delay test",
     "save": "Save",
     "settings": "Settings",
     "testSelected": "Test selected"
@@ -106,7 +109,7 @@
     "fontSize": "Schriftgröße",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "General, sources, core, network, tests, hotkeys, and update preferences.",
+    "settingsDescription": "General, sources, core, network, tests, and update preferences.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -115,7 +118,7 @@
     "autostartOff": "Disabled",
     "autostartOn": "Enabled",
     "configTemplate": {
-      "advancedHint": "Dieser Vorgang importiert Quellen sowie DNS- und Routing-Voreinstellungen. Vollständige Konfigurationsvorlagen sind eine separate erweiterte Funktion und bleiben unverändert.",
+      "advancedHint": "Dieser Vorgang importiert strukturierte Quellen sowie Simple-DNS- und Routing-Voreinstellungen.",
       "applied": "Konfigurationsvorlage importiert",
       "appliedDescription": "Quellen, DNS- und Routing-Einstellungen wurden aktualisiert und die importierte Route wurde aktiviert.",
       "apply": "Importieren",
@@ -309,7 +312,8 @@
         "clipboard": "Import from clipboard",
         "clipboardEmpty": "Clipboard is empty.",
         "clipboardResult": "Imported {{count}} profile(s) from clipboard.",
-        "clipboardUnavailable": "Clipboard text read is unavailable in this WebView."
+        "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
+        "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
       "loading": "Loading profiles",
       "menu": {
@@ -317,6 +321,7 @@
         "copy": "Copy",
         "delete": "Delete",
         "edit": "Edit",
+        "move": "Move",
         "moveBottom": "Move to bottom",
         "moveDown": "Move down",
         "moveTop": "Move to top",
@@ -391,6 +396,8 @@
   "proxy": {
     "active": "Active",
     "chain": "Chain",
+    "cumulativeDownload": "Cumulative download {{total}}",
+    "cumulativeUpload": "Cumulative upload {{total}}",
     "delay": "Delay",
     "destination": "Destination",
     "download": "Down",
@@ -1017,6 +1024,9 @@
     "UpgradeAppNotExistTip": "Upgrade App does not exist"
   },
   "settings": {
+    "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
+    "closeUnsavedTitle": "Unsaved settings",
+    "discardChanges": "Discard changes",
     "fields": {
       "hysteriaDownMbps": "Hysteria max download bandwidth (Mbps)",
       "hysteriaUpMbps": "Hysteria max upload bandwidth (Mbps)",
@@ -1025,11 +1035,13 @@
       "speedTestDelayInterval": "Delay between speed test batches (seconds)",
       "speedTestPageSize": "Servers per speed test batch"
     },
+    "saveAll": "Save all",
+    "saveBeforeActions": "Save or discard pending changes before running this action.",
     "startup": "Startup",
     "tabGeneral": "General",
-    "tabHotkeys": "Hotkeys",
     "tabTests": "Tests",
-    "tabUpdates": "Updates"
+    "tabUpdates": "Updates",
+    "unsavedChanges": "Unsaved changes"
   },
   "status": {
     "aria": "Connection status",
@@ -1074,19 +1086,6 @@
     "proxyConnections": "Connections",
     "proxyGroups": "Proxy Groups",
     "routing": "Routing"
-  },
-  "templates": {
-    "addProxyOnly": "Add proxy only",
-    "configJson": "Config JSON",
-    "description": "Edit full config templates used by sing-box generation.",
-    "enabled": "Enabled",
-    "open": "Open template settings",
-    "proxyDetour": "Proxy detour",
-    "remarks": "Remarks",
-    "saved": "{{core}} template saved.",
-    "saving": "Saving",
-    "title": "Full Config Templates",
-    "tunConfigJson": "TUN config JSON"
   },
   "updates": {
     "appInstalled": "App update installed: {{version}}",

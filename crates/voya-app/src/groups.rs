@@ -1,7 +1,7 @@
 use thiserror::Error;
 use voya_core::{
     generate_singbox_config_value, group_preview_from_values, list_group_child_candidates,
-    validate_group_profile, AppConfig, CoreConfigContextBuilder, CoreGenPlatform, DnsItem,
+    validate_group_profile, AppConfig, CoreConfigContextBuilder, CoreGenPlatform,
     GroupChildCandidate, GroupPreview, GroupValidationResult, ProfileItem, ProfileListItem,
     RoutingItem, SingboxConfigError, SubItem,
 };
@@ -74,12 +74,10 @@ impl<'db> GroupManager<'db> {
         }
 
         let routings = self.database.routings().list().await?;
-        let dns_items = self.database.dns().list().await?;
         let subs = self.database.subscriptions().list().await?;
         let source = GroupPreviewSource {
             profiles: &profiles,
             routings: &routings,
-            dns_items: &dns_items,
             subs: &subs,
         };
         let singbox_value = self.preview_value(config, profile, &source)?;
@@ -155,8 +153,6 @@ impl<'db> GroupManager<'db> {
                     })
                     .collect(),
                 routings: source.routings.to_vec(),
-                dns_items: source.dns_items.to_vec(),
-                full_config_templates: Vec::new(),
                 subs: source.subs.to_vec(),
             },
         );
@@ -191,7 +187,6 @@ struct PreviewValue {
 struct GroupPreviewSource<'a> {
     profiles: &'a [ProfileItem],
     routings: &'a [RoutingItem],
-    dns_items: &'a [DnsItem],
     subs: &'a [SubItem],
 }
 

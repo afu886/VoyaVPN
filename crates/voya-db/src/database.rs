@@ -9,8 +9,8 @@ use sqlx::{
 };
 
 use crate::{
-    DbError, DnsRepository, FullConfigTemplateRepository, ProfileExRepository, ProfileRepository,
-    Result, RoutingRepository, ServerStatRepository, SubscriptionRepository,
+    DbError, ProfileExRepository, ProfileRepository, Result, RoutingRepository,
+    ServerStatRepository, SubscriptionRepository,
 };
 
 pub const DATABASE_NAME: &str = "voyavpn.sqlite";
@@ -92,16 +92,6 @@ impl Database {
     #[must_use]
     pub fn routings(&self) -> RoutingRepository<'_> {
         RoutingRepository::new(&self.pool)
-    }
-
-    #[must_use]
-    pub fn dns(&self) -> DnsRepository<'_> {
-        DnsRepository::new(&self.pool)
-    }
-
-    #[must_use]
-    pub fn full_config_templates(&self) -> FullConfigTemplateRepository<'_> {
-        FullConfigTemplateRepository::new(&self.pool)
     }
 
     pub async fn close(&self) {

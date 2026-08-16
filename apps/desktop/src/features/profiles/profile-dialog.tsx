@@ -29,7 +29,6 @@ import {
   type ParsedProfileFormValues,
   type ProfileFormValues,
 } from "./profile-form-schema";
-import { MuxPanel } from "./profile-mux-panel";
 import { ProtocolPanel } from "./profile-protocol-panel";
 import { SecurityPanel } from "./profile-security-panel";
 import { TransportPanel } from "./profile-transport-panel";
@@ -79,8 +78,6 @@ function ProfileDialogForm({
   } = form;
   const configType = Number(useWatch({ control: form.control, name: "ConfigType" })) as ProfileProtocol;
   const security = useWatch({ control: form.control, name: "StreamSecurity" }) ?? "";
-  const allowInsecure = useWatch({ control: form.control, name: "AllowInsecure" }) === "true";
-  const muxEnabled = useWatch({ control: form.control, name: "MuxEnabled" }) === true;
 
   const submit = handleSubmit(async (values) => {
     await onSubmit(prepareProfileForSave(values));
@@ -150,13 +147,6 @@ function ProfileDialogForm({
             register={register}
             security={security}
             setValue={setValue}
-          />
-          <MuxPanel
-            allowInsecure={allowInsecure}
-            control={form.control}
-            muxEnabled={muxEnabled}
-            setAllowInsecure={(enabled) => setValue("AllowInsecure", enabled ? "true" : "false")}
-            setMuxEnabled={(enabled) => setValue("MuxEnabled", enabled)}
           />
         </div>
       </form>

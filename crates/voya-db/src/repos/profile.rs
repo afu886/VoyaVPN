@@ -26,13 +26,13 @@ impl<'pool> ProfileRepository<'pool> {
             INSERT INTO profile_items (
                 index_id, config_type, config_version, subid, is_sub,
                 pre_socks_port, display_log, remarks, address, port, password,
-                username, network, stream_security, allow_insecure, sni, alpn,
-                fingerprint, public_key, short_id, spider_x, mldsa65_verify,
-                mux_enabled, cert, cert_sha, ech_config_list, finalmask,
+                username, network, stream_security, sni, alpn,
+                public_key, short_id, spider_x, mldsa65_verify,
+                cert, cert_sha, ech_config_list, finalmask,
                 protocol_extra, transport_extra
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?
             )
             ON CONFLICT(index_id) DO UPDATE SET
                 config_type = excluded.config_type,
@@ -48,15 +48,12 @@ impl<'pool> ProfileRepository<'pool> {
                 username = excluded.username,
                 network = excluded.network,
                 stream_security = excluded.stream_security,
-                allow_insecure = excluded.allow_insecure,
                 sni = excluded.sni,
                 alpn = excluded.alpn,
-                fingerprint = excluded.fingerprint,
                 public_key = excluded.public_key,
                 short_id = excluded.short_id,
                 spider_x = excluded.spider_x,
                 mldsa65_verify = excluded.mldsa65_verify,
-                mux_enabled = excluded.mux_enabled,
                 cert = excluded.cert,
                 cert_sha = excluded.cert_sha,
                 ech_config_list = excluded.ech_config_list,
@@ -79,15 +76,12 @@ impl<'pool> ProfileRepository<'pool> {
         .bind(&item.username)
         .bind(&item.network)
         .bind(&item.stream_security)
-        .bind(&item.allow_insecure)
         .bind(&item.sni)
         .bind(&item.alpn)
-        .bind(&item.fingerprint)
         .bind(&item.public_key)
         .bind(&item.short_id)
         .bind(&item.spider_x)
         .bind(&item.mldsa65_verify)
-        .bind(item.mux_enabled)
         .bind(&item.cert)
         .bind(&item.cert_sha)
         .bind(&item.ech_config_list)
@@ -309,15 +303,12 @@ fn row_to_profile_ref(row: &SqliteRow) -> Result<ProfileItem> {
         username: row.try_get("username")?,
         network: row.try_get("network")?,
         stream_security: row.try_get("stream_security")?,
-        allow_insecure: row.try_get("allow_insecure")?,
         sni: row.try_get("sni")?,
         alpn: row.try_get("alpn")?,
-        fingerprint: row.try_get("fingerprint")?,
         public_key: row.try_get("public_key")?,
         short_id: row.try_get("short_id")?,
         spider_x: row.try_get("spider_x")?,
         mldsa65_verify: row.try_get("mldsa65_verify")?,
-        mux_enabled: row.try_get("mux_enabled")?,
         cert: row.try_get("cert")?,
         cert_sha: row.try_get("cert_sha")?,
         ech_config_list: row.try_get("ech_config_list")?,

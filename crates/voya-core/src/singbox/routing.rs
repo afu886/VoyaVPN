@@ -3,26 +3,9 @@ use super::*;
 pub(super) fn gen_routing(config: &mut SingboxConfig, context: &CoreConfigContext) {
     config.route.final_outbound = Some(PROXY_TAG.to_string());
     let simple_dns = &context.simple_dns_item;
-    let raw_dns_enabled = context
-        .raw_dns_item
-        .as_ref()
-        .is_some_and(|item| item.enabled);
-    let default_domain_resolver_tag = if raw_dns_enabled {
-        SINGBOX_LOCAL_DNS_TAG
-    } else {
-        SINGBOX_DIRECT_DNS_TAG
-    };
-    let direct_dns_strategy = if raw_dns_enabled {
-        context
-            .raw_dns_item
-            .as_ref()
-            .and_then(|item| nonempty_string(item.domain_strategy4_freedom.as_deref()))
-    } else {
-        domain_strategy4_sbox(simple_dns.strategy4_freedom.as_deref())
-    };
     config.route.default_domain_resolver = Some(SingboxRule {
-        server: Some(default_domain_resolver_tag.to_string()),
-        strategy: direct_dns_strategy,
+        server: Some(SINGBOX_DIRECT_DNS_TAG.to_string()),
+        strategy: domain_strategy4_sbox(simple_dns.strategy4_freedom.as_deref()),
         ..SingboxRule::default()
     });
 
@@ -105,10 +88,8 @@ pub(super) fn gen_routing(config: &mut SingboxConfig, context: &CoreConfigContex
         });
     }
 
-    if !raw_dns_enabled {
-        if let Some(hosts_resolve_rule) = hosts_resolve_rule(simple_dns) {
-            config.route.rules.push(hosts_resolve_rule);
-        }
+    if let Some(hosts_resolve_rule) = hosts_resolve_rule(simple_dns) {
+        config.route.rules.push(hosts_resolve_rule);
     }
 
     append_priority_proxy_route_rules(&mut config.route.rules);

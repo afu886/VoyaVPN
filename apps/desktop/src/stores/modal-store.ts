@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import type { CoreType } from "@/ipc/bindings";
 
-export type ModalKind = "fullConfigTemplate" | "missingCore";
+export type ModalKind = "missingCore";
 
 export type MissingCorePayload = {
   coreType: CoreType;

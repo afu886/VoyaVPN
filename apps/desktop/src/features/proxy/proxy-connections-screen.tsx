@@ -295,8 +295,8 @@ export function ProxyConnectionsScreen() {
         <PageHeaderHeading icon={Plug} title={t("tabs.proxyConnections")}>
           <Badge className="gap-2 bg-background px-2 py-1 font-normal text-muted-foreground" variant="outline">
             <Activity className="size-4 text-muted-foreground" aria-hidden="true" />
-            <span className="tabular-nums">{t("status.upload", { speed: formatBytes(snapshot.uploadTotal) })}</span>
-            <span className="tabular-nums">{t("status.download", { speed: formatBytes(snapshot.downloadTotal) })}</span>
+            <span className="tabular-nums">{t("proxy.cumulativeUpload", { total: formatBytes(snapshot.uploadTotal) })}</span>
+            <span className="tabular-nums">{t("proxy.cumulativeDownload", { total: formatBytes(snapshot.downloadTotal) })}</span>
           </Badge>
           <ProxyMonitorStatusBadge className="max-w-[16rem]" status={monitorStatus} />
         </PageHeaderHeading>

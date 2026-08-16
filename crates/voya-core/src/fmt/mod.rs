@@ -19,8 +19,6 @@ const RAW_NETWORK_ALIAS: &str = "tcp";
 const RAW_HEADER_HTTP: &str = "http";
 const NONE: &str = "none";
 const STREAM_SECURITY_TLS: &str = "tls";
-const ALLOW_INSECURE_TRUE: &str = "true";
-const ALLOW_INSECURE_FALSE: &str = "false";
 const GRPC_GUN_MODE: &str = "gun";
 const GRPC_MULTI_MODE: &str = "multi";
 const HYSTERIA2_DEFAULT_SCHEME: &str = "hysteria2://";
@@ -57,8 +55,9 @@ use uri::*;
 pub use anytls::AnytlsFmt;
 pub use api::{CustomConfigImport, CustomConfigKind, ShareError, ShareFmt};
 pub use entry::{
-    export_inner_share_links, export_share_link, parse_full_custom_config, parse_inner_share_links,
-    parse_share_lines, parse_share_link,
+    export_inner_share_links, export_share_link, export_share_link_with_options,
+    parse_full_custom_config, parse_inner_share_links, parse_share_lines, parse_share_link,
+    ShareLinkOptions,
 };
 pub use hysteria2::Hysteria2Fmt;
 pub use naive::NaiveFmt;

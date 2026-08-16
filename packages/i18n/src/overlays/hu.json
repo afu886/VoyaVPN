@@ -24,7 +24,10 @@
     "restart": "Restart",
     "save": "Save",
     "settings": "Settings",
-    "testSelected": "Test selected"
+    "testSelected": "Test selected",
+    "refreshRuntimeState": "Refresh runtime state",
+    "reloadCoreConfig": "Reload core configuration",
+    "runningProxyGroupDelayTest": "Running proxy group delay test"
   },
   "app": {
     "name": "VoyaVPN"
@@ -61,6 +64,8 @@
     "delay": "Delay",
     "destination": "Destination",
     "download": "Down",
+    "cumulativeDownload": "Cumulative download {{total}}",
+    "cumulativeUpload": "Cumulative upload {{total}}",
     "filterConnections": "Filter connections",
     "groups": "Groups",
     "host": "Host",
@@ -121,7 +126,7 @@
     "fontSize": "Betűméret",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "Általános, források, mag, hálózat, tesztek, gyorsbillentyűk és frissítési beállítások.",
+    "settingsDescription": "Általános, források, mag, hálózat, tesztek és frissítési beállítások.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -135,7 +140,7 @@
       "import": "Konfigurációs sablon importálása",
       "title": "Konfigurációs sablon importálása",
       "description": "Válassza ki az importálandó konfigurációs sablont. Az első importált útválasztás automatikusan aktiválódik.",
-      "advancedHint": "Ez a művelet forrásokat, valamint DNS- és útválasztási előbeállításokat importál. A teljes konfigurációs sablonok különálló speciális funkciók, és változatlanok maradnak.",
+      "advancedHint": "Ez a művelet strukturált forrásokat, Simple DNS- és útválasztási előbeállításokat importál.",
       "selectPrompt": "Válasszon sablont",
       "default": "Alapértelmezett",
       "defaultDescription": "Törli a regionális forrásokat, visszaállítja a beépített DNS-t, és importálja a beépített útválasztási sablont.",
@@ -322,6 +327,7 @@
         "edit": "Edit",
         "copy": "Copy",
         "delete": "Delete",
+        "move": "Move",
         "moveTop": "Move to top",
         "moveUp": "Move up",
         "moveDown": "Move down",
@@ -357,7 +363,8 @@
         "clipboard": "Import from clipboard",
         "clipboardEmpty": "Clipboard is empty.",
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
-        "clipboardResult": "Imported {{count}} profile(s) from clipboard."
+        "clipboardResult": "Imported {{count}} profile(s) from clipboard.",
+        "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
       "aria": {
         "filter": "Filter profiles",
@@ -511,23 +518,15 @@
     "download": "Letöltés",
     "duration": "Kapcsolódva"
   },
-  "templates": {
-    "addProxyOnly": "Add proxy only",
-    "configJson": "Config JSON",
-    "description": "Edit full config templates used by sing-box generation.",
-    "enabled": "Enabled",
-    "open": "Open template settings",
-    "proxyDetour": "Proxy detour",
-    "remarks": "Remarks",
-    "saved": "{{core}} template saved.",
-    "saving": "Saving",
-    "title": "Full Config Templates",
-    "tunConfigJson": "TUN config JSON"
-  },
   "settings": {
+    "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
+    "closeUnsavedTitle": "Unsaved settings",
+    "discardChanges": "Discard changes",
+    "saveAll": "Save all",
+    "saveBeforeActions": "Save or discard pending changes before running this action.",
     "startup": "Indítás",
+    "unsavedChanges": "Unsaved changes",
     "tabGeneral": "Általános",
-    "tabHotkeys": "Gyorsbillentyűk",
     "tabTests": "Tesztek",
     "tabUpdates": "Frissítések",
     "fields": {

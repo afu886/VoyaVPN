@@ -21,6 +21,63 @@ fn fmt_share_round_trips_all_supported_protocols() {
 }
 
 #[test]
+fn fmt_share_export_materializes_supported_global_runtime_options() {
+    let options = ShareLinkOptions {
+        allow_insecure: true,
+        fingerprint: "firefox".to_string(),
+        hysteria_up_mbps: 80,
+        hysteria_down_mbps: 160,
+        hysteria_hop_interval: 25,
+    };
+    let vless = ProfileItem {
+        config_type: ConfigType::VLESS,
+        address: "vless.example".to_string(),
+        port: 443,
+        password: "00000000-0000-0000-0000-000000000001".to_string(),
+        stream_security: STREAM_SECURITY_TLS.to_string(),
+        ..ProfileItem::default()
+    };
+    let vless_link = export_share_link_with_options(&vless, &options)
+        .expect("global VLESS options should export");
+    let vless_url = Url::parse(&vless_link).expect("VLESS link should parse");
+    let vless_query = vless_url.query_pairs().collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        vless_query.get("insecure").map(|value| value.as_ref()),
+        Some("1")
+    );
+    assert_eq!(
+        vless_query.get("fp").map(|value| value.as_ref()),
+        Some("firefox")
+    );
+
+    let hysteria = ProfileItem {
+        config_type: ConfigType::Hysteria2,
+        address: "hy2.example".to_string(),
+        port: 443,
+        password: "secret".to_string(),
+        ..ProfileItem::default()
+    };
+    let hysteria_link = export_share_link_with_options(&hysteria, &options)
+        .expect("global Hysteria options should export");
+    let hysteria_url = Url::parse(&hysteria_link).expect("Hysteria link should parse");
+    let hysteria_query = hysteria_url.query_pairs().collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        hysteria_query.get("upmbps").map(|value| value.as_ref()),
+        Some("80")
+    );
+    assert_eq!(
+        hysteria_query.get("downmbps").map(|value| value.as_ref()),
+        Some("160")
+    );
+    assert_eq!(
+        hysteria_query
+            .get("hopInterval")
+            .map(|value| value.as_ref()),
+        Some("25")
+    );
+}
+
+#[test]
 fn fmt_base_query_round_trips_transport_security_and_masks() {
     let source = ProfileItem {
         config_type: ConfigType::VLESS,
@@ -31,7 +88,6 @@ fn fmt_base_query_round_trips_transport_security_and_masks() {
         network: "xhttp".to_string(),
         stream_security: "reality".to_string(),
         sni: "sni.example".to_string(),
-        fingerprint: "chrome".to_string(),
         public_key: "public-key".to_string(),
         short_id: "abcd".to_string(),
         spider_x: "/spider".to_string(),
@@ -97,10 +153,8 @@ fn fmt_hostile_subscription_tls_flags_are_not_trusted_by_generators() {
     .expect("parse hostile vless share");
     node.index_id = "hostile-vless".to_string();
 
-    assert_eq!(node.allow_insecure, ALLOW_INSECURE_TRUE);
-    assert_eq!(node.fingerprint, "definitely-not-utls");
-
     let mut app_config = AppConfig::default();
+    app_config.core_basic_item.def_allow_insecure = false;
     app_config.core_basic_item.def_fingerprint = "firefox".to_string();
 
     let singbox_value =
@@ -411,7 +465,6 @@ fn sample_profiles() -> Vec<ProfileItem> {
             password: "00000000-0000-0000-0000-000000000004".to_string(),
             network: "ws".to_string(),
             stream_security: STREAM_SECURITY_TLS.to_string(),
-            allow_insecure: ALLOW_INSECURE_TRUE.to_string(),
             sni: "vless.example".to_string(),
             alpn: "h2,http/1.1".to_string(),
             protocol_extra: ProtocolExtraItem {

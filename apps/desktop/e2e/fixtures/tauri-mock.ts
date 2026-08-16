@@ -362,11 +362,9 @@ export async function installTauriSmokeMock(page: Page) {
           }));
           return Promise.resolve({
             activeRoutingId: state.routings[0]?.Id ?? null,
-            fallbackCustomDnsEnabled: false,
             reusedExistingRouting: true,
             routingIds: state.routings.map((routing) => routing.Id),
             simpleDnsFetched: false,
-            singboxDnsFetched: false,
             sources: clone(state.sources),
           });
         }
@@ -547,7 +545,6 @@ export async function installTauriSmokeMock(page: Page) {
 
       return {
         Address: String(input.Address ?? "smoke.example.test"),
-        AllowInsecure: String(input.AllowInsecure ?? "false"),
         Alpn: String(input.Alpn ?? ""),
         Cert: String(input.Cert ?? ""),
         CertSha: String(input.CertSha ?? ""),
@@ -557,11 +554,9 @@ export async function installTauriSmokeMock(page: Page) {
         DisplayLog: Boolean(input.DisplayLog ?? true),
         EchConfigList: String(input.EchConfigList ?? ""),
         Finalmask: String(input.Finalmask ?? ""),
-        Fingerprint: String(input.Fingerprint ?? ""),
         IndexId: id,
         IsSub: Boolean(input.IsSub ?? false),
         Mldsa65Verify: String(input.Mldsa65Verify ?? ""),
-        MuxEnabled: Boolean(input.MuxEnabled ?? false),
         Network: String(input.Network ?? "tcp"),
         Password: String(input.Password ?? "00000000-0000-4000-8000-000000000001"),
         Port: Number(input.Port ?? 443),
@@ -742,10 +737,6 @@ export async function installTauriSmokeMock(page: Page) {
 
     function makeDnsSettings() {
       return {
-        defaults: {
-          singboxNormalDns: "{\"servers\":[]}",
-          singboxTunDns: "{\"servers\":[]}",
-        },
         simpleDnsItem: {
           AddCommonHosts: true,
           BlockBindingQuery: false,
@@ -762,22 +753,11 @@ export async function installTauriSmokeMock(page: Page) {
           Strategy4Proxy: "UseIP",
           UseSystemHosts: true,
         },
-        singboxDnsItem: {
-          CoreType: 24,
-          DomainDNSAddress: null,
-          DomainStrategy4Freedom: null,
-          Enabled: false,
-          Id: "dns-singbox",
-          NormalDNS: "{\"servers\":[]}",
-          Remarks: "sing-box",
-          TunDNS: "{\"servers\":[]}",
-          UseSystemHosts: false,
-        },
       };
     }
 
     function makeHotkeyStatus() {
-      const labels = ["Show window", "Clear system proxy", "Set system proxy", "Keep system proxy", "Set PAC proxy"];
+      const labels = ["Show window"];
       return {
         actions: labels.map((label, action) => ({ action, label })),
         registered: [],

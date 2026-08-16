@@ -24,7 +24,10 @@
     "restart": "Restart",
     "save": "Save",
     "settings": "Settings",
-    "testSelected": "Test selected"
+    "testSelected": "Test selected",
+    "refreshRuntimeState": "Refresh runtime state",
+    "reloadCoreConfig": "Reload core configuration",
+    "runningProxyGroupDelayTest": "Running proxy group delay test"
   },
   "app": {
     "name": "VoyaVPN"
@@ -61,6 +64,8 @@
     "delay": "Delay",
     "destination": "Destination",
     "download": "Down",
+    "cumulativeDownload": "Cumulative download {{total}}",
+    "cumulativeUpload": "Cumulative upload {{total}}",
     "filterConnections": "Filter connections",
     "groups": "Groups",
     "host": "Host",
@@ -121,7 +126,7 @@
     "fontSize": "Schriftgröße",
     "language": "Language",
     "settings": "Settings",
-    "settingsDescription": "General, sources, core, network, tests, hotkeys, and update preferences.",
+    "settingsDescription": "General, sources, core, network, tests, and update preferences.",
     "theme": "Theme",
     "version": "Version 0.1.0"
   },
@@ -135,7 +140,7 @@
       "import": "Konfigurationsvorlage importieren",
       "title": "Konfigurationsvorlage importieren",
       "description": "Wählen Sie eine Konfigurationsvorlage zum Importieren aus. Die erste importierte Route wird automatisch aktiviert.",
-      "advancedHint": "Dieser Vorgang importiert Quellen sowie DNS- und Routing-Voreinstellungen. Vollständige Konfigurationsvorlagen sind eine separate erweiterte Funktion und bleiben unverändert.",
+      "advancedHint": "Dieser Vorgang importiert strukturierte Quellen sowie Simple-DNS- und Routing-Voreinstellungen.",
       "selectPrompt": "Vorlage auswählen",
       "default": "Standard",
       "defaultDescription": "Löscht regionale Quellen, stellt das integrierte DNS wieder her und importiert die integrierte Routingvorlage.",
@@ -322,6 +327,7 @@
         "edit": "Edit",
         "copy": "Copy",
         "delete": "Delete",
+        "move": "Move",
         "moveTop": "Move to top",
         "moveUp": "Move up",
         "moveDown": "Move down",
@@ -357,7 +363,8 @@
         "clipboard": "Import from clipboard",
         "clipboardEmpty": "Clipboard is empty.",
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
-        "clipboardResult": "Imported {{count}} profile(s) from clipboard."
+        "clipboardResult": "Imported {{count}} profile(s) from clipboard.",
+        "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
       "aria": {
         "filter": "Filter profiles",
@@ -511,23 +518,15 @@
     "download": "Download",
     "duration": "Verbunden seit"
   },
-  "templates": {
-    "addProxyOnly": "Add proxy only",
-    "configJson": "Config JSON",
-    "description": "Edit full config templates used by sing-box generation.",
-    "enabled": "Enabled",
-    "open": "Open template settings",
-    "proxyDetour": "Proxy detour",
-    "remarks": "Remarks",
-    "saved": "{{core}} template saved.",
-    "saving": "Saving",
-    "title": "Full Config Templates",
-    "tunConfigJson": "TUN config JSON"
-  },
   "settings": {
+    "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
+    "closeUnsavedTitle": "Unsaved settings",
+    "discardChanges": "Discard changes",
+    "saveAll": "Save all",
+    "saveBeforeActions": "Save or discard pending changes before running this action.",
     "startup": "Startup",
+    "unsavedChanges": "Unsaved changes",
     "tabGeneral": "General",
-    "tabHotkeys": "Hotkeys",
     "tabTests": "Tests",
     "tabUpdates": "Updates",
     "fields": {

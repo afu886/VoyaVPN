@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@voya/ui/components/dialog";
-import { FullConfigTemplateDialog } from "@/features/templates";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { connectActiveProfile, installCoreSeed } from "@/ipc";
 import { type MissingCorePayload, useModalStore } from "@/stores/modal-store";
@@ -24,7 +23,6 @@ export function ModalHost() {
 
   return (
     <Dialog open={Boolean(modal)} onOpenChange={(open) => !open && closeTopModal()}>
-      {modal?.kind === "fullConfigTemplate" ? <FullConfigTemplateDialog /> : null}
       {modal?.kind === "missingCore" ? <MissingCoreDialog payload={modal.missingCore} /> : null}
     </Dialog>
   );

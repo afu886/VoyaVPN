@@ -1,13 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use super::*;
-use crate::{golden, CoreGenPlatform, CoreType, DnsItem, RoutingItem};
+use crate::{golden, CoreGenPlatform, CoreType, RoutingItem};
 
 #[test]
 fn singbox_outbound_vless_ws_tls_mux_matches_golden() {
     let mut config = AppConfig::default();
     config.core_basic_item.enable_fragment = true;
     config.core_basic_item.mux_enabled = true;
+    config.core_basic_item.def_fingerprint = "firefox".to_string();
     config.core_basic_item.def_user_agent = "chrome".to_string();
 
     let node = ProfileItem {
@@ -21,9 +22,7 @@ fn singbox_outbound_vless_ws_tls_mux_matches_golden() {
         stream_security: "tls".to_string(),
         sni: "tls.example".to_string(),
         alpn: "h2,http/1.1".to_string(),
-        fingerprint: "firefox".to_string(),
         ech_config_list: "ech.example+https://dns.example/dns-query".to_string(),
-        mux_enabled: Some(true),
         protocol_extra: ProtocolExtraItem {
             vless_encryption: Some("none".to_string()),
             ..ProtocolExtraItem::default()
@@ -68,10 +67,7 @@ fn singbox_outbound_vless_ws_tls_mux_matches_golden() {
 
 #[test]
 fn singbox_tls_insecure_requires_application_gate() {
-    let node = ProfileItem {
-        allow_insecure: "true".to_string(),
-        ..base_remote_node()
-    };
+    let node = base_remote_node();
     let context = test_context(AppConfig::default(), node.clone());
     assert_eq!(
         build_outbound(&context, &node)
@@ -92,17 +88,13 @@ fn singbox_tls_insecure_requires_application_gate() {
         Some(true)
     );
 
-    let node = ProfileItem {
-        allow_insecure: "false".to_string(),
-        ..node
-    };
     let context = test_context(config, node.clone());
     assert_eq!(
         build_outbound(&context, &node)
             .tls
             .expect("tls settings should be generated")
             .insecure,
-        Some(false)
+        Some(true)
     );
 }
 
@@ -112,7 +104,6 @@ fn singbox_pinned_cert_and_reality_force_insecure_false() {
     config.core_basic_item.def_allow_insecure = true;
 
     let pinned_node = ProfileItem {
-        allow_insecure: "true".to_string(),
         cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----".to_string(),
         ..base_remote_node()
     };
@@ -124,7 +115,6 @@ fn singbox_pinned_cert_and_reality_force_insecure_false() {
     assert!(tls.certificate.is_some());
 
     let reality_node = ProfileItem {
-        allow_insecure: "true".to_string(),
         stream_security: STREAM_SECURITY_REALITY.to_string(),
         public_key: "reality-public-key".to_string(),
         short_id: "reality-short-id".to_string(),
@@ -260,23 +250,6 @@ fn singbox_invalid_ports_are_rejected_or_skipped() {
         error,
         SingboxConfigError::InvalidNodePort { port: 70000, .. }
     ));
-}
-
-#[test]
-fn singbox_hysteria_hop_interval_clamps_without_overflow() {
-    assert_eq!(parse_hysteria_hop_interval("10-20"), Some(15));
-    assert_eq!(
-        parse_hysteria_hop_interval("2147483647-2147483647"),
-        Some(i32::MAX)
-    );
-    assert_eq!(
-        parse_hysteria_hop_interval("9223372036854775807-9223372036854775807"),
-        Some(i32::MAX)
-    );
-    assert_eq!(
-        parse_hysteria_hop_interval("9223372036854775807"),
-        Some(i32::MAX)
-    );
 }
 
 #[test]
@@ -602,37 +575,6 @@ fn singbox_invalid_inline_custom_rulesets_are_reported() {
 }
 
 #[test]
-fn singbox_dns_raw_override_uses_typed_custom_schema_and_protect_rules() {
-    let mut context = test_context(AppConfig::default(), base_remote_node());
-    context.protect_domain_list = vec!["ech.example".to_string()];
-    context.raw_dns_item = Some(DnsItem {
-            enabled: true,
-            normal_dns: Some(
-                r#"{"servers":[{"tag":"remote","type":"udp","server":"1.1.1.1","detour":"proxy"}],"rules":[],"final":"remote"}"#.to_string(),
-            ),
-            domain_dns_address: Some("9.9.9.9".to_string()),
-            ..DnsItem::default()
-        });
-
-    let generated = generate_singbox_config(&context).expect("sing-box config should generate");
-    let dns = generated.dns.expect("raw dns");
-
-    assert!(dns.servers.iter().any(|server| {
-        server.tag == SINGBOX_LOCAL_DNS_TAG && server.server.as_deref() == Some("9.9.9.9")
-    }));
-    assert!(dns.rules.iter().any(|rule| {
-        rule.domain.as_ref() == Some(&vec!["ech.example".to_string()])
-            && rule.server.as_deref() == Some(SINGBOX_LOCAL_DNS_TAG)
-    }));
-    assert!(dns.rules.iter().any(|rule| {
-        rule.server.as_deref() == Some("remote") && is_priority_proxy_domain_suffix(rule)
-    }));
-    assert_no_nulls(
-        &serde_json::to_value(&dns).expect("sing-box raw DNS should serialize to JSON"),
-    );
-}
-
-#[test]
 fn singbox_negative_ip_rules_use_and_and_skip_negative_only_rules() {
     let mut context = test_context(AppConfig::default(), base_remote_node());
     context.routing_item = Some(RoutingItem {
@@ -677,64 +619,6 @@ fn singbox_negative_ip_rules_use_and_and_skip_negative_only_rules() {
     assert!(!generated.route.rules.iter().any(|rule| {
         rule.action.as_deref() == Some("reject") && rule.port.as_ref() == Some(&vec![443])
     }));
-}
-
-#[test]
-fn singbox_custom_dns_protect_rules_reference_existing_server_tags() {
-    let mut context = test_context(AppConfig::default(), base_remote_node());
-    context.protect_domain_list = vec!["ech.example".to_string()];
-    context.raw_dns_item = Some(DnsItem {
-            enabled: true,
-            normal_dns: Some(
-                r#"{"servers":[{"tag":"only-local","type":"udp","server":"1.1.1.1"}],"rules":[],"final":"only-local"}"#.to_string(),
-            ),
-            domain_dns_address: Some("9.9.9.9".to_string()),
-            ..DnsItem::default()
-        });
-
-    let generated = generate_singbox_config(&context).expect("sing-box config should generate");
-    let dns = generated.dns.expect("raw dns");
-    let server_tags = dns
-        .servers
-        .iter()
-        .map(|server| server.tag.as_str())
-        .collect::<BTreeSet<_>>();
-    for rule in dns.rules.iter().filter_map(|rule| rule.server.as_deref()) {
-        assert!(server_tags.contains(rule));
-    }
-    assert!(dns.rules.iter().any(|rule| {
-        rule.clash_mode.as_deref() == Some("Global") && rule.server.as_deref() == Some("only-local")
-    }));
-}
-
-#[test]
-fn singbox_raw_tun_dns_enables_reverse_mapping_and_priority_ipv4() {
-    let mut app_config = AppConfig::default();
-    app_config.tun_mode_item.enable_tun = true;
-    app_config.tun_mode_item.enable_ipv6_address = false;
-    let mut context = test_context(app_config, base_remote_node());
-    context.is_tun_enabled = true;
-    context.raw_dns_item = Some(DnsItem {
-            enabled: true,
-            tun_dns: Some(
-                r#"{"servers":[{"tag":"remote","type":"udp","server":"1.1.1.1","detour":"proxy"}],"rules":[],"final":"remote","reverse_mapping":false}"#.to_string(),
-            ),
-            domain_dns_address: Some("9.9.9.9".to_string()),
-            ..DnsItem::default()
-        });
-
-    let generated = generate_singbox_config(&context).expect("sing-box config should generate");
-    let dns = generated.dns.expect("raw TUN DNS");
-
-    assert_eq!(dns.reverse_mapping, Some(true));
-    let priority_rule = dns
-        .rules
-        .iter()
-        .find(|rule| {
-            rule.server.as_deref() == Some("remote") && is_priority_proxy_domain_suffix(rule)
-        })
-        .expect("priority proxy DNS rule");
-    assert_eq!(priority_rule.strategy.as_deref(), Some("ipv4_only"));
 }
 
 #[test]
@@ -1129,7 +1013,6 @@ fn socks_node(index_id: &str, remarks: &str) -> ProfileItem {
         username: "user".to_string(),
         password: "pass".to_string(),
         network: DEFAULT_NETWORK.to_string(),
-        mux_enabled: Some(false),
         ..ProfileItem::default()
     }
 }

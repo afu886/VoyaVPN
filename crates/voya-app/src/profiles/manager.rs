@@ -397,7 +397,7 @@ impl<'db> ProfileManager<'db> {
     }
 }
 
-pub(crate) fn normalize_profile(config: &AppConfig, profile: &mut ProfileItem) {
+pub(crate) fn normalize_profile(_config: &AppConfig, profile: &mut ProfileItem) {
     profile.index_id = profile.index_id.trim().to_string();
     profile.config_version = 4;
     profile.address = profile.address.trim().to_string();
@@ -406,22 +406,11 @@ pub(crate) fn normalize_profile(config: &AppConfig, profile: &mut ProfileItem) {
     profile.network = profile.network.trim().to_string();
     profile.stream_security = profile.stream_security.trim().to_string();
 
-    if !profile.stream_security.is_empty() {
-        if profile.stream_security != STREAM_SECURITY_TLS
-            && profile.stream_security != STREAM_SECURITY_REALITY
-        {
-            profile.stream_security.clear();
-        } else {
-            if profile.allow_insecure.is_empty() {
-                profile.allow_insecure = config.core_basic_item.def_allow_insecure.to_string();
-            }
-            if profile.fingerprint.is_empty() && profile.stream_security == STREAM_SECURITY_REALITY
-            {
-                profile
-                    .fingerprint
-                    .clone_from(&config.core_basic_item.def_fingerprint);
-            }
-        }
+    if !profile.stream_security.is_empty()
+        && profile.stream_security != STREAM_SECURITY_TLS
+        && profile.stream_security != STREAM_SECURITY_REALITY
+    {
+        profile.stream_security.clear();
     }
 
     if !profile.network.is_empty() && !VALID_NETWORKS.contains(&profile.network.as_str()) {

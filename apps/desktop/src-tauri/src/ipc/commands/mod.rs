@@ -11,7 +11,7 @@ use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_specta::Event;
-use voya_app::autostart::{AutostartManager, AutostartManagerError, AutostartStatus};
+use voya_app::autostart::{AutostartManager, AutostartManagerError};
 use voya_app::certificates::{
     calculate_certificate_sha256 as calculate_certificate_sha256_impl,
     fetch_certificate as fetch_certificate_impl, CertificateError, CertificateFetchRequest,
@@ -40,22 +40,25 @@ use voya_app::proxy_runtime::{
 use voya_app::qr::{QrCodeError, QrCodeImage, QrCodeManager, QrScanResult};
 use voya_app::routing::{RoutingManager, RoutingManagerError};
 use voya_app::runtime::{RuntimeError, RuntimeManager};
+use voya_app::settings_save::{
+    apply_settings_side_effects, compensate_settings_side_effects, settings_runtime_action,
+    SettingsRuntimeAction, SettingsSideEffectAdapter,
+};
 use voya_app::speedtest::{
     SpeedTestResult, SpeedtestError, SpeedtestManager, SpeedtestRunResult, SpeedtestStatus,
 };
 use voya_app::subscriptions::{SubscriptionManager, SubscriptionManagerError};
 use voya_app::supervisor::{SupervisorConnectionState, SupervisorSnapshot};
 use voya_app::sysproxy::SystemProxyManagerError;
-use voya_app::templates::{FullConfigTemplateManager, FullConfigTemplateManagerError};
 use voya_app::tun::{TunManager, TunManagerError, TunProviderDiagnostics, TunStatus};
 use voya_app::updates::{
     ConfigSourceSettings, ResourceUpdateFile, UpdateManager, UpdateManagerError,
 };
 use voya_core::{
-    AppConfig, CoreType, FullConfigTemplateItem, GlobalHotkey, GroupChildCandidate, GroupPreview,
-    GroupValidationResult, ImportProfilesResult, KeyEventItem, MoveAction, ProfileDedupeResult,
-    ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RulesItem, SubItem,
-    SubscriptionUpdateResult, SysProxyType, TrafficMode,
+    AppConfig, CoreType, GlobalHotkey, GroupChildCandidate, GroupPreview, GroupValidationResult,
+    ImportProfilesResult, KeyEventItem, MoveAction, ProfileDedupeResult, ProfileItem,
+    ProfileListItem, ProfileSortKey, RoutingItem, RulesItem, SubItem, SubscriptionUpdateResult,
+    SysProxyType, TrafficMode,
 };
 use voya_platform::{
     coreinfo::{
@@ -109,7 +112,6 @@ pub enum AppError {
     Subscription(String),
     SysProxy(String),
     State(String),
-    Template(String),
     Tun(String),
     Update(String),
 }
@@ -207,7 +209,6 @@ mod speedtest;
 mod subscriptions;
 mod support;
 mod sysproxy;
-mod templates;
 mod tun;
 mod updates;
 
@@ -224,7 +225,6 @@ pub use runtime::*;
 pub use speedtest::*;
 pub use subscriptions::*;
 pub use sysproxy::*;
-pub use templates::*;
 pub use tun::*;
 pub use updates::*;
 

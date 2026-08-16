@@ -24,7 +24,10 @@
     "restart": "重启",
     "save": "保存",
     "settings": "设置",
-    "testSelected": "测试所选"
+    "testSelected": "测试所选",
+    "refreshRuntimeState": "刷新运行状态",
+    "reloadCoreConfig": "重新加载内核配置",
+    "runningProxyGroupDelayTest": "运行中代理组延迟测试"
   },
   "app": {
     "name": "VoyaVPN"
@@ -61,6 +64,8 @@
     "delay": "延迟",
     "destination": "目标",
     "download": "下行",
+    "cumulativeDownload": "累计下载 {{total}}",
+    "cumulativeUpload": "累计上传 {{total}}",
     "filterConnections": "过滤连接",
     "groups": "分组",
     "host": "主机",
@@ -121,7 +126,7 @@
     "fontSize": "字体大小",
     "language": "语言",
     "settings": "设置",
-    "settingsDescription": "通用、来源、核心、网络、测试、热键与更新设置。",
+    "settingsDescription": "通用、来源、核心、网络、测试与更新设置。",
     "theme": "主题",
     "version": "版本 0.1.0"
   },
@@ -135,7 +140,7 @@
       "import": "导入配置模板",
       "title": "导入配置模板",
       "description": "选择要导入的配置模板。导入后将自动启用第一条路由。",
-      "advancedHint": "此操作导入来源、DNS 和路由预设。“完整配置模板”是独立的高级功能，不会受到影响。",
+      "advancedHint": "此操作导入结构化来源、Simple DNS 和路由预设。",
       "selectPrompt": "请选择模板",
       "default": "默认",
       "defaultDescription": "清除区域来源，恢复内置 DNS，并导入内置路由模板。",
@@ -322,6 +327,7 @@
         "edit": "编辑",
         "copy": "复制",
         "delete": "删除",
+        "move": "移动",
         "moveTop": "移到顶部",
         "moveUp": "上移",
         "moveDown": "下移",
@@ -357,7 +363,8 @@
         "clipboard": "从剪贴板导入",
         "clipboardEmpty": "剪贴板为空。",
         "clipboardUnavailable": "当前 WebView 不支持读取剪贴板文本。",
-        "clipboardResult": "已从剪贴板导入 {{count}} 个配置。"
+        "clipboardResult": "已从剪贴板导入 {{count}} 个配置。",
+        "discardedNodeOverrides": "已丢弃 {{count}} 个节点级覆盖项，将使用全局设置。"
       },
       "aria": {
         "filter": "过滤配置",
@@ -511,23 +518,15 @@
     "download": "下行",
     "duration": "已连接"
   },
-  "templates": {
-    "addProxyOnly": "仅添加代理",
-    "configJson": "配置 JSON",
-    "description": "编辑 sing-box 生成时使用的完整配置模板。",
-    "enabled": "启用",
-    "open": "打开模板设置",
-    "proxyDetour": "代理绕行",
-    "remarks": "备注",
-    "saved": "已保存 {{core}} 模板。",
-    "saving": "保存中",
-    "title": "完整配置模板",
-    "tunConfigJson": "TUN 配置 JSON"
-  },
   "settings": {
+    "closeUnsavedDescription": "保存全部修改、放弃修改，或继续编辑。",
+    "closeUnsavedTitle": "设置尚未保存",
+    "discardChanges": "放弃修改",
+    "saveAll": "保存全部",
+    "saveBeforeActions": "请先保存或放弃待处理的修改，再执行此操作。",
     "startup": "启动",
+    "unsavedChanges": "存在未保存的修改",
     "tabGeneral": "通用",
-    "tabHotkeys": "热键",
     "tabTests": "测试",
     "tabUpdates": "更新",
     "fields": {

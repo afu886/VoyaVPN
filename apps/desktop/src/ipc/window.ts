@@ -43,3 +43,9 @@ export function isWindowMaximized(): Promise<boolean> {
 export function onWindowResized(handler: () => void): Promise<WindowUnlisten> {
   return getCurrentWindow().onResized(handler);
 }
+
+export function onWindowCloseRequested(
+  handler: (event: { preventDefault: () => void }) => void,
+): Promise<WindowUnlisten> {
+  return getCurrentWindow().onCloseRequested((event) => handler(event));
+}
