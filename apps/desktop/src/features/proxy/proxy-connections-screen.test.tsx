@@ -3,29 +3,29 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ClashConnectionItem, ClashConnectionsSnapshot } from "@/ipc/bindings";
+import type { ProxyConnectionItem, ProxyConnectionsSnapshot } from "@/ipc/bindings";
 import {
   DEFAULT_CONNECTION_COLUMN_VISIBILITY,
   useConnectionColumnsStore,
 } from "@/stores/connection-columns-store";
 
-import { ClashConnectionsScreen } from "./clash-connections-screen";
+import { ProxyConnectionsScreen } from "./proxy-connections-screen";
 
 const ipcMocks = vi.hoisted(() => {
   const state = {
-    clashConnections: null as ClashConnectionsSnapshot | null,
-    clashMonitorStatus: {
+    proxyConnections: null as ProxyConnectionsSnapshot | null,
+    proxyMonitorStatus: {
       message: null,
       running: true,
       stale: false,
       state: "running" as const,
     },
-    setClashConnections: vi.fn(),
+    setProxyConnections: vi.fn(),
   };
 
   return {
-    clashCloseConnection: vi.fn(),
-    clashListConnections: vi.fn(),
+    proxyCloseConnection: vi.fn(),
+    proxyListConnections: vi.fn(),
     state,
     useRuntimeEventStore: Object.assign(
       (selector: (value: typeof state) => unknown) => selector(state),
@@ -35,8 +35,8 @@ const ipcMocks = vi.hoisted(() => {
 });
 
 vi.mock("@/ipc", () => ({
-  clashCloseConnection: ipcMocks.clashCloseConnection,
-  clashListConnections: ipcMocks.clashListConnections,
+  proxyCloseConnection: ipcMocks.proxyCloseConnection,
+  proxyListConnections: ipcMocks.proxyListConnections,
   useRuntimeEventStore: ipcMocks.useRuntimeEventStore,
 }));
 
@@ -54,7 +54,7 @@ function renderConnections() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <ClashConnectionsScreen />
+      <ProxyConnectionsScreen />
     </QueryClientProvider>,
   );
 }
@@ -64,26 +64,26 @@ afterEach(() => {
   queryClients.clear();
 });
 
-describe("ClashConnectionsScreen", () => {
+describe("ProxyConnectionsScreen", () => {
   beforeEach(() => {
-    ipcMocks.clashCloseConnection.mockReset().mockResolvedValue({
+    ipcMocks.proxyCloseConnection.mockReset().mockResolvedValue({
       connections: [],
       downloadTotal: 0,
       uploadTotal: 0,
     });
-    ipcMocks.clashListConnections.mockReset().mockResolvedValue({
+    ipcMocks.proxyListConnections.mockReset().mockResolvedValue({
       connections: [],
       downloadTotal: 0,
       uploadTotal: 0,
     });
-    ipcMocks.state.clashConnections = null;
+    ipcMocks.state.proxyConnections = null;
     // Column visibility persists to localStorage, so reset it between tests to
     // keep default-column expectations independent of prior toggles.
     useConnectionColumnsStore.setState({ columnVisibility: { ...DEFAULT_CONNECTION_COLUMN_VISIBILITY } });
   });
 
   it("ships high-signal columns and collapses niche ones by default", async () => {
-    ipcMocks.state.clashConnections = makeSnapshot([makeConnection(0)]);
+    ipcMocks.state.proxyConnections = makeSnapshot([makeConnection(0)]);
 
     renderConnections();
 
@@ -97,7 +97,7 @@ describe("ClashConnectionsScreen", () => {
   });
 
   it("reveals a niche column through the column menu and restores it on reset", async () => {
-    ipcMocks.state.clashConnections = makeSnapshot([makeConnection(0)]);
+    ipcMocks.state.proxyConnections = makeSnapshot([makeConnection(0)]);
 
     renderConnections();
 
@@ -113,7 +113,7 @@ describe("ClashConnectionsScreen", () => {
   });
 
   it("sorts connections by upload across both directions", async () => {
-    ipcMocks.state.clashConnections = makeSnapshot([
+    ipcMocks.state.proxyConnections = makeSnapshot([
       makeConnection(0, { host: "bravo.example.test", upload: 300 }),
       makeConnection(1, { host: "alpha.example.test", upload: 100 }),
       makeConnection(2, { host: "charlie.example.test", upload: 200 }),
@@ -132,7 +132,7 @@ describe("ClashConnectionsScreen", () => {
   });
 
   it("sorts connections by host alphabetically", async () => {
-    ipcMocks.state.clashConnections = makeSnapshot([
+    ipcMocks.state.proxyConnections = makeSnapshot([
       makeConnection(0, { host: "charlie.example.test" }),
       makeConnection(1, { host: "alpha.example.test" }),
       makeConnection(2, { host: "bravo.example.test" }),
@@ -150,7 +150,7 @@ describe("ClashConnectionsScreen", () => {
     const connections = Array.from({ length: 2000 }, (_, index) =>
       makeConnection(index, { host: `host-${String(index).padStart(4, "0")}.example.test` }),
     );
-    ipcMocks.state.clashConnections = makeSnapshot(connections);
+    ipcMocks.state.proxyConnections = makeSnapshot(connections);
 
     renderConnections();
 
@@ -160,7 +160,7 @@ describe("ClashConnectionsScreen", () => {
   });
 
   it("preserves filtering over the active sort", async () => {
-    ipcMocks.state.clashConnections = makeSnapshot([
+    ipcMocks.state.proxyConnections = makeSnapshot([
       makeConnection(0, { host: "bravo.example.test", process: "chrome" }),
       makeConnection(1, { host: "alpha.example.test", process: "firefox" }),
     ]);
@@ -183,7 +183,7 @@ function rowHosts() {
   });
 }
 
-function makeSnapshot(connections: ClashConnectionItem[]): ClashConnectionsSnapshot {
+function makeSnapshot(connections: ProxyConnectionItem[]): ProxyConnectionsSnapshot {
   return {
     connections,
     downloadTotal: connections.reduce((sum, item) => sum + (item.download ?? 0), 0),
@@ -191,7 +191,7 @@ function makeSnapshot(connections: ClashConnectionItem[]): ClashConnectionsSnaps
   };
 }
 
-function makeConnection(index: number, overrides: Partial<ClashConnectionItem> = {}): ClashConnectionItem {
+function makeConnection(index: number, overrides: Partial<ProxyConnectionItem> = {}): ProxyConnectionItem {
   return {
     chains: ["proxy"],
     connectionType: "HTTPS",

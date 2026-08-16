@@ -30,22 +30,22 @@ import {
 import { Skeleton } from "@voya/ui/components/skeleton";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
-  clashCloseConnection,
-  clashListConnections,
+  proxyCloseConnection,
+  proxyListConnections,
   useRuntimeEventStore,
 } from "@/ipc";
-import type { ClashConnectionItem, ClashConnectionsSnapshot } from "@/ipc/bindings";
+import type { ProxyConnectionItem, ProxyConnectionsSnapshot } from "@/ipc/bindings";
 import { formatBytes } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
 import { useConnectionColumnsStore } from "@/stores/connection-columns-store";
-import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
+import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-badge";
 
 type ConnectionColumn = {
-  cell: (connection: ClashConnectionItem) => React.ReactNode;
+  cell: (connection: ProxyConnectionItem) => React.ReactNode;
   id: string;
   labelKey: string;
-  sortValue?: (connection: ClashConnectionItem) => number | string;
+  sortValue?: (connection: ProxyConnectionItem) => number | string;
   width: string;
 };
 
@@ -57,7 +57,7 @@ const connectionColumns: ConnectionColumn[] = [
   {
     cell: (connection) => <span className="min-w-0 truncate font-medium">{connection.host}</span>,
     id: "host",
-    labelKey: "clash.host",
+    labelKey: "proxy.host",
     sortValue: (connection) => connection.host.toLowerCase(),
     width: "minmax(14rem,1.2fr)",
   },
@@ -73,48 +73,48 @@ const connectionColumns: ConnectionColumn[] = [
       );
     },
     id: "network",
-    labelKey: "clash.network",
+    labelKey: "proxy.network",
     sortValue: (connection) => connectionNetworkLabel(connection).toLowerCase(),
     width: "9rem",
   },
   {
     cell: (connection) => <span className="min-w-0 truncate text-muted-foreground">{connection.source}</span>,
     id: "source",
-    labelKey: "clash.source",
+    labelKey: "proxy.source",
     sortValue: (connection) => connection.source.toLowerCase(),
     width: "11rem",
   },
   {
     cell: (connection) => <span className="min-w-0 truncate text-muted-foreground">{connection.destination}</span>,
     id: "destination",
-    labelKey: "clash.destination",
+    labelKey: "proxy.destination",
     sortValue: (connection) => connection.destination.toLowerCase(),
     width: "11rem",
   },
   {
     cell: (connection) => <span className="tabular-nums">{formatBytes(connection.upload)}</span>,
     id: "upload",
-    labelKey: "clash.upload",
+    labelKey: "proxy.upload",
     sortValue: (connection) => connection.upload ?? 0,
     width: "8rem",
   },
   {
     cell: (connection) => <span className="tabular-nums">{formatBytes(connection.download)}</span>,
     id: "download",
-    labelKey: "clash.download",
+    labelKey: "proxy.download",
     sortValue: (connection) => connection.download ?? 0,
     width: "8rem",
   },
   {
     cell: (connection) => <span className="min-w-0 truncate text-muted-foreground">{connectionChain(connection)}</span>,
     id: "chain",
-    labelKey: "clash.chain",
+    labelKey: "proxy.chain",
     width: "minmax(13rem,1fr)",
   },
   {
     cell: (connection) => <span className="min-w-0 truncate text-muted-foreground">{connection.process ?? ""}</span>,
     id: "process",
-    labelKey: "clash.process",
+    labelKey: "proxy.process",
     sortValue: (connection) => (connection.process ?? "").toLowerCase(),
     width: "9rem",
   },
@@ -142,7 +142,7 @@ function buildGridMinWidth(columns: ConnectionColumn[]) {
   return `${total}rem`;
 }
 
-function sortConnections(connections: ClashConnectionItem[], sort: ConnectionSortState | null) {
+function sortConnections(connections: ProxyConnectionItem[], sort: ConnectionSortState | null) {
   if (!sort) {
     return connections;
   }
@@ -167,19 +167,19 @@ function sortConnections(connections: ClashConnectionItem[], sort: ConnectionSor
   });
 }
 
-const emptySnapshot: ClashConnectionsSnapshot = {
+const emptySnapshot: ProxyConnectionsSnapshot = {
   connections: [],
   downloadTotal: 0,
   uploadTotal: 0,
 };
-const clashConnectionsQueryKey = ["clash-connections"] as const;
+const proxyConnectionsQueryKey = ["proxy-connections"] as const;
 
-export function ClashConnectionsScreen() {
+export function ProxyConnectionsScreen() {
   const queryClient = useQueryClient();
   const { t } = useI18n();
-  const monitorStatus = useRuntimeEventStore((state) => state.clashMonitorStatus);
-  const storeSnapshot = useRuntimeEventStore((state) => state.clashConnections);
-  const setClashConnections = useRuntimeEventStore((state) => state.setClashConnections);
+  const monitorStatus = useRuntimeEventStore((state) => state.proxyMonitorStatus);
+  const storeSnapshot = useRuntimeEventStore((state) => state.proxyConnections);
+  const setProxyConnections = useRuntimeEventStore((state) => state.setProxyConnections);
   const columnVisibility = useConnectionColumnsStore((state) => state.columnVisibility);
   const setColumnVisibility = useConnectionColumnsStore((state) => state.setColumnVisibility);
   const resetColumnVisibility = useConnectionColumnsStore((state) => state.resetColumnVisibility);
@@ -190,9 +190,9 @@ export function ClashConnectionsScreen() {
 
   const connectionsQuery = useQuery({
     enabled: queryEnabled,
-    placeholderData: () => queryClient.getQueryData<ClashConnectionsSnapshot>(clashConnectionsQueryKey),
-    queryFn: clashListConnections,
-    queryKey: clashConnectionsQueryKey,
+    placeholderData: () => queryClient.getQueryData<ProxyConnectionsSnapshot>(proxyConnectionsQueryKey),
+    queryFn: proxyListConnections,
+    queryKey: proxyConnectionsQueryKey,
     staleTime: 3_000,
   });
   const snapshot = storeSnapshot ?? connectionsQuery.data ?? emptySnapshot;
@@ -223,7 +223,7 @@ export function ClashConnectionsScreen() {
   const effectiveSelectedId = selectedConnection?.id ?? null;
 
   const closeMutation = useMutation({
-    mutationFn: clashCloseConnection,
+    mutationFn: proxyCloseConnection,
     onSuccess: syncConnectionsSnapshot,
   });
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -275,9 +275,9 @@ export function ClashConnectionsScreen() {
     void closeMutation.mutateAsync(null);
   }
 
-  function syncConnectionsSnapshot(nextSnapshot: ClashConnectionsSnapshot) {
-    setClashConnections(nextSnapshot);
-    queryClient.setQueryData(clashConnectionsQueryKey, nextSnapshot);
+  function syncConnectionsSnapshot(nextSnapshot: ProxyConnectionsSnapshot) {
+    setProxyConnections(nextSnapshot);
+    queryClient.setQueryData(proxyConnectionsQueryKey, nextSnapshot);
   }
 
   async function refreshConnections() {
@@ -290,15 +290,15 @@ export function ClashConnectionsScreen() {
   }
 
   return (
-    <PageSection aria-label={t("tabs.clashConnections")}>
+    <PageSection aria-label={t("tabs.proxyConnections")}>
       <PageHeader>
-        <PageHeaderHeading icon={Plug} title={t("tabs.clashConnections")}>
+        <PageHeaderHeading icon={Plug} title={t("tabs.proxyConnections")}>
           <Badge className="gap-2 bg-background px-2 py-1 font-normal text-muted-foreground" variant="outline">
             <Activity className="size-4 text-muted-foreground" aria-hidden="true" />
             <span className="tabular-nums">{t("status.upload", { speed: formatBytes(snapshot.uploadTotal) })}</span>
             <span className="tabular-nums">{t("status.download", { speed: formatBytes(snapshot.downloadTotal) })}</span>
           </Badge>
-          <ClashMonitorStatusBadge className="max-w-[16rem]" status={monitorStatus} />
+          <ProxyMonitorStatusBadge className="max-w-[16rem]" status={monitorStatus} />
         </PageHeaderHeading>
         <div className="relative ms-auto w-64 max-w-[40vw]">
           <Search
@@ -306,10 +306,10 @@ export function ClashConnectionsScreen() {
             aria-hidden="true"
           />
           <Input
-            aria-label={t("clash.filterConnections")}
+            aria-label={t("proxy.filterConnections")}
             className="h-8 ps-8 text-sm"
             onChange={(event) => setFilter(event.target.value)}
-            placeholder={t("clash.filterConnections")}
+            placeholder={t("proxy.filterConnections")}
             value={filter}
           />
         </div>
@@ -318,12 +318,12 @@ export function ClashConnectionsScreen() {
             <MenubarTrigger asChild>
               <Button size="sm" type="button" variant="outline">
                 <Columns3 className="size-4" aria-hidden="true" />
-                {t("panes.clashConnections.columns.toggle")}
+                {t("panes.proxyConnections.columns.toggle")}
               </Button>
             </MenubarTrigger>
             <MenubarContent align="end">
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                {t("panes.clashConnections.columns.heading")}
+                {t("panes.proxyConnections.columns.heading")}
               </div>
               <MenubarSeparator />
               {connectionColumns.map((column) => (
@@ -339,7 +339,7 @@ export function ClashConnectionsScreen() {
               <MenubarSeparator />
               <MenubarItem onSelect={() => resetColumnVisibility()}>
                 <RotateCcw className="size-4" aria-hidden="true" />
-                {t("panes.clashConnections.columns.reset")}
+                {t("panes.proxyConnections.columns.reset")}
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
@@ -436,7 +436,7 @@ export function ClashConnectionsScreen() {
             })}
           </div>
         ) : (
-          <EmptyState icon={Inbox} title={t("panes.clashConnections.empty")} />
+          <EmptyState icon={Inbox} title={t("panes.proxyConnections.empty")} />
         )}
       </div>
     </PageSection>
@@ -454,7 +454,7 @@ const ConnectionRow = memo(function ConnectionRow({
   start,
 }: {
   columns: ConnectionColumn[];
-  connection: ClashConnectionItem;
+  connection: ProxyConnectionItem;
   gridMinWidth: string;
   gridTemplateColumns: string;
   index: number;
@@ -516,7 +516,7 @@ function ConnectionSkeletonRows({
   );
 }
 
-function filterConnections(connections: ClashConnectionItem[], filter: string) {
+function filterConnections(connections: ProxyConnectionItem[], filter: string) {
   const needle = filter.trim().toLowerCase();
   if (!needle) {
     return connections;
@@ -538,17 +538,17 @@ function filterConnections(connections: ClashConnectionItem[], filter: string) {
   );
 }
 
-function connectionNetworkLabel(connection: ClashConnectionItem) {
+function connectionNetworkLabel(connection: ProxyConnectionItem) {
   return [connection.network, connection.connectionType].filter(Boolean).join(" ");
 }
 
-function connectionChain(connection: ClashConnectionItem) {
+function connectionChain(connection: ProxyConnectionItem) {
   const rule = [connection.rule, connection.rulePayload].filter(Boolean).join(" ");
   const chain = connectionChains(connection).join(" -> ");
 
   return [rule, chain].filter(Boolean).join(" , ");
 }
 
-function connectionChains(connection: ClashConnectionItem) {
+function connectionChains(connection: ProxyConnectionItem) {
   return Array.isArray(connection.chains) ? connection.chains : [];
 }

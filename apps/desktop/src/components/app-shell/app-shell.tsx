@@ -12,17 +12,17 @@ import { HomeScreen } from "@/features/home";
 import { ProfilesScreen } from "@/features/profiles";
 import { RoutingScreen } from "@/features/routing";
 import { DnsScreen } from "@/features/dns";
-import { ClashConnectionsScreen, ClashProxiesScreen } from "@/features/clash";
+import { ProxyConnectionsScreen, ProxyGroupsScreen } from "@/features/proxy";
 import { LogsScreen } from "@/features/logs";
-import { clashStartMonitor, clashStopMonitor, useRuntimeEventStore } from "@/ipc";
-import type { ClashMonitorStatus } from "@/ipc/bindings";
+import { proxyStartMonitor, proxyStopMonitor, useRuntimeEventStore } from "@/ipc";
+import type { ProxyMonitorStatus } from "@/ipc/bindings";
 import { type ShellTab, useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
 // Render only the active screen. Replaces the Radix `Tabs`/`TabsContent` fan-out
 // (which already unmounted inactive panels) so the grid shell can drop the tab
 // primitive while keeping the exact "one mounted screen at a time" behaviour the
-// clash-monitor lifecycle and query work rely on.
+// proxy-monitor lifecycle and query work rely on.
 function renderActiveScreen(tab: ShellTab) {
   switch (tab) {
     case "home":
@@ -33,10 +33,10 @@ function renderActiveScreen(tab: ShellTab) {
       return <RoutingScreen />;
     case "dns":
       return <DnsScreen />;
-    case "clash-proxies":
-      return <ClashProxiesScreen />;
-    case "clash-connections":
-      return <ClashConnectionsScreen />;
+    case "proxy-groups":
+      return <ProxyGroupsScreen />;
+    case "proxy-connections":
+      return <ProxyConnectionsScreen />;
     case "logs":
       return <LogsScreen />;
     default:
@@ -49,7 +49,7 @@ export function AppShell() {
   const activeTab = useShellStore((state) => state.activeTab);
   const { titleBarLayout } = useWindowChrome();
 
-  useClashMonitorLifecycle(activeTab);
+  useProxyMonitorLifecycle(activeTab);
   // Windows borderless chrome is the only Acrylic target; the hook no-ops elsewhere.
   useAcrylicWindow(titleBarLayout === "windows");
 
@@ -88,7 +88,7 @@ export function AppShell() {
   );
 }
 
-function useClashMonitorLifecycle(activeTab: ShellTab) {
+function useProxyMonitorLifecycle(activeTab: ShellTab) {
   const pushToast = useToastStore((state) => state.pushToast);
   const startTimerRef = useRef<number | null>(null);
   const stopTimerRef = useRef<number | null>(null);
@@ -102,13 +102,13 @@ function useClashMonitorLifecycle(activeTab: ShellTab) {
       return undefined;
     }
 
-    wantsMonitorRef.current = isClashTab(activeTab);
+    wantsMonitorRef.current = isProxyTab(activeTab);
     clearTimer(startTimerRef);
     clearTimer(stopTimerRef);
 
     if (wantsMonitorRef.current) {
       if (!runningRef.current && !startingRef.current && !stoppingRef.current) {
-        scheduleClashMonitorStart({
+        scheduleProxyMonitorStart({
           pushToast,
           runningRef,
           startingRef,
@@ -123,7 +123,7 @@ function useClashMonitorLifecycle(activeTab: ShellTab) {
     }
 
     if (runningRef.current || startingRef.current || stoppingRef.current) {
-      scheduleClashMonitorStop({
+      scheduleProxyMonitorStop({
         pushToast,
         runningRef,
         startingRef,
@@ -143,7 +143,7 @@ function useClashMonitorLifecycle(activeTab: ShellTab) {
       clearTimer(stopTimerRef);
       wantsMonitorRef.current = false;
       if (runningRef.current) {
-        void clashStopMonitor().catch(() => undefined);
+        void proxyStopMonitor().catch(() => undefined);
       }
     },
     [],
@@ -152,7 +152,7 @@ function useClashMonitorLifecycle(activeTab: ShellTab) {
 
 type PushToast = ReturnType<typeof useToastStore.getState>["pushToast"];
 
-type ClashMonitorLifecycleRefs = {
+type ProxyMonitorLifecycleRefs = {
   runningRef: MutableRefObject<boolean>;
   startingRef: MutableRefObject<boolean>;
   startTimerRef: MutableRefObject<number | null>;
@@ -161,7 +161,7 @@ type ClashMonitorLifecycleRefs = {
   wantsMonitorRef: MutableRefObject<boolean>;
 };
 
-function scheduleClashMonitorStart({
+function scheduleProxyMonitorStart({
   pushToast,
   runningRef,
   startingRef,
@@ -169,7 +169,7 @@ function scheduleClashMonitorStart({
   stoppingRef,
   stopTimerRef,
   wantsMonitorRef,
-}: ClashMonitorLifecycleRefs & { pushToast: PushToast }) {
+}: ProxyMonitorLifecycleRefs & { pushToast: PushToast }) {
   clearTimer(startTimerRef);
   startTimerRef.current = window.setTimeout(() => {
     startTimerRef.current = null;
@@ -178,12 +178,12 @@ function scheduleClashMonitorStart({
     }
 
     startingRef.current = true;
-    useRuntimeEventStore.getState().setClashMonitorStarting();
-    void clashStartMonitor()
+    useRuntimeEventStore.getState().setProxyMonitorStarting();
+    void proxyStartMonitor()
       .then((status) => {
-        applyClashMonitorStatus(status, runningRef);
+        applyProxyMonitorStatus(status, runningRef);
         if (!wantsMonitorRef.current && status.running) {
-          scheduleClashMonitorStop({
+          scheduleProxyMonitorStop({
             pushToast,
             runningRef,
             startingRef,
@@ -195,11 +195,11 @@ function scheduleClashMonitorStart({
         }
       })
       .catch((error) => {
-        const message = clashMonitorErrorMessage(error, "Unable to start Clash monitor.");
+        const message = proxyMonitorErrorMessage(error, "Unable to start proxy monitor.");
 
         runningRef.current = false;
-        useRuntimeEventStore.getState().setClashMonitorFailed(message);
-        pushToast({ description: message, title: "Clash" });
+        useRuntimeEventStore.getState().setProxyMonitorFailed(message);
+        pushToast({ description: message, title: "Proxy runtime" });
       })
       .finally(() => {
         startingRef.current = false;
@@ -207,7 +207,7 @@ function scheduleClashMonitorStart({
   }, 100);
 }
 
-function scheduleClashMonitorStop({
+function scheduleProxyMonitorStop({
   pushToast,
   runningRef,
   startingRef,
@@ -215,7 +215,7 @@ function scheduleClashMonitorStop({
   stoppingRef,
   stopTimerRef,
   wantsMonitorRef,
-}: ClashMonitorLifecycleRefs & { pushToast: PushToast }) {
+}: ProxyMonitorLifecycleRefs & { pushToast: PushToast }) {
   clearTimer(stopTimerRef);
   stopTimerRef.current = window.setTimeout(() => {
     stopTimerRef.current = null;
@@ -224,21 +224,21 @@ function scheduleClashMonitorStop({
     }
 
     stoppingRef.current = true;
-    void clashStopMonitor()
+    void proxyStopMonitor()
       .then((status) => {
-        applyClashMonitorStatus(status, runningRef);
+        applyProxyMonitorStatus(status, runningRef);
       })
       .catch((error) => {
-        const message = clashMonitorErrorMessage(error, "Unable to stop Clash monitor.");
+        const message = proxyMonitorErrorMessage(error, "Unable to stop proxy monitor.");
 
         runningRef.current = false;
-        useRuntimeEventStore.getState().setClashMonitorFailed(message);
-        pushToast({ description: message, title: "Clash" });
+        useRuntimeEventStore.getState().setProxyMonitorFailed(message);
+        pushToast({ description: message, title: "Proxy runtime" });
       })
       .finally(() => {
         stoppingRef.current = false;
         if (wantsMonitorRef.current && !runningRef.current && !startingRef.current) {
-          scheduleClashMonitorStart({
+          scheduleProxyMonitorStart({
             pushToast,
             runningRef,
             startingRef,
@@ -252,12 +252,12 @@ function scheduleClashMonitorStop({
   }, 2_000);
 }
 
-function applyClashMonitorStatus(status: ClashMonitorStatus, runningRef: MutableRefObject<boolean>) {
+function applyProxyMonitorStatus(status: ProxyMonitorStatus, runningRef: MutableRefObject<boolean>) {
   runningRef.current = status.running;
-  useRuntimeEventStore.getState().setClashMonitorStatus(status);
+  useRuntimeEventStore.getState().setProxyMonitorStatus(status);
 }
 
-function clashMonitorErrorMessage(error: unknown, fallback: string) {
+function proxyMonitorErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) {
     return error.message;
   }
@@ -276,8 +276,8 @@ function clearTimer(timerRef: MutableRefObject<number | null>) {
   }
 }
 
-function isClashTab(tab: ShellTab) {
-  return tab === "clash-proxies" || tab === "clash-connections";
+function isProxyTab(tab: ShellTab) {
+  return tab === "proxy-groups" || tab === "proxy-connections";
 }
 
 function isTauriRuntime() {

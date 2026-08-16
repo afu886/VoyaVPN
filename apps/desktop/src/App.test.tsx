@@ -6,10 +6,10 @@ import { afterEach, vi } from "vitest";
 import { App } from "./App";
 import { changeLocale } from "@voya/i18n";
 import {
-  clashCloseConnection,
-  clashListConnections,
-  clashStartMonitor,
-  clashStopMonitor,
+  proxyCloseConnection,
+  proxyListConnections,
+  proxyStartMonitor,
+  proxyStopMonitor,
   loadAppConfig,
   loadUiPreferences,
   saveAppConfig,
@@ -17,9 +17,9 @@ import {
 } from "@/ipc";
 import type {
   AppConfig_Serialize,
-  ClashConnectionItem,
-  ClashConnectionsSnapshot,
-  ClashTrafficEvent,
+  ProxyConnectionItem,
+  ProxyConnectionsSnapshot,
+  ProxyTrafficEvent,
   UiItem_Serialize,
 } from "@/ipc/bindings";
 import { usePreferencesStore } from "@/stores/preferences-store";
@@ -34,32 +34,32 @@ vi.mock("@/ipc/updater", () => ({
   getVersion: vi.fn(() => Promise.resolve("0.1.0")),
 }));
 
-type TestClashMonitorState = "starting" | "running" | "stopped" | "failed";
+type TestProxyMonitorState = "starting" | "running" | "stopped" | "failed";
 
-type TestClashMonitorStatus = {
+type TestProxyMonitorStatus = {
   message: string | null;
   running: boolean;
   stale: boolean;
-  state: TestClashMonitorState;
+  state: TestProxyMonitorState;
 };
 
 type TestRuntimeEventState = {
   clearLogs: () => void;
-  clashConnections: ClashConnectionsSnapshot | null;
-  clashMonitorStatus: TestClashMonitorStatus;
-  clashTraffic: ClashTrafficEvent | null;
+  proxyConnections: ProxyConnectionsSnapshot | null;
+  proxyMonitorStatus: TestProxyMonitorStatus;
+  proxyTraffic: ProxyTrafficEvent | null;
   coreState: null;
   lastTransientEvent: null;
   logLines: never[];
   pushTransientEvent: () => void;
   serverStatsByProfileId: Record<string, never>;
-  setClashConnections: (snapshot: ClashConnectionsSnapshot) => void;
-  setClashMonitorFailed: (message?: string | null) => void;
-  setClashMonitorRunning: (message?: string | null) => void;
-  setClashMonitorStarting: (message?: string | null) => void;
-  setClashMonitorStatus: (status: TestClashMonitorStatus) => void;
-  setClashMonitorStopped: (message?: string | null) => void;
-  setClashTraffic: (event: ClashTrafficEvent) => void;
+  setProxyConnections: (snapshot: ProxyConnectionsSnapshot) => void;
+  setProxyMonitorFailed: (message?: string | null) => void;
+  setProxyMonitorRunning: (message?: string | null) => void;
+  setProxyMonitorStarting: (message?: string | null) => void;
+  setProxyMonitorStatus: (status: TestProxyMonitorStatus) => void;
+  setProxyMonitorStopped: (message?: string | null) => void;
+  setProxyTraffic: (event: ProxyTrafficEvent) => void;
   setCoreState: () => void;
   setSysProxy: () => void;
   setTun: () => void;
@@ -79,7 +79,7 @@ type TestRuntimeEventStore = {
 };
 
 const runtimeStoreMock = vi.hoisted<TestRuntimeEventStore>(() => {
-  const initialMonitorStatus: TestClashMonitorStatus = {
+  const initialMonitorStatus: TestProxyMonitorStatus = {
     message: null,
     running: false,
     stale: true,
@@ -88,50 +88,50 @@ const runtimeStoreMock = vi.hoisted<TestRuntimeEventStore>(() => {
   let state: TestRuntimeEventState;
 
   function makeMonitorStatus(
-    monitorState: TestClashMonitorState,
+    monitorState: TestProxyMonitorState,
     running: boolean,
     stale: boolean,
     message: string | null,
-  ): TestClashMonitorStatus {
+  ): TestProxyMonitorStatus {
     return { message, running, stale, state: monitorState };
   }
 
   function makeState(): TestRuntimeEventState {
     const nextState = {
       clearLogs: vi.fn(),
-      clashConnections: null,
-      clashMonitorStatus: initialMonitorStatus,
-      clashTraffic: null,
+      proxyConnections: null,
+      proxyMonitorStatus: initialMonitorStatus,
+      proxyTraffic: null,
       coreState: null,
       lastTransientEvent: null,
       logLines: [],
       pushTransientEvent: vi.fn(),
       serverStatsByProfileId: {},
-      setClashConnections: vi.fn((snapshot: ClashConnectionsSnapshot) => {
-        state.clashConnections = snapshot;
+      setProxyConnections: vi.fn((snapshot: ProxyConnectionsSnapshot) => {
+        state.proxyConnections = snapshot;
       }),
-      setClashMonitorFailed: vi.fn((message: string | null = null) => {
-        state.clashMonitorStatus = makeMonitorStatus("failed", false, true, message);
+      setProxyMonitorFailed: vi.fn((message: string | null = null) => {
+        state.proxyMonitorStatus = makeMonitorStatus("failed", false, true, message);
       }),
-      setClashMonitorRunning: vi.fn((message: string | null = null) => {
-        state.clashMonitorStatus = makeMonitorStatus("running", true, false, message);
+      setProxyMonitorRunning: vi.fn((message: string | null = null) => {
+        state.proxyMonitorStatus = makeMonitorStatus("running", true, false, message);
       }),
-      setClashMonitorStarting: vi.fn((message: string | null = null) => {
-        state.clashMonitorStatus = makeMonitorStatus(
+      setProxyMonitorStarting: vi.fn((message: string | null = null) => {
+        state.proxyMonitorStatus = makeMonitorStatus(
           "starting",
           false,
-          state.clashMonitorStatus.stale,
+          state.proxyMonitorStatus.stale,
           message,
         );
       }),
-      setClashMonitorStatus: vi.fn((status: TestClashMonitorStatus) => {
-        state.clashMonitorStatus = status;
+      setProxyMonitorStatus: vi.fn((status: TestProxyMonitorStatus) => {
+        state.proxyMonitorStatus = status;
       }),
-      setClashMonitorStopped: vi.fn((message: string | null = null) => {
-        state.clashMonitorStatus = makeMonitorStatus("stopped", false, true, message);
+      setProxyMonitorStopped: vi.fn((message: string | null = null) => {
+        state.proxyMonitorStatus = makeMonitorStatus("stopped", false, true, message);
       }),
-      setClashTraffic: vi.fn((event: ClashTrafficEvent) => {
-        state.clashTraffic = event;
+      setProxyTraffic: vi.fn((event: ProxyTrafficEvent) => {
+        state.proxyTraffic = event;
       }),
       setCoreState: vi.fn(),
       setSysProxy: vi.fn(),
@@ -178,15 +178,15 @@ vi.mock("@/ipc", () => ({
       platform: "linux",
     }),
   ),
-  clashCloseConnection: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
-  clashListConnections: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
-  clashListProxies: vi.fn(() => Promise.resolve({ allNodes: [], groups: [], ruleMode: 0 })),
-  clashReloadConfig: vi.fn(() => Promise.resolve(null)),
-  clashSelectProxy: vi.fn(() => Promise.resolve({ allNodes: [], groups: [], ruleMode: 0 })),
-  clashSetRuleMode: vi.fn(),
-  clashStartMonitor: vi.fn(() => Promise.resolve({ state: "running", running: true, stale: false, message: null })),
-  clashStopMonitor: vi.fn(() => Promise.resolve({ state: "stopped", running: false, stale: true, message: null })),
-  clashTestDelay: vi.fn(() => Promise.resolve([])),
+  proxyCloseConnection: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
+  proxyListConnections: vi.fn(() => Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 })),
+  proxyListGroups: vi.fn(() => Promise.resolve({ groups: [], trafficMode: 0 })),
+  proxyReloadConfig: vi.fn(() => Promise.resolve(null)),
+  proxySelectNode: vi.fn(() => Promise.resolve({ groups: [], trafficMode: 0 })),
+  proxySetTrafficMode: vi.fn(),
+  proxyStartMonitor: vi.fn(() => Promise.resolve({ state: "running", running: true, stale: false, message: null })),
+  proxyStopMonitor: vi.fn(() => Promise.resolve({ state: "stopped", running: false, stale: true, message: null })),
+  proxyTestDelay: vi.fn(() => Promise.resolve([])),
   copyProfiles: vi.fn(),
   dedupeProfiles: vi.fn(),
   deleteSubscriptions: vi.fn(),
@@ -475,14 +475,14 @@ describe("App", () => {
     vi.mocked(saveAppConfig).mockClear();
     vi.mocked(saveUiPreferences).mockReset();
     vi.mocked(saveUiPreferences).mockImplementation(async (preferences) => preferences);
-    vi.mocked(clashCloseConnection).mockClear();
-    vi.mocked(clashListConnections).mockClear();
-    vi.mocked(clashStartMonitor).mockClear();
-    vi.mocked(clashStopMonitor).mockClear();
-    vi.mocked(clashCloseConnection).mockResolvedValue({ connections: [], downloadTotal: 0, uploadTotal: 0 });
-    vi.mocked(clashListConnections).mockResolvedValue({ connections: [], downloadTotal: 0, uploadTotal: 0 });
-    vi.mocked(clashStartMonitor).mockResolvedValue({ state: "running", running: true, stale: false, message: null });
-    vi.mocked(clashStopMonitor).mockResolvedValue({ state: "stopped", running: false, stale: true, message: null });
+    vi.mocked(proxyCloseConnection).mockClear();
+    vi.mocked(proxyListConnections).mockClear();
+    vi.mocked(proxyStartMonitor).mockClear();
+    vi.mocked(proxyStopMonitor).mockClear();
+    vi.mocked(proxyCloseConnection).mockResolvedValue({ connections: [], downloadTotal: 0, uploadTotal: 0 });
+    vi.mocked(proxyListConnections).mockResolvedValue({ connections: [], downloadTotal: 0, uploadTotal: 0 });
+    vi.mocked(proxyStartMonitor).mockResolvedValue({ state: "running", running: true, stale: false, message: null });
+    vi.mocked(proxyStopMonitor).mockResolvedValue({ state: "stopped", running: false, stale: true, message: null });
     vi.mocked(loadAppConfig).mockResolvedValue(makeAppConfig());
     vi.mocked(saveAppConfig).mockImplementation(async (config) => config as AppConfig_Serialize);
     await changeLocale("en");
@@ -505,8 +505,8 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: /Profiles/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Routing/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /DNS/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Clash Proxies/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Clash Connections/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Proxy Groups/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Connections/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Logs/ })).toBeInTheDocument();
     expect(statusBar).toHaveTextContent("Disconnected");
     expect(statusBar).toHaveTextContent("Route: /profiles");
@@ -553,52 +553,52 @@ describe("App", () => {
     expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
   });
 
-  it("shows Clash Connections immediately and defers monitor plus query work", async () => {
+  it("shows Connections immediately and defers monitor plus query work", async () => {
     vi.useFakeTimers();
     (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
     renderApp();
 
-    await activateTab(/Clash Connections/);
+    await activateTab(/Connections/);
 
-    expect(screen.getByRole("heading", { name: "Clash Connections" })).toBeInTheDocument();
-    expect(screen.getByTestId("status-bar")).toHaveTextContent("Route: /clash/connections");
-    expect(clashStartMonitor).not.toHaveBeenCalled();
-    expect(clashListConnections).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Connections" })).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar")).toHaveTextContent("Route: /proxy/connections");
+    expect(proxyStartMonitor).not.toHaveBeenCalled();
+    expect(proxyListConnections).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20);
     });
-    expect(clashListConnections).toHaveBeenCalledTimes(1);
-    expect(clashStartMonitor).not.toHaveBeenCalled();
-    expect(runtimeStoreMock.getState().setClashMonitorStarting).not.toHaveBeenCalled();
+    expect(proxyListConnections).toHaveBeenCalledTimes(1);
+    expect(proxyStartMonitor).not.toHaveBeenCalled();
+    expect(runtimeStoreMock.getState().setProxyMonitorStarting).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(80);
     });
-    expect(clashStartMonitor).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().setClashMonitorStarting).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(proxyStartMonitor).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().setProxyMonitorStarting).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: true,
       stale: false,
       state: "running",
     });
     expect(
-      vi.mocked(runtimeStoreMock.getState().setClashMonitorStarting).mock.invocationCallOrder[0]!,
-    ).toBeLessThan(vi.mocked(clashStartMonitor).mock.invocationCallOrder[0]!);
+      vi.mocked(runtimeStoreMock.getState().setProxyMonitorStarting).mock.invocationCallOrder[0]!,
+    ).toBeLessThan(vi.mocked(proxyStartMonitor).mock.invocationCallOrder[0]!);
 
     await activateTab(/Profiles/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_999);
     });
-    expect(clashStopMonitor).not.toHaveBeenCalled();
+    expect(proxyStopMonitor).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(clashStopMonitor).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(proxyStopMonitor).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: false,
       stale: true,
@@ -606,33 +606,33 @@ describe("App", () => {
     });
   });
 
-  it("keeps the monitor running during rapid switches between Clash tabs", async () => {
+  it("keeps the monitor running during rapid switches between proxy runtime tabs", async () => {
     vi.useFakeTimers();
     (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
     renderApp();
 
-    await activateTab(/Clash Proxies/);
+    await activateTab(/Proxy Groups/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    await activateTab(/Clash Connections/);
+    await activateTab(/Connections/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
     });
 
-    expect(clashStartMonitor).toHaveBeenCalledTimes(1);
-    expect(clashStopMonitor).not.toHaveBeenCalled();
+    expect(proxyStartMonitor).toHaveBeenCalledTimes(1);
+    expect(proxyStopMonitor).not.toHaveBeenCalled();
 
-    await activateTab(/Clash Proxies/);
+    await activateTab(/Proxy Groups/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    expect(clashStartMonitor).toHaveBeenCalledTimes(1);
-    expect(clashStopMonitor).not.toHaveBeenCalled();
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(proxyStartMonitor).toHaveBeenCalledTimes(1);
+    expect(proxyStopMonitor).not.toHaveBeenCalled();
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: true,
       stale: false,
@@ -640,22 +640,22 @@ describe("App", () => {
     });
   });
 
-  it("marks cached Clash monitor data failed and shows a toast when start fails", async () => {
+  it("marks cached proxy monitor data failed and shows a toast when start fails", async () => {
     vi.useFakeTimers();
     (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-    vi.mocked(clashStartMonitor).mockRejectedValueOnce(new Error("start unavailable"));
+    vi.mocked(proxyStartMonitor).mockRejectedValueOnce(new Error("start unavailable"));
 
     renderApp();
 
-    await activateTab(/Clash Proxies/);
+    await activateTab(/Proxy Groups/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
     });
 
-    expect(clashStartMonitor).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().setClashMonitorStarting).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().setClashMonitorFailed).toHaveBeenCalledWith("start unavailable");
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(proxyStartMonitor).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().setProxyMonitorStarting).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().setProxyMonitorFailed).toHaveBeenCalledWith("start unavailable");
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: "start unavailable",
       running: false,
       stale: true,
@@ -663,31 +663,31 @@ describe("App", () => {
     });
     expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
       description: "start unavailable",
-      title: "Clash",
+      title: "Proxy runtime",
     });
   });
 
-  it("marks cached Clash monitor data failed and shows a toast when delayed stop fails", async () => {
+  it("marks cached proxy monitor data failed and shows a toast when delayed stop fails", async () => {
     vi.useFakeTimers();
     (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-    vi.mocked(clashStopMonitor).mockRejectedValueOnce(new Error("stop unavailable"));
+    vi.mocked(proxyStopMonitor).mockRejectedValueOnce(new Error("stop unavailable"));
 
     renderApp();
 
-    await activateTab(/Clash Proxies/);
+    await activateTab(/Proxy Groups/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
     });
-    expect(runtimeStoreMock.getState().clashMonitorStatus.state).toBe("running");
+    expect(runtimeStoreMock.getState().proxyMonitorStatus.state).toBe("running");
 
     await activateTab(/Profiles/);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    expect(clashStopMonitor).toHaveBeenCalledTimes(1);
-    expect(runtimeStoreMock.getState().setClashMonitorFailed).toHaveBeenCalledWith("stop unavailable");
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(proxyStopMonitor).toHaveBeenCalledTimes(1);
+    expect(runtimeStoreMock.getState().setProxyMonitorFailed).toHaveBeenCalledWith("stop unavailable");
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: "stop unavailable",
       running: false,
       stale: true,
@@ -695,26 +695,26 @@ describe("App", () => {
     });
     expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
       description: "stop unavailable",
-      title: "Clash",
+      title: "Proxy runtime",
     });
   });
 
-  it("shows stale monitor status in Clash Proxies without replacing toolbar controls", async () => {
+  it("shows stale monitor status in Proxy Groups without replacing toolbar controls", async () => {
     const user = userEvent.setup();
-    runtimeStoreMock.getState().setClashMonitorStopped();
-    runtimeStoreMock.getState().setClashTraffic({ down: 2048, up: 512 });
+    runtimeStoreMock.getState().setProxyMonitorStopped();
+    runtimeStoreMock.getState().setProxyTraffic({ down: 2048, up: 512 });
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Proxies/ }));
+    await user.click(screen.getByRole("tab", { name: /Proxy Groups/ }));
 
     expect(screen.getByRole("status", { name: "Stale: Stopped" })).toBeInTheDocument();
     expect(screen.getByText("Up 512 B/s")).toBeInTheDocument();
     expect(screen.getByText("Down 2.0 KB/s")).toBeInTheDocument();
-    // Scope toolbar-control assertions to the Clash Proxies region. The home
+    // Scope toolbar-control assertions to the Proxy Groups region. The home
     // hero's system-proxy selector also exposes "Direct"/"Global" buttons, so
     // scoping keeps these queries unambiguous and robust to shell layout.
-    const proxies = screen.getByRole("region", { name: "Clash Proxies" });
+    const proxies = screen.getByRole("region", { name: "Proxy Groups" });
     expect(within(proxies).getByRole("button", { name: "Rule" })).toBeInTheDocument();
     expect(within(proxies).getByRole("button", { name: "Global" })).toBeInTheDocument();
     expect(within(proxies).getByRole("button", { name: "Direct" })).toBeInTheDocument();
@@ -723,11 +723,11 @@ describe("App", () => {
     expect(within(proxies).getByRole("button", { name: "Refresh" })).toBeInTheDocument();
   });
 
-  it("shows failed monitor status with its message in Clash Connections while keeping data controls visible", async () => {
+  it("shows failed monitor status with its message in Connections while keeping data controls visible", async () => {
     const user = userEvent.setup();
     const message = "monitor stream failed after retry budget was exhausted";
-    runtimeStoreMock.getState().setClashMonitorFailed(message);
-    vi.mocked(clashListConnections).mockResolvedValue({
+    runtimeStoreMock.getState().setProxyMonitorFailed(message);
+    vi.mocked(proxyListConnections).mockResolvedValue({
       connections: [makeConnection(0, { host: "alpha.example:443", id: "alpha" })],
       downloadTotal: 4096,
       uploadTotal: 1024,
@@ -735,7 +735,7 @@ describe("App", () => {
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Connections/ }));
+    await user.click(screen.getByRole("tab", { name: /Connections/ }));
     await waitFor(() => expect(screen.getByText("alpha.example:443")).toBeInTheDocument());
 
     expect(screen.getByRole("status", { name: `Failed: ${message}` })).toBeInTheDocument();
@@ -748,9 +748,9 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
   });
 
-  it("clears selected Clash connection when it leaves and re-enters the filtered snapshot", async () => {
+  it("clears the selected connection when it leaves and re-enters the filtered snapshot", async () => {
     const user = userEvent.setup();
-    vi.mocked(clashListConnections).mockResolvedValue({
+    vi.mocked(proxyListConnections).mockResolvedValue({
       connections: [
         makeConnection(0, { host: "alpha.example:443", id: "alpha" }),
         makeConnection(1, { host: "beta.example:443", id: "beta" }),
@@ -761,7 +761,7 @@ describe("App", () => {
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Connections/ }));
+    await user.click(screen.getByRole("tab", { name: /Connections/ }));
     await waitFor(() => expect(screen.getByText("alpha.example:443")).toBeInTheDocument());
 
     await user.click(screen.getByText("alpha.example:443"));
@@ -777,7 +777,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
   });
 
-  it("manual refresh seeds Clash Connections snapshots without clearing stale monitor status", async () => {
+  it("manual refresh seeds Connections snapshots without clearing stale monitor status", async () => {
     const user = userEvent.setup();
     const cachedSnapshot = {
       connections: [makeConnection(0, { host: "cached.example:443", id: "cached" })],
@@ -789,27 +789,27 @@ describe("App", () => {
       downloadTotal: 4096,
       uploadTotal: 1024,
     };
-    runtimeStoreMock.getState().setClashMonitorFailed("monitor offline");
-    runtimeStoreMock.getState().setClashConnections(cachedSnapshot);
-    vi.mocked(runtimeStoreMock.getState().setClashConnections).mockClear();
-    vi.mocked(clashListConnections)
+    runtimeStoreMock.getState().setProxyMonitorFailed("monitor offline");
+    runtimeStoreMock.getState().setProxyConnections(cachedSnapshot);
+    vi.mocked(runtimeStoreMock.getState().setProxyConnections).mockClear();
+    vi.mocked(proxyListConnections)
       .mockResolvedValueOnce(cachedSnapshot)
       .mockResolvedValueOnce(refreshedSnapshot);
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Connections/ }));
-    await waitFor(() => expect(clashListConnections).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("tab", { name: /Connections/ }));
+    await waitFor(() => expect(proxyListConnections).toHaveBeenCalledTimes(1));
     expect(screen.getByText("cached.example:443")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
-    await waitFor(() => expect(clashListConnections).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(proxyListConnections).toHaveBeenCalledTimes(2));
     await waitFor(() =>
-      expect(runtimeStoreMock.getState().setClashConnections).toHaveBeenCalledWith(refreshedSnapshot),
+      expect(runtimeStoreMock.getState().setProxyConnections).toHaveBeenCalledWith(refreshedSnapshot),
     );
     await waitFor(() => expect(screen.getByText("fresh.example:443")).toBeInTheDocument());
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: "monitor offline",
       running: false,
       stale: true,
@@ -834,26 +834,26 @@ describe("App", () => {
       uploadTotal: 1,
     };
     const allClosedSnapshot = { connections: [], downloadTotal: 0, uploadTotal: 0 };
-    runtimeStoreMock.getState().setClashMonitorFailed("monitor offline");
-    vi.mocked(clashListConnections).mockResolvedValue(initialSnapshot);
-    vi.mocked(clashCloseConnection)
+    runtimeStoreMock.getState().setProxyMonitorFailed("monitor offline");
+    vi.mocked(proxyListConnections).mockResolvedValue(initialSnapshot);
+    vi.mocked(proxyCloseConnection)
       .mockResolvedValueOnce(selectedClosedSnapshot)
       .mockResolvedValueOnce(allClosedSnapshot);
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Connections/ }));
+    await user.click(screen.getByRole("tab", { name: /Connections/ }));
     await waitFor(() => expect(screen.getByText("alpha.example:443")).toBeInTheDocument());
 
     await user.click(screen.getByText("alpha.example:443"));
     await waitFor(() => expect(screen.getByRole("button", { name: "Close" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    await waitFor(() => expect(vi.mocked(clashCloseConnection).mock.calls.at(0)?.[0]).toBe("alpha"));
+    await waitFor(() => expect(vi.mocked(proxyCloseConnection).mock.calls.at(0)?.[0]).toBe("alpha"));
     await waitFor(() => expect(screen.queryByText("alpha.example:443")).not.toBeInTheDocument());
     expect(screen.getByText("beta.example:443")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Close" })).toBeDisabled());
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: "monitor offline",
       running: false,
       stale: true,
@@ -863,9 +863,9 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Close all" }));
 
-    await waitFor(() => expect(vi.mocked(clashCloseConnection).mock.calls.at(1)?.[0]).toBeNull());
-    await waitFor(() => expect(screen.getByText("No Clash connections")).toBeInTheDocument());
-    expect(runtimeStoreMock.getState().clashMonitorStatus).toEqual({
+    await waitFor(() => expect(vi.mocked(proxyCloseConnection).mock.calls.at(1)?.[0]).toBeNull());
+    await waitFor(() => expect(screen.getByText("No connections")).toBeInTheDocument());
+    expect(runtimeStoreMock.getState().proxyMonitorStatus).toEqual({
       message: "monitor offline",
       running: false,
       stale: true,
@@ -874,10 +874,10 @@ describe("App", () => {
     expect(screen.getByRole("status", { name: "Failed: monitor offline" })).toBeInTheDocument();
   });
 
-  it("virtualizes large Clash Connections result sets across stale and live monitor states", async () => {
+  it("virtualizes large Connections result sets across stale and live monitor states", async () => {
     const user = userEvent.setup();
-    runtimeStoreMock.getState().setClashMonitorFailed("monitor offline");
-    vi.mocked(clashListConnections).mockResolvedValue({
+    runtimeStoreMock.getState().setProxyMonitorFailed("monitor offline");
+    vi.mocked(proxyListConnections).mockResolvedValue({
       connections: makeConnections(200),
       downloadTotal: 200,
       uploadTotal: 100,
@@ -885,13 +885,13 @@ describe("App", () => {
 
     renderApp();
 
-    await user.click(screen.getByRole("tab", { name: /Clash Connections/ }));
+    await user.click(screen.getByRole("tab", { name: /Connections/ }));
 
     await waitFor(() => expect(screen.getByText("bulk-0.example:443")).toBeInTheDocument());
     expect(screen.queryAllByText(/bulk-\d+\.example:443/).length).toBeLessThan(80);
     expect(screen.getByRole("status", { name: "Failed: monitor offline" })).toBeInTheDocument();
 
-    runtimeStoreMock.getState().setClashMonitorRunning();
+    runtimeStoreMock.getState().setProxyMonitorRunning();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
     await waitFor(() => expect(screen.getByRole("status", { name: "Live" })).toBeInTheDocument());
@@ -942,7 +942,7 @@ function makeUiItem(overrides: Partial<UiItem_Serialize> = {}): UiItem_Serialize
   };
 }
 
-function makeConnection(index: number, overrides: Partial<ClashConnectionItem> = {}): ClashConnectionItem {
+function makeConnection(index: number, overrides: Partial<ProxyConnectionItem> = {}): ProxyConnectionItem {
   return {
     chains: ["Proxy"],
     connectionType: "HTTP",
@@ -962,6 +962,6 @@ function makeConnection(index: number, overrides: Partial<ClashConnectionItem> =
   };
 }
 
-function makeConnections(count: number): ClashConnectionItem[] {
+function makeConnections(count: number): ProxyConnectionItem[] {
   return Array.from({ length: count }, (_, index) => makeConnection(index));
 }

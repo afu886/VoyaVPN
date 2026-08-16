@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeSet,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -13,7 +12,7 @@ use tokio::{
     task::JoinHandle,
     time::{self, MissedTickBehavior},
 };
-use voya_core::{AppConfig, RuleMode};
+use voya_core::{AppConfig, TrafficMode};
 use voya_net::clash::{
     ClashApiEndpoint, ClashConnection as NetClashConnection,
     ClashConnectionMetadata as NetClashConnectionMetadata, ClashConnections as NetClashConnections,
@@ -25,9 +24,9 @@ use voya_net::clash::{
 use crate::statistics::singbox_state_port2;
 
 const DELAY_TIMEOUT_MS: u32 = 10_000;
-const CLASH_WS_RECONNECT_INITIAL_DELAY: Duration = Duration::from_secs(1);
-const CLASH_WS_RECONNECT_MAX_DELAY: Duration = Duration::from_secs(30);
-const CLASH_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const PROXY_WS_RECONNECT_INITIAL_DELAY: Duration = Duration::from_secs(1);
+const PROXY_WS_RECONNECT_MAX_DELAY: Duration = Duration::from_secs(30);
+const PROXY_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const WS_RECONNECT_JITTER_DIVISOR: u32 = 4;
 const ALLOW_SELECT_TYPES: &[&str] = &["selector", "urltest", "loadbalance", "fallback"];
 const NOT_ALLOW_TEST_TYPES: &[&str] = &[
@@ -42,48 +41,47 @@ const NOT_ALLOW_TEST_TYPES: &[&str] = &[
 ];
 const PROVIDER_PROXY_VEHICLE_TYPES: &[&str] = &["file", "http"];
 
-pub type Result<T> = std::result::Result<T, ClashManagerError>;
+pub type Result<T> = std::result::Result<T, ProxyRuntimeError>;
 
 #[derive(Debug, Error)]
-pub enum ClashManagerError {
+pub enum ProxyRuntimeError {
     #[error(transparent)]
     Api(#[from] ClashError),
-    #[error("Clash group {0} was not found")]
+    #[error("proxy group {0} was not found")]
     GroupNotFound(String),
-    #[error("Clash proxy {0} was not found")]
-    ProxyNotFound(String),
-    #[error("Clash group {0} is not a selector")]
+    #[error("proxy node {0} was not found")]
+    NodeNotFound(String),
+    #[error("proxy group {0} is not a selector")]
     GroupNotSelector(String),
-    #[error("invalid Clash rule mode {0:?}")]
-    InvalidRuleMode(RuleMode),
-    #[error("Clash monitor lock is poisoned")]
+    #[error("invalid traffic mode {0:?}")]
+    InvalidTrafficMode(TrafficMode),
+    #[error("proxy monitor lock is poisoned")]
     MonitorLockPoisoned,
-    #[error("Clash monitor requires a Tokio runtime")]
+    #[error("proxy monitor requires a Tokio runtime")]
     MonitorRuntimeUnavailable,
-    #[error("Clash API state port is unavailable")]
+    #[error("proxy runtime API state port is unavailable")]
     InvalidStatePort,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashProxiesSnapshot {
-    pub groups: Vec<ClashProxyGroup>,
-    pub all_nodes: Vec<ClashProxyNode>,
-    pub rule_mode: RuleMode,
+pub struct ProxyGroupsSnapshot {
+    pub groups: Vec<ProxyGroup>,
+    pub traffic_mode: TrafficMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashProxyGroup {
+pub struct ProxyGroup {
     pub name: String,
     pub proxy_type: String,
     pub now: Option<String>,
-    pub nodes: Vec<ClashProxyNode>,
+    pub nodes: Vec<ProxyNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashProxyNode {
+pub struct ProxyNode {
     pub name: String,
     pub proxy_type: String,
     pub delay: Option<i32>,
@@ -95,7 +93,7 @@ pub struct ClashProxyNode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashDelayTestResult {
+pub struct ProxyDelayTestResult {
     pub name: String,
     pub delay: Option<i32>,
     pub message: Option<String>,
@@ -103,7 +101,7 @@ pub struct ClashDelayTestResult {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashTrafficEvent {
+pub struct ProxyTrafficEvent {
     #[specta(type = f64)]
     pub up: u64,
     #[specta(type = f64)]
@@ -112,17 +110,17 @@ pub struct ClashTrafficEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashConnectionsSnapshot {
+pub struct ProxyConnectionsSnapshot {
     #[specta(type = f64)]
     pub download_total: u64,
     #[specta(type = f64)]
     pub upload_total: u64,
-    pub connections: Vec<ClashConnectionItem>,
+    pub connections: Vec<ProxyConnectionItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashConnectionItem {
+pub struct ProxyConnectionItem {
     pub id: Option<String>,
     pub network: Option<String>,
     pub connection_type: Option<String>,
@@ -141,31 +139,33 @@ pub struct ClashConnectionItem {
     pub process_path: Option<String>,
 }
 
-pub trait ClashEventSink: Send + Sync {
-    fn emit_traffic(&self, event: ClashTrafficEvent);
-    fn emit_connections(&self, event: ClashConnectionsSnapshot);
+pub trait ProxyRuntimeEventSink: Send + Sync {
+    fn emit_traffic(&self, event: ProxyTrafficEvent);
+    fn emit_connections(&self, event: ProxyConnectionsSnapshot);
 }
 
+#[cfg(test)]
 #[derive(Clone)]
-pub struct NoopClashEventSink;
+pub struct NoopProxyRuntimeEventSink;
 
-impl ClashEventSink for NoopClashEventSink {
-    fn emit_traffic(&self, _event: ClashTrafficEvent) {}
-    fn emit_connections(&self, _event: ClashConnectionsSnapshot) {}
+#[cfg(test)]
+impl ProxyRuntimeEventSink for NoopProxyRuntimeEventSink {
+    fn emit_traffic(&self, _event: ProxyTrafficEvent) {}
+    fn emit_connections(&self, _event: ProxyConnectionsSnapshot) {}
 }
 
 #[derive(Debug, Clone)]
-pub struct ClashManager<T = ReqwestClashHttpTransport> {
+pub struct ProxyRuntimeManager<T = ReqwestClashHttpTransport> {
     transport: T,
 }
 
-impl Default for ClashManager<ReqwestClashHttpTransport> {
+impl Default for ProxyRuntimeManager<ReqwestClashHttpTransport> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ClashManager<ReqwestClashHttpTransport> {
+impl ProxyRuntimeManager<ReqwestClashHttpTransport> {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -174,7 +174,7 @@ impl ClashManager<ReqwestClashHttpTransport> {
     }
 }
 
-impl<T> ClashManager<T>
+impl<T> ProxyRuntimeManager<T>
 where
     T: ClashHttpTransport,
 {
@@ -183,20 +183,20 @@ where
         Self { transport }
     }
 
-    pub async fn proxies(&self, config: &AppConfig) -> Result<ClashProxiesSnapshot> {
+    pub async fn groups(&self, config: &AppConfig) -> Result<ProxyGroupsSnapshot> {
         let client = self.client(config)?;
         let proxies = client.get_proxies().await?;
         let providers = client.get_proxy_providers().await.unwrap_or_default();
 
-        Ok(build_proxy_snapshot(
+        Ok(build_proxy_groups_snapshot(
             &proxies,
             &providers,
-            config.clash_ui_item.proxies_sorting,
-            config.clash_ui_item.rule_mode,
+            config.proxy_ui_item.node_sorting,
+            config.proxy_ui_item.traffic_mode,
         ))
     }
 
-    pub async fn connections(&self, config: &AppConfig) -> Result<ClashConnectionsSnapshot> {
+    pub async fn connections(&self, config: &AppConfig) -> Result<ProxyConnectionsSnapshot> {
         self.client(config)?
             .get_connections()
             .await
@@ -204,36 +204,36 @@ where
             .map_err(Into::into)
     }
 
-    pub async fn select_proxy(
+    pub async fn select_node(
         &self,
         config: &AppConfig,
         group_name: &str,
-        proxy_name: &str,
-    ) -> Result<ClashProxiesSnapshot> {
+        node_name: &str,
+    ) -> Result<ProxyGroupsSnapshot> {
         let client = self.client(config)?;
         let proxies = client.get_proxies().await?;
         let group = proxies
             .proxies
             .get(group_name)
-            .ok_or_else(|| ClashManagerError::GroupNotFound(group_name.to_string()))?;
+            .ok_or_else(|| ProxyRuntimeError::GroupNotFound(group_name.to_string()))?;
         if !group.proxy_type.eq_ignore_ascii_case("selector") {
-            return Err(ClashManagerError::GroupNotSelector(group_name.to_string()));
+            return Err(ProxyRuntimeError::GroupNotSelector(group_name.to_string()));
         }
-        if !group.all.iter().any(|name| name == proxy_name) {
-            return Err(ClashManagerError::ProxyNotFound(proxy_name.to_string()));
+        if !group.all.iter().any(|name| name == node_name) {
+            return Err(ProxyRuntimeError::NodeNotFound(node_name.to_string()));
         }
 
-        client.select_proxy(group_name, proxy_name).await?;
-        self.proxies(config).await
+        client.select_proxy(group_name, node_name).await?;
+        self.groups(config).await
     }
 
     pub async fn test_delay(
         &self,
         config: &AppConfig,
-        proxy_names: Vec<String>,
-    ) -> Result<Vec<ClashDelayTestResult>> {
+        node_names: Vec<String>,
+    ) -> Result<Vec<ProxyDelayTestResult>> {
         let client = self.client(config)?;
-        let names = if proxy_names.is_empty() {
+        let names = if node_names.is_empty() {
             client
                 .get_proxies()
                 .await?
@@ -242,7 +242,7 @@ where
                 .filter_map(|(name, proxy)| is_testable_type(&proxy.proxy_type).then_some(name))
                 .collect::<Vec<_>>()
         } else {
-            proxy_names
+            node_names
         };
 
         let mut results = Vec::with_capacity(names.len());
@@ -258,7 +258,7 @@ where
                     delay: None,
                     message: Some(error.to_string()),
                 });
-            results.push(ClashDelayTestResult {
+            results.push(ProxyDelayTestResult {
                 name,
                 delay: response.delay,
                 message: response.message,
@@ -268,9 +268,9 @@ where
         Ok(results)
     }
 
-    pub async fn set_rule_mode(&self, config: &AppConfig, mode: RuleMode) -> Result<()> {
-        let Some(mode) = rule_mode_api_value(mode) else {
-            return Err(ClashManagerError::InvalidRuleMode(mode));
+    pub async fn set_traffic_mode(&self, config: &AppConfig, mode: TrafficMode) -> Result<()> {
+        let Some(mode) = traffic_mode_api_value(mode) else {
+            return Err(ProxyRuntimeError::InvalidTrafficMode(mode));
         };
 
         self.client(config)?
@@ -289,7 +289,7 @@ where
         &self,
         config: &AppConfig,
         connection_id: Option<&str>,
-    ) -> Result<ClashConnectionsSnapshot> {
+    ) -> Result<ProxyConnectionsSnapshot> {
         let client = self.client(config)?;
         client.close_connection(connection_id).await?;
         client
@@ -300,7 +300,7 @@ where
     }
 
     fn client(&self, config: &AppConfig) -> Result<ClashRestClient<T>> {
-        let endpoint = clash_endpoint(config).ok_or(ClashManagerError::InvalidStatePort)?;
+        let endpoint = proxy_runtime_endpoint(config).ok_or(ProxyRuntimeError::InvalidStatePort)?;
         Ok(ClashRestClient::with_transport(
             endpoint,
             self.transport.clone(),
@@ -309,11 +309,11 @@ where
 }
 
 #[derive(Clone, Default)]
-pub struct ClashMonitorController {
-    handle: Arc<Mutex<Option<ClashMonitorHandle>>>,
+pub struct ProxyMonitorController {
+    handle: Arc<Mutex<Option<ProxyMonitorHandle>>>,
 }
 
-impl ClashMonitorController {
+impl ProxyMonitorController {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -322,69 +322,69 @@ impl ClashMonitorController {
     pub fn start(
         &self,
         config: &AppConfig,
-        sink: Arc<dyn ClashEventSink>,
-    ) -> Result<ClashMonitorStatus> {
+        sink: Arc<dyn ProxyRuntimeEventSink>,
+    ) -> Result<ProxyMonitorStatus> {
         let mut guard = self
             .handle
             .lock()
-            .map_err(|_| ClashManagerError::MonitorLockPoisoned)?;
-        let Some(endpoint) = clash_endpoint(config) else {
+            .map_err(|_| ProxyRuntimeError::MonitorLockPoisoned)?;
+        let Some(endpoint) = proxy_runtime_endpoint(config) else {
             if let Some(handle) = guard.take() {
                 handle.stop();
             }
-            tracing::debug!("skipping Clash monitor because state port is unavailable");
-            return Ok(ClashMonitorStatus::stopped());
+            tracing::debug!("skipping proxy monitor because state port is unavailable");
+            return Ok(ProxyMonitorStatus::stopped());
         };
         if guard
             .as_ref()
             .is_some_and(|handle| handle.endpoint == endpoint)
         {
-            return Ok(ClashMonitorStatus::running());
+            return Ok(ProxyMonitorStatus::running());
         }
         let runtime =
-            Handle::try_current().map_err(|_| ClashManagerError::MonitorRuntimeUnavailable)?;
+            Handle::try_current().map_err(|_| ProxyRuntimeError::MonitorRuntimeUnavailable)?;
         if let Some(handle) = guard.take() {
             handle.stop();
         }
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let traffic_task = runtime.spawn(run_clash_ws_monitor(
+        let traffic_task = runtime.spawn(run_proxy_ws_monitor(
             endpoint.clone(),
             ClashWebSocketResource::Traffic,
             Arc::clone(&sink),
             shutdown_rx.clone(),
         ));
-        let connections_task = runtime.spawn(run_clash_ws_monitor(
+        let connections_task = runtime.spawn(run_proxy_ws_monitor(
             endpoint.clone(),
             ClashWebSocketResource::Connections,
             sink,
             shutdown_rx,
         ));
-        *guard = Some(ClashMonitorHandle {
+        *guard = Some(ProxyMonitorHandle {
             endpoint,
             shutdown: shutdown_tx,
             tasks: vec![traffic_task, connections_task],
         });
 
-        Ok(ClashMonitorStatus::running())
+        Ok(ProxyMonitorStatus::running())
     }
 
-    pub fn stop(&self) -> Result<ClashMonitorStatus> {
+    pub fn stop(&self) -> Result<ProxyMonitorStatus> {
         let mut guard = self
             .handle
             .lock()
-            .map_err(|_| ClashManagerError::MonitorLockPoisoned)?;
+            .map_err(|_| ProxyRuntimeError::MonitorLockPoisoned)?;
         if let Some(handle) = guard.take() {
             handle.stop();
         }
 
-        Ok(ClashMonitorStatus::stopped())
+        Ok(ProxyMonitorStatus::stopped())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum ClashMonitorState {
+pub enum ProxyMonitorState {
     Running,
     Stopped,
     Failed,
@@ -392,18 +392,18 @@ pub enum ClashMonitorState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ClashMonitorStatus {
-    pub state: ClashMonitorState,
+pub struct ProxyMonitorStatus {
+    pub state: ProxyMonitorState,
     pub running: bool,
     pub stale: bool,
     pub message: Option<String>,
 }
 
-impl ClashMonitorStatus {
+impl ProxyMonitorStatus {
     #[must_use]
     pub fn running() -> Self {
         Self {
-            state: ClashMonitorState::Running,
+            state: ProxyMonitorState::Running,
             running: true,
             stale: false,
             message: None,
@@ -413,7 +413,7 @@ impl ClashMonitorStatus {
     #[must_use]
     pub fn stopped() -> Self {
         Self {
-            state: ClashMonitorState::Stopped,
+            state: ProxyMonitorState::Stopped,
             running: false,
             stale: true,
             message: None,
@@ -423,7 +423,7 @@ impl ClashMonitorStatus {
     #[must_use]
     pub fn failed(message: impl Into<String>) -> Self {
         Self {
-            state: ClashMonitorState::Failed,
+            state: ProxyMonitorState::Failed,
             running: false,
             stale: true,
             message: Some(message.into()),
@@ -431,13 +431,13 @@ impl ClashMonitorStatus {
     }
 }
 
-struct ClashMonitorHandle {
+struct ProxyMonitorHandle {
     endpoint: ClashApiEndpoint,
     shutdown: watch::Sender<bool>,
     tasks: Vec<JoinHandle<()>>,
 }
 
-impl ClashMonitorHandle {
+impl ProxyMonitorHandle {
     fn stop(self) {
         let _ = self.shutdown.send(true);
         for task in self.tasks {
@@ -446,15 +446,15 @@ impl ClashMonitorHandle {
     }
 }
 
-async fn run_clash_ws_monitor(
+async fn run_proxy_ws_monitor(
     endpoint: ClashApiEndpoint,
     resource: ClashWebSocketResource,
-    sink: Arc<dyn ClashEventSink>,
+    sink: Arc<dyn ProxyRuntimeEventSink>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut reconnect_backoff = WebSocketReconnectBackoff::new(
-        CLASH_WS_RECONNECT_INITIAL_DELAY,
-        CLASH_WS_RECONNECT_MAX_DELAY,
+        PROXY_WS_RECONNECT_INITIAL_DELAY,
+        PROXY_WS_RECONNECT_MAX_DELAY,
     );
 
     loop {
@@ -463,7 +463,7 @@ async fn run_clash_ws_monitor(
         }
 
         let client = ClashWebSocketClient::new(endpoint.clone());
-        match time::timeout(CLASH_WS_CONNECT_TIMEOUT, client.connect(resource)).await {
+        match time::timeout(PROXY_WS_CONNECT_TIMEOUT, client.connect(resource)).await {
             Ok(Ok(mut session)) => loop {
                 tokio::select! {
                     changed = shutdown.changed() => {
@@ -474,10 +474,10 @@ async fn run_clash_ws_monitor(
                     event = session.next_event() => match event {
                         Ok(event) => {
                             reconnect_backoff.reset();
-                            route_clash_ws_event(sink.as_ref(), event);
+                            route_proxy_ws_event(sink.as_ref(), event);
                         }
                         Err(error) => {
-                            tracing::debug!(?error, ?resource, "Clash websocket monitor read failed");
+                            tracing::debug!(?error, ?resource, "proxy websocket monitor read failed");
                             break;
                         }
                     }
@@ -487,14 +487,14 @@ async fn run_clash_ws_monitor(
                 tracing::debug!(
                     ?error,
                     ?resource,
-                    "failed to connect Clash websocket monitor"
+                    "failed to connect proxy websocket monitor"
                 );
             }
             Err(error) => {
                 tracing::debug!(
                     ?error,
                     ?resource,
-                    "timed out connecting Clash websocket monitor"
+                    "timed out connecting proxy websocket monitor"
                 );
             }
         }
@@ -580,9 +580,9 @@ fn reconnect_jitter_seed() -> u64 {
         })
 }
 
-pub fn route_clash_ws_event(sink: &dyn ClashEventSink, event: ClashWebSocketEvent) {
+pub fn route_proxy_ws_event(sink: &dyn ProxyRuntimeEventSink, event: ClashWebSocketEvent) {
     match event {
-        ClashWebSocketEvent::Traffic(event) => sink.emit_traffic(traffic_event(event)),
+        ClashWebSocketEvent::Traffic(event) => sink.emit_traffic(proxy_traffic_event(event)),
         ClashWebSocketEvent::Connections(event) => {
             sink.emit_connections(connections_snapshot(event))
         }
@@ -590,31 +590,31 @@ pub fn route_clash_ws_event(sink: &dyn ClashEventSink, event: ClashWebSocketEven
 }
 
 #[must_use]
-pub fn clash_endpoint(config: &AppConfig) -> Option<ClashApiEndpoint> {
-    available_clash_state_port(config).map(ClashApiEndpoint::loopback)
+pub fn proxy_runtime_endpoint(config: &AppConfig) -> Option<ClashApiEndpoint> {
+    available_proxy_state_port(config).map(ClashApiEndpoint::loopback)
 }
 
-fn available_clash_state_port(config: &AppConfig) -> Option<u16> {
+fn available_proxy_state_port(config: &AppConfig) -> Option<u16> {
     let port = singbox_state_port2(config);
     (port != 0).then_some(port)
 }
 
 #[must_use]
-pub fn rule_mode_api_value(mode: RuleMode) -> Option<&'static str> {
+pub fn traffic_mode_api_value(mode: TrafficMode) -> Option<&'static str> {
     match mode {
-        RuleMode::Rule => Some("rule"),
-        RuleMode::Global => Some("global"),
-        RuleMode::Direct => Some("direct"),
-        RuleMode::Unchanged => None,
+        TrafficMode::Rule => Some("rule"),
+        TrafficMode::Global => Some("global"),
+        TrafficMode::Direct => Some("direct"),
+        TrafficMode::Unchanged => None,
     }
 }
 
-fn build_proxy_snapshot(
+fn build_proxy_groups_snapshot(
     proxies: &ClashProxiesResponse,
     providers: &ClashProvidersResponse,
     sorting: i32,
-    rule_mode: RuleMode,
-) -> ClashProxiesSnapshot {
+    traffic_mode: TrafficMode,
+) -> ProxyGroupsSnapshot {
     let mut groups = proxies
         .proxies
         .iter()
@@ -631,7 +631,7 @@ fn build_proxy_snapshot(
                 .collect::<Vec<_>>();
             sort_nodes(&mut nodes, sorting);
 
-            ClashProxyGroup {
+            ProxyGroup {
                 name: proxy.name.clone().unwrap_or_else(|| name.clone()),
                 proxy_type: proxy.proxy_type.clone(),
                 now: proxy.now.clone(),
@@ -641,34 +641,9 @@ fn build_proxy_snapshot(
         .collect::<Vec<_>>();
     groups.sort_by(|left, right| left.name.cmp(&right.name));
 
-    let mut seen = BTreeSet::new();
-    let mut all_nodes = Vec::new();
-    for (name, proxy) in &proxies.proxies {
-        if seen.insert(name.clone()) {
-            all_nodes.push(proxy_node(name, proxy, false));
-        }
-    }
-    for provider in providers.providers.values() {
-        if !provider
-            .vehicle_type
-            .as_deref()
-            .is_some_and(is_provider_proxy_vehicle_type)
-        {
-            continue;
-        }
-        for proxy in &provider.proxies {
-            let name = proxy.name.clone().unwrap_or_default();
-            if !name.is_empty() && seen.insert(name.clone()) {
-                all_nodes.push(proxy_node(&name, proxy, false));
-            }
-        }
-    }
-    sort_nodes(&mut all_nodes, sorting);
-
-    ClashProxiesSnapshot {
+    ProxyGroupsSnapshot {
         groups,
-        all_nodes,
-        rule_mode,
+        traffic_mode,
     }
 }
 
@@ -692,14 +667,14 @@ fn find_proxy<'proxies>(
     })
 }
 
-fn proxy_node(name: &str, proxy: &ClashProxy, active: bool) -> ClashProxyNode {
+fn proxy_node(name: &str, proxy: &ClashProxy, active: bool) -> ProxyNode {
     let delay = proxy
         .history
         .last()
         .map(|item| item.delay)
         .filter(|delay| *delay > 0)
         .or_else(|| (proxy.delay > 0).then_some(proxy.delay));
-    ClashProxyNode {
+    ProxyNode {
         name: name.to_string(),
         proxy_type: proxy.proxy_type.clone(),
         delay,
@@ -710,7 +685,7 @@ fn proxy_node(name: &str, proxy: &ClashProxy, active: bool) -> ClashProxyNode {
     }
 }
 
-fn sort_nodes(nodes: &mut [ClashProxyNode], sorting: i32) {
+fn sort_nodes(nodes: &mut [ProxyNode], sorting: i32) {
     match sorting {
         0 => nodes.sort_by_key(|node| node.delay.unwrap_or(i32::MAX)),
         1 => nodes.sort_by(|left, right| left.name.cmp(&right.name)),
@@ -718,8 +693,8 @@ fn sort_nodes(nodes: &mut [ClashProxyNode], sorting: i32) {
     }
 }
 
-fn connections_snapshot(connections: NetClashConnections) -> ClashConnectionsSnapshot {
-    ClashConnectionsSnapshot {
+fn connections_snapshot(connections: NetClashConnections) -> ProxyConnectionsSnapshot {
+    ProxyConnectionsSnapshot {
         download_total: connections.download_total,
         upload_total: connections.upload_total,
         connections: connections
@@ -730,7 +705,7 @@ fn connections_snapshot(connections: NetClashConnections) -> ClashConnectionsSna
     }
 }
 
-fn connection_item(connection: NetClashConnection) -> ClashConnectionItem {
+fn connection_item(connection: NetClashConnection) -> ProxyConnectionItem {
     let metadata = connection.metadata;
     let host = connection_host(&metadata);
     let source = endpoint_label(
@@ -742,7 +717,7 @@ fn connection_item(connection: NetClashConnection) -> ClashConnectionItem {
         metadata.destination_port.as_deref(),
     );
 
-    ClashConnectionItem {
+    ProxyConnectionItem {
         id: connection.id,
         network: metadata.network,
         connection_type: metadata.metadata_type,
@@ -760,8 +735,8 @@ fn connection_item(connection: NetClashConnection) -> ClashConnectionItem {
     }
 }
 
-fn traffic_event(event: NetClashTraffic) -> ClashTrafficEvent {
-    ClashTrafficEvent {
+fn proxy_traffic_event(event: NetClashTraffic) -> ProxyTrafficEvent {
+    ProxyTrafficEvent {
         up: event.up,
         down: event.down,
     }
@@ -861,16 +836,16 @@ mod tests {
 
     #[derive(Default)]
     struct CaptureSink {
-        traffic: Mutex<Vec<ClashTrafficEvent>>,
-        connections: Mutex<Vec<ClashConnectionsSnapshot>>,
+        traffic: Mutex<Vec<ProxyTrafficEvent>>,
+        connections: Mutex<Vec<ProxyConnectionsSnapshot>>,
     }
 
-    impl ClashEventSink for CaptureSink {
-        fn emit_traffic(&self, event: ClashTrafficEvent) {
+    impl ProxyRuntimeEventSink for CaptureSink {
+        fn emit_traffic(&self, event: ProxyTrafficEvent) {
             self.traffic.lock().expect("traffic lock").push(event);
         }
 
-        fn emit_connections(&self, event: ClashConnectionsSnapshot) {
+        fn emit_connections(&self, event: ProxyConnectionsSnapshot) {
             self.connections
                 .lock()
                 .expect("connections lock")
@@ -899,14 +874,14 @@ mod tests {
     }
 
     fn monitor_handle_snapshot(
-        controller: &ClashMonitorController,
+        controller: &ProxyMonitorController,
     ) -> (ClashApiEndpoint, watch::Sender<bool>) {
         let guard = controller.handle.lock().expect("monitor lock");
         let handle = guard.as_ref().expect("monitor handle");
         (handle.endpoint.clone(), handle.shutdown.clone())
     }
 
-    fn monitor_handle_is_none(controller: &ClashMonitorController) -> bool {
+    fn monitor_handle_is_none(controller: &ProxyMonitorController) -> bool {
         controller.handle.lock().expect("monitor lock").is_none()
     }
 
@@ -917,15 +892,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_manager_rule_mode_uses_patch_configs() {
+    async fn proxy_runtime_traffic_mode_uses_patch_configs() {
         let transport = MockTransport::default();
         transport.respond("/configs", Value::Null);
-        let manager = ClashManager::with_transport(transport.clone());
+        let manager = ProxyRuntimeManager::with_transport(transport.clone());
 
         manager
-            .set_rule_mode(&config(), RuleMode::Direct)
+            .set_traffic_mode(&config(), TrafficMode::Direct)
             .await
-            .expect("set rule mode");
+            .expect("set traffic mode");
 
         let requests = transport.requests();
         assert_eq!(requests.len(), 1);
@@ -938,11 +913,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_manager_reload_uses_force_configs() {
+    async fn proxy_runtime_reload_uses_force_configs() {
         let transport = MockTransport::default();
         transport.respond("/connections", Value::Null);
         transport.respond("/configs?force=true", Value::Null);
-        let manager = ClashManager::with_transport(transport.clone());
+        let manager = ProxyRuntimeManager::with_transport(transport.clone());
 
         manager
             .reload_config(&config(), Some("/tmp/config.yaml"))
@@ -963,7 +938,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_manager_selects_active_proxy_with_put() {
+    async fn proxy_runtime_selects_active_node_with_put() {
         let transport = MockTransport::default();
         transport.respond(
             "/proxies",
@@ -977,10 +952,10 @@ mod tests {
         );
         transport.respond("/proxies/Proxy", Value::Null);
         transport.respond("/providers/proxies", json!({ "providers": {} }));
-        let manager = ClashManager::with_transport(transport.clone());
+        let manager = ProxyRuntimeManager::with_transport(transport.clone());
 
         let snapshot = manager
-            .select_proxy(&config(), "Proxy", "B")
+            .select_node(&config(), "Proxy", "B")
             .await
             .expect("select proxy");
 
@@ -991,13 +966,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_manager_tests_delay_for_named_proxies() {
+    async fn proxy_runtime_tests_delay_for_named_nodes() {
         let transport = MockTransport::default();
         transport.respond(
             "/proxies/A/delay?timeout=10000&url=https%3A%2F%2Fexample.com%2Fgenerate_204",
             json!({ "delay": 37 }),
         );
-        let manager = ClashManager::with_transport(transport);
+        let manager = ProxyRuntimeManager::with_transport(transport);
 
         let results = manager
             .test_delay(&config(), vec!["A".to_string()])
@@ -1006,7 +981,7 @@ mod tests {
 
         assert_eq!(
             results,
-            vec![ClashDelayTestResult {
+            vec![ProxyDelayTestResult {
                 name: "A".to_string(),
                 delay: Some(37),
                 message: None,
@@ -1015,22 +990,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_manager_rejects_zero_state_port_without_request() {
+    async fn proxy_runtime_rejects_zero_state_port_without_request() {
         let transport = MockTransport::default();
-        let manager = ClashManager::with_transport(transport.clone());
+        let manager = ProxyRuntimeManager::with_transport(transport.clone());
 
         let error = manager
             .connections(&config_with_local_port(-5))
             .await
-            .expect_err("zero Clash state port should be rejected");
+            .expect_err("zero proxy runtime state port should be rejected");
 
-        assert!(matches!(error, ClashManagerError::InvalidStatePort));
+        assert!(matches!(error, ProxyRuntimeError::InvalidStatePort));
         assert!(transport.requests().is_empty());
-        assert_eq!(clash_endpoint(&config_with_local_port(-5)), None);
+        assert_eq!(proxy_runtime_endpoint(&config_with_local_port(-5)), None);
     }
 
     #[test]
-    fn clash_ws_reconnect_delay_backs_off_with_cap_and_jitter() {
+    fn proxy_websocket_reconnect_delay_backs_off_with_cap_and_jitter() {
         let initial = Duration::from_secs(1);
         let max = Duration::from_secs(8);
 
@@ -1045,14 +1020,14 @@ mod tests {
     }
 
     #[test]
-    fn clash_ws_events_update_event_sink_payloads() {
+    fn proxy_websocket_events_update_event_sink_payloads() {
         let sink = CaptureSink::default();
 
-        route_clash_ws_event(
+        route_proxy_ws_event(
             &sink,
             ClashWebSocketEvent::Traffic(NetClashTraffic { up: 10, down: 20 }),
         );
-        route_clash_ws_event(
+        route_proxy_ws_event(
             &sink,
             ClashWebSocketEvent::Connections(NetClashConnections {
                 download_total: 5,
@@ -1076,51 +1051,51 @@ mod tests {
 
         assert_eq!(
             sink.traffic.lock().expect("traffic lock").as_slice(),
-            &[ClashTrafficEvent { up: 10, down: 20 }]
+            &[ProxyTrafficEvent { up: 10, down: 20 }]
         );
         let connections = sink.connections.lock().expect("connections lock");
         assert_eq!(connections[0].connections[0].host, "example.com:443");
     }
 
     #[test]
-    fn clash_monitor_start_without_tokio_runtime_returns_error() {
-        let controller = ClashMonitorController::new();
+    fn proxy_monitor_start_without_tokio_runtime_returns_error() {
+        let controller = ProxyMonitorController::new();
 
         let error = controller
-            .start(&config(), Arc::new(NoopClashEventSink))
+            .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
             .expect_err("monitor start should require a runtime");
 
         assert!(matches!(
             error,
-            ClashManagerError::MonitorRuntimeUnavailable
+            ProxyRuntimeError::MonitorRuntimeUnavailable
         ));
         assert!(monitor_handle_is_none(&controller));
     }
 
     #[test]
-    fn clash_monitor_status_contract_marks_stale_states() {
+    fn proxy_monitor_status_contract_marks_stale_states() {
         assert_eq!(
-            ClashMonitorStatus::running(),
-            ClashMonitorStatus {
-                state: ClashMonitorState::Running,
+            ProxyMonitorStatus::running(),
+            ProxyMonitorStatus {
+                state: ProxyMonitorState::Running,
                 running: true,
                 stale: false,
                 message: None,
             }
         );
         assert_eq!(
-            ClashMonitorStatus::stopped(),
-            ClashMonitorStatus {
-                state: ClashMonitorState::Stopped,
+            ProxyMonitorStatus::stopped(),
+            ProxyMonitorStatus {
+                state: ProxyMonitorState::Stopped,
                 running: false,
                 stale: true,
                 message: None,
             }
         );
         assert_eq!(
-            ClashMonitorStatus::failed("start failed"),
-            ClashMonitorStatus {
-                state: ClashMonitorState::Failed,
+            ProxyMonitorStatus::failed("start failed"),
+            ProxyMonitorStatus {
+                state: ProxyMonitorState::Failed,
                 running: false,
                 stale: true,
                 message: Some("start failed".to_string()),
@@ -1129,48 +1104,51 @@ mod tests {
     }
 
     #[test]
-    fn clash_monitor_stop_is_idempotent_and_stale() {
-        let controller = ClashMonitorController::new();
+    fn proxy_monitor_stop_is_idempotent_and_stale() {
+        let controller = ProxyMonitorController::new();
 
         assert_eq!(
             controller.stop().expect("first monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
         assert_eq!(
             controller.stop().expect("second monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
     }
 
     #[tokio::test]
-    async fn clash_monitor_starts_inside_tokio_runtime() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_starts_inside_tokio_runtime() {
+        let controller = ProxyMonitorController::new();
 
         let status = controller
-            .start(&config(), Arc::new(NoopClashEventSink))
+            .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
             .expect("monitor start");
 
-        assert_eq!(status, ClashMonitorStatus::running());
+        assert_eq!(status, ProxyMonitorStatus::running());
         assert_eq!(
             controller.stop().expect("monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
     }
 
     #[tokio::test]
-    async fn clash_monitor_zero_state_port_stops_without_endpoint() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_zero_state_port_stops_without_endpoint() {
+        let controller = ProxyMonitorController::new();
 
         controller
-            .start(&config(), Arc::new(NoopClashEventSink))
+            .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
             .expect("initial monitor start");
         let (_, first_shutdown) = monitor_handle_snapshot(&controller);
 
         assert_eq!(
             controller
-                .start(&config_with_local_port(-5), Arc::new(NoopClashEventSink))
+                .start(
+                    &config_with_local_port(-5),
+                    Arc::new(NoopProxyRuntimeEventSink)
+                )
                 .expect("zero port monitor start"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
 
         assert!(shutdown_requested(&first_shutdown));
@@ -1178,22 +1156,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clash_monitor_start_is_idempotent_for_same_endpoint() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_start_is_idempotent_for_same_endpoint() {
+        let controller = ProxyMonitorController::new();
 
         assert_eq!(
             controller
-                .start(&config(), Arc::new(NoopClashEventSink))
+                .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
                 .expect("first monitor start"),
-            ClashMonitorStatus::running()
+            ProxyMonitorStatus::running()
         );
         let (first_endpoint, first_shutdown) = monitor_handle_snapshot(&controller);
 
         assert_eq!(
             controller
-                .start(&config(), Arc::new(NoopClashEventSink))
+                .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
                 .expect("second monitor start"),
-            ClashMonitorStatus::running()
+            ProxyMonitorStatus::running()
         );
         let (second_endpoint, second_shutdown) = monitor_handle_snapshot(&controller);
 
@@ -1202,30 +1180,30 @@ mod tests {
         assert!(!shutdown_requested(&first_shutdown));
         assert_eq!(
             controller.stop().expect("monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
     }
 
     #[tokio::test]
-    async fn clash_monitor_start_after_stop_creates_fresh_handle() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_start_after_stop_creates_fresh_handle() {
+        let controller = ProxyMonitorController::new();
 
         controller
-            .start(&config(), Arc::new(NoopClashEventSink))
+            .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
             .expect("first monitor start");
         let (first_endpoint, first_shutdown) = monitor_handle_snapshot(&controller);
         assert_eq!(
             controller.stop().expect("monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
         assert!(monitor_handle_is_none(&controller));
         assert!(shutdown_requested(&first_shutdown));
 
         assert_eq!(
             controller
-                .start(&config(), Arc::new(NoopClashEventSink))
+                .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
                 .expect("restart after stop"),
-            ClashMonitorStatus::running()
+            ProxyMonitorStatus::running()
         );
         let (restarted_endpoint, restarted_shutdown) = monitor_handle_snapshot(&controller);
 
@@ -1234,38 +1212,38 @@ mod tests {
         assert!(!shutdown_requested(&restarted_shutdown));
         assert_eq!(
             controller.stop().expect("monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
     }
 
     #[tokio::test]
-    async fn clash_monitor_different_endpoint_replaces_previous_handle() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_different_endpoint_replaces_previous_handle() {
+        let controller = ProxyMonitorController::new();
         let initial_config = config();
         let replacement_config = config_with_local_port(DEFAULT_LOCAL_PORT + 100);
 
         assert_eq!(
             controller
-                .start(&initial_config, Arc::new(NoopClashEventSink))
+                .start(&initial_config, Arc::new(NoopProxyRuntimeEventSink))
                 .expect("initial monitor start"),
-            ClashMonitorStatus::running()
+            ProxyMonitorStatus::running()
         );
         let (initial_endpoint, initial_shutdown) = monitor_handle_snapshot(&controller);
 
         assert_eq!(
             controller
-                .start(&replacement_config, Arc::new(NoopClashEventSink))
+                .start(&replacement_config, Arc::new(NoopProxyRuntimeEventSink))
                 .expect("replacement monitor start"),
-            ClashMonitorStatus::running()
+            ProxyMonitorStatus::running()
         );
         let (replacement_endpoint, replacement_shutdown) = monitor_handle_snapshot(&controller);
 
         assert_eq!(
-            clash_endpoint(&initial_config).as_ref(),
+            proxy_runtime_endpoint(&initial_config).as_ref(),
             Some(&initial_endpoint)
         );
         assert_eq!(
-            clash_endpoint(&replacement_config).as_ref(),
+            proxy_runtime_endpoint(&replacement_config).as_ref(),
             Some(&replacement_endpoint)
         );
         assert_ne!(initial_endpoint, replacement_endpoint);
@@ -1274,23 +1252,23 @@ mod tests {
         assert!(!shutdown_requested(&replacement_shutdown));
         assert_eq!(
             controller.stop().expect("monitor stop"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
     }
 
     #[tokio::test]
-    async fn clash_monitor_clones_share_handle_state() {
-        let controller = ClashMonitorController::new();
+    async fn proxy_monitor_clones_share_handle_state() {
+        let controller = ProxyMonitorController::new();
         let clone = controller.clone();
 
         clone
-            .start(&config(), Arc::new(NoopClashEventSink))
+            .start(&config(), Arc::new(NoopProxyRuntimeEventSink))
             .expect("monitor start through clone");
         assert!(!monitor_handle_is_none(&controller));
 
         assert_eq!(
             controller.stop().expect("monitor stop through original"),
-            ClashMonitorStatus::stopped()
+            ProxyMonitorStatus::stopped()
         );
         assert!(monitor_handle_is_none(&clone));
     }

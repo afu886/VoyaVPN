@@ -55,7 +55,7 @@
     "webdavUser": "使用者名稱",
     "working": "處理中"
   },
-  "clash": {
+  "proxy": {
     "active": "活動",
     "chain": "鏈",
     "delay": "延遲",
@@ -73,9 +73,9 @@
     "noActive": "無活動代理",
     "node": "節點",
     "process": "處理程序",
-    "ruleModeDirect": "直連",
-    "ruleModeGlobal": "全局",
-    "ruleModeRule": "規則",
+    "trafficModeDirect": "直連",
+    "trafficModeGlobal": "全局",
+    "trafficModeRule": "規則",
     "source": "來源",
     "type": "類型",
     "udp": "UDP",
@@ -94,7 +94,6 @@
     "about": "關於 VoyaVPN",
     "backup": "備份和還原",
     "checkUpdates": "檢查更新",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "檔案",
     "font": "字型",
@@ -179,18 +178,18 @@
     "runtimeTests": "測試與更新"
   },
   "panes": {
-    "clashConnections": {
+    "proxyConnections": {
       "columns": {
         "heading": "顯示欄位",
         "reset": "恢復預設",
         "toggle": "欄位"
       },
-      "empty": "尚無 Clash 連線",
-      "title": "Clash 連線"
+      "empty": "尚無連線",
+      "title": "連線"
     },
-    "clashProxies": {
-      "empty": "尚無 Clash 代理",
-      "title": "Clash 代理"
+    "proxyGroups": {
+      "empty": "尚無代理群組",
+      "title": "代理群組"
     },
     "dns": {
       "empty": "尚無 DNS 設定",
@@ -463,8 +462,8 @@
   },
   "tabs": {
     "aria": "主要區域",
-    "clashConnections": "Clash 連線",
-    "clashProxies": "Clash 代理",
+    "proxyConnections": "連線",
+    "proxyGroups": "代理群組",
     "dns": "DNS",
     "logs": "日誌",
     "profiles": "設定檔",

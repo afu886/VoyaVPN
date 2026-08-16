@@ -7,7 +7,7 @@ const ipcCommandMocks = vi.hoisted(() => ({
 vi.mock("@/ipc/commands", () => ipcCommandMocks);
 
 import { useRuntimeEventStore } from "@/ipc/runtime-event-store";
-import type { ClashConnectionsSnapshot, SpeedTestResult, StatisticsSnapshot } from "@/ipc/bindings";
+import type { ProxyConnectionsSnapshot, SpeedTestResult, StatisticsSnapshot } from "@/ipc/bindings";
 
 const initialMonitorStatus = {
   message: null,
@@ -16,7 +16,7 @@ const initialMonitorStatus = {
   state: "stopped" as const,
 };
 
-const cachedConnections: ClashConnectionsSnapshot = {
+const cachedConnections: ProxyConnectionsSnapshot = {
   connections: [],
   downloadTotal: 200,
   uploadTotal: 100,
@@ -25,9 +25,9 @@ const cachedConnections: ClashConnectionsSnapshot = {
 describe("runtime event store", () => {
   beforeEach(() => {
     useRuntimeEventStore.setState({
-      clashConnections: null,
-      clashMonitorStatus: initialMonitorStatus,
-      clashTraffic: null,
+      proxyConnections: null,
+      proxyMonitorStatus: initialMonitorStatus,
+      proxyTraffic: null,
       lastTransientEvent: null,
       logLines: [],
       serverStatsByProfileId: {},
@@ -42,14 +42,14 @@ describe("runtime event store", () => {
     vi.useRealTimers();
   });
 
-  it("stores Clash traffic websocket events", () => {
+  it("stores proxy traffic websocket events", () => {
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashTraffic",
+      kind: "proxyTraffic",
       payload: { down: 2048, up: 1024 },
     });
 
-    expect(useRuntimeEventStore.getState().clashTraffic).toEqual({ down: 2048, up: 1024 });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashTraffic");
+    expect(useRuntimeEventStore.getState().proxyTraffic).toEqual({ down: 2048, up: 1024 });
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyTraffic");
   });
 
   it("hydrates speedtest running state from the backend status command", async () => {
@@ -94,37 +94,37 @@ describe("runtime event store", () => {
     expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("speedtestResult");
   });
 
-  it("sets Clash monitor lifecycle state through store actions", () => {
-    useRuntimeEventStore.getState().setClashMonitorRunning();
+  it("sets proxy monitor lifecycle state through store actions", () => {
+    useRuntimeEventStore.getState().setProxyMonitorRunning();
 
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: true,
       stale: false,
       state: "running",
     });
 
-    useRuntimeEventStore.getState().setClashMonitorStarting("connecting");
+    useRuntimeEventStore.getState().setProxyMonitorStarting("connecting");
 
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "connecting",
       running: false,
       stale: false,
       state: "starting",
     });
 
-    useRuntimeEventStore.getState().setClashMonitorStopped();
+    useRuntimeEventStore.getState().setProxyMonitorStopped();
 
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: false,
       stale: true,
       state: "stopped",
     });
 
-    useRuntimeEventStore.getState().setClashMonitorFailed("start failed");
+    useRuntimeEventStore.getState().setProxyMonitorFailed("start failed");
 
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "start failed",
       running: false,
       stale: true,
@@ -132,116 +132,116 @@ describe("runtime event store", () => {
     });
   });
 
-  it("only clears stale state when fresh Clash traffic arrives", () => {
-    useRuntimeEventStore.getState().setClashMonitorFailed("stream failed");
+  it("only clears stale state when fresh proxy traffic arrives", () => {
+    useRuntimeEventStore.getState().setProxyMonitorFailed("stream failed");
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashTraffic",
+      kind: "proxyTraffic",
       payload: { down: 2048, up: 1024 },
     });
 
-    expect(useRuntimeEventStore.getState().clashTraffic).toEqual({ down: 2048, up: 1024 });
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyTraffic).toEqual({ down: 2048, up: 1024 });
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "stream failed",
       running: false,
       stale: false,
       state: "failed",
     });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashTraffic");
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyTraffic");
   });
 
-  it("does not promote stopped monitor status when late Clash traffic arrives", () => {
-    useRuntimeEventStore.getState().setClashMonitorStopped("monitor stopped");
+  it("does not promote stopped monitor status when late proxy traffic arrives", () => {
+    useRuntimeEventStore.getState().setProxyMonitorStopped("monitor stopped");
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashTraffic",
+      kind: "proxyTraffic",
       payload: { down: 2048, up: 1024 },
     });
 
-    expect(useRuntimeEventStore.getState().clashTraffic).toEqual({ down: 2048, up: 1024 });
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyTraffic).toEqual({ down: 2048, up: 1024 });
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "monitor stopped",
       running: false,
       stale: false,
       state: "stopped",
     });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashTraffic");
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyTraffic");
   });
 
-  it("marks stopped monitor status stale while preserving Clash snapshots", () => {
-    useRuntimeEventStore.getState().setClashTraffic({ down: 2048, up: 1024 });
-    useRuntimeEventStore.getState().setClashConnections(cachedConnections);
+  it("marks stopped monitor status stale while preserving proxy snapshots", () => {
+    useRuntimeEventStore.getState().setProxyTraffic({ down: 2048, up: 1024 });
+    useRuntimeEventStore.getState().setProxyConnections(cachedConnections);
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashMonitorStatus",
+      kind: "proxyMonitorStatus",
       payload: { state: "stopped", running: false, stale: true, message: null },
     });
 
-    expect(useRuntimeEventStore.getState().clashTraffic).toEqual({ down: 2048, up: 1024 });
-    expect(useRuntimeEventStore.getState().clashConnections).toEqual({
+    expect(useRuntimeEventStore.getState().proxyTraffic).toEqual({ down: 2048, up: 1024 });
+    expect(useRuntimeEventStore.getState().proxyConnections).toEqual({
       connections: [],
       downloadTotal: 200,
       uploadTotal: 100,
     });
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: null,
       running: false,
       stale: true,
       state: "stopped",
     });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashMonitorStatus");
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyMonitorStatus");
   });
 
-  it("marks failed monitor status stale with a message while preserving Clash snapshots", () => {
-    useRuntimeEventStore.getState().setClashTraffic({ down: 2048, up: 1024 });
-    useRuntimeEventStore.getState().setClashConnections(cachedConnections);
+  it("marks failed monitor status stale with a message while preserving proxy snapshots", () => {
+    useRuntimeEventStore.getState().setProxyTraffic({ down: 2048, up: 1024 });
+    useRuntimeEventStore.getState().setProxyConnections(cachedConnections);
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashMonitorStatus",
+      kind: "proxyMonitorStatus",
       payload: { state: "failed", running: false, stale: true, message: "monitor failed" },
     });
 
-    expect(useRuntimeEventStore.getState().clashTraffic).toEqual({ down: 2048, up: 1024 });
-    expect(useRuntimeEventStore.getState().clashConnections).toEqual(cachedConnections);
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyTraffic).toEqual({ down: 2048, up: 1024 });
+    expect(useRuntimeEventStore.getState().proxyConnections).toEqual(cachedConnections);
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "monitor failed",
       running: false,
       stale: true,
       state: "failed",
     });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashMonitorStatus");
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyMonitorStatus");
   });
 
-  it("coalesces Clash connection websocket events into the next frame", async () => {
+  it("coalesces proxy connection websocket events into the next frame", async () => {
     vi.useFakeTimers();
 
-    useRuntimeEventStore.getState().setClashMonitorFailed("stream failed");
+    useRuntimeEventStore.getState().setProxyMonitorFailed("stream failed");
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashConnections",
+      kind: "proxyConnections",
       payload: makeConnectionsSnapshot("connection-1", "example.com:443", 200, 100),
     });
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashConnections",
+      kind: "proxyConnections",
       payload: makeConnectionsSnapshot("connection-2", "latest.example.com:443", 400, 300, ["Direct"]),
     });
 
-    expect(useRuntimeEventStore.getState().clashConnections).toBeNull();
-    expect(useRuntimeEventStore.getState().clashMonitorStatus.stale).toBe(true);
+    expect(useRuntimeEventStore.getState().proxyConnections).toBeNull();
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus.stale).toBe(true);
 
     await vi.advanceTimersByTimeAsync(20);
 
-    const snapshot = useRuntimeEventStore.getState().clashConnections;
+    const snapshot = useRuntimeEventStore.getState().proxyConnections;
 
     expect(snapshot?.connections[0]?.host).toBe("latest.example.com:443");
     expect(snapshot?.downloadTotal).toBe(400);
-    expect(useRuntimeEventStore.getState().clashMonitorStatus).toEqual({
+    expect(useRuntimeEventStore.getState().proxyMonitorStatus).toEqual({
       message: "stream failed",
       running: false,
       stale: false,
       state: "failed",
     });
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashConnections");
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyConnections");
   });
 
   it("rejects invalid statistics payloads before storing them", () => {
@@ -266,27 +266,27 @@ describe("runtime event store", () => {
     expect(useRuntimeEventStore.getState().lastTransientEvent).toBeNull();
   });
 
-  it("does not let invalid Clash connection payloads replace a queued valid frame", async () => {
+  it("does not let invalid proxy connection payloads replace a queued valid frame", async () => {
     vi.useFakeTimers();
 
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashConnections",
+      kind: "proxyConnections",
       payload: makeConnectionsSnapshot("connection-1", "valid.example.com:443", 200, 100),
     });
     useRuntimeEventStore.getState().pushTransientEvent({
-      kind: "clashConnections",
+      kind: "proxyConnections",
       payload: {
         connections: [],
         downloadTotal: -1,
         uploadTotal: 0,
-      } as ClashConnectionsSnapshot,
+      } as ProxyConnectionsSnapshot,
     });
 
     await vi.advanceTimersByTimeAsync(20);
 
-    expect(useRuntimeEventStore.getState().clashConnections?.connections[0]?.host).toBe("valid.example.com:443");
-    expect(useRuntimeEventStore.getState().clashConnections?.downloadTotal).toBe(200);
-    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("clashConnections");
+    expect(useRuntimeEventStore.getState().proxyConnections?.connections[0]?.host).toBe("valid.example.com:443");
+    expect(useRuntimeEventStore.getState().proxyConnections?.downloadTotal).toBe(200);
+    expect(useRuntimeEventStore.getState().lastTransientEvent?.kind).toBe("proxyConnections");
   });
 });
 
@@ -296,7 +296,7 @@ function makeConnectionsSnapshot(
   downloadTotal: number,
   uploadTotal: number,
   chains = ["Proxy"],
-): ClashConnectionsSnapshot {
+): ProxyConnectionsSnapshot {
   return {
     connections: [
       {

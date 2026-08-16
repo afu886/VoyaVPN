@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
-export type ShellTab = "home" | "profiles" | "routing" | "dns" | "clash-proxies" | "clash-connections" | "logs";
+export type ShellTab = "home" | "profiles" | "routing" | "dns" | "proxy-groups" | "proxy-connections" | "logs";
 
 export const shellTabRoutes = {
-  "clash-connections": "/clash/connections",
-  "clash-proxies": "/clash/proxies",
+  "proxy-connections": "/proxy/connections",
+  "proxy-groups": "/proxy/groups",
   dns: "/dns",
   home: "/home",
   logs: "/logs",

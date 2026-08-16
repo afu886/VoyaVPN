@@ -113,15 +113,15 @@ export const commands = {
 	deleteRoutingRules: (routingId: string, ruleIds: string[]) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("delete_routing_rules", { routingId, ruleIds })),
 	moveRoutingRule: (routingId: string, ruleId: string, action: MoveAction, position: number | null) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("move_routing_rule", { routingId, ruleId, action, position })),
 	importConfigTemplate: (selection: ConfigTemplateSelection, preferProxy: boolean, proxyUrl: string | null) => typedError<ConfigTemplateImportResult, AppError>(__TAURI_INVOKE("import_config_template", { selection, preferProxy, proxyUrl })),
-	clashListProxies: () => typedError<ClashProxiesSnapshot, AppError>(__TAURI_INVOKE("clash_list_proxies")),
-	clashTestDelay: (proxyNames: string[]) => typedError<ClashDelayTestResult[], AppError>(__TAURI_INVOKE("clash_test_delay", { proxyNames })),
-	clashSelectProxy: (groupName: string, proxyName: string) => typedError<ClashProxiesSnapshot, AppError>(__TAURI_INVOKE("clash_select_proxy", { groupName, proxyName })),
-	clashListConnections: () => typedError<ClashConnectionsSnapshot, AppError>(__TAURI_INVOKE("clash_list_connections")),
-	clashCloseConnection: (connectionId: string | null) => typedError<ClashConnectionsSnapshot, AppError>(__TAURI_INVOKE("clash_close_connection", { connectionId })),
-	clashSetRuleMode: (mode: RuleMode) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("clash_set_rule_mode", { mode })),
-	clashReloadConfig: (path: string | null) => typedError<null, AppError>(__TAURI_INVOKE("clash_reload_config", { path })),
-	clashStartMonitor: () => typedError<ClashMonitorStatus, AppError>(__TAURI_INVOKE("clash_start_monitor")),
-	clashStopMonitor: () => typedError<ClashMonitorStatus, AppError>(__TAURI_INVOKE("clash_stop_monitor")),
+	proxyListGroups: () => typedError<ProxyGroupsSnapshot, AppError>(__TAURI_INVOKE("proxy_list_groups")),
+	proxyTestDelay: (nodeNames: string[]) => typedError<ProxyDelayTestResult[], AppError>(__TAURI_INVOKE("proxy_test_delay", { nodeNames })),
+	proxySelectNode: (groupName: string, nodeName: string) => typedError<ProxyGroupsSnapshot, AppError>(__TAURI_INVOKE("proxy_select_node", { groupName, nodeName })),
+	proxyListConnections: () => typedError<ProxyConnectionsSnapshot, AppError>(__TAURI_INVOKE("proxy_list_connections")),
+	proxyCloseConnection: (connectionId: string | null) => typedError<ProxyConnectionsSnapshot, AppError>(__TAURI_INVOKE("proxy_close_connection", { connectionId })),
+	proxySetTrafficMode: (mode: TrafficMode) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("proxy_set_traffic_mode", { mode })),
+	proxyReloadConfig: (path: string | null) => typedError<null, AppError>(__TAURI_INVOKE("proxy_reload_config", { path })),
+	proxyStartMonitor: () => typedError<ProxyMonitorStatus, AppError>(__TAURI_INVOKE("proxy_start_monitor")),
+	proxyStopMonitor: () => typedError<ProxyMonitorStatus, AppError>(__TAURI_INVOKE("proxy_stop_monitor")),
 	runSpeedtest: (action: SpeedActionType, indexIds: string[]) => typedError<SpeedtestRunResult, AppError>(__TAURI_INVOKE("run_speedtest", { action, indexIds })),
 	cancelSpeedtest: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("cancel_speedtest")),
 	speedtestStatus: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("speedtest_status")),
@@ -192,7 +192,7 @@ export type AppConfig_Deserialize = {
 	Mux4RayItem?: Mux4RayItem_Deserialize,
 	Mux4SboxItem?: Mux4SboxItem_Deserialize,
 	HysteriaItem?: HysteriaItem,
-	ClashUIItem?: ClashUiItem,
+	ProxyUIItem?: ProxyUiItem,
 	SystemProxyItem?: SystemProxyItem_Deserialize,
 	CheckUpdateItem?: CheckUpdateItem_Deserialize,
 	DiagnosticsItem?: DiagnosticsItem_Deserialize,
@@ -218,7 +218,7 @@ export type AppConfig_Serialize = {
 	Mux4RayItem: Mux4RayItem_Serialize,
 	Mux4SboxItem: Mux4SboxItem_Serialize,
 	HysteriaItem: HysteriaItem,
-	ClashUIItem: ClashUiItem,
+	ProxyUIItem: ProxyUiItem,
 	SystemProxyItem: SystemProxyItem_Serialize,
 	CheckUpdateItem: CheckUpdateItem_Serialize,
 	DiagnosticsItem: DiagnosticsItem_Serialize,
@@ -228,7 +228,7 @@ export type AppConfig_Serialize = {
 	SimpleDNSItem: SimpleDnsItem_Serialize,
 };
 
-export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "clash"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "template"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
+export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "template"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
 
 export type AppEvent = { kind: "notice"; payload: AppNotice } | { kind: "selectTab"; payload: ShellTabTarget };
 
@@ -287,84 +287,6 @@ export type CheckUpdateItem_Deserialize = {
 export type CheckUpdateItem_Serialize = {
 	CheckPreReleaseUpdate: boolean,
 	SelectedCoreTypes?: string[] | null,
-};
-
-export type ClashConnectionItem = {
-	id: string | null,
-	network: string | null,
-	connectionType: string | null,
-	host: string,
-	source: string,
-	destination: string,
-	upload: number | null,
-	download: number | null,
-	start: string,
-	chains: string[],
-	rule: string | null,
-	rulePayload: string | null,
-	process: string | null,
-	processPath: string | null,
-};
-
-export type ClashConnectionsSnapshot = {
-	downloadTotal: number | null,
-	uploadTotal: number | null,
-	connections: ClashConnectionItem[],
-};
-
-export type ClashDelayTestResult = {
-	name: string,
-	delay: number | null,
-	message: string | null,
-};
-
-export type ClashMonitorState = "running" | "stopped" | "failed";
-
-export type ClashMonitorStatus = {
-	state: ClashMonitorState,
-	running: boolean,
-	stale: boolean,
-	message: string | null,
-};
-
-export type ClashProxiesSnapshot = {
-	groups: ClashProxyGroup[],
-	allNodes: ClashProxyNode[],
-	ruleMode: RuleMode,
-};
-
-export type ClashProxyGroup = {
-	name: string,
-	proxyType: string,
-	now: string | null,
-	nodes: ClashProxyNode[],
-};
-
-export type ClashProxyNode = {
-	name: string,
-	proxyType: string,
-	delay: number | null,
-	delayLabel: string,
-	udp: boolean,
-	active: boolean,
-	testable: boolean,
-};
-
-export type ClashTrafficEvent = {
-	up: number | null,
-	down: number | null,
-};
-
-export type ClashUiItem = {
-	RuleMode?: RuleMode,
-	EnableIPv6?: boolean,
-	EnableMixinContent?: boolean,
-	ProxiesSorting?: number,
-	ProxiesAutoRefresh?: boolean,
-	ProxiesAutoDelayTestInterval?: number,
-	ConnectionsAutoRefresh?: boolean,
-	ConnectionsRefreshInterval?: number,
-	ConnectionsColumnItem?: ColumnItem[],
 };
 
 export type ColumnItem = {
@@ -1030,6 +952,76 @@ export type ProtocolExtraItem_Serialize = {
 	MultipleLoad?: MultipleLoad | null,
 };
 
+export type ProxyConnectionItem = {
+	id: string | null,
+	network: string | null,
+	connectionType: string | null,
+	host: string,
+	source: string,
+	destination: string,
+	upload: number | null,
+	download: number | null,
+	start: string,
+	chains: string[],
+	rule: string | null,
+	rulePayload: string | null,
+	process: string | null,
+	processPath: string | null,
+};
+
+export type ProxyConnectionsSnapshot = {
+	downloadTotal: number | null,
+	uploadTotal: number | null,
+	connections: ProxyConnectionItem[],
+};
+
+export type ProxyDelayTestResult = {
+	name: string,
+	delay: number | null,
+	message: string | null,
+};
+
+export type ProxyGroup = {
+	name: string,
+	proxyType: string,
+	now: string | null,
+	nodes: ProxyNode[],
+};
+
+export type ProxyGroupsSnapshot = {
+	groups: ProxyGroup[],
+	trafficMode: TrafficMode,
+};
+
+export type ProxyMonitorState = "running" | "stopped" | "failed";
+
+export type ProxyMonitorStatus = {
+	state: ProxyMonitorState,
+	running: boolean,
+	stale: boolean,
+	message: string | null,
+};
+
+export type ProxyNode = {
+	name: string,
+	proxyType: string,
+	delay: number | null,
+	delayLabel: string,
+	udp: boolean,
+	active: boolean,
+	testable: boolean,
+};
+
+export type ProxyTrafficEvent = {
+	up: number | null,
+	down: number | null,
+};
+
+export type ProxyUiItem = {
+	TrafficMode?: TrafficMode,
+	NodeSorting?: number,
+};
+
 export type QrCodeImage = {
 	mimeType: string,
 	svg: string,
@@ -1127,8 +1119,6 @@ export type RoutingItem_Serialize = {
 	IsActive: boolean,
 };
 
-export type RuleMode = number;
-
 export type RuleType = number;
 
 export type RulesItem = RulesItem_Serialize | RulesItem_Deserialize;
@@ -1224,7 +1214,7 @@ export type ServerStatItem = {
 	DateNow?: number | null,
 };
 
-export type ShellTabTarget = "profiles" | "clashProxies" | "clashConnections" | "logs";
+export type ShellTabTarget = "profiles" | "proxyGroups" | "proxyConnections" | "logs";
 
 export type SimpleDnsItem = SimpleDnsItem_Serialize | SimpleDnsItem_Deserialize;
 
@@ -1413,7 +1403,9 @@ export type SystemProxyStatusResponse = {
  */
 export type TitleBarLayout = "windows" | "none";
 
-export type TransientStreamEvent = { kind: "logLine"; payload: LogLineEvent } | { kind: "coreState"; payload: CoreStateEvent } | { kind: "statistics"; payload: StatisticsSnapshot } | { kind: "sysProxyChanged"; payload: SysProxyChanged } | { kind: "tunChanged"; payload: TunChanged } | { kind: "clashMonitorStatus"; payload: ClashMonitorStatus } | { kind: "clashTraffic"; payload: ClashTrafficEvent } | { kind: "clashConnections"; payload: ClashConnectionsSnapshot } | { kind: "speedtestResult"; payload: SpeedTestResult };
+export type TrafficMode = number;
+
+export type TransientStreamEvent = { kind: "logLine"; payload: LogLineEvent } | { kind: "coreState"; payload: CoreStateEvent } | { kind: "statistics"; payload: StatisticsSnapshot } | { kind: "sysProxyChanged"; payload: SysProxyChanged } | { kind: "tunChanged"; payload: TunChanged } | { kind: "proxyMonitorStatus"; payload: ProxyMonitorStatus } | { kind: "proxyTraffic"; payload: ProxyTrafficEvent } | { kind: "proxyConnections"; payload: ProxyConnectionsSnapshot } | { kind: "speedtestResult"; payload: SpeedTestResult };
 
 export type TransportExtraItem = TransportExtraItem_Serialize | TransportExtraItem_Deserialize;
 

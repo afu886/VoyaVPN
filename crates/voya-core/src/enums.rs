@@ -242,7 +242,7 @@ int_enum!(MultipleLoad {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
 #[repr(i32)]
 #[specta(type = i32)]
-pub enum RuleMode {
+pub enum TrafficMode {
     #[default]
     Rule = 0,
     Global = 1,
@@ -250,7 +250,7 @@ pub enum RuleMode {
     Unchanged = 3,
 }
 
-int_enum!(RuleMode {
+int_enum!(TrafficMode {
     Rule = 0,
     Global = 1,
     Direct = 2,

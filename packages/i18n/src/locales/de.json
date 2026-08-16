@@ -41,32 +41,6 @@
     "webdavUser": "User name",
     "working": "Working"
   },
-  "clash": {
-    "active": "Active",
-    "chain": "Chain",
-    "delay": "Delay",
-    "destination": "Destination",
-    "download": "Down",
-    "filterConnections": "Filter connections",
-    "groups": "Groups",
-    "host": "Host",
-    "monitorFailed": "Fehlgeschlagen",
-    "monitorLive": "Live",
-    "monitorStale": "Veraltet",
-    "monitorStarting": "Startet",
-    "monitorStopped": "Gestoppt",
-    "network": "Network",
-    "noActive": "No active proxy",
-    "node": "Node",
-    "process": "Process",
-    "ruleModeDirect": "Direct",
-    "ruleModeGlobal": "Global",
-    "ruleModeRule": "Rule",
-    "source": "Source",
-    "type": "Type",
-    "udp": "UDP",
-    "upload": "Up"
-  },
   "confirm": {
     "cancel": "Cancel",
     "deleteProfilesConfirm": "Delete",
@@ -97,7 +71,6 @@
     "about": "About VoyaVPN",
     "backup": "Backup and Restore",
     "checkUpdates": "Check updates",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "File",
     "font": "Schriftart",
@@ -190,19 +163,6 @@
     "srsSource": "sing-box ruleset source"
   },
   "panes": {
-    "clashConnections": {
-      "columns": {
-        "heading": "Spalten anzeigen",
-        "reset": "Auf Standard zurücksetzen",
-        "toggle": "Spalten"
-      },
-      "empty": "No Clash connections",
-      "title": "Clash Connections"
-    },
-    "clashProxies": {
-      "empty": "No Clash proxies",
-      "title": "Clash Proxies"
-    },
     "dns": {
       "empty": "No DNS settings",
       "title": "DNS"
@@ -409,6 +369,19 @@
       },
       "untitled": "Untitled"
     },
+    "proxyConnections": {
+      "columns": {
+        "heading": "Spalten anzeigen",
+        "reset": "Auf Standard zurücksetzen",
+        "toggle": "Spalten"
+      },
+      "empty": "No connections",
+      "title": "Connections"
+    },
+    "proxyGroups": {
+      "empty": "No proxy groups",
+      "title": "Proxy Groups"
+    },
     "routing": {
       "empty": "No routing profiles",
       "title": "Routing"
@@ -418,6 +391,32 @@
       "emptyDescription": "Add a subscription source to import profiles automatically.",
       "loading": "Loading subscriptions"
     }
+  },
+  "proxy": {
+    "active": "Active",
+    "chain": "Chain",
+    "delay": "Delay",
+    "destination": "Destination",
+    "download": "Down",
+    "filterConnections": "Filter connections",
+    "groups": "Groups",
+    "host": "Host",
+    "monitorFailed": "Fehlgeschlagen",
+    "monitorLive": "Live",
+    "monitorStale": "Veraltet",
+    "monitorStarting": "Startet",
+    "monitorStopped": "Gestoppt",
+    "network": "Network",
+    "noActive": "No active proxy",
+    "node": "Node",
+    "process": "Process",
+    "source": "Source",
+    "trafficModeDirect": "Direct",
+    "trafficModeGlobal": "Global",
+    "trafficModeRule": "Rule",
+    "type": "Type",
+    "udp": "UDP",
+    "upload": "Up"
   },
   "qr": {
     "clipboardEmpty": "Clipboard is empty.",
@@ -1042,13 +1041,13 @@
   },
   "tabs": {
     "aria": "Main sections",
-    "clashConnections": "Clash Connections",
-    "clashProxies": "Clash Proxies",
     "dns": "DNS",
     "home": "Start",
     "logs": "Logs",
     "network": "Netzwerk",
     "profiles": "Profiles",
+    "proxyConnections": "Connections",
+    "proxyGroups": "Proxy Groups",
     "routing": "Routing"
   },
   "templates": {

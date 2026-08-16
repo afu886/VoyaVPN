@@ -17,10 +17,6 @@ use voya_app::certificates::{
     fetch_certificate as fetch_certificate_impl, CertificateError, CertificateFetchRequest,
     CertificateFetchResult,
 };
-use voya_app::clash::{
-    ClashConnectionsSnapshot, ClashDelayTestResult, ClashManager, ClashManagerError,
-    ClashMonitorStatus, ClashProxiesSnapshot,
-};
 use voya_app::diagnostics::{
     diagnostics_settings, prepare_diagnostics_settings, DiagnosticsClient, DiagnosticsErrorClass,
     DiagnosticsEvent, DiagnosticsRecordStatus, DiagnosticsReleaseChannel, DiagnosticsResult,
@@ -42,6 +38,10 @@ use voya_app::presets::{
     PresetManager, PresetManagerError,
 };
 use voya_app::profiles::{ProfileManager, ProfileManagerError};
+use voya_app::proxy_runtime::{
+    ProxyConnectionsSnapshot, ProxyDelayTestResult, ProxyGroupsSnapshot, ProxyMonitorStatus,
+    ProxyRuntimeError, ProxyRuntimeManager,
+};
 use voya_app::qr::{QrCodeError, QrCodeImage, QrCodeManager, QrScanResult};
 use voya_app::routing::{RoutingManager, RoutingManagerError};
 use voya_app::runtime::{RuntimeError, RuntimeManager};
@@ -60,8 +60,8 @@ use voya_app::updates::{
 use voya_core::{
     AppConfig, CoreType, FullConfigTemplateItem, GlobalHotkey, GroupChildCandidate, GroupPreview,
     GroupValidationResult, ImportProfilesResult, KeyEventItem, MoveAction, ProfileDedupeResult,
-    ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RuleMode, RulesItem, SubItem,
-    SubscriptionUpdateResult, SysProxyType,
+    ProfileItem, ProfileListItem, ProfileSortKey, RoutingItem, RulesItem, SubItem,
+    SubscriptionUpdateResult, SysProxyType, TrafficMode,
 };
 use voya_platform::{
     coreinfo::{
@@ -98,7 +98,7 @@ pub enum AppError {
     ConfigLoad(String),
     ConfigSave(String),
     Certificate(String),
-    Clash(String),
+    ProxyRuntime(String),
     Database(String),
     Dns(DnsCommandError),
     Group(String),
@@ -223,7 +223,6 @@ pub struct SystemProxyStatusResponse {
 }
 
 mod app;
-mod clash;
 #[cfg(debug_assertions)]
 mod demo;
 mod dns;
@@ -231,6 +230,7 @@ mod groups;
 mod lifecycle;
 mod presets;
 mod profiles;
+mod proxy;
 mod routing;
 mod runtime;
 mod speedtest;
@@ -242,13 +242,13 @@ mod tun;
 mod updates;
 
 pub use app::*;
-pub use clash::*;
 #[cfg(debug_assertions)]
 pub use demo::*;
 pub use dns::*;
 pub use groups::*;
 pub use presets::*;
 pub use profiles::*;
+pub use proxy::*;
 pub use routing::*;
 pub use runtime::*;
 pub use speedtest::*;

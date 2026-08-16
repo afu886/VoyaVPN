@@ -13,9 +13,11 @@ use tauri::{
 use tauri_specta::Event;
 use tokio::sync::Mutex as AsyncMutex;
 use voya_app::{
-    clash::{ClashConnectionsSnapshot, ClashEventSink, ClashMonitorController, ClashTrafficEvent},
     diagnostics::{prepare_diagnostics_settings, DiagnosticsClient},
     elevation::ElevationManager,
+    proxy_runtime::{
+        ProxyConnectionsSnapshot, ProxyMonitorController, ProxyRuntimeEventSink, ProxyTrafficEvent,
+    },
     redaction::redact_url_userinfo,
     runtime::RuntimeManager,
     speedtest::SpeedtestManager,
@@ -65,7 +67,7 @@ pub(crate) struct AppState {
     statistics_manager: StatisticsManager,
     speedtest_manager: SpeedtestManager,
     system_proxy_manager: SystemProxyManager,
-    clash_monitor_controller: ClashMonitorController,
+    proxy_monitor_controller: ProxyMonitorController,
     diagnostics_client: Arc<AsyncMutex<DiagnosticsClient>>,
     settings_window_lock: AsyncMutex<()>,
 }
@@ -111,8 +113,8 @@ impl AppState {
         self.system_proxy_manager.clone()
     }
 
-    pub(crate) fn clash_monitor_controller(&self) -> ClashMonitorController {
-        self.clash_monitor_controller.clone()
+    pub(crate) fn proxy_monitor_controller(&self) -> ProxyMonitorController {
+        self.proxy_monitor_controller.clone()
     }
 
     pub(crate) fn diagnostics_client(&self) -> Arc<AsyncMutex<DiagnosticsClient>> {
@@ -273,7 +275,7 @@ pub fn run() {
                 statistics_manager,
                 speedtest_manager,
                 system_proxy_manager,
-                clash_monitor_controller: ClashMonitorController::new(),
+                proxy_monitor_controller: ProxyMonitorController::new(),
                 diagnostics_client: Arc::new(AsyncMutex::new(DiagnosticsClient::new())),
                 settings_window_lock: AsyncMutex::new(()),
             });
@@ -513,7 +515,7 @@ struct TauriStatisticsEventSink {
     app: tauri::AppHandle,
 }
 
-struct TauriClashEventSink {
+struct TauriProxyRuntimeEventSink {
     app: tauri::AppHandle,
 }
 
@@ -588,20 +590,20 @@ impl StatisticsEventSink for TauriStatisticsEventSink {
     }
 }
 
-impl ClashEventSink for TauriClashEventSink {
-    fn emit_traffic(&self, event: ClashTrafficEvent) {
-        let event = ipc::events::TransientStreamEvent::ClashTraffic(event);
+impl ProxyRuntimeEventSink for TauriProxyRuntimeEventSink {
+    fn emit_traffic(&self, event: ProxyTrafficEvent) {
+        let event = ipc::events::TransientStreamEvent::ProxyTraffic(event);
 
         if let Err(error) = event.emit(&self.app) {
-            tracing::warn!(?error, "failed to emit Clash traffic event");
+            tracing::warn!(?error, "failed to emit proxy traffic event");
         }
     }
 
-    fn emit_connections(&self, event: ClashConnectionsSnapshot) {
-        let event = ipc::events::TransientStreamEvent::ClashConnections(event);
+    fn emit_connections(&self, event: ProxyConnectionsSnapshot) {
+        let event = ipc::events::TransientStreamEvent::ProxyConnections(event);
 
         if let Err(error) = event.emit(&self.app) {
-            tracing::warn!(?error, "failed to emit Clash connections event");
+            tracing::warn!(?error, "failed to emit proxy connections event");
         }
     }
 }
@@ -745,8 +747,8 @@ fn restore_system_proxy_for_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     }
     state.system_proxy_manager().stop_pac();
     state.statistics_manager().close();
-    if let Err(error) = state.clash_monitor_controller().stop() {
-        tracing::warn!(?error, "failed to stop Clash monitor on exit");
+    if let Err(error) = state.proxy_monitor_controller().stop() {
+        tracing::warn!(?error, "failed to stop proxy monitor on exit");
     }
 }
 

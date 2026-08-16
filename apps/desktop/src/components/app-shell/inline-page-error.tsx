@@ -5,8 +5,8 @@ import type { LucideIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@voya/ui/components/alert";
 import { cn } from "@voya/ui/lib/utils";
 
-// The destructive banner that four screens (Profiles, Routing, Clash proxies,
-// Clash connections) each hand-rolled below their page header to surface an
+// The destructive banner that four screens (Profiles, Routing, Proxy Groups,
+// proxy connections) each hand-rolled below their page header to surface an
 // operation/query error. It spans the content edge-to-edge — no outer rounding,
 // only a bottom rule — so it reads as a band stacked under the header rather
 // than a floating card. `role="alert"` and the destructive styling come from the

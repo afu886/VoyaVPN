@@ -41,32 +41,6 @@
     "webdavUser": "نام کاربری",
     "working": "در حال انجام"
   },
-  "clash": {
-    "active": "فعال",
-    "chain": "زنجیره",
-    "delay": "تاخیر",
-    "destination": "مقصد",
-    "download": "دریافت",
-    "filterConnections": "فیلتر اتصال ها",
-    "groups": "گروه ها",
-    "host": "میزبان",
-    "monitorFailed": "ناموفق",
-    "monitorLive": "زنده",
-    "monitorStale": "قدیمی",
-    "monitorStarting": "در حال شروع",
-    "monitorStopped": "متوقف",
-    "network": "شبکه",
-    "noActive": "پراکسی فعالی نیست",
-    "node": "گره",
-    "process": "فرایند",
-    "ruleModeDirect": "مستقیم",
-    "ruleModeGlobal": "سراسری",
-    "ruleModeRule": "قانون",
-    "source": "مبدا",
-    "type": "نوع",
-    "udp": "UDP",
-    "upload": "ارسال"
-  },
   "confirm": {
     "cancel": "انصراف",
     "deleteProfilesConfirm": "حذف",
@@ -97,7 +71,6 @@
     "about": "درباره VoyaVPN",
     "backup": "پشتیبان گیری و بازیابی",
     "checkUpdates": "بررسی به روزرسانی",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "پرونده",
     "font": "فونت",
@@ -190,19 +163,6 @@
     "srsSource": "منبع ruleset در sing-box"
   },
   "panes": {
-    "clashConnections": {
-      "columns": {
-        "heading": "نمایش ستون‌ها",
-        "reset": "بازنشانی به پیش‌فرض",
-        "toggle": "ستون‌ها"
-      },
-      "empty": "اتصال Clash نیست",
-      "title": "اتصال های Clash"
-    },
-    "clashProxies": {
-      "empty": "پراکسی Clash نیست",
-      "title": "پراکسی های Clash"
-    },
     "dns": {
       "empty": "تنظیم DNS نیست",
       "title": "DNS"
@@ -409,6 +369,19 @@
       },
       "untitled": "Untitled"
     },
+    "proxyConnections": {
+      "columns": {
+        "heading": "نمایش ستون‌ها",
+        "reset": "بازنشانی به پیش‌فرض",
+        "toggle": "ستون‌ها"
+      },
+      "empty": "اتصالی وجود ندارد",
+      "title": "اتصال‌ها"
+    },
+    "proxyGroups": {
+      "empty": "گروه پراکسی وجود ندارد",
+      "title": "گروه‌های پراکسی"
+    },
     "routing": {
       "empty": "نمایه مسیریابی نیست",
       "title": "مسیریابی"
@@ -418,6 +391,32 @@
       "emptyDescription": "یک منبع اشتراک اضافه کنید تا نمایه ها به طور خودکار وارد شوند.",
       "loading": "در حال بارگذاری اشتراک ها"
     }
+  },
+  "proxy": {
+    "active": "فعال",
+    "chain": "زنجیره",
+    "delay": "تاخیر",
+    "destination": "مقصد",
+    "download": "دریافت",
+    "filterConnections": "فیلتر اتصال ها",
+    "groups": "گروه ها",
+    "host": "میزبان",
+    "monitorFailed": "ناموفق",
+    "monitorLive": "زنده",
+    "monitorStale": "قدیمی",
+    "monitorStarting": "در حال شروع",
+    "monitorStopped": "متوقف",
+    "network": "شبکه",
+    "noActive": "پراکسی فعالی نیست",
+    "node": "گره",
+    "process": "فرایند",
+    "source": "مبدا",
+    "trafficModeDirect": "مستقیم",
+    "trafficModeGlobal": "سراسری",
+    "trafficModeRule": "قانون",
+    "type": "نوع",
+    "udp": "UDP",
+    "upload": "ارسال"
   },
   "qr": {
     "clipboardEmpty": "Clipboard is empty.",
@@ -1042,13 +1041,13 @@
   },
   "tabs": {
     "aria": "بخش های اصلی",
-    "clashConnections": "اتصال های Clash",
-    "clashProxies": "پراکسی های Clash",
     "dns": "DNS",
     "home": "خانه",
     "logs": "گزارش ها",
     "network": "شبکه",
     "profiles": "نمایه ها",
+    "proxyConnections": "اتصال‌ها",
+    "proxyGroups": "گروه‌های پراکسی",
     "routing": "مسیریابی"
   },
   "templates": {

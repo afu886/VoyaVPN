@@ -202,6 +202,45 @@ test("adds and imports profiles, activates one, and connects through the fake ru
   await expect(page.getByTestId("status-bar")).toContainText("Disconnected");
 });
 
+test("uses the proxy groups and connections routes through the proxy runtime IPC", async ({ page }) => {
+  await page.getByRole("tab", { name: "Proxy Groups" }).click();
+
+  await expect(page.getByRole("heading", { exact: true, name: "Proxy Groups" })).toBeVisible();
+  await expect(page.getByTestId("status-bar")).toContainText("Route: /proxy/groups");
+  await expect(page.getByRole("button", { name: /Smoke Node VLESS 23 ms Active/ })).toBeVisible();
+  await page.getByRole("button", { name: /Smoke Backup Node/ }).click();
+  await page.getByRole("button", { exact: true, name: "Delay test" }).click();
+  await page.getByRole("button", { exact: true, name: "Direct" }).click();
+
+  await page.getByRole("tab", { name: "Connections" }).click();
+  await expect(page.getByRole("heading", { exact: true, name: "Connections" })).toBeVisible();
+  await expect(page.getByTestId("status-bar")).toContainText("Route: /proxy/connections");
+  await expect(page.getByText("smoke.example.test:443", { exact: true })).toBeVisible();
+  await page.getByText("smoke.example.test:443", { exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Close" }).click();
+  await expect(page.getByText("No connections", { exact: true })).toBeVisible();
+
+  const commands = await page.evaluate(() => {
+    const state = window.__VOYA_SMOKE__.state as {
+      calls: Array<{ command: string }>;
+    };
+    return state.calls.map((call) => call.command);
+  });
+
+  expect(commands).toEqual(
+    expect.arrayContaining([
+      "proxy_list_groups",
+      "proxy_select_node",
+      "proxy_test_delay",
+      "proxy_set_traffic_mode",
+      "proxy_start_monitor",
+      "proxy_list_connections",
+      "proxy_close_connection",
+    ]),
+  );
+  expect(commands.some((command) => command.startsWith("clash_"))).toBe(false);
+});
+
 test("edits routing and DNS settings without network or OS side effects", async ({ page }) => {
   await page.getByRole("tab", { name: "Routing" }).click();
   await expect(page.getByRole("heading", { exact: true, name: "Routing" })).toBeVisible();

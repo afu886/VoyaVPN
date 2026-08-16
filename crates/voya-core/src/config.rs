@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::{GlobalHotkey, GridOrientation, RuleMode, SysProxyType};
+use crate::{GlobalHotkey, GridOrientation, SysProxyType, TrafficMode};
 
 pub const DEFAULT_LOCAL_PORT: i32 = 10808;
 pub const DEFAULT_LOG_LEVEL: &str = "warning";
@@ -38,8 +38,8 @@ pub struct AppConfig {
     pub mux4_ray_item: Mux4RayItem,
     pub mux4_sbox_item: Mux4SboxItem,
     pub hysteria_item: HysteriaItem,
-    #[serde(rename = "ClashUIItem")]
-    pub clash_ui_item: ClashUiItem,
+    #[serde(rename = "ProxyUIItem")]
+    pub proxy_ui_item: ProxyUiItem,
     pub system_proxy_item: SystemProxyItem,
     pub check_update_item: CheckUpdateItem,
     pub diagnostics_item: DiagnosticsItem,
@@ -68,7 +68,7 @@ impl Default for AppConfig {
             mux4_ray_item: Mux4RayItem::default(),
             mux4_sbox_item: Mux4SboxItem::default(),
             hysteria_item: HysteriaItem::default(),
-            clash_ui_item: ClashUiItem::default(),
+            proxy_ui_item: ProxyUiItem::default(),
             system_proxy_item: SystemProxyItem::default(),
             check_update_item: CheckUpdateItem::default(),
             diagnostics_item: DiagnosticsItem::default(),
@@ -415,31 +415,16 @@ impl Default for HysteriaItem {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct ClashUiItem {
-    pub rule_mode: RuleMode,
-    #[serde(rename = "EnableIPv6")]
-    pub enable_ipv6: bool,
-    pub enable_mixin_content: bool,
-    pub proxies_sorting: i32,
-    pub proxies_auto_refresh: bool,
-    pub proxies_auto_delay_test_interval: i32,
-    pub connections_auto_refresh: bool,
-    pub connections_refresh_interval: i32,
-    pub connections_column_item: Vec<ColumnItem>,
+pub struct ProxyUiItem {
+    pub traffic_mode: TrafficMode,
+    pub node_sorting: i32,
 }
 
-impl Default for ClashUiItem {
+impl Default for ProxyUiItem {
     fn default() -> Self {
         Self {
-            rule_mode: RuleMode::Rule,
-            enable_ipv6: false,
-            enable_mixin_content: false,
-            proxies_sorting: 0,
-            proxies_auto_refresh: false,
-            proxies_auto_delay_test_interval: 10,
-            connections_auto_refresh: false,
-            connections_refresh_interval: 2,
-            connections_column_item: Vec::new(),
+            traffic_mode: TrafficMode::Rule,
+            node_sorting: 0,
         }
     }
 }
@@ -685,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn app_config_uses_v2rayn_acronym_property_names() {
+    fn app_config_uses_stable_acronym_property_names() {
         let json = serde_json::to_value(AppConfig::default())
             .expect("default app config should serialize to JSON");
         let object = json
@@ -695,7 +680,8 @@ mod tests {
         assert!(object.contains_key("GUIItem"));
         assert!(object.contains_key("MsgUIItem"));
         assert!(object.contains_key("UIItem"));
-        assert!(object.contains_key("ClashUIItem"));
+        assert!(object.contains_key("ProxyUIItem"));
+        assert!(!object.contains_key("ClashUIItem"));
         assert!(object.contains_key("SimpleDNSItem"));
     }
 
@@ -715,6 +701,41 @@ mod tests {
             Some(DEFAULT_BOOTSTRAP_DNS)
         );
         assert!(config.diagnostics_item.enabled);
+    }
+
+    #[test]
+    fn legacy_clash_ui_item_is_not_migrated() {
+        let config: AppConfig = serde_json::from_value(json!({
+            "ClashUIItem": {
+                "RuleMode": TrafficMode::Global.as_i32(),
+                "ProxiesSorting": 1
+            }
+        }))
+        .expect("legacy config JSON should deserialize with defaults");
+
+        assert_eq!(config.proxy_ui_item, ProxyUiItem::default());
+
+        let json = serde_json::to_value(config).expect("app config should serialize");
+        let proxy_ui = json
+            .pointer("/ProxyUIItem")
+            .and_then(serde_json::Value::as_object)
+            .expect("proxy UI item should serialize");
+        assert_eq!(proxy_ui.len(), 2);
+        assert!(proxy_ui.contains_key("TrafficMode"));
+        assert!(proxy_ui.contains_key("NodeSorting"));
+        for removed_key in [
+            "RuleMode",
+            "EnableIPv6",
+            "EnableMixinContent",
+            "ProxiesSorting",
+            "ProxiesAutoRefresh",
+            "ProxiesAutoDelayTestInterval",
+            "ConnectionsAutoRefresh",
+            "ConnectionsRefreshInterval",
+            "ConnectionsColumnItem",
+        ] {
+            assert!(!proxy_ui.contains_key(removed_key));
+        }
     }
 
     #[test]

@@ -72,15 +72,15 @@ macro_rules! collect_ipc_commands {
             commands::delete_routing_rules::<tauri::Wry>,
             commands::move_routing_rule::<tauri::Wry>,
             commands::import_config_template::<tauri::Wry>,
-            commands::clash_list_proxies,
-            commands::clash_test_delay,
-            commands::clash_select_proxy::<tauri::Wry>,
-            commands::clash_list_connections,
-            commands::clash_close_connection::<tauri::Wry>,
-            commands::clash_set_rule_mode::<tauri::Wry>,
-            commands::clash_reload_config::<tauri::Wry>,
-            commands::clash_start_monitor,
-            commands::clash_stop_monitor,
+            commands::proxy_list_groups,
+            commands::proxy_test_delay,
+            commands::proxy_select_node::<tauri::Wry>,
+            commands::proxy_list_connections,
+            commands::proxy_close_connection::<tauri::Wry>,
+            commands::proxy_set_traffic_mode::<tauri::Wry>,
+            commands::proxy_reload_config::<tauri::Wry>,
+            commands::proxy_start_monitor,
+            commands::proxy_stop_monitor,
             commands::run_speedtest::<tauri::Wry>,
             commands::cancel_speedtest::<tauri::Wry>,
             commands::speedtest_status,
@@ -127,15 +127,15 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::dns::DnsValidationIssue>()
         .typ::<voya_app::presets::ConfigTemplateSelection>()
         .typ::<voya_app::presets::ConfigTemplateImportResult>()
-        .typ::<voya_app::clash::ClashProxiesSnapshot>()
-        .typ::<voya_app::clash::ClashProxyGroup>()
-        .typ::<voya_app::clash::ClashProxyNode>()
-        .typ::<voya_app::clash::ClashDelayTestResult>()
-        .typ::<voya_app::clash::ClashConnectionsSnapshot>()
-        .typ::<voya_app::clash::ClashConnectionItem>()
-        .typ::<voya_app::clash::ClashTrafficEvent>()
-        .typ::<voya_app::clash::ClashMonitorState>()
-        .typ::<voya_app::clash::ClashMonitorStatus>()
+        .typ::<voya_app::proxy_runtime::ProxyGroupsSnapshot>()
+        .typ::<voya_app::proxy_runtime::ProxyGroup>()
+        .typ::<voya_app::proxy_runtime::ProxyNode>()
+        .typ::<voya_app::proxy_runtime::ProxyDelayTestResult>()
+        .typ::<voya_app::proxy_runtime::ProxyConnectionsSnapshot>()
+        .typ::<voya_app::proxy_runtime::ProxyConnectionItem>()
+        .typ::<voya_app::proxy_runtime::ProxyTrafficEvent>()
+        .typ::<voya_app::proxy_runtime::ProxyMonitorState>()
+        .typ::<voya_app::proxy_runtime::ProxyMonitorStatus>()
         .typ::<voya_app::speedtest::SpeedTestResult>()
         .typ::<voya_app::speedtest::SpeedtestRunResult>()
         .typ::<voya_app::speedtest::SpeedtestStatus>()

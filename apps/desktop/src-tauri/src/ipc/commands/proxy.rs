@@ -1,0 +1,203 @@
+use super::{lifecycle::*, support::*, *};
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_list_groups(
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyGroupsSnapshot, AppError> {
+    let config = current_config(&state)?;
+
+    ProxyRuntimeManager::new()
+        .groups(&config)
+        .await
+        .map_err(proxy_runtime_error)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_test_delay(
+    state: tauri::State<'_, AppState>,
+    node_names: Vec<String>,
+) -> Result<Vec<ProxyDelayTestResult>, AppError> {
+    validate_ipc_text_list(
+        &node_names,
+        "proxy node name",
+        IPC_NAME_MAX_CHARS,
+        AppError::ProxyRuntime,
+    )?;
+    let config = current_config(&state)?;
+
+    ProxyRuntimeManager::new()
+        .test_delay(&config, node_names)
+        .await
+        .map_err(proxy_runtime_error)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_select_node<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    group_name: String,
+    node_name: String,
+) -> Result<ProxyGroupsSnapshot, AppError> {
+    validate_required_ipc_text(
+        &group_name,
+        "proxy group name",
+        IPC_NAME_MAX_CHARS,
+        AppError::ProxyRuntime,
+    )?;
+    validate_required_ipc_text(
+        &node_name,
+        "proxy node name",
+        IPC_NAME_MAX_CHARS,
+        AppError::ProxyRuntime,
+    )?;
+    let config = current_config(&state)?;
+    let snapshot = ProxyRuntimeManager::new()
+        .select_node(&config, &group_name, &node_name)
+        .await
+        .map_err(proxy_runtime_error)?;
+
+    emit_proxy_runtime_invalidation(&app, "proxy-node-selected")?;
+
+    Ok(snapshot)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_list_connections(
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyConnectionsSnapshot, AppError> {
+    let config = current_config(&state)?;
+
+    ProxyRuntimeManager::new()
+        .connections(&config)
+        .await
+        .map_err(proxy_runtime_error)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_close_connection<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    connection_id: Option<String>,
+) -> Result<ProxyConnectionsSnapshot, AppError> {
+    validate_present_ipc_text(
+        connection_id.as_deref(),
+        "proxy connection id",
+        IPC_ID_MAX_CHARS,
+        AppError::ProxyRuntime,
+    )?;
+    let config = current_config(&state)?;
+    let snapshot = ProxyRuntimeManager::new()
+        .close_connection(&config, connection_id.as_deref())
+        .await
+        .map_err(proxy_runtime_error)?;
+
+    emit_proxy_runtime_invalidation(&app, "proxy-connection-closed")?;
+
+    Ok(snapshot)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_set_traffic_mode<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    mode: TrafficMode,
+) -> Result<AppConfig, AppError> {
+    let original = current_config(&state)?;
+    let mut config = original.clone();
+    if config.proxy_ui_item.traffic_mode != mode {
+        if mode != TrafficMode::Unchanged {
+            ProxyRuntimeManager::new()
+                .set_traffic_mode(&config, mode)
+                .await
+                .map_err(proxy_runtime_error)?;
+        }
+        config.proxy_ui_item.traffic_mode = mode;
+        persist_config_if_changed(&state, &original, &config)?;
+    }
+
+    emit_proxy_runtime_invalidation(&app, "proxy-traffic-mode-changed")?;
+
+    Ok(config)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_reload_config<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    path: Option<String>,
+) -> Result<(), AppError> {
+    validate_optional_ipc_text(
+        path.as_deref(),
+        "proxy runtime config path",
+        IPC_PATH_MAX_CHARS,
+        AppError::ProxyRuntime,
+    )?;
+    let config = current_config(&state)?;
+
+    ProxyRuntimeManager::new()
+        .reload_config(&config, path.as_deref())
+        .await
+        .map_err(proxy_runtime_error)?;
+    emit_proxy_runtime_invalidation(&app, "proxy-config-reloaded")?;
+
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn proxy_start_monitor(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyMonitorStatus, AppError> {
+    let config = match current_config(&state) {
+        Ok(config) => config,
+        Err(error) => {
+            emit_proxy_monitor_status(
+                &app,
+                &ProxyMonitorStatus::failed("Proxy monitor failed to read current config"),
+            );
+            return Err(error);
+        }
+    };
+
+    match state.proxy_monitor_controller().start(
+        &config,
+        std::sync::Arc::new(crate::TauriProxyRuntimeEventSink { app: app.clone() }),
+    ) {
+        Ok(status) => {
+            emit_proxy_monitor_status(&app, &status);
+            Ok(status)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            emit_proxy_monitor_status(&app, &ProxyMonitorStatus::failed(message));
+            Err(proxy_runtime_error(error))
+        }
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn proxy_stop_monitor(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyMonitorStatus, AppError> {
+    match state.proxy_monitor_controller().stop() {
+        Ok(status) => {
+            emit_proxy_monitor_status(&app, &status);
+            Ok(status)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            emit_proxy_monitor_status(&app, &ProxyMonitorStatus::failed(message));
+            Err(proxy_runtime_error(error))
+        }
+    }
+}

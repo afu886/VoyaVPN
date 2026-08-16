@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 /**
- * Default Clash connections-table column visibility. Only the high-signal
+ * Default proxy connections-table column visibility. Only the high-signal
  * columns ship visible — host / upload / download / process — while the niche
  * columns (network, source, destination, proxy chain) start collapsed behind
  * the "Columns" menu to cut the forced horizontal scroll. The structural marker

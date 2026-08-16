@@ -41,32 +41,6 @@
     "webdavUser": "使用者名稱",
     "working": "處理中"
   },
-  "clash": {
-    "active": "活動",
-    "chain": "鏈",
-    "delay": "延遲",
-    "destination": "目標",
-    "download": "下行",
-    "filterConnections": "過濾連線",
-    "groups": "分組",
-    "host": "主機",
-    "monitorFailed": "失敗",
-    "monitorLive": "即時",
-    "monitorStale": "已過期",
-    "monitorStarting": "啟動中",
-    "monitorStopped": "已停止",
-    "network": "網路",
-    "noActive": "無活動代理",
-    "node": "節點",
-    "process": "處理程序",
-    "ruleModeDirect": "直連",
-    "ruleModeGlobal": "全局",
-    "ruleModeRule": "規則",
-    "source": "來源",
-    "type": "類型",
-    "udp": "UDP",
-    "upload": "上行"
-  },
   "confirm": {
     "cancel": "取消",
     "deleteProfilesConfirm": "刪除",
@@ -97,7 +71,6 @@
     "about": "關於 VoyaVPN",
     "backup": "備份和還原",
     "checkUpdates": "檢查更新",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "檔案",
     "font": "字型",
@@ -190,19 +163,6 @@
     "srsSource": "sing-box 規則集來源"
   },
   "panes": {
-    "clashConnections": {
-      "columns": {
-        "heading": "顯示欄位",
-        "reset": "恢復預設",
-        "toggle": "欄位"
-      },
-      "empty": "尚無 Clash 連線",
-      "title": "Clash 連線"
-    },
-    "clashProxies": {
-      "empty": "尚無 Clash 代理",
-      "title": "Clash 代理"
-    },
     "dns": {
       "empty": "尚無 DNS 設定",
       "title": "DNS"
@@ -409,6 +369,19 @@
       },
       "untitled": "未命名"
     },
+    "proxyConnections": {
+      "columns": {
+        "heading": "顯示欄位",
+        "reset": "恢復預設",
+        "toggle": "欄位"
+      },
+      "empty": "尚無連線",
+      "title": "連線"
+    },
+    "proxyGroups": {
+      "empty": "尚無代理群組",
+      "title": "代理群組"
+    },
     "routing": {
       "empty": "尚無路由設定檔",
       "title": "路由"
@@ -418,6 +391,32 @@
       "emptyDescription": "新增訂閱來源以自動匯入設定檔。",
       "loading": "正在載入訂閱"
     }
+  },
+  "proxy": {
+    "active": "活動",
+    "chain": "鏈",
+    "delay": "延遲",
+    "destination": "目標",
+    "download": "下行",
+    "filterConnections": "過濾連線",
+    "groups": "分組",
+    "host": "主機",
+    "monitorFailed": "失敗",
+    "monitorLive": "即時",
+    "monitorStale": "已過期",
+    "monitorStarting": "啟動中",
+    "monitorStopped": "已停止",
+    "network": "網路",
+    "noActive": "無活動代理",
+    "node": "節點",
+    "process": "處理程序",
+    "source": "來源",
+    "trafficModeDirect": "直連",
+    "trafficModeGlobal": "全局",
+    "trafficModeRule": "規則",
+    "type": "類型",
+    "udp": "UDP",
+    "upload": "上行"
   },
   "qr": {
     "clipboardEmpty": "剪貼簿為空。",
@@ -1042,13 +1041,13 @@
   },
   "tabs": {
     "aria": "主要區域",
-    "clashConnections": "Clash 連線",
-    "clashProxies": "Clash 代理",
     "dns": "DNS",
     "home": "主頁",
     "logs": "日誌",
     "network": "網路",
     "profiles": "設定檔",
+    "proxyConnections": "連線",
+    "proxyGroups": "代理群組",
     "routing": "路由"
   },
   "templates": {

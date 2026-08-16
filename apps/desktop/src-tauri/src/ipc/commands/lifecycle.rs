@@ -174,7 +174,7 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-pub(super) fn emit_clash_invalidation<R>(
+pub(super) fn emit_proxy_runtime_invalidation<R>(
     app: &tauri::AppHandle<R>,
     reason: &str,
 ) -> Result<(), AppError>
@@ -183,9 +183,8 @@ where
 {
     InvalidateEvent {
         keys: [
-            vec!["clash".to_string()],
-            vec!["clash-proxies".to_string()],
-            vec!["clash-connections".to_string()],
+            vec!["proxy-groups".to_string()],
+            vec!["proxy-connections".to_string()],
             vec!["app-config".to_string()],
         ]
         .into_iter()
@@ -199,12 +198,12 @@ where
     .map_err(|error| AppError::EventEmit(error.to_string()))
 }
 
-pub(super) fn emit_clash_monitor_status<R>(app: &tauri::AppHandle<R>, status: &ClashMonitorStatus)
+pub(super) fn emit_proxy_monitor_status<R>(app: &tauri::AppHandle<R>, status: &ProxyMonitorStatus)
 where
     R: tauri::Runtime,
 {
-    if let Err(error) = TransientStreamEvent::ClashMonitorStatus(status.clone()).emit(app) {
-        tracing::warn!(?error, ?status, "failed to emit Clash monitor status event");
+    if let Err(error) = TransientStreamEvent::ProxyMonitorStatus(status.clone()).emit(app) {
+        tracing::warn!(?error, ?status, "failed to emit proxy monitor status event");
     }
 }
 
@@ -395,7 +394,7 @@ pub(super) fn saved_config_requires_runtime_restart(
         || original.mux4_ray_item != updated.mux4_ray_item
         || original.mux4_sbox_item != updated.mux4_sbox_item
         || original.hysteria_item != updated.hysteria_item
-        || original.clash_ui_item != updated.clash_ui_item
+        || original.proxy_ui_item != updated.proxy_ui_item
         || original.fragment4_ray_item != updated.fragment4_ray_item
         || original.inbound != updated.inbound
         || original.simple_dns_item != updated.simple_dns_item

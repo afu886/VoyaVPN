@@ -24,8 +24,8 @@ const primaryNav: NavItem[] = [
 const networkNav: NavItem[] = [
   { icon: Route, titleKey: "tabs.routing", value: "routing" },
   { icon: Database, titleKey: "tabs.dns", value: "dns" },
-  { icon: Network, titleKey: "tabs.clashProxies", value: "clash-proxies" },
-  { icon: Plug, titleKey: "tabs.clashConnections", value: "clash-connections" },
+  { icon: Network, titleKey: "tabs.proxyGroups", value: "proxy-groups" },
+  { icon: Plug, titleKey: "tabs.proxyConnections", value: "proxy-connections" },
   { icon: ScrollText, titleKey: "tabs.logs", value: "logs" },
 ];
 

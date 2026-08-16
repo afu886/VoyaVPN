@@ -74,7 +74,7 @@ describe("i18n locales", () => {
       "actions.connect",
       "actions.save",
       "actions.settings",
-      "clash.network",
+      "proxy.network",
       "confirm.deleteProfilesTitle",
       "menu.language",
       "menu.qr",

@@ -9,10 +9,10 @@ import type {
   AutostartStatus,
   CertificateFetchRequest,
   CertificateFetchResult,
-  ClashConnectionsSnapshot,
-  ClashDelayTestResult,
-  ClashMonitorStatus,
-  ClashProxiesSnapshot,
+  ProxyConnectionsSnapshot,
+  ProxyDelayTestResult,
+  ProxyMonitorStatus,
+  ProxyGroupsSnapshot,
   DemoRequest,
   DemoResponse,
   DnsSettings_Deserialize,
@@ -39,7 +39,7 @@ import type {
   QrScanResult,
   RoutingItem_Deserialize,
   RoutingItem_Serialize,
-  RuleMode,
+  TrafficMode,
   RulesItem_Deserialize,
   RuntimeStatusResponse,
   CoreSeedInstallResult,
@@ -399,45 +399,45 @@ export async function importConfigTemplate(
   );
 }
 
-export async function clashListProxies(): Promise<ClashProxiesSnapshot> {
-  return unwrapCommandResult(await commands.clashListProxies());
+export async function proxyListGroups(): Promise<ProxyGroupsSnapshot> {
+  return unwrapCommandResult(await commands.proxyListGroups());
 }
 
-export async function clashTestDelay(proxyNames: string[] = []): Promise<ClashDelayTestResult[]> {
-  return unwrapCommandResult(await commands.clashTestDelay(proxyNames));
+export async function proxyTestDelay(nodeNames: string[] = []): Promise<ProxyDelayTestResult[]> {
+  return unwrapCommandResult(await commands.proxyTestDelay(nodeNames));
 }
 
-export async function clashSelectProxy(
+export async function proxySelectNode(
   groupName: string,
-  proxyName: string,
-): Promise<ClashProxiesSnapshot> {
-  return unwrapCommandResult(await commands.clashSelectProxy(groupName, proxyName));
+  nodeName: string,
+): Promise<ProxyGroupsSnapshot> {
+  return unwrapCommandResult(await commands.proxySelectNode(groupName, nodeName));
 }
 
-export async function clashListConnections(): Promise<ClashConnectionsSnapshot> {
-  return unwrapCommandResult(await commands.clashListConnections());
+export async function proxyListConnections(): Promise<ProxyConnectionsSnapshot> {
+  return unwrapCommandResult(await commands.proxyListConnections());
 }
 
-export async function clashCloseConnection(
+export async function proxyCloseConnection(
   connectionId: string | null = null,
-): Promise<ClashConnectionsSnapshot> {
-  return unwrapCommandResult(await commands.clashCloseConnection(connectionId));
+): Promise<ProxyConnectionsSnapshot> {
+  return unwrapCommandResult(await commands.proxyCloseConnection(connectionId));
 }
 
-export async function clashSetRuleMode(mode: RuleMode): Promise<AppConfig_Serialize> {
-  return unwrapCommandResult(await commands.clashSetRuleMode(mode));
+export async function proxySetTrafficMode(mode: TrafficMode): Promise<AppConfig_Serialize> {
+  return unwrapCommandResult(await commands.proxySetTrafficMode(mode));
 }
 
-export async function clashReloadConfig(path: string | null = null): Promise<null> {
-  return unwrapCommandResult(await commands.clashReloadConfig(path));
+export async function proxyReloadConfig(path: string | null = null): Promise<null> {
+  return unwrapCommandResult(await commands.proxyReloadConfig(path));
 }
 
-export async function clashStartMonitor(): Promise<ClashMonitorStatus> {
-  return unwrapCommandResult(await commands.clashStartMonitor());
+export async function proxyStartMonitor(): Promise<ProxyMonitorStatus> {
+  return unwrapCommandResult(await commands.proxyStartMonitor());
 }
 
-export async function clashStopMonitor(): Promise<ClashMonitorStatus> {
-  return unwrapCommandResult(await commands.clashStopMonitor());
+export async function proxyStopMonitor(): Promise<ProxyMonitorStatus> {
+  return unwrapCommandResult(await commands.proxyStopMonitor());
 }
 
 export async function runSpeedtest(
@@ -558,7 +558,7 @@ function formatAppError(error: AppError): string {
       return error.message;
     case "certificate":
       return error.message;
-    case "clash":
+    case "proxyRuntime":
       return error.message;
     case "database":
       return error.message;

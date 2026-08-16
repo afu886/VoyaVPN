@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
 use voya_app::{
-    clash::{ClashConnectionsSnapshot, ClashMonitorStatus, ClashTrafficEvent},
+    proxy_runtime::{ProxyConnectionsSnapshot, ProxyMonitorStatus, ProxyTrafficEvent},
     speedtest::SpeedTestResult,
     tun::{TunBackend, TunProviderState},
 };
@@ -130,9 +130,9 @@ pub enum TransientStreamEvent {
     Statistics(StatisticsSnapshot),
     SysProxyChanged(SysProxyChanged),
     TunChanged(TunChanged),
-    ClashMonitorStatus(ClashMonitorStatus),
-    ClashTraffic(ClashTrafficEvent),
-    ClashConnections(ClashConnectionsSnapshot),
+    ProxyMonitorStatus(ProxyMonitorStatus),
+    ProxyTraffic(ProxyTrafficEvent),
+    ProxyConnections(ProxyConnectionsSnapshot),
     SpeedtestResult(SpeedTestResult),
 }
 
@@ -156,8 +156,8 @@ pub struct AppNotice {
 #[serde(rename_all = "camelCase")]
 pub enum ShellTabTarget {
     Profiles,
-    ClashProxies,
-    ClashConnections,
+    ProxyGroups,
+    ProxyConnections,
     Logs,
 }
 

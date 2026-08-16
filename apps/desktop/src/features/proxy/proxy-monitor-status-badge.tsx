@@ -2,7 +2,7 @@ import { AlertTriangle, CircleDot, LoaderCircle, PauseCircle } from "lucide-reac
 
 import { Badge } from "@voya/ui/components/badge";
 import { useI18n } from "@voya/i18n/use-i18n";
-import type { RuntimeClashMonitorStatus } from "@/ipc/runtime-event-store";
+import type { RuntimeProxyMonitorStatus } from "@/ipc/runtime-event-store";
 import { cn } from "@voya/ui/lib/utils";
 
 type MonitorTone = "failed" | "live" | "starting" | "stale";
@@ -20,12 +20,12 @@ const toneClassName: Record<MonitorTone, string> = {
   stale: "border-warning-bold/35 bg-warning-bg text-warning [&>svg]:text-warning-icon",
 };
 
-export function ClashMonitorStatusBadge({
+export function ProxyMonitorStatusBadge({
   className,
   status,
 }: {
   className?: string;
-  status: RuntimeClashMonitorStatus;
+  status: RuntimeProxyMonitorStatus;
 }) {
   const { t } = useI18n();
   const display = monitorStatusDisplay(status, t);
@@ -60,21 +60,21 @@ export function ClashMonitorStatusBadge({
 }
 
 function monitorStatusDisplay(
-  status: RuntimeClashMonitorStatus,
+  status: RuntimeProxyMonitorStatus,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): MonitorStatusDisplay {
   if (status.state === "failed") {
     return {
       detail: status.message,
-      label: t("clash.monitorFailed"),
+      label: t("proxy.monitorFailed"),
       tone: "failed",
     };
   }
 
   if (status.state === "starting") {
     return {
-      detail: status.stale ? t("clash.monitorStale") : null,
-      label: t("clash.monitorStarting"),
+      detail: status.stale ? t("proxy.monitorStale") : null,
+      label: t("proxy.monitorStarting"),
       tone: status.stale ? "stale" : "starting",
     };
   }
@@ -82,14 +82,14 @@ function monitorStatusDisplay(
   if (!status.stale && status.running) {
     return {
       detail: status.message,
-      label: t("clash.monitorLive"),
+      label: t("proxy.monitorLive"),
       tone: "live",
     };
   }
 
   return {
-    detail: status.state === "stopped" ? t("clash.monitorStopped") : status.message,
-    label: t("clash.monitorStale"),
+    detail: status.state === "stopped" ? t("proxy.monitorStopped") : status.message,
+    label: t("proxy.monitorStale"),
     tone: "stale",
   };
 }

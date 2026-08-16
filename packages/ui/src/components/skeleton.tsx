@@ -6,7 +6,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="skeleton" className={cn("animate-pulse rounded-md bg-accent", className)} {...props} />;
 }
 
-// Shared loading scaffold for the virtualized data tables (Profiles, Clash
+// Shared loading scaffold for the virtualized data tables (Profiles, Proxy
 // connections, …) that each used to hand-roll a near-identical placeholder grid.
 // Every placeholder row mirrors the real row geometry — the caller's
 // `gridTemplateColumns` + `gridMinWidth` + a per-row pixel `rowHeight` — so the

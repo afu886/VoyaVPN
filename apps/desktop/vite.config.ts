@@ -54,7 +54,7 @@ export default defineConfig({
             {
               name: "feature-ops",
               priority: 14,
-              test: /src[\\/]features[\\/](clash|dns|logs|options|qr|routing|updates)[\\/]/,
+              test: /src[\\/]features[\\/](proxy|dns|logs|options|qr|routing|updates)[\\/]/,
             },
             {
               name: "vendor",

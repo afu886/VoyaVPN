@@ -164,10 +164,10 @@ function toShellTab(tab: ShellTabTarget) {
   switch (tab) {
     case "profiles":
       return "profiles";
-    case "clashProxies":
-      return "clash-proxies";
-    case "clashConnections":
-      return "clash-connections";
+    case "proxyGroups":
+      return "proxy-groups";
+    case "proxyConnections":
+      return "proxy-connections";
     case "logs":
       return "logs";
   }

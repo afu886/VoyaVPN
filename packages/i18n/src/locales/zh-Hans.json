@@ -41,32 +41,6 @@
     "webdavUser": "用户名",
     "working": "处理中"
   },
-  "clash": {
-    "active": "活动",
-    "chain": "链",
-    "delay": "延迟",
-    "destination": "目标",
-    "download": "下行",
-    "filterConnections": "过滤连接",
-    "groups": "分组",
-    "host": "主机",
-    "monitorFailed": "失败",
-    "monitorLive": "实时",
-    "monitorStale": "已过期",
-    "monitorStarting": "启动中",
-    "monitorStopped": "已停止",
-    "network": "网络",
-    "noActive": "无活动代理",
-    "node": "节点",
-    "process": "进程",
-    "ruleModeDirect": "直连",
-    "ruleModeGlobal": "全局",
-    "ruleModeRule": "规则",
-    "source": "来源",
-    "type": "类型",
-    "udp": "UDP",
-    "upload": "上行"
-  },
   "confirm": {
     "cancel": "取消",
     "deleteProfilesConfirm": "删除",
@@ -97,7 +71,6 @@
     "about": "关于 VoyaVPN",
     "backup": "备份和还原",
     "checkUpdates": "检查更新",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "文件",
     "font": "字体",
@@ -190,19 +163,6 @@
     "srsSource": "sing-box 规则集来源"
   },
   "panes": {
-    "clashConnections": {
-      "columns": {
-        "heading": "显示列",
-        "reset": "恢复默认",
-        "toggle": "列"
-      },
-      "empty": "暂无 Clash 连接",
-      "title": "Clash 连接"
-    },
-    "clashProxies": {
-      "empty": "暂无 Clash 代理",
-      "title": "Clash 代理"
-    },
     "dns": {
       "empty": "暂无 DNS 设置",
       "title": "DNS"
@@ -409,6 +369,19 @@
       },
       "untitled": "未命名"
     },
+    "proxyConnections": {
+      "columns": {
+        "heading": "显示列",
+        "reset": "恢复默认",
+        "toggle": "列"
+      },
+      "empty": "暂无连接",
+      "title": "连接"
+    },
+    "proxyGroups": {
+      "empty": "暂无代理组",
+      "title": "代理组"
+    },
     "routing": {
       "empty": "暂无路由配置",
       "title": "路由"
@@ -418,6 +391,32 @@
       "emptyDescription": "添加订阅来源以自动导入配置。",
       "loading": "正在加载订阅"
     }
+  },
+  "proxy": {
+    "active": "活动",
+    "chain": "链",
+    "delay": "延迟",
+    "destination": "目标",
+    "download": "下行",
+    "filterConnections": "过滤连接",
+    "groups": "分组",
+    "host": "主机",
+    "monitorFailed": "失败",
+    "monitorLive": "实时",
+    "monitorStale": "已过期",
+    "monitorStarting": "启动中",
+    "monitorStopped": "已停止",
+    "network": "网络",
+    "noActive": "无活动代理",
+    "node": "节点",
+    "process": "进程",
+    "source": "来源",
+    "trafficModeDirect": "直连",
+    "trafficModeGlobal": "全局",
+    "trafficModeRule": "规则",
+    "type": "类型",
+    "udp": "UDP",
+    "upload": "上行"
   },
   "qr": {
     "clipboardEmpty": "剪贴板为空。",
@@ -1042,13 +1041,13 @@
   },
   "tabs": {
     "aria": "主区域",
-    "clashConnections": "Clash 连接",
-    "clashProxies": "Clash 代理",
     "dns": "DNS",
     "home": "主页",
     "logs": "日志",
     "network": "网络",
     "profiles": "配置",
+    "proxyConnections": "连接",
+    "proxyGroups": "代理组",
     "routing": "路由"
   },
   "templates": {

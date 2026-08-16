@@ -55,7 +55,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 
 ### ③ 信息密度过载、缺渐进披露 (P1) ✅📋
 - profiles 表 14 列、强制横向滚动、重度截断、**无列可见性控制**：[server-table-columns.tsx](../../apps/desktop/src/features/profiles/server-table-columns.tsx)。
-- connections 表 9 列、**只能过滤不能排序**：[clash-connections-screen.tsx](../../apps/desktop/src/features/clash/clash-connections-screen.tsx)。
+- 连接表 9 列、**只能过滤不能排序**：[proxy-connections-screen.tsx](../../apps/desktop/src/features/proxy/proxy-connections-screen.tsx)。
 
 ### ④ 质量地板有洞 (P1–P2) ✅
 - **加载/空/错误态参差**：connections 有骨架屏，profiles 等多数屏仅居中裸文字。

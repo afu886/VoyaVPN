@@ -140,11 +140,11 @@ describe("EventBridge", () => {
     act(() => {
       bridgeMocks.listeners.transientStreamEvent[0]?.({ payload: transient });
       bridgeMocks.listeners.appEvent[0]?.({
-        payload: { kind: "selectTab", payload: "clashConnections" },
+        payload: { kind: "selectTab", payload: "proxyConnections" },
       });
     });
 
     expect(bridgeMocks.pushTransientEvent).toHaveBeenCalledWith(transient);
-    expect(bridgeMocks.setActiveTab).toHaveBeenCalledWith("clash-connections");
+    expect(bridgeMocks.setActiveTab).toHaveBeenCalledWith("proxy-connections");
   });
 });

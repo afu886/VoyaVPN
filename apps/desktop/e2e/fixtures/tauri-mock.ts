@@ -398,37 +398,58 @@ export async function installTauriSmokeMock(page: Page) {
         case "save_dns_settings":
           state.dns = mergeDeep(state.dns, readRecord(args, "settings"));
           return Promise.resolve(clone(state.dns));
-        case "clash_list_proxies":
+        case "proxy_list_groups":
           return Promise.resolve({
-            allNodes: [
-              { active: true, delay: 23, delayLabel: "23 ms", name: "Smoke Node", proxyType: "VLESS", testable: true, udp: true },
-            ],
             groups: [
               {
                 name: "PROXY",
                 nodes: [
                   { active: true, delay: 23, delayLabel: "23 ms", name: "Smoke Node", proxyType: "VLESS", testable: true, udp: true },
+                  { active: false, delay: 41, delayLabel: "41 ms", name: "Smoke Backup Node", proxyType: "VLESS", testable: true, udp: true },
                 ],
                 now: "Smoke Node",
                 proxyType: "Selector",
               },
             ],
-            ruleMode: 0,
+            trafficMode: 0,
           });
-        case "clash_test_delay":
-          return Promise.resolve(readStringArray(args, "proxyNames").map((name) => ({ delay: 23, message: null, name })));
-        case "clash_select_proxy":
-          return invoke("clash_list_proxies", args);
-        case "clash_list_connections":
-        case "clash_close_connection":
+        case "proxy_test_delay":
+          return Promise.resolve(readStringArray(args, "nodeNames").map((name) => ({ delay: 23, message: null, name })));
+        case "proxy_select_node":
+          return invoke("proxy_list_groups", args);
+        case "proxy_list_connections":
+          return Promise.resolve({
+            connections: [
+              {
+                chains: ["PROXY", "Smoke Node"],
+                connectionType: "HTTPS",
+                destination: "93.184.216.34",
+                download: 2048,
+                host: "smoke.example.test:443",
+                id: "smoke-connection",
+                network: "tcp",
+                process: "smoke-app",
+                processPath: "/usr/bin/smoke-app",
+                rule: "Match",
+                rulePayload: "",
+                source: "127.0.0.1:54321",
+                start: "2026-01-01T00:00:00Z",
+                upload: 1024,
+              },
+            ],
+            downloadTotal: 2048,
+            uploadTotal: 1024,
+          });
+        case "proxy_close_connection":
           return Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 });
-        case "clash_set_rule_mode":
+        case "proxy_set_traffic_mode":
           return Promise.resolve(clone(state.appConfig));
-        case "clash_reload_config":
+        case "proxy_reload_config":
           return Promise.resolve(null);
-        case "clash_start_monitor":
-        case "clash_stop_monitor":
-          return Promise.resolve({ running: false });
+        case "proxy_start_monitor":
+          return Promise.resolve({ message: null, running: true, stale: false, state: "running" });
+        case "proxy_stop_monitor":
+          return Promise.resolve({ message: null, running: false, stale: true, state: "stopped" });
         case "autostart_status":
           return Promise.resolve(clone(state.autostart));
         case "set_autostart_enabled":
@@ -709,7 +730,10 @@ export async function installTauriSmokeMock(page: Page) {
           CheckPreReleaseUpdate: false,
           SelectedCoreTypes: ["app"],
         },
-        ClashUIItem: {},
+        ProxyUIItem: {
+          NodeSorting: 0,
+          TrafficMode: 0,
+        },
         ConstItem: {
           GeoSourceUrl: null as string | null,
           RouteRulesTemplateSourceUrl: null as string | null,

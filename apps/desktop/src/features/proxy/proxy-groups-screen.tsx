@@ -15,43 +15,43 @@ import { EmptyState } from "@voya/ui/components/empty-state";
 import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { useI18n } from "@voya/i18n/use-i18n";
 import {
-  clashListProxies,
-  clashReloadConfig,
-  clashSelectProxy,
-  clashSetRuleMode,
-  clashTestDelay,
+  proxyListGroups,
+  proxyReloadConfig,
+  proxySelectNode,
+  proxySetTrafficMode,
+  proxyTestDelay,
   useRuntimeEventStore,
 } from "@/ipc";
 import type {
-  ClashDelayTestResult,
-  ClashProxyGroup,
-  ClashProxyNode,
-  RuleMode,
+  ProxyDelayTestResult,
+  ProxyGroup,
+  ProxyNode,
+  TrafficMode,
 } from "@/ipc/bindings";
 import { formatBytesPerSecond, formatDelay } from "@voya/utils/formatting";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
-import { ClashMonitorStatusBadge } from "@/features/clash/clash-monitor-status-badge";
+import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-badge";
 
-const ruleModeOptions: Array<{ labelKey: string; value: RuleMode }> = [
-  { labelKey: "clash.ruleModeRule", value: 0 },
-  { labelKey: "clash.ruleModeGlobal", value: 1 },
-  { labelKey: "clash.ruleModeDirect", value: 2 },
+const trafficModeOptions: Array<{ labelKey: string; value: TrafficMode }> = [
+  { labelKey: "proxy.trafficModeRule", value: 0 },
+  { labelKey: "proxy.trafficModeGlobal", value: 1 },
+  { labelKey: "proxy.trafficModeDirect", value: 2 },
 ];
 
-export function ClashProxiesScreen() {
+export function ProxyGroupsScreen() {
   const queryClient = useQueryClient();
   const { t } = useI18n();
-  const monitorStatus = useRuntimeEventStore((state) => state.clashMonitorStatus);
-  const traffic = useRuntimeEventStore((state) => state.clashTraffic);
-  const [delayResults, setDelayResults] = useState<Record<string, ClashDelayTestResult>>({});
+  const monitorStatus = useRuntimeEventStore((state) => state.proxyMonitorStatus);
+  const traffic = useRuntimeEventStore((state) => state.proxyTraffic);
+  const [delayResults, setDelayResults] = useState<Record<string, ProxyDelayTestResult>>({});
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
 
-  const proxiesQuery = useQuery({
-    queryFn: clashListProxies,
-    queryKey: ["clash-proxies"],
+  const groupsQuery = useQuery({
+    queryFn: proxyListGroups,
+    queryKey: ["proxy-groups"],
   });
-  const snapshot = proxiesQuery.data;
+  const snapshot = groupsQuery.data;
   const selectedGroup = useMemo(
     () => selectGroup(snapshot?.groups ?? [], selectedGroupName),
     [selectedGroupName, snapshot?.groups],
@@ -59,7 +59,7 @@ export function ClashProxiesScreen() {
   const selectedNodes = selectedGroup?.nodes ?? [];
 
   const delayMutation = useMutation({
-    mutationFn: clashTestDelay,
+    mutationFn: proxyTestDelay,
     onSuccess: (results) => {
       setDelayResults((current) => ({
         ...current,
@@ -68,24 +68,24 @@ export function ClashProxiesScreen() {
     },
   });
   const reloadMutation = useMutation({
-    mutationFn: () => clashReloadConfig(null),
+    mutationFn: () => proxyReloadConfig(null),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["clash-proxies"] });
-      await queryClient.invalidateQueries({ queryKey: ["clash-connections"] });
+      await queryClient.invalidateQueries({ queryKey: ["proxy-groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["proxy-connections"] });
     },
   });
-  const ruleModeMutation = useMutation({
-    mutationFn: clashSetRuleMode,
+  const trafficModeMutation = useMutation({
+    mutationFn: proxySetTrafficMode,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["app-config"] });
-      await queryClient.invalidateQueries({ queryKey: ["clash-proxies"] });
+      await queryClient.invalidateQueries({ queryKey: ["proxy-groups"] });
     },
   });
   const selectMutation = useMutation({
-    mutationFn: ({ groupName, proxyName }: { groupName: string; proxyName: string }) =>
-      clashSelectProxy(groupName, proxyName),
+    mutationFn: ({ groupName, nodeName }: { groupName: string; nodeName: string }) =>
+      proxySelectNode(groupName, nodeName),
     onSuccess: (nextSnapshot) => {
-      queryClient.setQueryData(["clash-proxies"], nextSnapshot);
+      queryClient.setQueryData(["proxy-groups"], nextSnapshot);
     },
   });
 
@@ -103,36 +103,36 @@ export function ClashProxiesScreen() {
     runDelayTest(testableNodeNames);
   }
 
-  function selectNode(node: ClashProxyNode) {
+  function selectNode(node: ProxyNode) {
     if (!selectedGroup || node.active || selectedGroup.proxyType.toLowerCase() !== "selector") {
       return;
     }
-    void selectMutation.mutateAsync({ groupName: selectedGroup.name, proxyName: node.name });
+    void selectMutation.mutateAsync({ groupName: selectedGroup.name, nodeName: node.name });
   }
 
   return (
-    <PageSection aria-label={t("tabs.clashProxies")}>
+    <PageSection aria-label={t("tabs.proxyGroups")}>
       <PageHeader>
-        <PageHeaderHeading icon={Network} title={t("tabs.clashProxies")}>
+        <PageHeaderHeading icon={Network} title={t("tabs.proxyGroups")}>
           <Badge className="gap-2 bg-background px-2 py-1 font-normal text-muted-foreground" variant="outline">
             <Activity className="size-4 text-muted-foreground" aria-hidden="true" />
             <span className="tabular-nums">{t("status.upload", { speed: formatBytesPerSecond(traffic?.up ?? 0) })}</span>
             <span className="tabular-nums">{t("status.download", { speed: formatBytesPerSecond(traffic?.down ?? 0) })}</span>
           </Badge>
-          <ClashMonitorStatusBadge className="max-w-[15rem]" status={monitorStatus} />
+          <ProxyMonitorStatusBadge className="max-w-[15rem]" status={monitorStatus} />
         </PageHeaderHeading>
         <PageHeaderActions>
           <div className="hidden h-9 items-center rounded-lg bg-muted p-[3px] md:flex">
-            {ruleModeOptions.map((option) => (
+            {trafficModeOptions.map((option) => (
               <Button
                 key={option.value}
-                aria-pressed={snapshot?.ruleMode === option.value}
+                aria-pressed={snapshot?.trafficMode === option.value}
                 className={cn(
                   "h-7 px-2 text-xs",
-                  snapshot?.ruleMode === option.value && "bg-background text-foreground shadow-sm hover:bg-background",
+                  snapshot?.trafficMode === option.value && "bg-background text-foreground shadow-sm hover:bg-background",
                 )}
-                disabled={ruleModeMutation.isPending}
-                onClick={() => void ruleModeMutation.mutateAsync(option.value)}
+                disabled={trafficModeMutation.isPending}
+                onClick={() => void trafficModeMutation.mutateAsync(option.value)}
                 type="button"
                 variant="ghost"
               >
@@ -162,23 +162,23 @@ export function ClashProxiesScreen() {
           </Button>
           <Button
             aria-label={t("actions.refresh")}
-            disabled={proxiesQuery.isFetching}
-            onClick={() => void proxiesQuery.refetch()}
+            disabled={groupsQuery.isFetching}
+            onClick={() => void groupsQuery.refetch()}
             size="icon"
             type="button"
             variant="secondary"
           >
-            <RefreshCw className={cn("size-4", proxiesQuery.isFetching && "animate-spin")} aria-hidden="true" />
+            <RefreshCw className={cn("size-4", groupsQuery.isFetching && "animate-spin")} aria-hidden="true" />
           </Button>
         </PageHeaderActions>
       </PageHeader>
 
-      {proxiesQuery.error ? <InlinePageError>{getErrorMessage(proxiesQuery.error)}</InlinePageError> : null}
+      {groupsQuery.error ? <InlinePageError>{getErrorMessage(groupsQuery.error)}</InlinePageError> : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-[18rem_minmax(0,1fr)] overflow-hidden">
         <aside className="min-h-0 border-r">
           <div className="flex h-10 items-center justify-between border-b px-4">
-            <span className="text-xs font-medium uppercase text-muted-foreground">{t("clash.groups")}</span>
+            <span className="text-xs font-medium uppercase text-muted-foreground">{t("proxy.groups")}</span>
             <span className="text-xs tabular-nums text-muted-foreground">{snapshot?.groups.length ?? 0}</span>
           </div>
           <ScrollArea className="h-[calc(100%-2.5rem)]">
@@ -203,15 +203,15 @@ export function ClashProxiesScreen() {
                     </Badge>
                     <Badge
                       className="col-span-2 max-w-full justify-start truncate bg-background text-muted-foreground"
-                      title={group.now ?? t("clash.noActive")}
+                      title={group.now ?? t("proxy.noActive")}
                       variant="outline"
                     >
-                      {group.now ?? t("clash.noActive")}
+                      {group.now ?? t("proxy.noActive")}
                     </Badge>
                   </button>
                 ))
               ) : (
-                <EmptyState className="py-10" icon={Network} title={t("panes.clashProxies.empty")} />
+                <EmptyState className="py-10" icon={Network} title={t("panes.proxyGroups.empty")} />
               )}
             </div>
           </ScrollArea>
@@ -220,7 +220,7 @@ export function ClashProxiesScreen() {
         <div className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex h-10 shrink-0 items-center gap-2 border-b px-4">
             <span className="min-w-0 truncate text-sm font-medium">
-              {selectedGroup?.name ?? t("panes.clashProxies.title")}
+              {selectedGroup?.name ?? t("panes.proxyGroups.title")}
             </span>
             {selectedGroup?.proxyType ? (
               <Badge className="bg-background text-muted-foreground" variant="outline">
@@ -259,9 +259,9 @@ function ProxyNodeGrid({
   onSelect,
   selectable,
 }: {
-  delayResults: Record<string, ClashDelayTestResult>;
-  nodes: ClashProxyNode[];
-  onSelect: (node: ClashProxyNode) => void;
+  delayResults: Record<string, ProxyDelayTestResult>;
+  nodes: ProxyNode[];
+  onSelect: (node: ProxyNode) => void;
   selectable: boolean;
 }) {
   const { t } = useI18n();
@@ -275,11 +275,11 @@ function ProxyNodeGrid({
         )}
       >
         <span />
-        <span>{t("clash.node")}</span>
-        <span>{t("clash.type")}</span>
-        <span>{t("clash.delay")}</span>
-        <span>{t("clash.udp")}</span>
-        <span>{t("clash.active")}</span>
+        <span>{t("proxy.node")}</span>
+        <span>{t("proxy.type")}</span>
+        <span>{t("proxy.delay")}</span>
+        <span>{t("proxy.udp")}</span>
+        <span>{t("proxy.active")}</span>
       </div>
       {nodes.length ? (
         nodes.map((node) => {
@@ -328,7 +328,7 @@ function ProxyNodeGrid({
                     className="border-connected/30 bg-connected/10 text-connected"
                     variant="outline"
                   >
-                    {t("clash.active")}
+                    {t("proxy.active")}
                   </Badge>
                 ) : null}
               </span>
@@ -336,12 +336,12 @@ function ProxyNodeGrid({
           );
         })
       ) : (
-        <EmptyState icon={Inbox} title={t("panes.clashProxies.empty")} />
+        <EmptyState icon={Inbox} title={t("panes.proxyGroups.empty")} />
       )}
     </div>
   );
 }
 
-function selectGroup(groups: ClashProxyGroup[], selectedName: string | null) {
+function selectGroup(groups: ProxyGroup[], selectedName: string | null) {
   return groups.find((group) => group.name === selectedName) ?? groups[0] ?? null;
 }

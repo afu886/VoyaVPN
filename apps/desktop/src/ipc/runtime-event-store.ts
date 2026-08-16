@@ -2,11 +2,11 @@ import { create } from "zustand";
 import { z } from "zod";
 
 import type {
-  ClashConnectionItem,
-  ClashConnectionsSnapshot,
-  ClashMonitorState,
-  ClashMonitorStatus,
-  ClashTrafficEvent,
+  ProxyConnectionItem,
+  ProxyConnectionsSnapshot,
+  ProxyMonitorState,
+  ProxyMonitorStatus,
+  ProxyTrafficEvent,
   CoreStateEvent,
   LogLineEvent,
   ServerStatItem,
@@ -19,20 +19,20 @@ import type {
 } from "@/ipc/bindings";
 import { speedtestStatus } from "@/ipc/commands";
 
-export type RuntimeClashMonitorState = "starting" | ClashMonitorState;
+export type RuntimeProxyMonitorState = "starting" | ProxyMonitorState;
 
-export type RuntimeClashMonitorStatus = {
+export type RuntimeProxyMonitorStatus = {
   message: string | null;
   running: boolean;
   stale: boolean;
-  state: RuntimeClashMonitorState;
+  state: RuntimeProxyMonitorState;
 };
 
 type RuntimeEventState = {
   clearLogs: () => void;
-  clashConnections: ClashConnectionsSnapshot | null;
-  clashMonitorStatus: RuntimeClashMonitorStatus;
-  clashTraffic: ClashTrafficEvent | null;
+  proxyConnections: ProxyConnectionsSnapshot | null;
+  proxyMonitorStatus: RuntimeProxyMonitorStatus;
+  proxyTraffic: ProxyTrafficEvent | null;
   coreState: CoreStateEvent | null;
   lastTransientEvent: TransientStreamEvent | null;
   logLines: LogLineEvent[];
@@ -41,13 +41,13 @@ type RuntimeEventState = {
   serverStatsByProfileId: Record<string, ServerStatItem>;
   speedtestResultsByProfileId: Record<string, SpeedTestResult>;
   speedtestRunning: boolean;
-  setClashConnections: (snapshot: ClashConnectionsSnapshot) => void;
-  setClashMonitorFailed: (message?: string | null) => void;
-  setClashMonitorRunning: (message?: string | null) => void;
-  setClashMonitorStarting: (message?: string | null) => void;
-  setClashMonitorStatus: (status: ClashMonitorStatus) => void;
-  setClashMonitorStopped: (message?: string | null) => void;
-  setClashTraffic: (event: ClashTrafficEvent) => void;
+  setProxyConnections: (snapshot: ProxyConnectionsSnapshot) => void;
+  setProxyMonitorFailed: (message?: string | null) => void;
+  setProxyMonitorRunning: (message?: string | null) => void;
+  setProxyMonitorStarting: (message?: string | null) => void;
+  setProxyMonitorStatus: (status: ProxyMonitorStatus) => void;
+  setProxyMonitorStopped: (message?: string | null) => void;
+  setProxyTraffic: (event: ProxyTrafficEvent) => void;
   setCoreState: (event: CoreStateEvent) => void;
   setSpeedtestRunning: (running: boolean) => void;
   setSpeedtestStatus: (status: SpeedtestStatus) => void;
@@ -58,19 +58,19 @@ type RuntimeEventState = {
   tun: TunChanged | null;
 };
 
-type ClashConnectionsEvent = Extract<TransientStreamEvent, { kind: "clashConnections" }>;
+type ProxyConnectionsEvent = Extract<TransientStreamEvent, { kind: "proxyConnections" }>;
 type StatisticsEvent = Extract<TransientStreamEvent, { kind: "statistics" }>;
 type FrameHandle = number | ReturnType<typeof setTimeout>;
 
-let pendingClashConnectionsEvent: ClashConnectionsEvent | null = null;
-let pendingClashConnectionsFrame: FrameHandle | null = null;
+let pendingProxyConnectionsEvent: ProxyConnectionsEvent | null = null;
+let pendingProxyConnectionsFrame: FrameHandle | null = null;
 
 const payloadStringSchema = z.string().max(4096);
 const nullablePayloadStringSchema = payloadStringSchema.nullable();
 const nonnegativeFiniteNumberSchema = z.number().finite().nonnegative();
 const nullableNonnegativeFiniteNumberSchema = nonnegativeFiniteNumberSchema.nullable();
 
-const clashConnectionItemSchema: z.ZodType<ClashConnectionItem> = z.object({
+const proxyConnectionItemSchema: z.ZodType<ProxyConnectionItem> = z.object({
   chains: z.array(payloadStringSchema).max(512),
   connectionType: nullablePayloadStringSchema,
   destination: payloadStringSchema,
@@ -87,8 +87,8 @@ const clashConnectionItemSchema: z.ZodType<ClashConnectionItem> = z.object({
   upload: nullableNonnegativeFiniteNumberSchema,
 });
 
-const clashConnectionsSnapshotSchema: z.ZodType<ClashConnectionsSnapshot> = z.object({
-  connections: z.array(clashConnectionItemSchema).max(10_000),
+const proxyConnectionsSnapshotSchema: z.ZodType<ProxyConnectionsSnapshot> = z.object({
+  connections: z.array(proxyConnectionItemSchema).max(10_000),
   downloadTotal: nullableNonnegativeFiniteNumberSchema,
   uploadTotal: nullableNonnegativeFiniteNumberSchema,
 });
@@ -113,7 +113,7 @@ const statisticsSnapshotSchema: z.ZodType<StatisticsSnapshot> = z.object({
   uploadBytesPerSecond: nullableNonnegativeFiniteNumberSchema,
 });
 
-const initialClashMonitorStatus: RuntimeClashMonitorStatus = {
+const initialProxyMonitorStatus: RuntimeProxyMonitorStatus = {
   message: null,
   running: false,
   stale: true,
@@ -122,29 +122,29 @@ const initialClashMonitorStatus: RuntimeClashMonitorStatus = {
 
 export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
   clearLogs: () => set({ logLines: [] }),
-  clashConnections: null,
-  clashMonitorStatus: initialClashMonitorStatus,
-  clashTraffic: null,
+  proxyConnections: null,
+  proxyMonitorStatus: initialProxyMonitorStatus,
+  proxyTraffic: null,
   coreState: null,
   lastTransientEvent: null,
   logLines: [],
   pushTransientEvent: (event) => {
-    if (event.kind === "clashConnections") {
-      const payload = parseClashConnectionsSnapshot(event.payload);
+    if (event.kind === "proxyConnections") {
+      const payload = parseProxyConnectionsSnapshot(event.payload);
       if (!payload) {
         return;
       }
 
-      pendingClashConnectionsEvent = { kind: "clashConnections", payload };
-      if (pendingClashConnectionsFrame === null) {
-        pendingClashConnectionsFrame = scheduleFrame(() => {
-          const nextEvent = pendingClashConnectionsEvent;
-          pendingClashConnectionsEvent = null;
-          pendingClashConnectionsFrame = null;
+      pendingProxyConnectionsEvent = { kind: "proxyConnections", payload };
+      if (pendingProxyConnectionsFrame === null) {
+        pendingProxyConnectionsFrame = scheduleFrame(() => {
+          const nextEvent = pendingProxyConnectionsEvent;
+          pendingProxyConnectionsEvent = null;
+          pendingProxyConnectionsFrame = null;
           if (nextEvent) {
             set((state) => ({
-              clashConnections: nextEvent.payload,
-              clashMonitorStatus: markClashDataFresh(state.clashMonitorStatus),
+              proxyConnections: nextEvent.payload,
+              proxyMonitorStatus: markProxyDataFresh(state.proxyMonitorStatus),
               lastTransientEvent: nextEvent,
             }));
           }
@@ -186,15 +186,15 @@ export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
           return { lastTransientEvent: event, sysProxy: event.payload };
         case "tunChanged":
           return { lastTransientEvent: event, tun: event.payload };
-        case "clashMonitorStatus":
+        case "proxyMonitorStatus":
           return {
-            clashMonitorStatus: toRuntimeClashMonitorStatus(event.payload),
+            proxyMonitorStatus: toRuntimeProxyMonitorStatus(event.payload),
             lastTransientEvent: event,
           };
-        case "clashTraffic":
+        case "proxyTraffic":
           return {
-            clashMonitorStatus: markClashDataFresh(state.clashMonitorStatus),
-            clashTraffic: event.payload,
+            proxyMonitorStatus: markProxyDataFresh(state.proxyMonitorStatus),
+            proxyTraffic: event.payload,
             lastTransientEvent: event,
           };
         case "speedtestResult":
@@ -212,25 +212,25 @@ export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
     const status = await speedtestStatus();
     set({ speedtestRunning: status.running });
   },
-  setClashConnections: (clashConnections) => {
-    const payload = parseClashConnectionsSnapshot(clashConnections);
+  setProxyConnections: (proxyConnections) => {
+    const payload = parseProxyConnectionsSnapshot(proxyConnections);
     if (payload) {
-      set({ clashConnections: payload });
+      set({ proxyConnections: payload });
     }
   },
-  setClashMonitorFailed: (message = null) =>
-    set({ clashMonitorStatus: makeClashMonitorStatus("failed", false, true, message) }),
-  setClashMonitorRunning: (message = null) =>
-    set({ clashMonitorStatus: makeClashMonitorStatus("running", true, false, message) }),
-  setClashMonitorStarting: (message = null) =>
+  setProxyMonitorFailed: (message = null) =>
+    set({ proxyMonitorStatus: makeProxyMonitorStatus("failed", false, true, message) }),
+  setProxyMonitorRunning: (message = null) =>
+    set({ proxyMonitorStatus: makeProxyMonitorStatus("running", true, false, message) }),
+  setProxyMonitorStarting: (message = null) =>
     set((state) => ({
-      clashMonitorStatus: makeClashMonitorStatus("starting", false, state.clashMonitorStatus.stale, message),
+      proxyMonitorStatus: makeProxyMonitorStatus("starting", false, state.proxyMonitorStatus.stale, message),
     })),
-  setClashMonitorStatus: (clashMonitorStatus) =>
-    set({ clashMonitorStatus: toRuntimeClashMonitorStatus(clashMonitorStatus) }),
-  setClashMonitorStopped: (message = null) =>
-    set({ clashMonitorStatus: makeClashMonitorStatus("stopped", false, true, message) }),
-  setClashTraffic: (clashTraffic) => set({ clashTraffic }),
+  setProxyMonitorStatus: (proxyMonitorStatus) =>
+    set({ proxyMonitorStatus: toRuntimeProxyMonitorStatus(proxyMonitorStatus) }),
+  setProxyMonitorStopped: (message = null) =>
+    set({ proxyMonitorStatus: makeProxyMonitorStatus("stopped", false, true, message) }),
+  setProxyTraffic: (proxyTraffic) => set({ proxyTraffic }),
   setCoreState: (coreState) => set({ coreState }),
   setSpeedtestRunning: (speedtestRunning) => set({ speedtestRunning }),
   setSpeedtestStatus: (status) => set({ speedtestRunning: status.running }),
@@ -244,7 +244,7 @@ export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
   tun: null,
 }));
 
-function toRuntimeClashMonitorStatus(status: ClashMonitorStatus): RuntimeClashMonitorStatus {
+function toRuntimeProxyMonitorStatus(status: ProxyMonitorStatus): RuntimeProxyMonitorStatus {
   return {
     message: status.message,
     running: status.running,
@@ -253,21 +253,21 @@ function toRuntimeClashMonitorStatus(status: ClashMonitorStatus): RuntimeClashMo
   };
 }
 
-function makeClashMonitorStatus(
-  state: RuntimeClashMonitorState,
+function makeProxyMonitorStatus(
+  state: RuntimeProxyMonitorState,
   running: boolean,
   stale: boolean,
   message: string | null,
-): RuntimeClashMonitorStatus {
+): RuntimeProxyMonitorStatus {
   return { message, running, stale, state };
 }
 
-function markClashDataFresh(status: RuntimeClashMonitorStatus): RuntimeClashMonitorStatus {
+function markProxyDataFresh(status: RuntimeProxyMonitorStatus): RuntimeProxyMonitorStatus {
   return { ...status, stale: false };
 }
 
-function parseClashConnectionsSnapshot(payload: unknown): ClashConnectionsSnapshot | null {
-  const result = clashConnectionsSnapshotSchema.safeParse(payload);
+function parseProxyConnectionsSnapshot(payload: unknown): ProxyConnectionsSnapshot | null {
+  const result = proxyConnectionsSnapshotSchema.safeParse(payload);
   return result.success ? result.data : null;
 }
 

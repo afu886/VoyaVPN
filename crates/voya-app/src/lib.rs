@@ -5,7 +5,6 @@
 
 pub mod autostart;
 pub mod certificates;
-pub mod clash;
 mod coregen;
 pub mod diagnostics;
 pub mod dns;
@@ -16,6 +15,7 @@ pub mod hotkeys;
 pub mod input_safety;
 pub mod presets;
 pub mod profiles;
+pub mod proxy_runtime;
 pub mod qr;
 pub mod redaction;
 pub mod routing;

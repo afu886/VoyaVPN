@@ -931,8 +931,8 @@ pub(super) fn export_error(error: ExportManagerError) -> AppError {
     }
 }
 
-pub(super) fn clash_error(error: ClashManagerError) -> AppError {
-    AppError::Clash(error.to_string())
+pub(super) fn proxy_runtime_error(error: ProxyRuntimeError) -> AppError {
+    AppError::ProxyRuntime(error.to_string())
 }
 
 pub(super) fn dns_error(error: DnsManagerError) -> AppError {

@@ -60,20 +60,20 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 - **voya-platform** — All OS-specific code: `paths`, `process`, `elevation`, `tun`, `sysproxy`/PAC, `autostart`, `hotkeys`, `coreinfo`, `privilege`. Domain crates reach platform side effects through traits/adapters defined here.
 - **voya-net** — HTTP downloads, subscriptions, update checks, Clash REST/WebSocket, and rulesets.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
-- **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `clash`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, etc.) that combine the domain/db/net/platform crates. No Tauri wiring here.
+- **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `proxy_runtime`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, etc.) that combine the domain/db/net/platform crates. `proxy_runtime` exposes product-level proxy group/connection behavior through the sing-box Clash-compatible API. No Tauri wiring here.
 - **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands/` splits its 86 `#[tauri::command]` functions by subsystem; `commands/mod.rs` re-exports every command and crate-private shell helper, `ipc/window.rs` has 2 more, and the fixed `collect_commands!` list registers 87 commands; debug builds add `ipc_demo_round_trip` for 88; events live in `events.rs`).
 
 ### Frontend (`apps/desktop/src/` + `packages/`)
 
 - **`apps/desktop/src/ipc/` is the only frontend directory allowed to import `@tauri-apps/api` or Tauri plugins.** Features call typed wrappers (`commands.ts`, `updater.ts`, `process.ts`) and use the single mounted `event-bridge.tsx`, never raw `invoke`/`listen`. This is an architectural rule (ADR 0002) and is lint-enforced.
 - **`apps/desktop/src/ipc/bindings.ts` is generated** from Rust `specta`/`tauri-specta` — never edit by hand, never hand-write DTOs mirroring backend types. It is regenerated automatically on every debug build (`run()` exports it). After changing any Rust command/event/DTO, run `pnpm bindings` and commit; `pnpm bindings:check` (a CI gate) fails on drift.
-- `apps/desktop/src/features/<subsystem>/` — desktop feature UIs (profiles, subscriptions, routing, dns, clash, groups, options, logs, qr, templates, updates, home).
+- `apps/desktop/src/features/<subsystem>/` — desktop feature UIs (profiles, subscriptions, routing, dns, proxy, groups, options, logs, qr, templates, updates, home).
 - `packages/ui/src/components/` — shared shadcn/ui primitives; `apps/desktop/src/components/app-shell/` — desktop shell. State via Zustand (`apps/desktop/src/stores/`) + TanStack Query.
 - `packages/i18n/src/locales/` — generated locale JSON imported from upstream v2rayN `.resx` files.
 
 ### IPC event model (three channels)
 
-1. **Invalidation events** — backend changes that invalidate TanStack Query caches (profiles, subscriptions, routing, DNS, settings, Clash).
+1. **Invalidation events** — backend changes that invalidate TanStack Query caches (profiles, subscriptions, routing, DNS, settings, proxy runtime).
 2. **Transient streams** — live state outside cached queries (log lines, statistics, core state, speedtest, sysproxy/TUN changes). See `TransientStreamEvent` in `events.rs`.
 3. **Imperative app events** — shell actions (reload, show/hide, add-via-scan/clipboard, shutdown, set-default-server, etc.).
 

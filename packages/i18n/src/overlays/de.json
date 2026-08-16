@@ -55,7 +55,7 @@
     "webdavUser": "User name",
     "working": "Working"
   },
-  "clash": {
+  "proxy": {
     "active": "Active",
     "chain": "Chain",
     "delay": "Delay",
@@ -73,9 +73,9 @@
     "noActive": "No active proxy",
     "node": "Node",
     "process": "Process",
-    "ruleModeDirect": "Direct",
-    "ruleModeGlobal": "Global",
-    "ruleModeRule": "Rule",
+    "trafficModeDirect": "Direct",
+    "trafficModeGlobal": "Global",
+    "trafficModeRule": "Rule",
     "source": "Source",
     "type": "Type",
     "udp": "UDP",
@@ -94,7 +94,6 @@
     "about": "About VoyaVPN",
     "backup": "Backup and Restore",
     "checkUpdates": "Check updates",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "File",
     "font": "Schriftart",
@@ -179,18 +178,18 @@
     "runtimeTests": "Tests and updates"
   },
   "panes": {
-    "clashConnections": {
+    "proxyConnections": {
       "columns": {
         "heading": "Spalten anzeigen",
         "reset": "Auf Standard zurücksetzen",
         "toggle": "Spalten"
       },
-      "empty": "No Clash connections",
-      "title": "Clash Connections"
+      "empty": "No connections",
+      "title": "Connections"
     },
-    "clashProxies": {
-      "empty": "No Clash proxies",
-      "title": "Clash Proxies"
+    "proxyGroups": {
+      "empty": "No proxy groups",
+      "title": "Proxy Groups"
     },
     "dns": {
       "empty": "No DNS settings",
@@ -463,8 +462,8 @@
   },
   "tabs": {
     "aria": "Main sections",
-    "clashConnections": "Clash Connections",
-    "clashProxies": "Clash Proxies",
+    "proxyConnections": "Connections",
+    "proxyGroups": "Proxy Groups",
     "dns": "DNS",
     "logs": "Logs",
     "profiles": "Profiles",

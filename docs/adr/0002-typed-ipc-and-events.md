@@ -19,11 +19,11 @@ Frontend rules:
 - TypeScript IPC DTOs that mirror Rust types are generated, not hand-written.
 - Generated binding drift is a build failure once the scaffold exists.
 
-Backend command groups follow subsystem ownership: profiles, subscriptions, routing, DNS, config generation, core runtime, system proxy, TUN/elevation, Clash, speedtest, updates, hotkeys, QR, certificates, and presets.
+Backend command groups follow subsystem ownership: profiles, subscriptions, routing, DNS, config generation, core runtime, system proxy, TUN/elevation, proxy runtime, speedtest, updates, hotkeys, QR, certificates, and presets. The proxy runtime is backed by the sing-box Clash-compatible API, whose protocol names remain unchanged below the product boundary.
 
 Events use three frontend channels:
 
-- Invalidation events: backend changes that invalidate TanStack Query data, such as profiles, subscriptions, routings, DNS, settings, and Clash data.
+- Invalidation events: backend changes that invalidate TanStack Query data, such as profiles, subscriptions, routings, DNS, settings, and proxy runtime data.
 - Transient streams: live state stored outside cached queries, such as log lines, statistics, core state, speedtest results, system proxy changes, and TUN changes.
 - Imperative app events: shell actions derived from v2rayN `AppEvents`, such as reload, show/hide, add via scan, add via clipboard, shutdown, set default server, route menu refresh, test server, inbound display, and user notices.
 

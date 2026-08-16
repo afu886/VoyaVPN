@@ -55,7 +55,7 @@
     "webdavUser": "نام کاربری",
     "working": "در حال انجام"
   },
-  "clash": {
+  "proxy": {
     "active": "فعال",
     "chain": "زنجیره",
     "delay": "تاخیر",
@@ -73,9 +73,9 @@
     "noActive": "پراکسی فعالی نیست",
     "node": "گره",
     "process": "فرایند",
-    "ruleModeDirect": "مستقیم",
-    "ruleModeGlobal": "سراسری",
-    "ruleModeRule": "قانون",
+    "trafficModeDirect": "مستقیم",
+    "trafficModeGlobal": "سراسری",
+    "trafficModeRule": "قانون",
     "source": "مبدا",
     "type": "نوع",
     "udp": "UDP",
@@ -94,7 +94,6 @@
     "about": "درباره VoyaVPN",
     "backup": "پشتیبان گیری و بازیابی",
     "checkUpdates": "بررسی به روزرسانی",
-    "clash": "Clash",
     "dns": "DNS",
     "file": "پرونده",
     "font": "فونت",
@@ -179,18 +178,18 @@
     "runtimeTests": "Tests and updates"
   },
   "panes": {
-    "clashConnections": {
+    "proxyConnections": {
       "columns": {
         "heading": "نمایش ستون‌ها",
         "reset": "بازنشانی به پیش‌فرض",
         "toggle": "ستون‌ها"
       },
-      "empty": "اتصال Clash نیست",
-      "title": "اتصال های Clash"
+      "empty": "اتصالی وجود ندارد",
+      "title": "اتصال‌ها"
     },
-    "clashProxies": {
-      "empty": "پراکسی Clash نیست",
-      "title": "پراکسی های Clash"
+    "proxyGroups": {
+      "empty": "گروه پراکسی وجود ندارد",
+      "title": "گروه‌های پراکسی"
     },
     "dns": {
       "empty": "تنظیم DNS نیست",
@@ -463,8 +462,8 @@
   },
   "tabs": {
     "aria": "بخش های اصلی",
-    "clashConnections": "اتصال های Clash",
-    "clashProxies": "پراکسی های Clash",
+    "proxyConnections": "اتصال‌ها",
+    "proxyGroups": "گروه‌های پراکسی",
     "dns": "DNS",
     "logs": "گزارش ها",
     "profiles": "نمایه ها",
