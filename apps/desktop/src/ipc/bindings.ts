@@ -10,8 +10,6 @@ export const commands = {
 	saveAppConfig: (config: AppConfig_Deserialize) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("save_app_config", { config })),
 	loadUiPreferences: () => typedError<UiPreferences, AppError>(__TAURI_INVOKE("load_ui_preferences")),
 	saveUiPreferences: (preferences: UiPreferences) => typedError<UiPreferences, AppError>(__TAURI_INVOKE("save_ui_preferences", { preferences })),
-	diagnosticsStatus: () => typedError<DiagnosticsStatus, AppError>(__TAURI_INVOKE("diagnostics_status")),
-	setDiagnosticsEnabled: (enabled: boolean) => typedError<DiagnosticsStatus, AppError>(__TAURI_INVOKE("set_diagnostics_enabled", { enabled })),
 	autostartStatus: () => typedError<AutostartStatus, AppError>(__TAURI_INVOKE("autostart_status")),
 	setAutostartEnabled: (enabled: boolean) => typedError<AutostartStatus, AppError>(__TAURI_INVOKE("set_autostart_enabled", { enabled })),
 	globalHotkeyStatus: () => typedError<HotkeyStatus_Serialize, AppError>(__TAURI_INVOKE("global_hotkey_status")),
@@ -126,14 +124,10 @@ export const commands = {
 	cancelSpeedtest: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("cancel_speedtest")),
 	speedtestStatus: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("speedtest_status")),
 	appUpdateStatus: () => typedError<AppUpdaterStatus, AppError>(__TAURI_INVOKE("app_update_status")),
-	recordAppUpdateDiagnostic: (action: AppUpdateDiagnosticAction, result: AppUpdateDiagnosticResult, message: string | null) => typedError<null, AppError>(__TAURI_INVOKE("record_app_update_diagnostic", { action, result, message })),
-	updateStatus: () => typedError<UpdateStatus, AppError>(__TAURI_INVOKE("update_status")),
-	saveUpdatePreferences: (preRelease: boolean, selectedTargetIds: string[]) => typedError<UpdateStatus, AppError>(__TAURI_INVOKE("save_update_preferences", { preRelease, selectedTargetIds })),
 	loadConfigSources: () => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("load_config_sources")),
 	saveConfigSources: (settings: ConfigSourceSettings) => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("save_config_sources", { settings })),
-	checkUpdates: (preRelease: boolean, selectedTargetIds: string[], preferProxy: boolean, proxyUrl: string | null) => typedError<UpdateRunResult, AppError>(__TAURI_INVOKE("check_updates", { preRelease, selectedTargetIds, preferProxy, proxyUrl })),
-	downloadUpdates: (preRelease: boolean, selectedTargetIds: string[], preferProxy: boolean, proxyUrl: string | null) => typedError<UpdateRunResult, AppError>(__TAURI_INVOKE("download_updates", { preRelease, selectedTargetIds, preferProxy, proxyUrl })),
-	manualAppUpdateLinks: (preRelease: boolean, preferProxy: boolean, proxyUrl: string | null) => typedError<ManualAppUpdateLinks, AppError>(__TAURI_INVOKE("manual_app_update_links", { preRelease, preferProxy, proxyUrl })),
+	updateGeoAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_geo_assets")),
+	updateSrsAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_srs_assets")),
 	/**
 	 *  Re-install a core binary from the packaged seed (`{resource_dir}/core-seeds/<core>/`)
 	 *  into `bin/<core>/`. This is the recovery action behind the missing-core prompt: the
@@ -181,7 +175,6 @@ export type AppConfig_Deserialize = {
 	SubIndexId?: string,
 	CoreBasicItem?: CoreBasicItem_Deserialize,
 	TunModeItem?: TunModeItem,
-	KcpItem?: KcpItem,
 	GrpcItem?: GrpcItem_Deserialize,
 	RoutingBasicItem?: RoutingBasicItem,
 	GUIItem?: GuiItem,
@@ -189,14 +182,10 @@ export type AppConfig_Deserialize = {
 	UIItem?: UiItem_Deserialize,
 	ConstItem?: ConstItem_Deserialize,
 	SpeedTestItem?: SpeedTestItem_Deserialize,
-	Mux4RayItem?: Mux4RayItem_Deserialize,
 	Mux4SboxItem?: Mux4SboxItem_Deserialize,
 	HysteriaItem?: HysteriaItem,
 	ProxyUIItem?: ProxyUiItem,
 	SystemProxyItem?: SystemProxyItem_Deserialize,
-	CheckUpdateItem?: CheckUpdateItem_Deserialize,
-	DiagnosticsItem?: DiagnosticsItem_Deserialize,
-	Fragment4RayItem?: Fragment4RayItem_Deserialize,
 	Inbound?: InItem_Deserialize[],
 	GlobalHotkeys?: KeyEventItem_Deserialize[],
 	SimpleDNSItem?: SimpleDnsItem_Deserialize,
@@ -207,7 +196,6 @@ export type AppConfig_Serialize = {
 	SubIndexId: string,
 	CoreBasicItem: CoreBasicItem_Serialize,
 	TunModeItem: TunModeItem,
-	KcpItem: KcpItem,
 	GrpcItem: GrpcItem_Serialize,
 	RoutingBasicItem: RoutingBasicItem,
 	GUIItem: GuiItem,
@@ -215,14 +203,10 @@ export type AppConfig_Serialize = {
 	UIItem: UiItem_Serialize,
 	ConstItem: ConstItem_Serialize,
 	SpeedTestItem: SpeedTestItem_Serialize,
-	Mux4RayItem: Mux4RayItem_Serialize,
 	Mux4SboxItem: Mux4SboxItem_Serialize,
 	HysteriaItem: HysteriaItem,
 	ProxyUIItem: ProxyUiItem,
 	SystemProxyItem: SystemProxyItem_Serialize,
-	CheckUpdateItem: CheckUpdateItem_Serialize,
-	DiagnosticsItem: DiagnosticsItem_Serialize,
-	Fragment4RayItem: Fragment4RayItem_Serialize,
 	Inbound: InItem_Serialize[],
 	GlobalHotkeys: KeyEventItem_Serialize[],
 	SimpleDNSItem: SimpleDnsItem_Serialize,
@@ -239,10 +223,6 @@ export type AppNotice = {
 };
 
 export type AppNoticeLevel = "info" | "warning" | "error";
-
-export type AppUpdateDiagnosticAction = "check" | "install";
-
-export type AppUpdateDiagnosticResult = "success" | "failure" | "skipped";
 
 export type AppUpdaterState = "ready" | "unconfigured" | "unsupported" | "error";
 
@@ -277,18 +257,6 @@ export type CertificateFetchResult = {
 	warning: string | null,
 };
 
-export type CheckUpdateItem = CheckUpdateItem_Serialize | CheckUpdateItem_Deserialize;
-
-export type CheckUpdateItem_Deserialize = {
-	CheckPreReleaseUpdate?: boolean,
-	SelectedCoreTypes?: string[] | null,
-};
-
-export type CheckUpdateItem_Serialize = {
-	CheckPreReleaseUpdate: boolean,
-	SelectedCoreTypes?: string[] | null,
-};
-
 export type ColumnItem = {
 	Name?: string,
 	Width?: number,
@@ -319,9 +287,6 @@ export type ConstItem = ConstItem_Serialize | ConstItem_Deserialize;
 
 export type ConstItem_Deserialize = {
 	SubConvertUrl?: string | null,
-	CdnBaseUrl?: string | null,
-	CdnReleaseIndexUrl?: string | null,
-	CdnCoreManifestUrl?: string | null,
 	GeoSourceUrl?: string | null,
 	SrsSourceUrl?: string | null,
 	RouteRulesTemplateSourceUrl?: string | null,
@@ -329,9 +294,6 @@ export type ConstItem_Deserialize = {
 
 export type ConstItem_Serialize = {
 	SubConvertUrl?: string | null,
-	CdnBaseUrl?: string | null,
-	CdnReleaseIndexUrl?: string | null,
-	CdnCoreManifestUrl?: string | null,
 	GeoSourceUrl?: string | null,
 	SrsSourceUrl?: string | null,
 	RouteRulesTemplateSourceUrl?: string | null,
@@ -392,27 +354,6 @@ export type DemoRequest = {
 export type DemoResponse = {
 	echoedMessage: string,
 	messageLength: number,
-};
-
-export type DiagnosticsItem = DiagnosticsItem_Serialize | DiagnosticsItem_Deserialize;
-
-export type DiagnosticsItem_Deserialize = {
-	Enabled?: boolean,
-	AnonymousInstallId?: string,
-	EndpointUrl?: string | null,
-};
-
-export type DiagnosticsItem_Serialize = {
-	Enabled: boolean,
-	AnonymousInstallId?: string,
-	EndpointUrl?: string | null,
-};
-
-export type DiagnosticsStatus = {
-	enabled: boolean,
-	deliveryConfigured: boolean,
-	queuedEvents: number,
-	queuedBytes: number,
 };
 
 export type DnsCommandError = {
@@ -488,20 +429,6 @@ export type ExportProfilesResult = {
 	text: string,
 	count: number,
 	format: ExportProfilesFormat,
-};
-
-export type Fragment4RayItem = Fragment4RayItem_Serialize | Fragment4RayItem_Deserialize;
-
-export type Fragment4RayItem_Deserialize = {
-	Packets?: string | null,
-	Length?: string | null,
-	Interval?: string | null,
-};
-
-export type Fragment4RayItem_Serialize = {
-	Packets?: string | null,
-	Length?: string | null,
-	Interval?: string | null,
 };
 
 export type FullConfigTemplateItem = FullConfigTemplateItem_Serialize | FullConfigTemplateItem_Deserialize;
@@ -677,15 +604,6 @@ export type InvalidateEvent = {
 	keys: QueryInvalidation[],
 };
 
-export type KcpItem = {
-	Mtu?: number,
-	Tti?: number,
-	UplinkCapacity?: number,
-	DownlinkCapacity?: number,
-	CwndMultiplier?: number,
-	MaxSendingWindow?: number,
-};
-
 export type KeyEventItem = KeyEventItem_Serialize | KeyEventItem_Deserialize;
 
 export type KeyEventItem_Deserialize = {
@@ -712,26 +630,6 @@ export type LogLineEvent = {
 	line: string,
 };
 
-export type ManualAppUpdateDownload = {
-	name: string,
-	kind: string,
-	version: string,
-	url: string,
-	sha256: string | null,
-	bytes: number | null,
-};
-
-export type ManualAppUpdateLinks = {
-	currentVersion: string,
-	remoteVersion: string | null,
-	hasUpdate: boolean,
-	releaseIndexUrl: string,
-	channel: string,
-	target: string,
-	arch: string,
-	downloads: ManualAppUpdateDownload[],
-};
-
 export type MissingCoreError = {
 	message: string,
 	coreType: CoreType,
@@ -755,20 +653,6 @@ export type MsgUiItem_Serialize = {
 };
 
 export type MultipleLoad = number;
-
-export type Mux4RayItem = Mux4RayItem_Serialize | Mux4RayItem_Deserialize;
-
-export type Mux4RayItem_Deserialize = {
-	Concurrency?: number | null,
-	XudpConcurrency?: number | null,
-	XudpProxyUDP443?: string | null,
-};
-
-export type Mux4RayItem_Serialize = {
-	Concurrency?: number | null,
-	XudpConcurrency?: number | null,
-	XudpProxyUDP443?: string | null,
-};
 
 export type Mux4SboxItem = Mux4SboxItem_Serialize | Mux4SboxItem_Deserialize;
 
@@ -1039,6 +923,12 @@ export type QrScanStatus = "found" | "notFound" | "unavailable";
 export type QueryInvalidation = {
 	queryKey: string[],
 	reason: string,
+};
+
+export type ResourceUpdateFile = {
+	name: string,
+	bytes: number,
+	usedProxy: boolean,
 };
 
 export type RoutingBasicItem = {
@@ -1550,49 +1440,6 @@ export type UiPreferences = {
 };
 
 export type UiThemeMode = "system" | "light" | "dark";
-
-export type UpdateAcquisition = "appPackage" | "optionalDownload";
-
-export type UpdateCheckResult = {
-	targetId: string,
-	status: UpdateResultStatus,
-	message: string,
-	currentVersion: string | null,
-	remoteVersion: string | null,
-	downloadUrl: string | null,
-	fileName: string | null,
-	sha256: string | null,
-	bytes: number | null,
-	usedProxy: boolean | null,
-};
-
-export type UpdateResultStatus = "skipped" | "upToDate" | "updateAvailable" | "downloaded" | "error";
-
-export type UpdateRunResult = {
-	preRelease: boolean,
-	results: UpdateCheckResult[],
-	targets: UpdateTarget[],
-};
-
-export type UpdateStatus = {
-	preRelease: boolean,
-	targets: UpdateTarget[],
-};
-
-export type UpdateTarget = {
-	id: string,
-	name: string,
-	kind: UpdateTargetKind,
-	coreType: CoreType | null,
-	selected: boolean,
-	updateSupported: boolean,
-	license: string | null,
-	acquisition: UpdateAcquisition,
-	redistributeInInstaller: boolean,
-	remarks: string,
-};
-
-export type UpdateTargetKind = "app" | "geo" | "srs";
 
 export type WindowChromeConfig = {
 	titleBarLayout: TitleBarLayout,

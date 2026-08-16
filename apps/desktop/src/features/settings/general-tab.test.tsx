@@ -5,16 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GeneralTab } from "@/features/settings/general-tab";
 import { changeLocale } from "@voya/i18n";
-import type { AutostartStatus, DiagnosticsStatus } from "@/ipc/bindings";
+import type { AutostartStatus } from "@/ipc/bindings";
 import { usePreferencesStore } from "@/stores/preferences-store";
 
 const ipcMocks = vi.hoisted(() => ({
   autostartStatus: vi.fn(),
-  diagnosticsStatus: vi.fn(),
   loadUiPreferences: vi.fn(),
   saveUiPreferences: vi.fn(),
   setAutostartEnabled: vi.fn(),
-  setDiagnosticsEnabled: vi.fn(),
 }));
 
 vi.mock("@/ipc", () => ipcMocks);
@@ -30,42 +28,6 @@ describe("GeneralTab", () => {
 
   afterEach(() => {
     cleanup();
-  });
-
-  it("shows diagnostics enabled by default and persists opt-out", async () => {
-    const user = userEvent.setup();
-
-    renderGeneralTab();
-
-    const diagnosticsCheckbox = await screen.findByRole("checkbox", {
-      name: /Release health diagnostics/,
-    });
-    await waitFor(() => expect(diagnosticsCheckbox).toBeEnabled());
-    expect(diagnosticsCheckbox).toBeChecked();
-    expect(screen.getByText("No node, subscription, traffic, or config details.")).toBeInTheDocument();
-
-    await user.click(diagnosticsCheckbox);
-
-    await waitFor(() => expect(ipcMocks.setDiagnosticsEnabled).toHaveBeenCalledWith(false));
-    await waitFor(() => expect(diagnosticsCheckbox).not.toBeChecked());
-  });
-
-  it("redacts sensitive diagnostics IPC errors before rendering", async () => {
-    ipcMocks.diagnosticsStatus.mockRejectedValue(
-      new Error(
-        "failed at https://diagnostics.voyavpn.test/ingest proxyUrl=http://127.0.0.1:10808 vless://secret@example.com",
-      ),
-    );
-
-    renderGeneralTab();
-
-    const error = await screen.findByText(/failed at/);
-    expect(error).toHaveTextContent("[redacted URL]");
-    expect(error).toHaveTextContent("proxyUrl=[redacted]");
-    expect(error).toHaveTextContent("[redacted]");
-    expect(screen.queryByText(/diagnostics\.voyavpn\.test/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/127\.0\.0\.1/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/vless:\/\//)).not.toBeInTheDocument();
   });
 
   it("toggles autostart through the checkbox and shows the artifact path", async () => {
@@ -87,7 +49,7 @@ describe("GeneralTab", () => {
   it("groups startup options under an accessible group label", async () => {
     renderGeneralTab();
 
-    expect(await screen.findByRole("group", { name: "Startup & diagnostics" })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: "Startup" })).toBeInTheDocument();
   });
 
   it("saves a theme change immediately and disables preference choices while saving", async () => {
@@ -158,7 +120,6 @@ function mockDefaultIpc() {
     enabled: false,
     platform: "macos",
   } satisfies AutostartStatus);
-  ipcMocks.diagnosticsStatus.mockResolvedValue(makeDiagnosticsStatus(true));
   ipcMocks.setAutostartEnabled.mockImplementation(async (enabled: boolean) => ({
     artifactKind: null,
     artifactName: "VoyaVPN.desktop",
@@ -166,16 +127,4 @@ function mockDefaultIpc() {
     enabled,
     platform: "macos",
   }));
-  ipcMocks.setDiagnosticsEnabled.mockImplementation(async (enabled: boolean) =>
-    makeDiagnosticsStatus(enabled),
-  );
-}
-
-function makeDiagnosticsStatus(enabled: boolean): DiagnosticsStatus {
-  return {
-    deliveryConfigured: false,
-    enabled,
-    queuedBytes: 0,
-    queuedEvents: 0,
-  };
 }

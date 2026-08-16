@@ -102,7 +102,6 @@ These GitHub Actions variables are public configuration, not private signing mat
 | `VOYAVPN_CDN_BASE_URL` | No | Approved stable CDN base URL for manual downloads, release index entries, core assets, and staging evidence. Required for stable. |
 | `VOYAVPN_UPDATES_BASE_URL` | No | Approved updater CDN base URL. Required for stable. Non-stable dry runs fall back to a `.test` URL. |
 | `VOYAVPN_UPDATER_PUBLIC_KEY` | No | Approved Tauri updater public key used by the generated stable overlay. Required for stable. |
-| `VOYAVPN_DIAGNOSTICS_ENDPOINT` | No | Approved HTTPS diagnostics ingest endpoint. Required for stable and validated without printing the value. |
 | `VOYAVPN_CORE_ASSETS_JSON` | No | Stable core asset source JSON used to generate core staging metadata. Required for stable final readiness; must contain production core asset paths, checksums, sizes, licenses, and upstream source references. |
 
 ## Non-Dry-Run Expectations
@@ -112,7 +111,7 @@ Setting `dry_run` to `false` enables stricter validation:
 1. `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH` must be present.
 2. `scripts/release-updater-metadata.mjs` requires real signed updater payloads and matching `.sig` files.
 3. Non-publishable dry-run updater signatures are disabled.
-4. For `channel=stable`, `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, `VOYAVPN_DIAGNOSTICS_ENDPOINT`, Apple signing/notarization inputs, and Windows signing inputs must be present and non-placeholder.
+4. For `channel=stable`, `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, Apple signing/notarization inputs, and Windows signing inputs must be present and non-placeholder.
 5. For `channel=stable`, `VOYAVPN_CORE_ASSETS_JSON` must be present so core staging metadata is generated from explicit release input instead of `tests/fixtures`.
 6. The workflow generates the stable updater overlay during preflight, builds the package matrix, generates CDN/updater/core metadata artifacts, then runs `scripts/check-release-readiness.mjs --mode stable` in the final readiness job against downloaded workflow artifacts and generated metadata.
 
@@ -128,7 +127,6 @@ Required variable and secret names:
 - `VOYAVPN_CDN_BASE_URL`
 - `VOYAVPN_UPDATES_BASE_URL`
 - `VOYAVPN_UPDATER_PUBLIC_KEY`
-- `VOYAVPN_DIAGNOSTICS_ENDPOINT`
 - `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when the updater key requires one
 - `APPLE_CERTIFICATE`
@@ -148,7 +146,7 @@ pnpm tauri:stable-updater-config
 pnpm check:release:stable
 ```
 
-Expected unprepared-shell failures include missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing diagnostics or platform signing inputs, missing real stable artifacts, stable checks pointed at fixtures, placeholder updater signatures, or forbidden production URLs. These failures are not repository blockers when they occur in a local shell that has not been provisioned with external production inputs.
+Expected unprepared-shell failures include missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing platform signing inputs, missing real stable artifacts, stable checks pointed at fixtures, placeholder updater signatures, or forbidden production URLs. These failures are not repository blockers when they occur in a local shell that has not been provisioned with external production inputs.
 
 Expected prepared-environment pass criteria: `pnpm tauri:stable-updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables updater artifacts with the approved public key and updater CDN endpoint, and `pnpm check:release:stable` exits successfully before any stable pointer promotion.
 

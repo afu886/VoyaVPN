@@ -24,7 +24,6 @@ const requiredDocs = [
   "docs/release/os-smoke-matrix.md",
   "docs/release/rollback.md",
   "docs/release/runbook.md",
-  "docs/release/diagnostics-privacy.md",
   "docs/release/THIRD_PARTY_NOTICES.md",
   "docs/verification/stable-release-gate.md",
 ];
@@ -38,13 +37,11 @@ export const blockerScanFiles = [
   "docs/release/os-smoke-matrix.md",
   "docs/release/rollback.md",
   "docs/release/runbook.md",
-  "docs/release/diagnostics-privacy.md",
   "docs/release/THIRD_PARTY_NOTICES.md",
   "docs/verification/stable-release-gate.md",
   "crates/voya-net/src/lib.rs",
   "crates/voya-net/src/download.rs",
   "crates/voya-net/src/subscription.rs",
-  "crates/voya-net/src/update.rs",
 ];
 
 const urlTextRegex = /\bhttps?:\/\/[^\s"'`<>]+/gi;
@@ -52,8 +49,8 @@ const githubDownloadPathRegex = /\/releases\/(?:latest\/)?download\/|\/latest\/d
 const exampleTextRegex = /\bhttps?:\/\/[^\s"'`<>)]*voyavpn\.example[^\s"'`<>)]*|\bvoyavpn\.example\b/i;
 const updaterPlaceholderRegex = /\bVOYAVPN_UPDATER_(?:PUBLIC_KEY|SIGNATURE)_PLACEHOLDER[A-Z0-9_]*\b/i;
 const productionFieldRegex =
-  /(?:^|[\s{[,("'])(?:url|urls|downloadUrl|download_url|download-url|cdnUrl|cdn_url|assetUrl|asset_url|artifactUrl|artifact_url|payloadUrl|payload_url|installerUrl|installer_url|manualDownloadUrl|manual_download_url|releaseIndexUrl|release_index_url|latestJsonUrl|latest_json_url|baseUrl|base_url|updatesBaseUrl|updates_base_url|endpoint|endpoints|downloadUrlTemplate|download_url_template|urlTemplate|url_template)["']?\s*[:=]|(?:^|\s)VOYAVPN_(?:CDN_BASE_URL|UPDATES_BASE_URL|DIAGNOSTICS_ENDPOINT)\s*=/i;
-const productionCliUrlRegex = /--(?:cdn-base-url|updates-base-url|diagnostics-endpoint|base-url)\s+\S+/i;
+  /(?:^|[\s{[,("'])(?:url|urls|downloadUrl|download_url|download-url|cdnUrl|cdn_url|assetUrl|asset_url|artifactUrl|artifact_url|payloadUrl|payload_url|installerUrl|installer_url|manualDownloadUrl|manual_download_url|releaseIndexUrl|release_index_url|latestJsonUrl|latest_json_url|baseUrl|base_url|updatesBaseUrl|updates_base_url|endpoint|endpoints|downloadUrlTemplate|download_url_template|urlTemplate|url_template)["']?\s*[:=]|(?:^|\s)VOYAVPN_(?:CDN_BASE_URL|UPDATES_BASE_URL)\s*=/i;
+const productionCliUrlRegex = /--(?:cdn-base-url|updates-base-url|base-url)\s+\S+/i;
 const productionTemplateContextRegex =
   /\b(?:ReleasePackage|AssetTemplates|downloadTemplates|download_templates|downloadUrlTemplate|download_url_template|urlTemplate|url_template|templates)\b/i;
 const sourceEvidenceContextRegex =
@@ -73,7 +70,6 @@ function parseArgs(argv) {
     releaseIndex: null,
     updaterMetadata: null,
     coreManifest: null,
-    diagnosticsEndpoint: null,
     tauriConfig: defaultTauriConfig,
   };
 
@@ -120,9 +116,6 @@ function parseArgs(argv) {
       case "--core-manifest":
         options.coreManifest = next();
         break;
-      case "--diagnostics-endpoint":
-        options.diagnosticsEndpoint = next();
-        break;
       case "--tauri-config":
         options.tauriConfig = next();
         break;
@@ -164,14 +157,12 @@ Options:
   --release-index <file>        Existing release-index.json artifact to validate as workflow evidence
   --updater-metadata <file>     Existing latest.json artifact to validate as workflow evidence
   --core-manifest <file>        Existing generated core-assets.json artifact to validate as workflow evidence
-  --diagnostics-endpoint <url>  Approved diagnostics ingest endpoint. Stable defaults to
-                                VOYAVPN_DIAGNOSTICS_ENDPOINT; dry-run does not require one
   --tauri-config <file>         Tauri config or package-uploaded stable overlay to scan. Non-default
                                 paths are merged over apps/desktop/src-tauri/tauri.conf.json
 
 Dry-run mode uses fixture data and does not require signing secrets. Stable mode
 fails closed on missing production inputs, placeholder updater keys/signatures,
-diagnostics endpoint config, package-time updater overlay evidence, example URLs,
+package-time updater overlay evidence, example URLs,
 and GitHub release/download URLs in production surfaces.`);
 }
 
@@ -272,48 +263,6 @@ function normalizeUrl(value, label, mode, { defaultDryRunUrl = null, requireHttp
   parsed.hash = "";
   parsed.search = "";
   return parsed.toString().replace(/\/+$/g, "");
-}
-
-function normalizeDiagnosticsEndpoint(value, mode) {
-  const resolvedValue = (value ?? "").trim();
-  if (!resolvedValue) {
-    if (mode === "dry-run") {
-      return null;
-    }
-    throw new Error("diagnostics endpoint (VOYAVPN_DIAGNOSTICS_ENDPOINT or --diagnostics-endpoint) is required");
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(resolvedValue);
-  } catch {
-    throw new Error("diagnostics endpoint is not a valid URL");
-  }
-
-  if (parsed.protocol !== "https:") {
-    throw new Error("diagnostics endpoint must use https");
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error("diagnostics endpoint must not include credentials");
-  }
-  if (parsed.search || parsed.hash) {
-    throw new Error("diagnostics endpoint must not include query strings or fragments");
-  }
-  if (isForbiddenStableHost(parsed.hostname, mode) || isIpHost(parsed.hostname)) {
-    throw new Error("diagnostics endpoint must not use example, GitHub, placeholder, localhost, .test, or IP hosts");
-  }
-
-  parsed.hash = "";
-  parsed.search = "";
-  return parsed.toString();
-}
-
-function isIpHost(hostname) {
-  const host = hostname.toLowerCase();
-  if (host.includes(":")) {
-    return true;
-  }
-  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
 }
 
 function placeholderText(value) {
@@ -463,11 +412,10 @@ class Reporter {
     }
   }
 
-  print({ cdnBaseUrl, updatesBaseUrl, diagnosticsEndpoint, workDir }) {
+  print({ cdnBaseUrl, updatesBaseUrl, workDir }) {
     console.log(`VoyaVPN release readiness (${this.mode})`);
     console.log(`CDN base URL: ${cdnBaseUrl}`);
     console.log(`Updater base URL: ${updatesBaseUrl}`);
-    console.log(`Diagnostics endpoint: ${diagnosticsEndpoint ? "configured" : "not configured"}`);
     console.log(`Generated output: ${workDir}`);
     console.log("");
 
@@ -631,7 +579,7 @@ async function checkTauriConfig(reporter, options, updatesBaseUrl) {
   }
 
   const resources = bundle.resources ?? {};
-  if (resources["../docs/release/THIRD_PARTY_NOTICES.md"] === "release/THIRD_PARTY_NOTICES.md") {
+  if (resources["../../../docs/release/THIRD_PARTY_NOTICES.md"] === "release/THIRD_PARTY_NOTICES.md") {
     reporter.pass("bundled notices resource", [`${detailsPrefix}: THIRD_PARTY_NOTICES.md is bundled`]);
   } else {
     reporter.fail("bundled notices resource", [`${detailsPrefix}: release notices resource is missing from bundle.resources`]);
@@ -651,9 +599,6 @@ async function checkStableEnvironment(reporter, options, cdnBaseUrl, updatesBase
   }
   if (!options.updatesBaseUrl && !process.env.VOYAVPN_UPDATES_BASE_URL && updatesBaseUrl !== cdnBaseUrl) {
     missing.push("VOYAVPN_UPDATES_BASE_URL or --updates-base-url");
-  }
-  if (!options.diagnosticsEndpoint && !process.env.VOYAVPN_DIAGNOSTICS_ENDPOINT) {
-    missing.push("VOYAVPN_DIAGNOSTICS_ENDPOINT or --diagnostics-endpoint");
   }
   if (!process.env.TAURI_SIGNING_PRIVATE_KEY && !process.env.TAURI_SIGNING_PRIVATE_KEY_PATH) {
     missing.push("TAURI_SIGNING_PRIVATE_KEY or TAURI_SIGNING_PRIVATE_KEY_PATH");
@@ -677,18 +622,7 @@ async function checkStableEnvironment(reporter, options, cdnBaseUrl, updatesBase
   }
 
   reporter.pass("stable required env inputs", [
-    "CDN/updater base URLs, diagnostics endpoint, and signing env names are present; secret values are not printed",
-  ]);
-}
-
-async function checkDiagnosticsEndpoint(reporter, options, diagnosticsEndpoint) {
-  if (!diagnosticsEndpoint) {
-    reporter.pass("diagnostics endpoint config", ["dry-run mode does not require diagnostics delivery config"]);
-    return;
-  }
-
-  reporter.pass("diagnostics endpoint config", [
-    "approved HTTPS endpoint is configured; endpoint value is not printed in readiness output",
+    "CDN/updater base URLs and signing env names are present; secret values are not printed",
   ]);
 }
 
@@ -1157,17 +1091,12 @@ async function main() {
       requireHttps: true,
     },
   );
-  const diagnosticsEndpoint = normalizeDiagnosticsEndpoint(
-    options.diagnosticsEndpoint ?? process.env.VOYAVPN_DIAGNOSTICS_ENDPOINT,
-    options.mode,
-  );
   const workDir = await createWorkDir(options);
   const reporter = new Reporter(options.mode);
 
   await checkRequiredDocs(reporter);
   await checkNotices(reporter);
   await checkStableEnvironment(reporter, options, cdnBaseUrl, updatesBaseUrl);
-  await checkDiagnosticsEndpoint(reporter, options, diagnosticsEndpoint);
   await checkTauriConfig(reporter, options, updatesBaseUrl);
   await scanProductionBlockers(reporter);
 
@@ -1177,7 +1106,7 @@ async function main() {
     reporter.fail("generated stable metadata", [error.message]);
   }
 
-  reporter.print({ cdnBaseUrl, updatesBaseUrl, diagnosticsEndpoint, workDir });
+  reporter.print({ cdnBaseUrl, updatesBaseUrl, workDir });
   if (reporter.hasFailures()) {
     process.exit(1);
   }

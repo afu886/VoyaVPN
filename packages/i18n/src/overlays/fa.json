@@ -154,10 +154,6 @@
       "reusedDescription": "الگوی مسیریابی منطبق از قبل وجود داشت؛ همان الگو دوباره استفاده و فعال شد.",
       "dnsFallbackWarning": "یک یا چند الگوی DNS در دسترس نبود. پیکربندی جایگزین DNS حفظ شد."
     },
-    "diagnostics": "عیب یابی سلامت انتشار",
-    "diagnosticsOff": "غیرفعال",
-    "diagnosticsOn": "فعال",
-    "diagnosticsScope": "جزئیات گره، اشتراک، ترافیک یا پیکربندی ثبت نمی شود.",
     "geoSource": "منبع فایل های Geo",
     "hotkeyKey": "کلید میانبر",
     "hotkeyProxyClear": "پاک کردن پراکسی سیستم",
@@ -472,10 +468,6 @@
     "network": "شبکه"
   },
   "updates": {
-    "acquisition": {
-      "appPackage": "بسته برنامه",
-      "optionalDownload": "دریافت اختیاری"
-    },
     "appInstalled": "به روزرسانی برنامه نصب شد: {{version}}",
     "appUpdateAvailable": "برنامه {{version}} در دسترس است",
     "appUpdater": "به روزرسان برنامه",
@@ -486,56 +478,21 @@
       "unconfigured": "پیکربندی نشده",
       "unsupported": "پشتیبانی نمی شود"
     },
-    "apply": "اعمال",
-    "applied": "اعمال شد {{version}}",
-    "check": "بررسی",
     "checkApp": "بررسی برنامه",
-    "description": "بررسی به روزرسانی برنامه، فایل های geo و ruleset.",
-    "download": "دریافت",
+    "geoDescription": "دارایی‌های Geo را اکنون با منبع تنظیم‌شده و سیاست پروکسی زمان اجرا دریافت کنید.",
+    "geoTitle": "دارایی‌های Geo",
     "installApp": "نصب برنامه",
-    "restartApp": "Restart app",
-    "kind": {
-      "app": "برنامه",
-      "geo": "Geo",
-      "srs": "SRS"
-    },
-    "manualCurrent": "دریافت دستی به روز است",
-    "manualDownloads": "دریافت دستی",
-    "manualLinksUnavailable": "لینک های CDN دستی در دسترس نیست.",
-    "manualState": {
-      "available": "دستی موجود",
-      "current": "دستی به روز",
-      "failed": "دستی ناموفق",
-      "waiting": "دستی در انتظار"
-    },
-    "manualUpdateAvailable": "دریافت دستی {{version}} موجود است",
-    "missingDownloadedFields": "به روزرسانی دریافت شده فاقد فایل، نسخه یا checksum است.",
     "noAppUpdate": "برنامه به روز است",
-    "noSelectedTargets": "حداقل یک هدف را برای بررسی یا دریافت انتخاب کنید.",
-    "preRelease": "Pre-release",
-    "restartRequired": "Restart VoyaVPN to finish applying the update.",
     "redactedUrl": "[URL پنهان شد]",
     "redactedValue": "[پنهان شد]",
-    "selected": "انتخاب شده",
-    "status": "وضعیت",
-    "statusAppliedVersion": "اعمال شد {{version}}",
-    "statusCurrent": "به روز",
-    "statusCurrentVersion": "به روز {{version}}",
-    "statusDownloaded": "دریافت شد",
-    "statusDownloadedVersion": "دریافت شد {{version}}",
-    "statusFailedMessage": "ناموفق: {{message}}",
-    "statusNotSelected": "انتخاب نشده",
-    "statusSkipped": "رد شد",
-    "statusUpdateAvailable": "موجود",
-    "statusUpdateAvailableVersion": "موجود {{version}}",
-    "target": "هدف",
+    "resourceUpdated": "{{count}} فایل به‌روزرسانی شد",
+    "restartApp": "راه‌اندازی مجدد برنامه",
+    "restartRequired": "برای تکمیل به‌روزرسانی، VoyaVPN را دوباره راه‌اندازی کنید.",
+    "srsDescription": "قواعد SRS را اکنون با منبع تنظیم‌شده و سیاست پروکسی زمان اجرا دریافت کنید.",
+    "srsTitle": "دارایی‌های SRS",
     "title": "بررسی به روزرسانی",
-    "version": "نسخه",
-    "waiting": "در انتظار",
-    "support": {
-      "auto": "Auto",
-      "manual": "Manual"
-    }
+    "updateNow": "اکنون به‌روزرسانی کن",
+    "waiting": "در انتظار"
   },
   "home": {
     "aria": "خانهٔ اتصال",
@@ -568,25 +525,16 @@
     "tunConfigJson": "TUN config JSON"
   },
   "settings": {
-    "startup": "راه‌اندازی و عیب‌یابی",
+    "startup": "راه‌اندازی",
     "tabGeneral": "عمومی",
     "tabHotkeys": "کلیدهای میانبر",
     "tabTests": "تست‌ها",
     "tabUpdates": "به‌روزرسانی‌ها",
     "fields": {
-      "cdnBaseUrl": "آدرس پایه CDN به‌روزرسانی (اختیاری)",
-      "cdnCoreManifestUrl": "آدرس مانیفست هسته (اختیاری)",
-      "cdnReleaseIndexUrl": "آدرس فهرست نسخه‌ها (اختیاری)",
-      "fragmentInterval": "فرگمنت: فاصله (interval)",
-      "fragmentLength": "فرگمنت: طول (length)",
-      "fragmentPackets": "فرگمنت: بسته‌ها (packets)",
       "hysteriaDownMbps": "حداکثر پهنای باند دانلود هیستریا (Mbps)",
       "hysteriaUpMbps": "حداکثر پهنای باند آپلود هیستریا (Mbps)",
-      "muxConcurrency": "همزمانی Mux (Xray)",
       "muxMaxConnections": "حداکثر اتصالات Mux برای sing-box",
       "muxPadding": "پدینگ Mux برای sing-box",
-      "muxXudpConcurrency": "همزمانی XUDP (Xray)",
-      "muxXudpProxyUdp443": "پروکسی XUDP برای UDP/443 (reject / allow / skip)",
       "speedTestDelayInterval": "فاصله بین دسته‌های تست سرعت (ثانیه)",
       "speedTestPageSize": "تعداد سرورها در هر دسته تست سرعت"
     }

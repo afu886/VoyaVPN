@@ -21,7 +21,6 @@ This document records the manual credentialed steps required before public beta 
 | Tauri updater public key | Release engineer | `VOYAVPN_UPDATER_PUBLIC_KEY` or `TAURI_UPDATER_PUBLIC_KEY` | The generated stable overlay contains the approved public key, while `apps/desktop/src-tauri/tauri.conf.json` remains credential-free. | Regenerate the overlay with the previous approved public key or disable update metadata for the affected channel. |
 | CDN release base URL | Release owner | GitHub Actions variable `VOYAVPN_CDN_BASE_URL` and stable CDN host | Generated `release-index.json`, core manifests, and staging evidence derive stable URLs from the approved CDN base URL. | Restore the previous release-index pointer and hold new app/core assets outside public paths. |
 | Update hosting base URL | Release owner | GitHub Actions variable `VOYAVPN_UPDATES_BASE_URL` and stable update host | The generated `latest.json` URLs resolve to signed stable updater payloads on the approved CDN endpoint. | Restore the previous `latest.json`, remove bad payloads from the host, and rerun metadata generation. |
-| Diagnostics endpoint | Privacy/security owner | GitHub Actions variable `VOYAVPN_DIAGNOSTICS_ENDPOINT` and approved HTTPS ingest host | Stable preflight validates that diagnostics delivery is configured without URL credentials, query strings, fragments, local hosts, source-control hosts, or fixture hosts. | Disable diagnostics delivery through the approved control path and hold stable publication until privacy approval is restored. |
 
 ## Updater Key Procedure
 

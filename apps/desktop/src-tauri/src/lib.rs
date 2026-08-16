@@ -13,7 +13,6 @@ use tauri::{
 use tauri_specta::Event;
 use tokio::sync::Mutex as AsyncMutex;
 use voya_app::{
-    diagnostics::{prepare_diagnostics_settings, DiagnosticsClient},
     elevation::ElevationManager,
     proxy_runtime::{
         ProxyConnectionsSnapshot, ProxyMonitorController, ProxyRuntimeEventSink, ProxyTrafficEvent,
@@ -68,7 +67,6 @@ pub(crate) struct AppState {
     speedtest_manager: SpeedtestManager,
     system_proxy_manager: SystemProxyManager,
     proxy_monitor_controller: ProxyMonitorController,
-    diagnostics_client: Arc<AsyncMutex<DiagnosticsClient>>,
     settings_window_lock: AsyncMutex<()>,
 }
 
@@ -117,10 +115,6 @@ impl AppState {
         self.proxy_monitor_controller.clone()
     }
 
-    pub(crate) fn diagnostics_client(&self) -> Arc<AsyncMutex<DiagnosticsClient>> {
-        Arc::clone(&self.diagnostics_client)
-    }
-
     pub(crate) fn settings_window_lock(&self) -> &AsyncMutex<()> {
         &self.settings_window_lock
     }
@@ -164,7 +158,7 @@ pub fn run() {
                 runtime_paths.clone(),
             );
             let config_store = AppConfigStore::new(app_config_dir.join("guiNConfig.json"));
-            let mut config = config_store.load()?;
+            let config = config_store.load()?;
             let skip_persisted_proxy_apply = match system_proxy_manager
                 .restore_dirty_proxy_if_needed(&config)
             {
@@ -182,16 +176,6 @@ pub fn run() {
                     true
                 }
             };
-            let original_config = config.clone();
-            let app_version = app.package_info().version.to_string();
-            prepare_diagnostics_settings(
-                &mut config,
-                &app_version,
-                ipc::commands::diagnostics_release_channel(),
-            );
-            if original_config != config {
-                config_store.save(&config)?;
-            }
             let shared_config = Arc::new(RwLock::new(config.clone()));
             let database = tauri::async_runtime::block_on(Database::connect(
                 app_config_dir.join(DATABASE_NAME),
@@ -276,14 +260,11 @@ pub fn run() {
                 speedtest_manager,
                 system_proxy_manager,
                 proxy_monitor_controller: ProxyMonitorController::new(),
-                diagnostics_client: Arc::new(AsyncMutex::new(DiagnosticsClient::new())),
                 settings_window_lock: AsyncMutex::new(()),
             });
 
             specta_builder.mount_events(app);
             setup_tray(app)?;
-            ipc::commands::record_app_start_diagnostics(app.handle());
-
             Ok(())
         })
         .build(tauri::generate_context!())

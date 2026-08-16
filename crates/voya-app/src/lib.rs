@@ -6,7 +6,6 @@
 pub mod autostart;
 pub mod certificates;
 mod coregen;
-pub mod diagnostics;
 pub mod dns;
 pub mod elevation;
 pub mod exports;

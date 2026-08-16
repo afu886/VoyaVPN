@@ -17,11 +17,6 @@ use voya_app::certificates::{
     fetch_certificate as fetch_certificate_impl, CertificateError, CertificateFetchRequest,
     CertificateFetchResult,
 };
-use voya_app::diagnostics::{
-    diagnostics_settings, prepare_diagnostics_settings, DiagnosticsClient, DiagnosticsErrorClass,
-    DiagnosticsEvent, DiagnosticsRecordStatus, DiagnosticsReleaseChannel, DiagnosticsResult,
-    DiagnosticsSettings,
-};
 use voya_app::dns::{DnsManager, DnsManagerError, DnsSettings, DnsValidationIssue};
 use voya_app::elevation::ElevationError;
 use voya_app::exports::{
@@ -49,13 +44,12 @@ use voya_app::speedtest::{
     SpeedTestResult, SpeedtestError, SpeedtestManager, SpeedtestRunResult, SpeedtestStatus,
 };
 use voya_app::subscriptions::{SubscriptionManager, SubscriptionManagerError};
-use voya_app::supervisor::{SupervisorConnectionState, SupervisorError, SupervisorSnapshot};
+use voya_app::supervisor::{SupervisorConnectionState, SupervisorSnapshot};
 use voya_app::sysproxy::SystemProxyManagerError;
 use voya_app::templates::{FullConfigTemplateManager, FullConfigTemplateManagerError};
 use voya_app::tun::{TunManager, TunManagerError, TunProviderDiagnostics, TunStatus};
 use voya_app::updates::{
-    ConfigSourceSettings, ManualAppUpdateLinks, UpdateManager, UpdateManagerError,
-    UpdateRequestOptions, UpdateResultStatus, UpdateRunResult, UpdateStatus,
+    ConfigSourceSettings, ResourceUpdateFile, UpdateManager, UpdateManagerError,
 };
 use voya_core::{
     AppConfig, CoreType, FullConfigTemplateItem, GlobalHotkey, GroupChildCandidate, GroupPreview,
@@ -187,30 +181,6 @@ pub struct AppUpdaterStatus {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AppUpdateDiagnosticAction {
-    Check,
-    Install,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AppUpdateDiagnosticResult {
-    Success,
-    Failure,
-    Skipped,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DiagnosticsStatus {
-    pub enabled: bool,
-    pub delivery_configured: bool,
-    pub queued_events: u32,
-    pub queued_bytes: u32,
-}
-
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemProxyStatusResponse {
@@ -264,8 +234,8 @@ pub(crate) use lifecycle::emit_current_tun_status;
 #[allow(unused_imports)]
 pub(crate) use lifecycle::emit_tun_changed;
 pub(crate) use support::{
-    diagnostics_release_channel, emit_core_state, emit_runtime_log, emit_statistics_zero,
-    record_app_start_diagnostics, restore_system_proxy_after_native_tun_failure,
+    emit_core_state, emit_runtime_log, emit_statistics_zero,
+    restore_system_proxy_after_native_tun_failure,
 };
 // Retain the prior crate-visible helper path after moduleization.
 #[allow(unused_imports)]

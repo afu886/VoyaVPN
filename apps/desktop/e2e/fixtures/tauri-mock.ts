@@ -58,12 +58,6 @@ export async function installTauriSmokeMock(page: Page) {
         platform: "linux",
       },
       calls: [] as Array<{ command: string; args: CommandArgs }>,
-      diagnostics: {
-        deliveryConfigured: false,
-        enabled: true,
-        queuedBytes: 0,
-        queuedEvents: 0,
-      },
       dns: makeDnsSettings(),
       hotkeys: makeHotkeyStatus(),
       profiles: [] as ProfileRow[],
@@ -101,23 +95,6 @@ export async function installTauriSmokeMock(page: Page) {
         requiresSudoPassword: false,
         restoreOnDisconnect: true,
         sudoPasswordPresent: false,
-      },
-      updates: {
-        preRelease: false,
-        targets: [
-          {
-            acquisition: "appPackage",
-            coreType: null,
-            id: "app",
-            kind: "app",
-            license: "MIT",
-            name: "VoyaVPN",
-            redistributeInInstaller: true,
-            remarks: "application package update",
-            selected: true,
-            updateSupported: true,
-          },
-        ],
       },
     };
 
@@ -455,11 +432,6 @@ export async function installTauriSmokeMock(page: Page) {
         case "set_autostart_enabled":
           state.autostart = { ...state.autostart, enabled: Boolean(args.enabled) };
           return Promise.resolve(clone(state.autostart));
-        case "diagnostics_status":
-          return Promise.resolve(clone(state.diagnostics));
-        case "set_diagnostics_enabled":
-          state.diagnostics = { ...state.diagnostics, enabled: Boolean(args.enabled) };
-          return Promise.resolve(clone(state.diagnostics));
         case "global_hotkey_status":
           return Promise.resolve(clone(state.hotkeys));
         case "save_global_hotkeys":
@@ -485,27 +457,10 @@ export async function installTauriSmokeMock(page: Page) {
           });
         case "app_update_status":
           return Promise.resolve({ currentVersion: "0.1.0", message: null, state: "ready" });
-        case "manual_app_update_links":
-          return Promise.resolve({
-            arch: "x64",
-            channel: "stable",
-            currentVersion: "0.1.0",
-            downloads: [],
-            hasUpdate: false,
-            releaseIndexUrl: "https://cdn.voyavpn.test/stable/release-index.json",
-            remoteVersion: null,
-            target: "linux",
-          });
-        case "record_app_update_diagnostic":
-          return Promise.resolve(null);
-        case "update_status":
-          return Promise.resolve(clone(state.updates));
-        case "save_update_preferences":
-          state.updates = { ...state.updates, preRelease: Boolean(args.preRelease) };
-          return Promise.resolve(clone(state.updates));
-        case "check_updates":
-        case "download_updates":
-          return Promise.resolve({ preRelease: Boolean(args.preRelease), results: [], targets: clone(state.updates.targets) });
+        case "update_geo_assets":
+          return Promise.resolve([{ bytes: 1024, name: "geoip.db", usedProxy: false }]);
+        case "update_srs_assets":
+          return Promise.resolve([{ bytes: 512, name: "rules.srs", usedProxy: false }]);
         case "ipc_demo_round_trip":
           return Promise.resolve({ echoedMessage: readRecord(args, "request").message ?? "", messageLength: String(readRecord(args, "request").message ?? "").length });
         default:
@@ -726,10 +681,6 @@ export async function installTauriSmokeMock(page: Page) {
 
     function makeAppConfig() {
       return {
-        CheckUpdateItem: {
-          CheckPreReleaseUpdate: false,
-          SelectedCoreTypes: ["app"],
-        },
         ProxyUIItem: {
           NodeSorting: 0,
           TrafficMode: 0,
@@ -741,15 +692,12 @@ export async function installTauriSmokeMock(page: Page) {
         },
         CoreBasicItem: {},
         CoreTypeItem: [],
-        Fragment4RayItem: {},
         GUIItem: {},
         GrpcItem: {},
         HysteriaItem: {},
         Inbound: [],
         IndexId: "",
-        KcpItem: {},
         MsgUIItem: {},
-        Mux4RayItem: {},
         Mux4SboxItem: {},
         RoutingBasicItem: {},
         SimpleDNSItem: {},

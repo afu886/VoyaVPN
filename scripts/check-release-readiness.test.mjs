@@ -46,7 +46,7 @@ describe("release readiness production blocker scan", () => {
 
   it("blocks GitHub production download templates outside upstream evidence", () => {
     const matches = findProductionBlockersInText(
-      "crates/voya-net/src/update.rs",
+      "crates/voya-net/src/download.rs",
       `pub fn app_package() -> ReleasePackage {
   ReleasePackage {
     templates: AssetTemplates {
@@ -62,7 +62,7 @@ describe("release readiness production blocker scan", () => {
 
   it("allows upstream release evidence templates", () => {
     const matches = findProductionBlockersInText(
-      "crates/voya-net/src/update.rs",
+      "crates/voya-net/src/download.rs",
       `fn app_upstream_release_evidence() -> UpstreamReleaseEvidence {
   UpstreamReleaseEvidence {
     asset_templates: UpstreamAssetTemplates {
@@ -87,7 +87,7 @@ describe("release readiness production blocker scan", () => {
 
   it("ignores defensive guard strings and Rust test fixtures", () => {
     const matches = findProductionBlockersInText(
-      "crates/voya-net/src/update.rs",
+      "crates/voya-net/src/download.rs",
       `fn ensure_production_url_allowed(url: &str) -> Result<(), ReleaseError> {
   if url.contains("voyavpn.example") || url.contains("github.com") {
     return Err(ReleaseError::ForbiddenProductionUrl(url.to_string()));

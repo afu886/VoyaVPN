@@ -3,8 +3,6 @@ import type {
   AppConfig_Deserialize,
   AppConfig_Serialize,
   AppError,
-  AppUpdateDiagnosticAction,
-  AppUpdateDiagnosticResult,
   AppUpdaterStatus,
   AutostartStatus,
   CertificateFetchRequest,
@@ -26,7 +24,6 @@ import type {
   HotkeyStatus_Serialize,
   ImportProfilesResult,
   KeyEventItem_Deserialize,
-  ManualAppUpdateLinks,
   MoveAction,
   ConfigSourceSettings,
   ConfigTemplateImportResult,
@@ -44,7 +41,7 @@ import type {
   RuntimeStatusResponse,
   CoreSeedInstallResult,
   CoreType,
-  DiagnosticsStatus,
+  ResourceUpdateFile,
   SpeedActionType,
   SpeedtestRunResult,
   SpeedtestStatus,
@@ -56,8 +53,6 @@ import type {
   TunProviderDiagnostics,
   TunStatus,
   UiPreferences,
-  UpdateRunResult,
-  UpdateStatus,
   WindowChromeConfig,
 } from "@/ipc/bindings";
 
@@ -95,14 +90,6 @@ export async function saveUiPreferences(preferences: UiPreferences): Promise<UiP
 
 export async function openSettingsWindow(): Promise<void> {
   unwrapCommandResult(await commands.openSettingsWindow());
-}
-
-export async function diagnosticsStatus(): Promise<DiagnosticsStatus> {
-  return unwrapCommandResult(await commands.diagnosticsStatus());
-}
-
-export async function setDiagnosticsEnabled(enabled: boolean): Promise<DiagnosticsStatus> {
-  return unwrapCommandResult(await commands.setDiagnosticsEnabled(enabled));
 }
 
 export async function autostartStatus(): Promise<AutostartStatus> {
@@ -459,18 +446,6 @@ export async function appUpdateStatus(): Promise<AppUpdaterStatus> {
   return unwrapCommandResult(await commands.appUpdateStatus());
 }
 
-export async function recordAppUpdateDiagnostic(
-  action: AppUpdateDiagnosticAction,
-  result: AppUpdateDiagnosticResult,
-  message: string | null = null,
-): Promise<void> {
-  unwrapCommandResult(await commands.recordAppUpdateDiagnostic(action, result, message));
-}
-
-export async function updateStatus(): Promise<UpdateStatus> {
-  return unwrapCommandResult(await commands.updateStatus());
-}
-
 export async function loadConfigSources(): Promise<ConfigSourceSettings> {
   return unwrapCommandResult(await commands.loadConfigSources());
 }
@@ -481,43 +456,12 @@ export async function saveConfigSources(
   return unwrapCommandResult(await commands.saveConfigSources(settings));
 }
 
-export async function saveUpdatePreferences(
-  preRelease: boolean,
-  selectedTargetIds: string[],
-): Promise<UpdateStatus> {
-  return unwrapCommandResult(await commands.saveUpdatePreferences(preRelease, selectedTargetIds));
+export async function updateGeoAssets(): Promise<ResourceUpdateFile[]> {
+  return unwrapCommandResult(await commands.updateGeoAssets());
 }
 
-export async function checkUpdates(
-  preRelease: boolean,
-  selectedTargetIds: string[],
-  preferProxy = true,
-  proxyUrl: string | null = null,
-): Promise<UpdateRunResult> {
-  return unwrapCommandResult(
-    await commands.checkUpdates(preRelease, selectedTargetIds, preferProxy, proxyUrl),
-  );
-}
-
-export async function downloadUpdates(
-  preRelease: boolean,
-  selectedTargetIds: string[],
-  preferProxy = true,
-  proxyUrl: string | null = null,
-): Promise<UpdateRunResult> {
-  return unwrapCommandResult(
-    await commands.downloadUpdates(preRelease, selectedTargetIds, preferProxy, proxyUrl),
-  );
-}
-
-export async function manualAppUpdateLinks(
-  preRelease: boolean,
-  preferProxy = true,
-  proxyUrl: string | null = null,
-): Promise<ManualAppUpdateLinks> {
-  return unwrapCommandResult(
-    await commands.manualAppUpdateLinks(preRelease, preferProxy, proxyUrl),
-  );
+export async function updateSrsAssets(): Promise<ResourceUpdateFile[]> {
+  return unwrapCommandResult(await commands.updateSrsAssets());
 }
 
 export async function installCoreSeed(coreType: CoreType): Promise<CoreSeedInstallResult> {

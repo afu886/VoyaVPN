@@ -93,7 +93,6 @@ jobs:
           VOYAVPN_CDN_BASE_URL: ${{ vars.VOYAVPN_CDN_BASE_URL }}
           VOYAVPN_UPDATES_BASE_URL: ${{ vars.VOYAVPN_UPDATES_BASE_URL }}
           VOYAVPN_UPDATER_PUBLIC_KEY: ${{ vars.VOYAVPN_UPDATER_PUBLIC_KEY }}
-          VOYAVPN_DIAGNOSTICS_ENDPOINT: ${{ vars.VOYAVPN_DIAGNOSTICS_ENDPOINT }}
           VOYAVPN_CORE_ASSETS_JSON: ${{ vars.VOYAVPN_CORE_ASSETS_JSON }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PATH }}
@@ -156,7 +155,7 @@ jobs:
             );
           }
 
-          function requireHttpsUrl(name, { diagnostics = false } = {}) {
+          function requireHttpsUrl(name) {
             const value = requireValue(name);
             let parsed;
             try {
@@ -168,16 +167,12 @@ jobs:
               throw new Error(`${name} must use https.`);
             }
             if (forbiddenHost(parsed.hostname)) {
-              throw new Error(`${name} must use an approved non-placeholder CDN or diagnostics host.`);
-            }
-            if (diagnostics && (parsed.username || parsed.password || parsed.search || parsed.hash)) {
-              throw new Error(`${name} must not include credentials, query strings, or fragments.`);
+              throw new Error(`${name} must use an approved non-placeholder CDN host.`);
             }
           }
 
           requireHttpsUrl("VOYAVPN_CDN_BASE_URL");
           requireHttpsUrl("VOYAVPN_UPDATES_BASE_URL");
-          requireHttpsUrl("VOYAVPN_DIAGNOSTICS_ENDPOINT", { diagnostics: true });
           const publicKey = requireValue("VOYAVPN_UPDATER_PUBLIC_KEY");
           if (publicKey.length < 32) {
             throw new Error("VOYAVPN_UPDATER_PUBLIC_KEY must be the approved Tauri updater public key.");
@@ -539,7 +534,6 @@ jobs:
           VOYAVPN_CDN_BASE_URL: ${{ vars.VOYAVPN_CDN_BASE_URL }}
           VOYAVPN_UPDATES_BASE_URL: ${{ vars.VOYAVPN_UPDATES_BASE_URL }}
           VOYAVPN_UPDATER_PUBLIC_KEY: ${{ vars.VOYAVPN_UPDATER_PUBLIC_KEY }}
-          VOYAVPN_DIAGNOSTICS_ENDPOINT: ${{ vars.VOYAVPN_DIAGNOSTICS_ENDPOINT }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PATH }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -555,7 +549,6 @@ jobs:
             --mode stable \
             --cdn-base-url "$VOYAVPN_CDN_BASE_URL" \
             --updates-base-url "$VOYAVPN_UPDATES_BASE_URL" \
-            --diagnostics-endpoint "$VOYAVPN_DIAGNOSTICS_ENDPOINT" \
             --release-artifacts dist/final-readiness/packages \
             --updater-artifacts dist/final-readiness/packages \
             --core-assets dist/final-readiness/core-staging-metadata/source-core-assets.json \

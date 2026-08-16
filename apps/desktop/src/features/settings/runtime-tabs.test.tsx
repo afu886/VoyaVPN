@@ -34,10 +34,9 @@ describe("runtime config tabs", () => {
     cleanup();
   });
 
-  it("preserves the latest sources and update preferences when saving runtime settings", async () => {
+  it("preserves the latest sources and shell-owned settings when saving runtime settings", async () => {
     const user = userEvent.setup();
     const initialConfig = makeConfig({
-      CheckUpdateItem: { CheckPreReleaseUpdate: false, SelectedCoreTypes: ["app"] },
       ConstItem: {
         GeoSourceUrl: "https://old.example/geo.json",
         RouteRulesTemplateSourceUrl: "https://old.example/routes.json",
@@ -47,7 +46,6 @@ describe("runtime config tabs", () => {
       UIItem: { CurrentLanguage: "en", CurrentTheme: "Light" } as AppConfig_Serialize["UIItem"],
     });
     const latestConfig = makeConfig({
-      CheckUpdateItem: { CheckPreReleaseUpdate: true, SelectedCoreTypes: ["app", "geo"] },
       ConstItem: {
         GeoSourceUrl: "https://current.example/geo.json",
         RouteRulesTemplateSourceUrl: "https://current.example/routes.json",
@@ -72,10 +70,6 @@ describe("runtime config tabs", () => {
     expect(ipcMocks.loadAppConfig).toHaveBeenCalledTimes(2);
     expect(ipcMocks.saveAppConfig).toHaveBeenCalledWith(
       expect.objectContaining({
-        CheckUpdateItem: {
-          CheckPreReleaseUpdate: true,
-          SelectedCoreTypes: ["app", "geo"],
-        },
         ConstItem: expect.objectContaining({
           GeoSourceUrl: "https://current.example/geo.json",
           RouteRulesTemplateSourceUrl: "https://current.example/routes.json",
@@ -100,6 +94,17 @@ describe("runtime config tabs", () => {
     expect(screen.queryByText("CoreBasic.LogEnabled")).not.toBeInTheDocument();
   });
 
+  it("keeps sing-box controls while omitting Xray-only Mux and fragment details", async () => {
+    ipcMocks.loadAppConfig.mockResolvedValue(makeConfig({}));
+
+    const { container } = render(<CoreHarness />);
+
+    expect(await screen.findByRole("checkbox", { name: /Enable fragment/i })).toBeInTheDocument();
+    expect(container.querySelector("#rt-mux-sbox-max-connections")).toBeInTheDocument();
+    expect(container.querySelector("#rt-mux-concurrency")).not.toBeInTheDocument();
+    expect(container.querySelector("#rt-fragment-packets")).not.toBeInTheDocument();
+  });
+
   it("no longer exposes update preferences on the tests tab", async () => {
     ipcMocks.loadAppConfig.mockResolvedValue(makeConfig({}));
 
@@ -108,6 +113,17 @@ describe("runtime config tabs", () => {
     expect(await screen.findByLabelText("Speed Test URL")).toBeInTheDocument();
     expect(screen.queryByText(/Update\.CheckPreRelease/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Update\.SelectedTargets/)).not.toBeInTheDocument();
+  });
+
+  it("omits client CDN settings while retaining subscription conversion", async () => {
+    ipcMocks.loadAppConfig.mockResolvedValue(makeConfig({}));
+
+    const { container } = render(<TestsHarness />);
+
+    expect(await screen.findByLabelText("Subscription conversion URL")).toBeInTheDocument();
+    expect(container.querySelector("#rt-cdn-base-url")).not.toBeInTheDocument();
+    expect(container.querySelector("#rt-cdn-release-index-url")).not.toBeInTheDocument();
+    expect(container.querySelector("#rt-cdn-core-manifest-url")).not.toBeInTheDocument();
   });
 });
 

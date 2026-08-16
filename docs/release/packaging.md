@@ -162,7 +162,7 @@ Before a real stable release:
 
 2. Store only the public key in `VOYAVPN_UPDATER_PUBLIC_KEY` or `TAURI_UPDATER_PUBLIC_KEY`; do not commit it into the base config.
 3. Store the private key in CI or local release secrets through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`. Store the key password in `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when one is used.
-4. Set the prepared stable environment names described in [runbook.md](runbook.md), including `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, diagnostics, updater signing, platform signing, and real artifact input names.
+4. Set the prepared stable environment names described in [runbook.md](runbook.md), including `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, updater signing, platform signing, and real artifact input names.
 5. Generate and inspect the overlay before packaging with the command above.
 
 6. Run the stable readiness check against the generated overlay:

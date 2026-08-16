@@ -154,10 +154,6 @@
       "reusedDescription": "Die passende Routingvorlage war bereits vorhanden; sie wurde wiederverwendet und aktiviert.",
       "dnsFallbackWarning": "Eine oder mehrere DNS-Vorlagen waren nicht verfügbar. Die DNS-Ausweichkonfiguration wurde beibehalten."
     },
-    "diagnostics": "Release health diagnostics",
-    "diagnosticsOff": "Disabled",
-    "diagnosticsOn": "Enabled",
-    "diagnosticsScope": "No node, subscription, traffic, or config details.",
     "geoSource": "Geo files source",
     "hotkeyKey": "Hotkey key",
     "hotkeyProxyClear": "Clear system proxy",
@@ -472,10 +468,6 @@
     "network": "Netzwerk"
   },
   "updates": {
-    "acquisition": {
-      "appPackage": "App package",
-      "optionalDownload": "Optional download"
-    },
     "appInstalled": "App update installed: {{version}}",
     "appUpdateAvailable": "App {{version}} is available",
     "appUpdater": "App updater",
@@ -486,56 +478,21 @@
       "unconfigured": "Unconfigured",
       "unsupported": "Unsupported"
     },
-    "apply": "Apply",
-    "applied": "Applied {{version}}",
-    "check": "Check",
     "checkApp": "Check app",
-    "description": "Update checks for app, geo files, and rulesets.",
-    "download": "Download",
+    "geoDescription": "Download Geo assets now using the configured source and runtime proxy policy.",
+    "geoTitle": "Geo assets",
     "installApp": "Install app",
-    "restartApp": "Restart app",
-    "kind": {
-      "app": "App",
-      "geo": "Geo",
-      "srs": "SRS"
-    },
-    "manualCurrent": "Manual download is current",
-    "manualDownloads": "Manual downloads",
-    "manualLinksUnavailable": "Manual CDN links unavailable.",
-    "manualState": {
-      "available": "Manual available",
-      "current": "Manual current",
-      "failed": "Manual failed",
-      "waiting": "Manual waiting"
-    },
-    "manualUpdateAvailable": "Manual {{version}} available",
-    "missingDownloadedFields": "Downloaded update is missing file, version, or checksum metadata.",
     "noAppUpdate": "App is up to date",
-    "noSelectedTargets": "Select at least one target to check or download.",
-    "preRelease": "Pre-release",
-    "restartRequired": "Restart VoyaVPN to finish applying the update.",
     "redactedUrl": "[redacted URL]",
     "redactedValue": "[redacted]",
-    "selected": "Selected",
-    "status": "Status",
-    "statusAppliedVersion": "Applied {{version}}",
-    "statusCurrent": "Current",
-    "statusCurrentVersion": "Current {{version}}",
-    "statusDownloaded": "Downloaded",
-    "statusDownloadedVersion": "Downloaded {{version}}",
-    "statusFailedMessage": "Failed: {{message}}",
-    "statusNotSelected": "Not selected",
-    "statusSkipped": "Skipped",
-    "statusUpdateAvailable": "Available",
-    "statusUpdateAvailableVersion": "Available {{version}}",
-    "target": "Target",
+    "resourceUpdated": "Updated {{count}} files",
+    "restartApp": "Restart app",
+    "restartRequired": "Restart VoyaVPN to finish applying the update.",
+    "srsDescription": "Download SRS rulesets now using the configured source and runtime proxy policy.",
+    "srsTitle": "SRS assets",
     "title": "Check Updates",
-    "version": "Version",
-    "waiting": "Waiting",
-    "support": {
-      "auto": "Auto",
-      "manual": "Manual"
-    }
+    "updateNow": "Update now",
+    "waiting": "Waiting"
   },
   "home": {
     "aria": "Verbindungsstart",
@@ -568,25 +525,16 @@
     "tunConfigJson": "TUN config JSON"
   },
   "settings": {
-    "startup": "Startup & diagnostics",
+    "startup": "Startup",
     "tabGeneral": "General",
     "tabHotkeys": "Hotkeys",
     "tabTests": "Tests",
     "tabUpdates": "Updates",
     "fields": {
-      "cdnBaseUrl": "Update CDN base URL (optional)",
-      "cdnCoreManifestUrl": "Core manifest URL (optional)",
-      "cdnReleaseIndexUrl": "Release index URL (optional)",
-      "fragmentInterval": "Fragment interval",
-      "fragmentLength": "Fragment length",
-      "fragmentPackets": "Fragment packets",
       "hysteriaDownMbps": "Hysteria max download bandwidth (Mbps)",
       "hysteriaUpMbps": "Hysteria max upload bandwidth (Mbps)",
-      "muxConcurrency": "Mux concurrency (Xray)",
       "muxMaxConnections": "sing-box Mux max connections",
       "muxPadding": "sing-box Mux padding",
-      "muxXudpConcurrency": "XUDP concurrency (Xray)",
-      "muxXudpProxyUdp443": "XUDP proxy UDP/443 (reject / allow / skip)",
       "speedTestDelayInterval": "Delay between speed test batches (seconds)",
       "speedTestPageSize": "Servers per speed test batch"
     }

@@ -82,26 +82,6 @@ export function CoreTab({ controller }: { controller: RuntimeConfigController })
       <Separator />
 
       <SettingsGroup>
-        <NumberField
-          id="rt-mux-concurrency"
-          label={t("settings.fields.muxConcurrency")}
-          onChange={(Concurrency) => patchSection("Mux4RayItem", { Concurrency })}
-          value={config.Mux4RayItem.Concurrency ?? null}
-        />
-        <NumberField
-          id="rt-mux-xudp-concurrency"
-          label={t("settings.fields.muxXudpConcurrency")}
-          onChange={(XudpConcurrency) => patchSection("Mux4RayItem", { XudpConcurrency })}
-          value={config.Mux4RayItem.XudpConcurrency ?? null}
-        />
-        <TextField
-          id="rt-mux-xudp-proxy"
-          label={t("settings.fields.muxXudpProxyUdp443")}
-          onChange={(XudpProxyUDP443) =>
-            patchSection("Mux4RayItem", { XudpProxyUDP443: nullableText(XudpProxyUDP443) })
-          }
-          value={config.Mux4RayItem.XudpProxyUDP443 ?? ""}
-        />
         <TextField
           id="rt-mux-sbox-protocol"
           label={t("resx.TbSettingsMux4SboxProtocol")}
@@ -121,29 +101,6 @@ export function CoreTab({ controller }: { controller: RuntimeConfigController })
             onChange={(Padding) => patchSection("Mux4SboxItem", { Padding })}
           />
         </SettingsRow>
-      </SettingsGroup>
-
-      <Separator />
-
-      <SettingsGroup>
-        <TextField
-          id="rt-fragment-packets"
-          label={t("settings.fields.fragmentPackets")}
-          onChange={(Packets) => patchSection("Fragment4RayItem", { Packets: nullableText(Packets) })}
-          value={config.Fragment4RayItem.Packets ?? ""}
-        />
-        <TextField
-          id="rt-fragment-length"
-          label={t("settings.fields.fragmentLength")}
-          onChange={(Length) => patchSection("Fragment4RayItem", { Length: nullableText(Length) })}
-          value={config.Fragment4RayItem.Length ?? ""}
-        />
-        <TextField
-          id="rt-fragment-interval"
-          label={t("settings.fields.fragmentInterval")}
-          onChange={(Interval) => patchSection("Fragment4RayItem", { Interval: nullableText(Interval) })}
-          value={config.Fragment4RayItem.Interval ?? ""}
-        />
       </SettingsGroup>
 
       <Separator />

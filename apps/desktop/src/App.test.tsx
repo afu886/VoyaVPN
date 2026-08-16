@@ -193,14 +193,6 @@ vi.mock("@/ipc", () => ({
   deleteProfiles: vi.fn(),
   deleteRoutingRules: vi.fn(),
   deleteRoutings: vi.fn(),
-  diagnosticsStatus: vi.fn(() =>
-    Promise.resolve({
-      deliveryConfigured: false,
-      enabled: true,
-      queuedBytes: 0,
-      queuedEvents: 0,
-    }),
-  ),
   disconnectCore: vi.fn(),
   generateQrCode: vi.fn(() => Promise.resolve({ mimeType: "image/svg+xml", svg: "<svg />" })),
   getWindowChromeConfig: vi.fn(() => Promise.resolve({ titleBarLayout: "none" })),
@@ -319,14 +311,6 @@ vi.mock("@/ipc", () => ({
       platform: "linux",
     }),
   ),
-  setDiagnosticsEnabled: vi.fn((enabled) =>
-    Promise.resolve({
-      deliveryConfigured: false,
-      enabled,
-      queuedBytes: 0,
-      queuedEvents: 0,
-    }),
-  ),
   setSystemProxyMode: vi.fn(() =>
     Promise.resolve({
       effectiveMode: 0,
@@ -405,41 +389,8 @@ vi.mock("@/ipc", () => ({
       restoreOnDisconnect: true,
     }),
   ),
-  checkUpdates: vi.fn(() => Promise.resolve({ preRelease: false, results: [], targets: [] })),
-  downloadUpdates: vi.fn(() => Promise.resolve({ preRelease: false, results: [], targets: [] })),
-  manualAppUpdateLinks: vi.fn(() =>
-    Promise.resolve({
-      arch: "x64",
-      channel: "stable",
-      currentVersion: "0.1.0",
-      downloads: [],
-      hasUpdate: false,
-      releaseIndexUrl: "https://cdn.voyavpn.test/stable/release-index.json",
-      remoteVersion: null,
-      target: "linux",
-    }),
-  ),
-  recordAppUpdateDiagnostic: vi.fn(() => Promise.resolve()),
-  saveUpdatePreferences: vi.fn(() => Promise.resolve({ preRelease: false, targets: [] })),
-  updateStatus: vi.fn(() =>
-    Promise.resolve({
-      preRelease: false,
-      targets: [
-        {
-          acquisition: "appPackage",
-          coreType: null,
-          id: "app",
-          kind: "app",
-          license: "MIT",
-          name: "VoyaVPN",
-          redistributeInInstaller: true,
-          remarks: "application package update",
-          selected: true,
-          updateSupported: true,
-        },
-      ],
-    }),
-  ),
+  updateGeoAssets: vi.fn(() => Promise.resolve([])),
+  updateSrsAssets: vi.fn(() => Promise.resolve([])),
   updateSubscriptions: vi.fn(),
   useRuntimeEventStore: runtimeStoreMock.useRuntimeEventStore,
 }));

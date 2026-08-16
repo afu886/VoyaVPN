@@ -1,4 +1,4 @@
-//! Network service clients for downloads, updates, subscriptions, Clash API,
+//! Network service clients for downloads, subscriptions, Clash API,
 //! geo assets, and rulesets.
 
 mod download;
@@ -6,7 +6,6 @@ mod subscription;
 
 pub mod clash;
 pub mod ruleset;
-pub mod update;
 
 pub use download::{
     DownloadAttempt, DownloadBytesResponse, DownloadClient, DownloadError, DownloadRequest,

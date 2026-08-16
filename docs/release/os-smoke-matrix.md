@@ -2,7 +2,7 @@
 
 Batch: `05-03-stable-runbooks-and-smoke`
 
-These checks must run on real operating systems before production stable publication. The generated runner does not execute external publication, CDN pointer promotion, signing, notarization, diagnostics approval, or real OS smoke.
+These checks must run on real operating systems before production stable publication. The generated runner does not execute external publication, CDN pointer promotion, signing, notarization, or real OS smoke.
 
 ## Evidence Links
 
@@ -11,7 +11,6 @@ These checks must run on real operating systems before production stable publica
 - Rollback procedures: [rollback.md](rollback.md)
 - Stable external evidence checklist: [external-evidence-checklist.md](external-evidence-checklist.md)
 - Stable gate: [../verification/stable-release-gate.md](../verification/stable-release-gate.md)
-- Diagnostics privacy contract: [diagnostics-privacy.md](diagnostics-privacy.md)
 
 ## Evidence Required For Every OS Run
 
@@ -24,23 +23,22 @@ Record:
 - CDN release index entry, updater metadata entry, core manifest entry, and artifact URL host for stable runs.
 - Core binaries used, versions, paths, and whether they were downloaded on first run or preinstalled.
 - Redacted test server or subscription source.
-- Diagnostics setting state, redacted release-health event result, and opt-out result when diagnostics smoke runs.
 - Before and after OS proxy, routes, TUN devices, autostart entries, hotkeys, and running process state.
 - Logs, screenshots, terminal output, and exact commands proving pass or fail.
 - Skipped checks with concrete blocker, owner, and follow-up.
 
 ## Stable Target Coverage
 
-The first production stable matrix covers x64 and arm64 for Windows, macOS, and Linux. Each target must have manual download smoke, updater smoke, core smoke, diagnostics smoke, and rollback readiness evidence before pointer promotion. Release owners record the target artifact names, SHA-256 values, signature/notarization evidence, smoke logs, screenshots, and stop or rollback decision in [external-evidence-checklist.md](external-evidence-checklist.md).
+The first production stable matrix covers x64 and arm64 for Windows, macOS, and Linux. Each target must have manual download smoke, updater smoke, core smoke, and rollback readiness evidence before pointer promotion. Release owners record the target artifact names, SHA-256 values, signature/notarization evidence, smoke logs, screenshots, and stop or rollback decision in [external-evidence-checklist.md](external-evidence-checklist.md).
 
 | Stable target | Owner | System | Required verification | Rollback or stop condition |
 | --- | --- | --- | --- | --- |
-| `windows-x86_64` | Windows platform owner | Clean Windows x64 smoke machine, signed NSIS/MSI, stable CDN package and updater entries | Install, launch, manual download checksum/signature validation, updater smoke from older signed build, sing-box core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall. | Hold or roll back Windows x64 release-index and updater entries; restore OS proxy/routes and quarantine bad artifacts. |
-| `windows-aarch64` | Windows platform owner | Clean Windows arm64 smoke machine, signed arm64 NSIS/MSI, stable CDN package and updater entries | Native arm64 install and launch, manual download checksum/signature validation, updater smoke, arm64 core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `windows-aarch64` release-index and updater entries; restore OS state and quarantine bad artifacts. |
-| `darwin-x86_64` | macOS platform owner | Clean Intel macOS smoke machine, signed/notarized/stapled DMG, stable CDN package and updater entries | Gatekeeper launch, `pnpm native:macos:tunnel:verify` evidence for static Libbox symbols or embedded Libbox plus provisioning profiles and entitlements, manual download checksum/notarization validation, updater smoke, x64 core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `darwin-x86_64` release-index and updater entries; remove app bundle and restore OS state. |
-| `darwin-aarch64` | macOS platform owner | Clean Apple Silicon macOS smoke machine, signed/notarized/stapled arm64 DMG, stable CDN package and updater entries | Gatekeeper launch, `pnpm native:macos:tunnel:verify` evidence for static Libbox symbols or embedded Libbox plus provisioning profiles and entitlements, manual download checksum/notarization validation, updater smoke, arm64 core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `darwin-aarch64` release-index and updater entries; remove app bundle and restore OS state. |
-| `linux-x86_64` | Linux platform owner | Clean Linux x64 smoke machines for `.deb`, `.rpm`, and `.AppImage`, stable CDN package and updater entries | Package install or AppImage launch, manual download checksum validation, updater smoke where supported, x64 core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall/removal. | Hold or roll back `linux-x86_64` release-index and updater entries; revert package repository metadata if used; restore OS state. |
-| `linux-aarch64` | Linux platform owner | Clean Linux arm64 smoke machines for `.deb`, `.rpm`, and `.AppImage`, stable CDN package and updater entries | Package install or AppImage launch, manual download checksum validation, updater smoke where supported, arm64 core smoke, diagnostics smoke, proxy/TUN cleanup, uninstall/removal. | Hold or roll back `linux-aarch64` release-index and updater entries; revert package repository metadata if used; restore OS state. |
+| `windows-x86_64` | Windows platform owner | Clean Windows x64 smoke machine, signed NSIS/MSI, stable CDN package and updater entries | Install, launch, manual download checksum/signature validation, updater smoke from older signed build, sing-box core smoke, proxy/TUN cleanup, uninstall. | Hold or roll back Windows x64 release-index and updater entries; restore OS proxy/routes and quarantine bad artifacts. |
+| `windows-aarch64` | Windows platform owner | Clean Windows arm64 smoke machine, signed arm64 NSIS/MSI, stable CDN package and updater entries | Native arm64 install and launch, manual download checksum/signature validation, updater smoke, arm64 core smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `windows-aarch64` release-index and updater entries; restore OS state and quarantine bad artifacts. |
+| `darwin-x86_64` | macOS platform owner | Clean Intel macOS smoke machine, signed/notarized/stapled DMG, stable CDN package and updater entries | Gatekeeper launch, `pnpm native:macos:tunnel:verify` evidence for static Libbox symbols or embedded Libbox plus provisioning profiles and entitlements, manual download checksum/notarization validation, updater smoke, x64 core smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `darwin-x86_64` release-index and updater entries; remove app bundle and restore OS state. |
+| `darwin-aarch64` | macOS platform owner | Clean Apple Silicon macOS smoke machine, signed/notarized/stapled arm64 DMG, stable CDN package and updater entries | Gatekeeper launch, `pnpm native:macos:tunnel:verify` evidence for static Libbox symbols or embedded Libbox plus provisioning profiles and entitlements, manual download checksum/notarization validation, updater smoke, arm64 core smoke, proxy/TUN cleanup, uninstall. | Hold or roll back `darwin-aarch64` release-index and updater entries; remove app bundle and restore OS state. |
+| `linux-x86_64` | Linux platform owner | Clean Linux x64 smoke machines for `.deb`, `.rpm`, and `.AppImage`, stable CDN package and updater entries | Package install or AppImage launch, manual download checksum validation, updater smoke where supported, x64 core smoke, proxy/TUN cleanup, uninstall/removal. | Hold or roll back `linux-x86_64` release-index and updater entries; revert package repository metadata if used; restore OS state. |
+| `linux-aarch64` | Linux platform owner | Clean Linux arm64 smoke machines for `.deb`, `.rpm`, and `.AppImage`, stable CDN package and updater entries | Package install or AppImage launch, manual download checksum validation, updater smoke where supported, arm64 core smoke, proxy/TUN cleanup, uninstall/removal. | Hold or roll back `linux-aarch64` release-index and updater entries; revert package repository metadata if used; restore OS state. |
 
 ## Platform Matrix
 
@@ -73,7 +71,6 @@ The first production stable matrix covers x64 and arm64 for Windows, macOS, and 
 | Runtime supervisor cleanup | Platform owner | Core process tree and logs | Main and pre processes start and stop in expected order; crash or forced stop does not leave orphaned child or elevated processes. | Kill leftover processes, collect logs, and block publication if cleanup is not deterministic. |
 | Autostart and hotkeys | Platform owner | Registry, LaunchAgent, desktop autostart file, global hotkey registration | Enable, inspect OS artifact, trigger each hotkey outside the app window, disable, and verify cleanup. | Remove OS autostart artifacts and hotkey registrations manually. Hold publication if cleanup fails. |
 | Updater smoke | Release engineer and platform owner | Older signed build and stable updater endpoint | Older build detects the new stable version for its exact target, signature validates, update applies, app launches, and version changes. | Re-publish previous `latest.json` pointer or remove stable metadata. Keep direct downloads only if approved. |
-| Diagnostics smoke | Privacy/security owner and platform owner | Stable diagnostics setting, event envelope, endpoint or approved disablement control | Default-on state is visible, opt-out persists and clears pending events, redacted release-health events deliver or are disabled by approved control, and forbidden fields are absent. | Disable diagnostics delivery through the approved control path and block publication if node URLs, credentials, IP addresses, full logs, generated configs, or traffic destinations can be emitted. |
 | Uninstall cleanup | Platform owner | OS package manager or app removal flow | App removes cleanly, no orphaned process remains, and OS proxy/TUN/autostart/hotkey state is restored. | Remove leftovers manually and block publication if uninstall damages OS state. |
 
 ## v2rayN Parity Smoke Addendum
@@ -86,8 +83,8 @@ These checks cover parity features that are user-visible in v2rayN but implement
 | Certificate fetch | Open a TLS profile, fetch leaf cert, fetch chain, calculate SHA from pasted PEM, and save. Verify self-signed or invalid chains fail by default and succeed only when Allow insecure fetch is explicitly enabled for the fetch action. |
 | QR import | Open Profiles > Import and import from an image QR code, clipboard text, clipboard image, and screen scan. Confirm decoded QR content is shown for review before import. On macOS screen-recording restrictions or Linux Wayland limitations, record the exact unavailable message and confirm image/clipboard paths still work. |
 | Share/export | In Profiles, select one and multiple profiles. Export share links, base64 share links, inner links, and client config from the toolbar and row context menu. Confirm clipboard contents and the read-only Show QR dialog match the selected profile order. |
-| Settings coverage | In Settings, change Core basic, Mux, TUN, System proxy, Speed test, Hysteria, Fragment, Update source, and CoreType mapping values. Save, reopen, and verify persisted `AppConfig` values without schema migration. |
-| Core acquisition boundary | In Updates, verify only app, geo, and SRS update targets are shown. sing-box must not show core download/update behavior because it is bundled with the application package. |
+| Settings coverage | In Settings, change Core basic, sing-box Mux, TUN, System proxy, Speed test, Hysteria, fragment master switch, update sources, and CoreType mapping values. Save, reopen, and verify persisted `AppConfig` values without schema migration. Confirm Xray-only Mux/fragment details and client CDN inputs are absent. |
+| Update boundary | In Updates, verify the signed app updater, Geo update, and SRS update are three independent actions. Confirm there is no pre-release preference, batch selection, manual client CDN fallback, or core download/update target. |
 | End-to-end runtime | Connect and disconnect a redacted profile after settings/template edits, verify system proxy restore, TUN cleanup, logs, runtime state, speed test, and no orphaned core process. |
 
 ## Pass Criteria
@@ -101,7 +98,6 @@ A platform passes release smoke when:
 - First-run core acquisition and core smoke pass with only the approved bundled sing-box seed.
 - Updater metadata is real, signed, and hosted on the approved CDN for release builds.
 - Manual download smoke verifies CDN release-index entries for the target artifact.
-- Diagnostics smoke verifies default-on behavior, opt-out, and redaction.
 - Uninstall or app removal leaves no orphaned process, proxy setting, route, TUN device, autostart entry, or hotkey.
 
 Any release-blocking failure must be linked from the stable release evidence or issue tracker before publication continues.

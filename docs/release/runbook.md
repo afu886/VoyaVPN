@@ -10,7 +10,6 @@ This runbook is the top-level release path for VoyaVPN production stable package
 - Release workflow, artifact naming, and secret names: [ci-secrets.md](ci-secrets.md)
 - Signing, notarization, and updater-key details: [signing-notarization.md](signing-notarization.md)
 - Third-party notices and core redistribution gate: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-- Diagnostics privacy contract: [diagnostics-privacy.md](diagnostics-privacy.md)
 - Release OS smoke matrix: [os-smoke-matrix.md](os-smoke-matrix.md)
 - Rollback procedures: [rollback.md](rollback.md)
 - Stable external evidence checklist: [external-evidence-checklist.md](external-evidence-checklist.md)
@@ -18,7 +17,7 @@ This runbook is the top-level release path for VoyaVPN production stable package
 
 ## Publication Boundary
 
-The generated rollout runner, local scripts, and GitHub Actions workflow produce evidence only. They do not publish artifacts, upload to the CDN, mutate stable pointers, purge caches, access signing secrets, notarize applications, approve legal notices, approve diagnostics, or perform real OS smoke.
+The generated rollout runner, local scripts, and GitHub Actions workflow produce evidence only. They do not publish artifacts, upload to the CDN, mutate stable pointers, purge caches, access signing secrets, notarize applications, approve legal notices, or perform real OS smoke.
 
 Production stable download, updater, core, geo, SRS, checksum, and signature URLs must resolve from the approved VoyaVPN CDN. GitHub Actions may be used to build and preserve evidence, and upstream GitHub URLs may appear as source/license references, but GitHub is not a production download URL for stable app, updater, core, geo, or SRS assets.
 
@@ -48,7 +47,7 @@ Stable mode is intended for a prepared release environment:
 pnpm check:release:stable
 ```
 
-Stable mode requires `VOYAVPN_CDN_BASE_URL` or `--cdn-base-url`, `VOYAVPN_DIAGNOSTICS_ENDPOINT` or `--diagnostics-endpoint`, signed updater artifacts, real Tauri updater signing input through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, platform signing env names for macOS and Windows, a non-placeholder updater public key in the generated overlay, updater artifacts enabled, and no forbidden example, dry-run updater, or GitHub release/download URLs in production surfaces.
+Stable mode requires `VOYAVPN_CDN_BASE_URL` or `--cdn-base-url`, signed updater artifacts, real Tauri updater signing input through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, platform signing env names for macOS and Windows, a non-placeholder updater public key in the generated overlay, updater artifacts enabled, and no forbidden example, dry-run updater, or GitHub release/download URLs in production surfaces.
 
 ### Prepared Stable Environment Preflight
 
@@ -62,7 +61,6 @@ Required prepared names:
 | `VOYAVPN_CDN_BASE_URL` | Approved HTTPS stable CDN base URL for release index, manual downloads, core assets, and staging evidence. |
 | `VOYAVPN_UPDATES_BASE_URL` | Approved HTTPS stable updater CDN base URL used to derive `latest.json`. |
 | `VOYAVPN_UPDATER_PUBLIC_KEY` or `TAURI_UPDATER_PUBLIC_KEY` | Approved non-placeholder Tauri updater public key written into the generated overlay. |
-| `VOYAVPN_DIAGNOSTICS_ENDPOINT` | Approved HTTPS diagnostics ingest endpoint. |
 | `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH` | Updater private signing input supplied by the approved secret system or signing machine. |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Optional updater private-key password when the key requires one. |
 | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS signing and notarization inputs required for stable readiness. |
@@ -77,9 +75,9 @@ pnpm tauri:stable-updater-config
 pnpm check:release:stable
 ```
 
-`pnpm tauri:stable-updater-config` writes `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` then scans that overlay merged over `apps/desktop/src-tauri/tauri.conf.json` and validates stable environment inputs, generated release index input, signed updater input, core asset source input, diagnostics endpoint config, and production URL blockers.
+`pnpm tauri:stable-updater-config` writes `target/release-config/tauri.updater.stable.generated.json`. `pnpm check:release:stable` then scans that overlay merged over `apps/desktop/src-tauri/tauri.conf.json` and validates stable environment inputs, generated release index input, signed updater input, core asset source input, and production URL blockers.
 
-Expected failures in an unprepared local shell are environment-only skips, not repository blockers: missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `VOYAVPN_DIAGNOSTICS_ENDPOINT`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing Apple or Windows signing inputs, missing real stable artifact directories, fixture paths used in stable mode, placeholder updater signatures, or forbidden example, `.test`, localhost, placeholder, or GitHub production download URLs.
+Expected failures in an unprepared local shell are environment-only skips, not repository blockers: missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing Apple or Windows signing inputs, missing real stable artifact directories, fixture paths used in stable mode, placeholder updater signatures, or forbidden example, `.test`, localhost, placeholder, or GitHub production download URLs.
 
 Expected pass criteria in a prepared stable environment: the overlay exists at `target/release-config/tauri.updater.stable.generated.json`, it enables `bundle.createUpdaterArtifacts`, updater metadata uses the approved HTTPS updater CDN and real signatures, release/core metadata use only approved CDN-derived production URLs, stable artifact inputs are not fixtures, and `pnpm check:release:stable` exits successfully with zero failures. Stable pointer promotion must not begin until this prepared-environment check passes.
 
@@ -148,28 +146,27 @@ Rollback: delete `dist/release/local`, `dist/updater`, and unsigned artifacts. D
 
 ## Production Stable Publication
 
-Owner: release owner, with named platform, security, legal, privacy, and CDN owners for their checkpoints.
+Owner: release owner, with named platform, security, legal, and CDN owners for their checkpoints.
 
-System: GitHub Actions `Release` workflow for evidence, approved signing systems, approved diagnostics endpoint, clean Windows/macOS/Linux smoke machines, and the VoyaVPN CDN for staging and final stable pointers.
+System: GitHub Actions `Release` workflow for evidence, approved signing systems, clean Windows/macOS/Linux smoke machines, and the VoyaVPN CDN for staging and final stable pointers.
 
 Stable publication follows this order:
 
 1. Freeze the commit, version, channel, and target matrix. Record the commit SHA, tag, workflow dispatch inputs, and planned stable version.
 2. Run local automated gates from the frozen commit: `pnpm run verify:ci`, `pnpm run build`, and local debug packaging when required by release policy.
 3. Dispatch the `Release` workflow with `channel=stable`, `build_profile=release`, `dry_run=false`, and updater metadata enabled. The workflow must produce six package artifacts, `SHA256SUMS`, artifact manifests, updater metadata evidence, CDN release-index evidence, and core manifest evidence. It must not publish externally.
-4. Complete signing, notarization, updater key, legal redistribution, diagnostics approval, and platform package checks from the ledger below.
+4. Complete signing, notarization, updater key, legal redistribution, and platform package checks from the ledger below.
 5. Stage immutable CDN paths for the approved version: manual download artifacts and `release-index.json`, Tauri updater payloads and `latest.json`, the empty core manifest, geo/SRS assets and manifests, checksums, signatures, notices, and evidence JSON. The sing-box seed is part of the signed application package, not a core update CDN asset.
 6. Verify CDN staging before pointer promotion. Every staged URL must use the approved CDN host, return the expected byte size, match SHA-256 evidence, and avoid example hosts, fixture hosts, placeholder signatures, and production GitHub download URLs.
 7. Run updater smoke from an older signed build for each stable target. The older build must detect the exact new stable version from the staged updater metadata, validate signatures, apply the update, relaunch, and show the expected version.
 8. Run manual download smoke from the staged release index. Each platform owner downloads the package for the exact OS/arch target from the CDN, verifies checksum/signature evidence, installs or launches it, and records clean-machine results.
 9. Run core smoke for sing-box. Confirm seed copy into app data, executable permissions, runtime restart, geo/SRS separation, no execution from the read-only app bundle, and no core download or update targets in the update UI.
-10. Run diagnostics smoke. Confirm default-on production diagnostics, visible opt-out, redacted event envelope, no forbidden payload fields, bounded queue behavior, endpoint delivery or approved endpoint-disable state, and opt-out clearing pending events.
-11. Promote stable CDN pointers only after every staged verification passes: manual release index pointer, app updater `latest.json` pointer, core manifest pointer, geo/SRS manifest pointers, checksums, and notices. Record pointer object hashes before and after promotion.
-12. Monitor install, launch, updater smoke, manual download smoke, core smoke, diagnostics, and crash-class feedback for the approved window. Keep rollback owner and previous pointers on call until closeout.
+10. Promote stable CDN pointers only after every staged verification passes: manual release index pointer, app updater `latest.json` pointer, core manifest pointer, geo/SRS manifest pointers, checksums, and notices. Record pointer object hashes before and after promotion.
+11. Monitor install, launch, updater smoke, manual download smoke, core smoke, and crash-class feedback for the approved window. Keep rollback owner and previous pointers on call until closeout.
 
 Verification: every external checkpoint below has owner, system, verification, rollback or stop condition, and artifact/hash evidence attached through [external-evidence-checklist.md](external-evidence-checklist.md) and linked from the stable gate.
 
-Rollback: execute [rollback.md](rollback.md). Stop updater exposure first, then manual download exposure, then core/geo/SRS manifest exposure, then diagnostics delivery if privacy or payload risk is involved. Quarantine bad artifacts with hashes instead of deleting the only evidence copy.
+Rollback: execute [rollback.md](rollback.md). Stop updater exposure first, then manual download exposure, then core/geo/SRS manifest exposure. Quarantine bad artifacts with hashes instead of deleting the only evidence copy.
 
 ## Public Beta Publication
 
@@ -191,7 +188,7 @@ Every publication checkpoint must have an owner, system, verification, and rollb
 | Checkpoint | Owner | System | Verification | Rollback or stop notes |
 | --- | --- | --- | --- | --- |
 | Automated release dry run | Release engineer | GitHub Actions `Release` workflow | `tests`, package matrix, artifact uploads, `SHA256SUMS`, `artifact-manifest.json`, dry-run `latest.json`, and `latest.evidence.json` exist. | Stop publication. Re-run after fixing workflow or package failures. Delete stale dry-run artifacts if they were downloaded locally. |
-| Stable CI staging | Release engineer | GitHub Actions `Release` workflow with `channel=stable`, `build_profile=release`, and `dry_run=false` | Stable preflight validates CDN base URL, updater public key, updater signing key, Apple and Windows signing inputs, diagnostics endpoint, readiness checker output, six package artifacts, updater metadata, and CDN staging metadata. | Do not publish. Fix missing inputs or failed target jobs, then rerun from the frozen commit. |
+| Stable CI staging | Release engineer | GitHub Actions `Release` workflow with `channel=stable`, `build_profile=release`, and `dry_run=false` | Stable preflight validates CDN base URL, updater public key, updater signing key, Apple and Windows signing inputs, readiness checker output, six package artifacts, updater metadata, and CDN staging metadata. | Do not publish. Fix missing inputs or failed target jobs, then rerun from the frozen commit. |
 | Build commit freeze | Release owner | Git branch, tag, and GitHub workflow dispatch | Commit SHA, branch, version, and channel are recorded in release notes and smoke evidence. | Cancel the release if new fixes land. Start over from a new commit and regenerate artifacts. |
 | Secret provisioning | Security owner | GitHub Actions secrets, Apple account, Windows certificate store, local keychain or token | Required names from [ci-secrets.md](ci-secrets.md) are present in the chosen secure system; no values appear in git, logs, manifests, or docs. | Revoke or rotate any exposed credential. Delete affected workflow artifacts and rerun signing from clean credentials. |
 | Updater key provisioning | Security owner | Tauri updater keypair and update metadata host | The generated stable overlay contains the approved public key, private key is supplied through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, and a test build verifies updater signatures. | Restore the previous approved public key and metadata. Rotate keys if private key handling is suspect. |
@@ -204,10 +201,9 @@ Every publication checkpoint must have an owner, system, verification, and rollb
 | Manual download smoke | Platform owners | Stable CDN release index and signed platform packages | Each x64 and arm64 platform downloads from the CDN release index, validates SHA-256 and signature/notarization evidence, installs or launches, and records clean-machine smoke. | Hold or roll back the affected manual release-index entries and remove bad package exposure. |
 | Updater smoke | Release engineer and platform owners | Older signed build, stable updater CDN metadata, signed updater payloads | Each supported target detects the new version, validates updater signature, downloads from CDN, applies, relaunches, and reports the expected version. | Restore the previous `latest.json` pointer or remove updater metadata for the affected target before direct-download rollback. |
 | Core smoke | Platform owners and release engineer | App-data `bin/`, bundled sing-box seed resource, empty core manifest, geo/SRS manifests | sing-box seed copy, executable permissions, runtime restart, no core download or update targets, and geo/SRS separation pass on x64 and arm64 targets. | Restore the previous app package or manifest pointers, quarantine bad package resources, and keep previous app-data backups for reproduction. |
-| Diagnostics smoke | Privacy/security owner and platform owners | Stable diagnostics settings, event envelope, endpoint or approved endpoint-disable control | Default-on state, opt-out, queue clearing, redaction tests, endpoint delivery or approved disablement, and absence of node URLs, credentials, IP addresses, full logs, generated configs, and traffic destinations are verified. | Disable diagnostics delivery through the approved control path and stop publication if forbidden data can be emitted. |
 | Core seed redistribution approval | Legal or release owner | Installer/package resources, `docs/release/THIRD_PARTY_NOTICES.md`, core asset manifest, CDN staging metadata, and source evidence | Approval record lists the exact bundled sing-box seed version, OS/architecture assets, source URL, license name, SHA-256 value, byte size, source availability evidence, confirms GPL obligations for sing-box, and confirms no unsupported cores are bundled or published as core CDN assets. | Block stable publication. Remove unapproved seed assets, publish corrected notices/source evidence, and rerun package and CDN metadata generation. |
 | OS smoke testing | Platform owners | Windows, macOS, and Linux clean machines | Matrix in [os-smoke-matrix.md](os-smoke-matrix.md) passes with logs, screenshots, commands, hashes, and skipped-check reasons recorded. | Stop publication for the failed platform. Pull or hold only that platform if others are already approved. |
-| Stable publication | Release owner | VoyaVPN CDN stable channel, release notes, checksum host, evidence tracker, monitoring systems | Published assets match `SHA256SUMS`, stable release notes cite known residual risks, release index and `latest.json` reach clients, and monitoring owner/window are active. | Execute pointer rollback, artifact withdrawal, diagnostics disablement, or fixed-build publication from [rollback.md](rollback.md). |
+| Stable publication | Release owner | VoyaVPN CDN stable channel, release notes, checksum host, evidence tracker, monitoring systems | Published assets match `SHA256SUMS`, stable release notes cite known residual risks, release index and `latest.json` reach clients, and monitoring owner/window are active. | Execute pointer rollback, artifact withdrawal, or fixed-build publication from [rollback.md](rollback.md). |
 | Public beta publication | Release owner | Non-stable beta distribution systems, update host, checksum host | Published beta assets match `SHA256SUMS`, release notes include known gaps, and beta `latest.json` reaches clients. | Execute artifact or updater rollback from [rollback.md](rollback.md). |
 | Post-publish monitoring | Release owner | Issue tracker, crash/log intake, update host metrics, support channel | Install, launch, update, and core-download feedback is reviewed for the declared monitoring window. | Trigger rollback if severity thresholds in [rollback.md](rollback.md) are met. |
 
@@ -220,8 +216,8 @@ Publication is approved only when:
 - Platform signing and notarization evidence is attached where required.
 - Manual OS smoke evidence covers the supported stable x64 and arm64 matrix.
 - Updater metadata uses real signatures and approved CDN URLs.
-- The stable external evidence checklist has an entry for CDN staging, pointer promotion, signing/notarization, Windows signing, Linux package verification, updater smoke, manual download smoke, core smoke, diagnostics smoke, legal approval, privacy approval, rollback, and monitoring.
-- CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, diagnostics smoke, and rollback readiness are recorded.
+- The stable external evidence checklist has an entry for CDN staging, pointer promotion, signing/notarization, Windows signing, Linux package verification, updater smoke, manual download smoke, core smoke, legal approval, rollback, and monitoring.
+- CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, and rollback readiness are recorded.
 - Rollback owner and rollback assets are ready.
 - sing-box seed redistribution has a recorded legal/source approval checkpoint when included.
 - No AGPL core or unsupported core binary is present in stable seed resources or first-stable core CDN assets without a separate approval record.

@@ -40,7 +40,6 @@ pub async fn connect_active_profile<R: tauri::Runtime>(
                 &config,
                 "connect failure",
             )?;
-            record_runtime_start_failure_diagnostics(&state, &config, &error);
             Err(runtime_error(error))
         }
     }
@@ -138,7 +137,6 @@ pub async fn restart_core<R: tauri::Runtime>(
                 &config,
                 "restart failure",
             )?;
-            record_runtime_start_failure_diagnostics(&state, &config, &error);
             Err(runtime_error(error))
         }
     }

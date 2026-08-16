@@ -5,17 +5,9 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "@voya/ui/components/button";
 import { Separator } from "@voya/ui/components/separator";
 import { useI18n } from "@voya/i18n/use-i18n";
-import {
-  autostartStatus,
-  diagnosticsStatus,
-  loadUiPreferences,
-  saveUiPreferences,
-  setAutostartEnabled,
-  setDiagnosticsEnabled,
-} from "@/ipc";
-import type { AutostartStatus, DiagnosticsStatus, UiPreferences } from "@/ipc/bindings";
+import { autostartStatus, loadUiPreferences, saveUiPreferences, setAutostartEnabled } from "@/ipc";
+import type { AutostartStatus, UiPreferences } from "@/ipc/bindings";
 import { type ThemeMode, usePreferencesStore } from "@/stores/preferences-store";
-import { redactOperationalError } from "@voya/utils/operational-redaction";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
@@ -49,9 +41,6 @@ export function GeneralTab() {
   const [autostart, setAutostart] = useState<AutostartStatus | null>(null);
   const [autostartError, setAutostartError] = useState<string | null>(null);
   const [autostartWorking, setAutostartWorking] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<DiagnosticsStatus | null>(null);
-  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
-  const [diagnosticsWorking, setDiagnosticsWorking] = useState(false);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [preferencesWorking, setPreferencesWorking] = useState(false);
   const generationRef = useRef(0);
@@ -74,19 +63,6 @@ export function GeneralTab() {
         }
       });
 
-    void diagnosticsStatus()
-      .then((status) => {
-        if (isCurrent()) {
-          setDiagnostics(status);
-          setDiagnosticsError(null);
-        }
-      })
-      .catch((error: unknown) => {
-        if (isCurrent()) {
-          setDiagnosticsError(redactOperationalError(error));
-        }
-      });
-
     return () => {
       generationRef.current += 1;
     };
@@ -101,18 +77,6 @@ export function GeneralTab() {
       setAutostartError(getErrorMessage(error));
     } finally {
       setAutostartWorking(false);
-    }
-  }
-
-  async function toggleDiagnostics(enabled: boolean) {
-    setDiagnosticsWorking(true);
-    setDiagnosticsError(null);
-    try {
-      setDiagnostics(await setDiagnosticsEnabled(enabled));
-    } catch (error) {
-      setDiagnosticsError(redactOperationalError(error));
-    } finally {
-      setDiagnosticsWorking(false);
     }
   }
 
@@ -243,16 +207,8 @@ export function GeneralTab() {
             label={t("options.autostart")}
             onCheckedChange={(checked) => void toggleAutostart(checked === true)}
           />
-          <SettingsCheckbox
-            checked={diagnostics?.enabled ?? true}
-            description={t("options.diagnosticsScope")}
-            disabled={!diagnostics || diagnosticsWorking}
-            label={t("options.diagnostics")}
-            onCheckedChange={(checked) => void toggleDiagnostics(checked === true)}
-          />
         </SettingsCheckboxGroup>
         {autostartError ? <p className="text-xs text-destructive">{autostartError}</p> : null}
-        {diagnosticsError ? <p className="text-xs text-destructive">{diagnosticsError}</p> : null}
       </SettingsGroup>
     </div>
   );

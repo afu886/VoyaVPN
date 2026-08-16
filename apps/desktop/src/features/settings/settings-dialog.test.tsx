@@ -11,25 +11,19 @@ import { useModalStore } from "@/stores/modal-store";
 const ipcMocks = vi.hoisted(() => ({
   appUpdateStatus: vi.fn(),
   autostartStatus: vi.fn(),
-  checkUpdates: vi.fn(),
-  diagnosticsStatus: vi.fn(),
-  downloadUpdates: vi.fn(),
   globalHotkeyStatus: vi.fn(),
   getWindowChromeConfig: vi.fn(),
   importConfigTemplate: vi.fn(),
   loadAppConfig: vi.fn(),
   loadConfigSources: vi.fn(),
   loadUiPreferences: vi.fn(),
-  manualAppUpdateLinks: vi.fn(),
-  recordAppUpdateDiagnostic: vi.fn(),
   saveAppConfig: vi.fn(),
   saveConfigSources: vi.fn(),
   saveGlobalHotkeys: vi.fn(),
   saveUiPreferences: vi.fn(),
-  saveUpdatePreferences: vi.fn(),
   setAutostartEnabled: vi.fn(),
-  setDiagnosticsEnabled: vi.fn(),
-  updateStatus: vi.fn(),
+  updateGeoAssets: vi.fn(),
+  updateSrsAssets: vi.fn(),
 }));
 const tauriMocks = vi.hoisted(() => ({
   check: vi.fn(),
@@ -82,8 +76,8 @@ describe("SettingsSurface", () => {
     renderSurface({ initialTab: "updates" });
 
     expect(await screen.findByRole("tab", { name: "Updates", selected: true })).toBeInTheDocument();
-    expect(await screen.findByRole("checkbox", { name: "Pre-release" })).toBeInTheDocument();
-    await waitFor(() => expect(ipcMocks.updateStatus).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Automatic app updater is ready.")).toBeInTheDocument();
+    await waitFor(() => expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1));
   });
 
   it("mounts the updates pane on first visit only and keeps it mounted afterwards", async () => {
@@ -92,20 +86,19 @@ describe("SettingsSurface", () => {
     renderSurface();
 
     await screen.findByRole("tab", { name: "General", selected: true });
-    expect(ipcMocks.updateStatus).not.toHaveBeenCalled();
+    expect(ipcMocks.appUpdateStatus).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("tab", { name: "Updates" }));
-    await waitFor(() => expect(ipcMocks.updateStatus).toHaveBeenCalledTimes(1));
-    const preRelease = await screen.findByRole("checkbox", { name: "Pre-release" });
+    await waitFor(() => expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1));
+    const appUpdater = await screen.findByText("Automatic app updater is ready.");
 
     await user.click(screen.getByRole("tab", { name: "General" }));
-    // Hidden, not unmounted: the controller instance (and its coalesced
-    // preference-save chain) must survive tab switches.
-    expect(preRelease).toBeInTheDocument();
+    // Hidden, not unmounted: the controller instance survives tab switches.
+    expect(appUpdater).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Updates" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Updates" })).toHaveAttribute("aria-selected", "true"));
-    expect(ipcMocks.updateStatus).toHaveBeenCalledTimes(1);
+    expect(ipcMocks.appUpdateStatus).toHaveBeenCalledTimes(1);
   });
 
   it("keeps unsaved runtime edits when switching between runtime tabs", async () => {
@@ -232,18 +225,6 @@ function mockDefaultIpc() {
     enabled,
     platform: "macos",
   }));
-  ipcMocks.diagnosticsStatus.mockResolvedValue({
-    deliveryConfigured: false,
-    enabled: true,
-    queuedBytes: 0,
-    queuedEvents: 0,
-  });
-  ipcMocks.setDiagnosticsEnabled.mockImplementation(async (enabled: boolean) => ({
-    deliveryConfigured: false,
-    enabled,
-    queuedBytes: 0,
-    queuedEvents: 0,
-  }));
   ipcMocks.loadConfigSources.mockResolvedValue({
     geoSourceUrl: null,
     routeRulesTemplateSourceUrl: null,
@@ -252,22 +233,9 @@ function mockDefaultIpc() {
   ipcMocks.saveConfigSources.mockImplementation(async (settings: unknown) => settings);
   ipcMocks.globalHotkeyStatus.mockResolvedValue({ actions: [], registered: [], settings: [] });
   ipcMocks.saveGlobalHotkeys.mockResolvedValue({ actions: [], registered: [], settings: [] });
-  ipcMocks.updateStatus.mockResolvedValue({ preRelease: false, targets: [] });
-  ipcMocks.saveUpdatePreferences.mockResolvedValue({ preRelease: false, targets: [] });
-  ipcMocks.checkUpdates.mockResolvedValue({ preRelease: false, results: [], targets: [] });
-  ipcMocks.downloadUpdates.mockResolvedValue({ preRelease: false, results: [], targets: [] });
   ipcMocks.appUpdateStatus.mockResolvedValue({ currentVersion: "1.0.0", message: null, state: "ready" });
-  ipcMocks.manualAppUpdateLinks.mockResolvedValue({
-    arch: "x64",
-    channel: "stable",
-    currentVersion: "1.0.0",
-    downloads: [],
-    hasUpdate: false,
-    releaseIndexUrl: "https://cdn.voyavpn.test/stable/release-index.json",
-    remoteVersion: null,
-    target: "linux",
-  });
-  ipcMocks.recordAppUpdateDiagnostic.mockResolvedValue(undefined);
+  ipcMocks.updateGeoAssets.mockResolvedValue([]);
+  ipcMocks.updateSrsAssets.mockResolvedValue([]);
   tauriMocks.check.mockResolvedValue(null);
   tauriMocks.getVersion.mockResolvedValue("1.0.0");
   tauriMocks.relaunch.mockResolvedValue(undefined);

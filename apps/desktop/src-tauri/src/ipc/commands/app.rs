@@ -136,39 +136,6 @@ pub async fn save_app_config<R: tauri::Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn diagnostics_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<DiagnosticsStatus, AppError> {
-    let settings = current_diagnostics_settings(&state)?;
-    let client = state.diagnostics_client();
-    let client = client.lock().await;
-
-    Ok(diagnostics_status_response(&settings, &client))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn set_diagnostics_enabled(
-    state: tauri::State<'_, AppState>,
-    enabled: bool,
-) -> Result<DiagnosticsStatus, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    config.diagnostics_item.enabled = enabled;
-    let settings = diagnostics_settings_for_config(&mut config);
-    persist_config_if_changed(&state, &original, &config)?;
-
-    let client = state.diagnostics_client();
-    let mut client = client.lock().await;
-    if !enabled {
-        client.clear();
-    }
-
-    Ok(diagnostics_status_response(&settings, &client))
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn autostart_status(state: tauri::State<'_, AppState>) -> Result<AutostartStatus, AppError> {
     let config = current_config(&state)?;
 

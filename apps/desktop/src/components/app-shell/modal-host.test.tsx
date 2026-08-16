@@ -9,7 +9,6 @@ import { useModalStore } from "@/stores/modal-store";
 const ipcMocks = vi.hoisted(() => ({
   autostartStatus: vi.fn(),
   connectActiveProfile: vi.fn(),
-  diagnosticsStatus: vi.fn(),
   globalHotkeyStatus: vi.fn(),
   installCoreSeed: vi.fn(),
   loadAppConfig: vi.fn(),
@@ -18,7 +17,6 @@ const ipcMocks = vi.hoisted(() => ({
   saveConfigSources: vi.fn(),
   saveGlobalHotkeys: vi.fn(),
   setAutostartEnabled: vi.fn(),
-  setDiagnosticsEnabled: vi.fn(),
   importConfigTemplate: vi.fn(),
 }));
 
@@ -43,12 +41,6 @@ describe("ModalHost", () => {
       artifactPath: null,
       enabled: false,
       platform: "macos",
-    });
-    ipcMocks.diagnosticsStatus.mockResolvedValue({
-      deliveryConfigured: false,
-      enabled: true,
-      queuedBytes: 0,
-      queuedEvents: 0,
     });
     ipcMocks.loadConfigSources.mockResolvedValue({
       geoSourceUrl: null,

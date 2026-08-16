@@ -24,7 +24,6 @@ pub struct AppConfig {
     pub sub_index_id: String,
     pub core_basic_item: CoreBasicItem,
     pub tun_mode_item: TunModeItem,
-    pub kcp_item: KcpItem,
     pub grpc_item: GrpcItem,
     pub routing_basic_item: RoutingBasicItem,
     #[serde(rename = "GUIItem")]
@@ -35,15 +34,11 @@ pub struct AppConfig {
     pub ui_item: UiItem,
     pub const_item: ConstItem,
     pub speed_test_item: SpeedTestItem,
-    pub mux4_ray_item: Mux4RayItem,
     pub mux4_sbox_item: Mux4SboxItem,
     pub hysteria_item: HysteriaItem,
     #[serde(rename = "ProxyUIItem")]
     pub proxy_ui_item: ProxyUiItem,
     pub system_proxy_item: SystemProxyItem,
-    pub check_update_item: CheckUpdateItem,
-    pub diagnostics_item: DiagnosticsItem,
-    pub fragment4_ray_item: Fragment4RayItem,
     pub inbound: Vec<InItem>,
     pub global_hotkeys: Vec<KeyEventItem>,
     #[serde(rename = "SimpleDNSItem")]
@@ -57,7 +52,6 @@ impl Default for AppConfig {
             sub_index_id: String::new(),
             core_basic_item: CoreBasicItem::default(),
             tun_mode_item: TunModeItem::default(),
-            kcp_item: KcpItem::default(),
             grpc_item: GrpcItem::default(),
             routing_basic_item: RoutingBasicItem::default(),
             gui_item: GuiItem::default(),
@@ -65,14 +59,10 @@ impl Default for AppConfig {
             ui_item: UiItem::default(),
             const_item: ConstItem::default(),
             speed_test_item: SpeedTestItem::default(),
-            mux4_ray_item: Mux4RayItem::default(),
             mux4_sbox_item: Mux4SboxItem::default(),
             hysteria_item: HysteriaItem::default(),
             proxy_ui_item: ProxyUiItem::default(),
             system_proxy_item: SystemProxyItem::default(),
-            check_update_item: CheckUpdateItem::default(),
-            diagnostics_item: DiagnosticsItem::default(),
-            fragment4_ray_item: Fragment4RayItem::default(),
             inbound: vec![InItem::default()],
             global_hotkeys: Vec::new(),
             simple_dns_item: SimpleDnsItem::default(),
@@ -146,30 +136,6 @@ impl Default for InItem {
             user: String::new(),
             pass: String::new(),
             second_local_port_enabled: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct KcpItem {
-    pub mtu: i32,
-    pub tti: i32,
-    pub uplink_capacity: i32,
-    pub downlink_capacity: i32,
-    pub cwnd_multiplier: i32,
-    pub max_sending_window: i32,
-}
-
-impl Default for KcpItem {
-    fn default() -> Self {
-        Self {
-            mtu: 1350,
-            tti: 50,
-            uplink_capacity: 12,
-            downlink_capacity: 100,
-            cwnd_multiplier: 1,
-            max_sending_window: 2 * 1024 * 1024,
         }
     }
 }
@@ -284,12 +250,6 @@ impl Default for UiItem {
 pub struct ConstItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_convert_url: Option<String>,
-    #[serde(rename = "CdnBaseUrl", skip_serializing_if = "Option::is_none")]
-    pub cdn_base_url: Option<String>,
-    #[serde(rename = "CdnReleaseIndexUrl", skip_serializing_if = "Option::is_none")]
-    pub cdn_release_index_url: Option<String>,
-    #[serde(rename = "CdnCoreManifestUrl", skip_serializing_if = "Option::is_none")]
-    pub cdn_core_manifest_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geo_source_url: Option<String>,
     #[serde(rename = "SrsSourceUrl", skip_serializing_if = "Option::is_none")]
@@ -353,27 +313,6 @@ pub struct ColumnItem {
     pub name: String,
     pub width: i32,
     pub index: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct Mux4RayItem {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub concurrency: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub xudp_concurrency: Option<i32>,
-    #[serde(rename = "XudpProxyUDP443", skip_serializing_if = "Option::is_none")]
-    pub xudp_proxy_udp443: Option<String>,
-}
-
-impl Default for Mux4RayItem {
-    fn default() -> Self {
-        Self {
-            concurrency: Some(8),
-            xudp_concurrency: Some(16),
-            xudp_proxy_udp443: Some("reject".to_string()),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
@@ -451,55 +390,6 @@ impl Default for SystemProxyItem {
             system_proxy_advanced_protocol: String::new(),
             custom_system_proxy_pac_path: None,
             custom_system_proxy_script_path: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct CheckUpdateItem {
-    pub check_pre_release_update: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_core_types: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DiagnosticsItem {
-    pub enabled: bool,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub anonymous_install_id: String,
-    #[serde(rename = "EndpointUrl", skip_serializing_if = "Option::is_none")]
-    pub endpoint_url: Option<String>,
-}
-
-impl Default for DiagnosticsItem {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            anonymous_install_id: String::new(),
-            endpoint_url: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct Fragment4RayItem {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub packets: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub length: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interval: Option<String>,
-}
-
-impl Default for Fragment4RayItem {
-    fn default() -> Self {
-        Self {
-            packets: Some("tlshello".to_string()),
-            length: Some("50-100".to_string()),
-            interval: Some("10-20".to_string()),
         }
     }
 }
@@ -648,7 +538,6 @@ mod tests {
         assert!(!config.tun_mode_item.strict_route);
         assert_eq!(config.speed_test_item.speed_test_timeout, 10);
         assert_eq!(config.speed_test_item.mixed_concurrency_count, 5);
-        assert_eq!(config.mux4_ray_item.concurrency, Some(8));
         assert_eq!(config.mux4_sbox_item.protocol, "h2mux");
         assert_eq!(config.hysteria_item.up_mbps, 100);
         assert_eq!(config.hysteria_item.down_mbps, 100);
@@ -664,9 +553,6 @@ mod tests {
             config.simple_dns_item.remote_dns.as_deref(),
             Some(DEFAULT_REMOTE_DNS)
         );
-        assert!(config.diagnostics_item.enabled);
-        assert!(config.diagnostics_item.anonymous_install_id.is_empty());
-        assert_eq!(config.diagnostics_item.endpoint_url, None);
     }
 
     #[test]
@@ -700,7 +586,6 @@ mod tests {
             config.simple_dns_item.bootstrap_dns.as_deref(),
             Some(DEFAULT_BOOTSTRAP_DNS)
         );
-        assert!(config.diagnostics_item.enabled);
     }
 
     #[test]
@@ -739,18 +624,11 @@ mod tests {
     }
 
     #[test]
-    fn diagnostics_config_is_default_on_and_backfilled() {
-        let config: AppConfig =
-            serde_json::from_value(json!({})).expect("empty app config JSON should deserialize");
-
-        assert!(config.diagnostics_item.enabled);
-        assert!(config.diagnostics_item.anonymous_install_id.is_empty());
-        assert_eq!(config.diagnostics_item.endpoint_url, None);
-    }
-
-    #[test]
-    fn diagnostics_config_persists_opt_out_install_id_and_endpoint() {
+    fn removed_config_sections_are_ignored_and_not_serialized() {
         let config: AppConfig = serde_json::from_value(json!({
+            "KcpItem": { "Mtu": 1200 },
+            "Mux4RayItem": { "Concurrency": 4 },
+            "Fragment4RayItem": { "Packets": "tlshello" },
             "DiagnosticsItem": {
                 "Enabled": false,
                 "AnonymousInstallId": "00000000-0000-4000-8000-000000000001",
@@ -758,19 +636,37 @@ mod tests {
             },
             "CheckUpdateItem": {
                 "CheckPreReleaseUpdate": true
+            },
+            "ConstItem": {
+                "CdnBaseUrl": "https://cdn.voyavpn.test/stable",
+                "CdnReleaseIndexUrl": "https://cdn.voyavpn.test/stable/release-index.json",
+                "CdnCoreManifestUrl": "https://cdn.voyavpn.test/stable/core-assets.json"
             }
         }))
-        .expect("diagnostics app config JSON should deserialize");
+        .expect("legacy app config JSON should deserialize");
 
-        assert!(!config.diagnostics_item.enabled);
-        assert_eq!(
-            config.diagnostics_item.anonymous_install_id,
-            "00000000-0000-4000-8000-000000000001"
-        );
-        assert_eq!(
-            config.diagnostics_item.endpoint_url.as_deref(),
-            Some("https://diagnostics.voyavpn.test/ingest")
-        );
-        assert!(config.check_update_item.check_pre_release_update);
+        let json = serde_json::to_value(config).expect("app config should serialize");
+        for key in [
+            "KcpItem",
+            "Mux4RayItem",
+            "Fragment4RayItem",
+            "DiagnosticsItem",
+            "CheckUpdateItem",
+        ] {
+            assert!(
+                json.get(key).is_none(),
+                "removed section {key} must stay absent"
+            );
+        }
+        let const_item = json
+            .get("ConstItem")
+            .and_then(serde_json::Value::as_object)
+            .expect("ConstItem should serialize");
+        for key in ["CdnBaseUrl", "CdnReleaseIndexUrl", "CdnCoreManifestUrl"] {
+            assert!(
+                !const_item.contains_key(key),
+                "removed constant {key} must stay absent"
+            );
+        }
     }
 }

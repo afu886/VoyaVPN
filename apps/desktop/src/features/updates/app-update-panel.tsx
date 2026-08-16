@@ -1,9 +1,8 @@
-import { ExternalLink, PackageCheck, RefreshCw } from "lucide-react";
+import { PackageCheck, RefreshCw } from "lucide-react";
 
 import { Badge } from "@voya/ui/components/badge";
 import { Button } from "@voya/ui/components/button";
 import { cn } from "@voya/ui/lib/utils";
-import type { ManualAppUpdateDownload } from "@/ipc/bindings";
 
 import { redactUpdateMessage } from "./update-dialog-utils";
 import type { CheckUpdateDialogController } from "./use-check-update-dialog";
@@ -15,8 +14,6 @@ export function AppUpdatePanel({ controller }: { controller: CheckUpdateDialogCo
     appUpdaterError,
     appUpdaterStatus,
     installAppUpdate: onInstall,
-    manualLinks,
-    manualLinksError,
     restartApp: onRestart,
     runAppUpdaterCheck: onCheck,
     t,
@@ -25,7 +22,9 @@ export function AppUpdatePanel({ controller }: { controller: CheckUpdateDialogCo
   const update = appUpdaterCheck?.update ?? null;
   const statusMessage = appUpdaterStatus?.message
     ? redactUpdateMessage(appUpdaterStatus.message, t)
-    : t("updates.appUpdaterReady");
+    : appUpdaterStatus
+      ? t("updates.appUpdaterReady")
+      : t("updates.waiting");
 
   return (
     <div className="grid gap-3 rounded-md border p-3">
@@ -106,49 +105,6 @@ export function AppUpdatePanel({ controller }: { controller: CheckUpdateDialogCo
         </p>
       ) : null}
 
-      <div className="grid gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{t("updates.manualDownloads")}</span>
-          {manualLinks ? (
-            <Badge variant={manualLinks.hasUpdate ? "secondary" : "outline"}>
-              {manualLinks.hasUpdate
-                ? t("updates.manualUpdateAvailable", {
-                    version: manualLinks.remoteVersion ?? manualLinks.currentVersion,
-                  })
-                : t("updates.manualCurrent")}
-            </Badge>
-          ) : null}
-        </div>
-
-        {manualLinks?.downloads.length ? (
-          <div className="flex flex-wrap gap-2">
-            {manualLinks.downloads.map((download) => (
-              <a
-                className="inline-flex h-8 max-w-full min-w-0 items-center gap-2 rounded-md border px-3 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
-                href={download.url}
-                key={`${download.kind}:${download.url}`}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                <ExternalLink className="size-3.5" aria-hidden="true" />
-                <span className="truncate">{manualDownloadLabel(download)}</span>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <p className="break-words text-xs text-muted-foreground">
-            {manualLinksError
-              ? redactUpdateMessage(manualLinksError, t)
-              : t("updates.manualLinksUnavailable")}
-          </p>
-        )}
-      </div>
     </div>
   );
-}
-
-function manualDownloadLabel(download: ManualAppUpdateDownload) {
-  const kind = download.kind.trim();
-
-  return kind ? `${kind.toUpperCase()} ${download.name}` : download.name;
 }

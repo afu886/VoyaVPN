@@ -154,10 +154,6 @@
       "reusedDescription": "A megfelelő útválasztási sablon már létezett; újrafelhasználásra és aktiválásra került.",
       "dnsFallbackWarning": "Egy vagy több DNS-sablon nem volt elérhető. A tartalék DNS-konfiguráció maradt érvényben."
     },
-    "diagnostics": "Release health diagnostics",
-    "diagnosticsOff": "Disabled",
-    "diagnosticsOn": "Enabled",
-    "diagnosticsScope": "No node, subscription, traffic, or config details.",
     "geoSource": "Geo files source",
     "hotkeyKey": "Hotkey key",
     "hotkeyProxyClear": "Clear system proxy",
@@ -472,10 +468,6 @@
     "network": "Hálózat"
   },
   "updates": {
-    "acquisition": {
-      "appPackage": "App package",
-      "optionalDownload": "Optional download"
-    },
     "appInstalled": "App update installed: {{version}}",
     "appUpdateAvailable": "App {{version}} is available",
     "appUpdater": "App updater",
@@ -486,56 +478,21 @@
       "unconfigured": "Unconfigured",
       "unsupported": "Unsupported"
     },
-    "apply": "Apply",
-    "applied": "Applied {{version}}",
-    "check": "Check",
     "checkApp": "Check app",
-    "description": "Update checks for app, geo files, and rulesets.",
-    "download": "Download",
+    "geoDescription": "Download Geo assets now using the configured source and runtime proxy policy.",
+    "geoTitle": "Geo assets",
     "installApp": "Install app",
-    "restartApp": "Restart app",
-    "kind": {
-      "app": "App",
-      "geo": "Geo",
-      "srs": "SRS"
-    },
-    "manualCurrent": "Manual download is current",
-    "manualDownloads": "Manual downloads",
-    "manualLinksUnavailable": "Manual CDN links unavailable.",
-    "manualState": {
-      "available": "Manual available",
-      "current": "Manual current",
-      "failed": "Manual failed",
-      "waiting": "Manual waiting"
-    },
-    "manualUpdateAvailable": "Manual {{version}} available",
-    "missingDownloadedFields": "Downloaded update is missing file, version, or checksum metadata.",
     "noAppUpdate": "App is up to date",
-    "noSelectedTargets": "Select at least one target to check or download.",
-    "preRelease": "Pre-release",
-    "restartRequired": "Restart VoyaVPN to finish applying the update.",
     "redactedUrl": "[redacted URL]",
     "redactedValue": "[redacted]",
-    "selected": "Selected",
-    "status": "Status",
-    "statusAppliedVersion": "Applied {{version}}",
-    "statusCurrent": "Current",
-    "statusCurrentVersion": "Current {{version}}",
-    "statusDownloaded": "Downloaded",
-    "statusDownloadedVersion": "Downloaded {{version}}",
-    "statusFailedMessage": "Failed: {{message}}",
-    "statusNotSelected": "Not selected",
-    "statusSkipped": "Skipped",
-    "statusUpdateAvailable": "Available",
-    "statusUpdateAvailableVersion": "Available {{version}}",
-    "target": "Target",
+    "resourceUpdated": "Updated {{count}} files",
+    "restartApp": "Restart app",
+    "restartRequired": "Restart VoyaVPN to finish applying the update.",
+    "srsDescription": "Download SRS rulesets now using the configured source and runtime proxy policy.",
+    "srsTitle": "SRS assets",
     "title": "Check Updates",
-    "version": "Version",
-    "waiting": "Waiting",
-    "support": {
-      "auto": "Auto",
-      "manual": "Manual"
-    }
+    "updateNow": "Update now",
+    "waiting": "Waiting"
   },
   "home": {
     "aria": "Kapcsolat kezdőlap",
@@ -568,25 +525,16 @@
     "tunConfigJson": "TUN config JSON"
   },
   "settings": {
-    "startup": "Indítás és diagnosztika",
+    "startup": "Indítás",
     "tabGeneral": "Általános",
     "tabHotkeys": "Gyorsbillentyűk",
     "tabTests": "Tesztek",
     "tabUpdates": "Frissítések",
     "fields": {
-      "cdnBaseUrl": "Frissítési CDN alap URL (opcionális)",
-      "cdnCoreManifestUrl": "Core manifest URL (opcionális)",
-      "cdnReleaseIndexUrl": "Kiadási index URL (opcionális)",
-      "fragmentInterval": "Fragment intervallum (interval)",
-      "fragmentLength": "Fragment hossz (length)",
-      "fragmentPackets": "Fragment csomagok (packets)",
       "hysteriaDownMbps": "Hysteria max letöltési sávszélesség (Mbps)",
       "hysteriaUpMbps": "Hysteria max feltöltési sávszélesség (Mbps)",
-      "muxConcurrency": "Mux párhuzamosság (Xray)",
       "muxMaxConnections": "sing-box Mux maximális kapcsolatok",
       "muxPadding": "sing-box Mux kitöltés (padding)",
-      "muxXudpConcurrency": "XUDP párhuzamosság (Xray)",
-      "muxXudpProxyUdp443": "XUDP UDP/443 kezelése (reject / allow / skip)",
       "speedTestDelayInterval": "Késleltetés a sebességteszt-kötegek között (másodperc)",
       "speedTestPageSize": "Szerverek száma sebességteszt-kötegenként"
     }

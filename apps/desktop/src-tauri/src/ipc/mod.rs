@@ -12,8 +12,6 @@ macro_rules! collect_ipc_commands {
             commands::save_app_config::<tauri::Wry>,
             commands::load_ui_preferences,
             commands::save_ui_preferences::<tauri::Wry>,
-            commands::diagnostics_status,
-            commands::set_diagnostics_enabled,
             commands::autostart_status,
             commands::set_autostart_enabled::<tauri::Wry>,
             commands::global_hotkey_status,
@@ -85,14 +83,10 @@ macro_rules! collect_ipc_commands {
             commands::cancel_speedtest::<tauri::Wry>,
             commands::speedtest_status,
             commands::app_update_status::<tauri::Wry>,
-            commands::record_app_update_diagnostic,
-            commands::update_status,
-            commands::save_update_preferences,
             commands::load_config_sources,
             commands::save_config_sources::<tauri::Wry>,
-            commands::check_updates,
-            commands::download_updates,
-            commands::manual_app_update_links,
+            commands::update_geo_assets,
+            commands::update_srs_assets,
             commands::install_core_seed,
             window::get_window_chrome_config,
             window::open_settings_window::<tauri::Wry>,
@@ -139,20 +133,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<voya_app::speedtest::SpeedTestResult>()
         .typ::<voya_app::speedtest::SpeedtestRunResult>()
         .typ::<voya_app::speedtest::SpeedtestStatus>()
-        .typ::<voya_app::updates::UpdateStatus>()
-        .typ::<voya_app::updates::UpdateTarget>()
-        .typ::<voya_app::updates::UpdateRunResult>()
-        .typ::<voya_app::updates::UpdateCheckResult>()
-        .typ::<voya_app::updates::ManualAppUpdateLinks>()
-        .typ::<voya_app::updates::ManualAppUpdateDownload>()
-        .typ::<voya_app::updates::UpdateTargetKind>()
-        .typ::<voya_app::updates::UpdateAcquisition>()
-        .typ::<voya_app::updates::UpdateResultStatus>()
+        .typ::<voya_app::updates::ResourceUpdateFile>()
         .typ::<voya_app::updates::ConfigSourceSettings>()
         .typ::<commands::UiPreferences>()
         .typ::<commands::UiThemeMode>()
-        .typ::<commands::AppUpdateDiagnosticAction>()
-        .typ::<commands::AppUpdateDiagnosticResult>()
         .typ::<voya_app::autostart::AutostartStatus>()
         .typ::<voya_app::autostart::AutostartPlatform>()
         .typ::<voya_app::hotkeys::HotkeyStatus>()

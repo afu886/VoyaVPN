@@ -7,9 +7,7 @@ import { getErrorMessage } from "@voya/utils/error";
 export type ObjectSectionKey =
   | "ConstItem"
   | "CoreBasicItem"
-  | "Fragment4RayItem"
   | "HysteriaItem"
-  | "Mux4RayItem"
   | "Mux4SboxItem"
   | "SpeedTestItem"
   | "SystemProxyItem"
@@ -87,8 +85,8 @@ export function useRuntimeConfig(): RuntimeConfigController {
     try {
       // save_app_config replaces the whole config, and other surfaces keep
       // persisting into it while this dialog is open (theme/language → UIItem,
-      // hotkeys → GlobalHotkeys, diagnostics → DiagnosticsItem, autostart →
-      // GUIItem, updates → CheckUpdateItem, sources → ConstItem URLs). Merge
+      // hotkeys → GlobalHotkeys, autostart → GUIItem, and sources → ConstItem
+      // URLs). Merge
       // the draft ONTO a fresh read, overlaying only the sections these
       // runtime tabs actually edit.
       const latestConfig = await loadAppConfig();
@@ -96,15 +94,10 @@ export function useRuntimeConfig(): RuntimeConfigController {
         ...latestConfig,
         ConstItem: {
           ...latestConfig.ConstItem,
-          CdnBaseUrl: config.ConstItem.CdnBaseUrl,
-          CdnCoreManifestUrl: config.ConstItem.CdnCoreManifestUrl,
-          CdnReleaseIndexUrl: config.ConstItem.CdnReleaseIndexUrl,
           SubConvertUrl: config.ConstItem.SubConvertUrl,
         },
         CoreBasicItem: config.CoreBasicItem,
-        Fragment4RayItem: config.Fragment4RayItem,
         HysteriaItem: config.HysteriaItem,
-        Mux4RayItem: config.Mux4RayItem,
         Mux4SboxItem: config.Mux4SboxItem,
         SpeedTestItem: config.SpeedTestItem,
         SystemProxyItem: config.SystemProxyItem,
@@ -131,10 +124,6 @@ function withRuntimeDefaults(config: AppConfig_Serialize): AppConfig_Serialize {
 
   return {
     ...config,
-    CheckUpdateItem: {
-      CheckPreReleaseUpdate: false,
-      ...(loose.CheckUpdateItem as Record<string, unknown> | undefined),
-    },
     ConstItem: {
       ...(loose.ConstItem as Record<string, unknown> | undefined),
     },
@@ -151,14 +140,8 @@ function withRuntimeDefaults(config: AppConfig_Serialize): AppConfig_Serialize {
       SendThrough: null,
       ...(loose.CoreBasicItem as Record<string, unknown> | undefined),
     },
-    Fragment4RayItem: {
-      ...(loose.Fragment4RayItem as Record<string, unknown> | undefined),
-    },
     HysteriaItem: {
       ...(loose.HysteriaItem as Record<string, unknown> | undefined),
-    },
-    Mux4RayItem: {
-      ...(loose.Mux4RayItem as Record<string, unknown> | undefined),
     },
     Mux4SboxItem: {
       MaxConnections: 0,

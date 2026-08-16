@@ -154,10 +154,6 @@
       "reusedDescription": "已复用并启用现有的相同路由模板。",
       "dnsFallbackWarning": "一个或多个 DNS 模板不可用，已保留回退 DNS 配置。"
     },
-    "diagnostics": "发布健康诊断",
-    "diagnosticsOff": "已禁用",
-    "diagnosticsOn": "已启用",
-    "diagnosticsScope": "不含节点、订阅、流量或配置详情。",
     "geoSource": "Geo 文件来源",
     "hotkeyKey": "热键按键",
     "hotkeyProxyClear": "清除系统代理",
@@ -472,10 +468,6 @@
     "network": "网络"
   },
   "updates": {
-    "acquisition": {
-      "appPackage": "应用安装包",
-      "optionalDownload": "可选下载"
-    },
     "appInstalled": "应用更新已安装：{{version}}",
     "appUpdateAvailable": "应用 {{version}} 可用",
     "appUpdater": "应用更新器",
@@ -486,56 +478,21 @@
       "unconfigured": "未配置",
       "unsupported": "不支持"
     },
-    "apply": "应用",
-    "applied": "已应用 {{version}}",
-    "check": "检查",
     "checkApp": "检查应用",
-    "description": "检查应用、geo 文件和规则集的更新。",
-    "download": "下载",
+    "geoDescription": "使用当前配置的来源和运行时代理策略立即更新 Geo 资源。",
+    "geoTitle": "Geo 资源",
     "installApp": "安装应用",
-    "restartApp": "重启应用",
-    "kind": {
-      "app": "应用",
-      "geo": "Geo",
-      "srs": "SRS"
-    },
-    "manualCurrent": "手动下载已是最新",
-    "manualDownloads": "手动下载",
-    "manualLinksUnavailable": "手动 CDN 链接不可用。",
-    "manualState": {
-      "available": "手动可用",
-      "current": "手动最新",
-      "failed": "手动失败",
-      "waiting": "手动等待"
-    },
-    "manualUpdateAvailable": "手动 {{version}} 可用",
-    "missingDownloadedFields": "已下载的更新缺少文件、版本或校验和元数据。",
     "noAppUpdate": "应用已是最新",
-    "noSelectedTargets": "请至少选择一个目标以检查或下载。",
-    "preRelease": "预发布",
-    "restartRequired": "重启 VoyaVPN 以完成更新。",
     "redactedUrl": "[已隐藏的 URL]",
     "redactedValue": "[已隐藏]",
-    "selected": "已选择",
-    "status": "状态",
-    "statusAppliedVersion": "已应用 {{version}}",
-    "statusCurrent": "最新",
-    "statusCurrentVersion": "当前 {{version}}",
-    "statusDownloaded": "已下载",
-    "statusDownloadedVersion": "已下载 {{version}}",
-    "statusFailedMessage": "失败：{{message}}",
-    "statusNotSelected": "未选择",
-    "statusSkipped": "已跳过",
-    "statusUpdateAvailable": "可用",
-    "statusUpdateAvailableVersion": "{{version}} 可用",
-    "target": "目标",
+    "resourceUpdated": "已更新 {{count}} 个文件",
+    "restartApp": "重启应用",
+    "restartRequired": "重启 VoyaVPN 以完成更新。",
+    "srsDescription": "使用当前配置的来源和运行时代理策略立即更新 SRS 规则集。",
+    "srsTitle": "SRS 资源",
     "title": "检查更新",
-    "version": "版本",
-    "waiting": "等待",
-    "support": {
-      "auto": "自动",
-      "manual": "手动"
-    }
+    "updateNow": "立即更新",
+    "waiting": "等待"
   },
   "home": {
     "aria": "连接主页",
@@ -568,25 +525,16 @@
     "tunConfigJson": "TUN 配置 JSON"
   },
   "settings": {
-    "startup": "启动与诊断",
+    "startup": "启动",
     "tabGeneral": "通用",
     "tabHotkeys": "热键",
     "tabTests": "测试",
     "tabUpdates": "更新",
     "fields": {
-      "cdnBaseUrl": "更新 CDN 基础地址 (可选)",
-      "cdnCoreManifestUrl": "核心清单地址 (可选)",
-      "cdnReleaseIndexUrl": "发布索引地址 (可选)",
-      "fragmentInterval": "分片间隔 (interval)",
-      "fragmentLength": "分片长度 (length)",
-      "fragmentPackets": "分片包类型 (packets)",
       "hysteriaDownMbps": "Hysteria 最大下行带宽 (Mbps)",
       "hysteriaUpMbps": "Hysteria 最大上行带宽 (Mbps)",
-      "muxConcurrency": "Mux 并发数 (Xray)",
       "muxMaxConnections": "sing-box Mux 最大连接数",
       "muxPadding": "sing-box Mux 填充 (padding)",
-      "muxXudpConcurrency": "XUDP 并发数 (Xray)",
-      "muxXudpProxyUdp443": "XUDP 代理 UDP/443 (reject / allow / skip)",
       "speedTestDelayInterval": "测速批次间隔 (秒)",
       "speedTestPageSize": "每批测速的服务器数量"
     }

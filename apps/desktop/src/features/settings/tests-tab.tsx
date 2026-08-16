@@ -98,28 +98,6 @@ export function TestsTab({ controller }: { controller: RuntimeConfigController }
 
       <SettingsGroup>
         <TextField
-          id="rt-cdn-base-url"
-          label={t("settings.fields.cdnBaseUrl")}
-          onChange={(CdnBaseUrl) => patchSection("ConstItem", { CdnBaseUrl: nullableText(CdnBaseUrl) })}
-          value={config.ConstItem.CdnBaseUrl ?? ""}
-        />
-        <TextField
-          id="rt-cdn-release-index-url"
-          label={t("settings.fields.cdnReleaseIndexUrl")}
-          onChange={(CdnReleaseIndexUrl) =>
-            patchSection("ConstItem", { CdnReleaseIndexUrl: nullableText(CdnReleaseIndexUrl) })
-          }
-          value={config.ConstItem.CdnReleaseIndexUrl ?? ""}
-        />
-        <TextField
-          id="rt-cdn-core-manifest-url"
-          label={t("settings.fields.cdnCoreManifestUrl")}
-          onChange={(CdnCoreManifestUrl) =>
-            patchSection("ConstItem", { CdnCoreManifestUrl: nullableText(CdnCoreManifestUrl) })
-          }
-          value={config.ConstItem.CdnCoreManifestUrl ?? ""}
-        />
-        <TextField
           id="rt-sub-convert-url"
           label={t("resx.TbSettingsSubConvert")}
           onChange={(SubConvertUrl) => patchSection("ConstItem", { SubConvertUrl: nullableText(SubConvertUrl) })}

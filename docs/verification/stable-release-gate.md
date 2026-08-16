@@ -2,7 +2,7 @@
 
 This gate defines the current production-stable release contract. It records what must be true before stable publication, without preserving historical batch logs or one-off command output in the repository.
 
-The release runner, local scripts, and GitHub Actions workflow produce evidence only. They do not upload artifacts to the CDN, mutate stable pointers, purge caches, access signing secrets, notarize apps, approve legal notices, approve diagnostics, or run real Windows/macOS/Linux smoke machines.
+The release runner, local scripts, and GitHub Actions workflow produce evidence only. They do not upload artifacts to the CDN, mutate stable pointers, purge caches, access signing secrets, notarize apps, approve legal notices, or run real Windows/macOS/Linux smoke machines.
 
 ## Release Evidence Inputs
 
@@ -14,7 +14,6 @@ The release runner, local scripts, and GitHub Actions workflow produce evidence 
 - CI secrets and workflow boundary: [../release/ci-secrets.md](../release/ci-secrets.md)
 - Signing, notarization, and updater signing: [../release/signing-notarization.md](../release/signing-notarization.md)
 - Third-party notices and core redistribution: [../release/THIRD_PARTY_NOTICES.md](../release/THIRD_PARTY_NOTICES.md)
-- Diagnostics privacy contract: [../release/diagnostics-privacy.md](../release/diagnostics-privacy.md)
 
 ## Stable Gate Checklist
 
@@ -29,30 +28,28 @@ Every external checkpoint must attach owner, system, verification, rollback or s
 | Updater smoke | Release engineer and platform owners | Older signed app build, stable updater CDN metadata, signed updater payloads | Each supported x64 and arm64 target detects the stable version, validates signature, downloads from CDN, applies the update, relaunches, and reports the expected version. | Restore previous `latest.json` pointer or remove updater metadata for the affected target. |
 | Manual download smoke | Platform owners | Stable CDN release index and platform packages | Windows, macOS, and Linux x64/arm64 packages download from the CDN release index, match checksums, validate signatures/notarization where applicable, install or launch, and uninstall or remove cleanly. | Restore previous release-index pointer or remove affected OS/arch entries; quarantine bad packages. |
 | Core smoke | Platform owners and release engineer | App data `bin/`, bundled sing-box seed resource, empty core manifest, geo/SRS manifests | sing-box seed copy, executable permissions, runtime start/restart, no core download or update targets, and geo/SRS separation pass for x64 and arm64 targets. | Restore previous app package or geo/SRS pointers if affected, quarantine bad package resources, and preserve app-data backups. |
-| Diagnostics smoke | Privacy/security owner and platform owners | Stable diagnostics settings, event envelope, endpoint or approved disablement control | Default-on state, visible opt-out, queue clearing, redacted event delivery or approved disabled state, retention assumptions, and forbidden-field exclusion are verified. | Disable diagnostics delivery through the approved control path and stop release if forbidden data can be emitted. |
 | Legal redistribution approval | Legal/release owner | Third-party notices, source references, bundled seed evidence, core asset manifest, CDN staging evidence | Exact bundled sing-box seed version, license, source URL, OS/arch entries, SHA-256 values, byte size, source availability, GPL obligations, and empty core update manifest are approved. | Remove unapproved seed assets, publish corrected notices/source evidence, and rerun package and CDN metadata generation. |
-| Privacy diagnostics approval | Privacy/security owner | Diagnostics endpoint, event schema, settings surface, retention policy, redaction tests, endpoint disable control | Default-on diagnostics, visible opt-out, anonymous install ID storage, queue bounds, retention, endpoint ownership, forbidden-field exclusion, and disabled-state fallback are approved. | Keep diagnostics disabled and stop stable publication if privacy approval is missing or rejects any diagnostics field or endpoint assumption. |
-| Rollback readiness | Release owner, CDN owner, security owner, platform owners, legal owner, privacy/security owner | Previous stable pointers, rollback runbook, cache purge workflow, diagnostics disable control, quarantine storage, incident tracker | Previous known-good release-index, `latest.json`, core manifest, geo/SRS manifests, checksum pointers, notices, diagnostics disable control, cache purge path, incident owner, and fixed-build path are ready. | Stop pointer promotion if previous pointers, rollback owner, cache purge route, diagnostics disable control, or incident path are missing. |
+| Rollback readiness | Release owner, CDN owner, security owner, platform owners, and legal owner | Previous stable pointers, rollback runbook, cache purge workflow, quarantine storage, incident tracker | Previous known-good release-index, `latest.json`, core manifest, geo/SRS manifests, checksum pointers, notices, cache purge path, incident owner, and fixed-build path are ready. | Stop pointer promotion if previous pointers, rollback owner, cache purge route, or incident path are missing. |
 | Bad artifact quarantine readiness | Release engineer and CDN owner | Private evidence storage and incident tracker | Quarantine location, access owner, artifact hash format, incident id format, and non-sensitive evidence rules are ready before publication. | Stop release if bad artifacts cannot be withdrawn and preserved without losing audit evidence. |
-| Release monitoring | Release owner | Issue tracker, support channel, crash/log intake, update/CDN metrics, diagnostics aggregate health | Monitoring owner, window, severity thresholds, and rollback decision path are recorded before stable exposure. | Execute rollback if thresholds are exceeded or if monitoring ownership is unavailable. |
+| Release monitoring | Release owner | Issue tracker, support channel, crash/log intake, and update/CDN metrics | Monitoring owner, window, severity thresholds, and rollback decision path are recorded before stable exposure. | Execute rollback if thresholds are exceeded or if monitoring ownership is unavailable. |
 
 ## Stable Exit Criteria
 
 Production stable may be exposed only when:
 
-- Release workflow and docs define CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, diagnostics smoke, legal approval, privacy approval, rollback, and monitoring.
+- Release workflow and docs define CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, legal approval, rollback, and monitoring.
 - Windows, macOS, and Linux coverage includes x64 and arm64.
 - Stable Tauri updater config is generated with `pnpm tauri:stable-updater-config` into `target/release-config/tauri.updater.stable.generated.json`; the generated overlay enables `bundle.createUpdaterArtifacts`, while the committed `apps/desktop/src-tauri/tauri.conf.json` keeps `createUpdaterArtifacts` false with an empty credential-free updater config.
-- Rollback docs cover app updater pointer rollback, manual index rollback, core manifest rollback, diagnostics disablement, and bad artifact quarantine.
+- Rollback docs cover app updater pointer rollback, manual index rollback, core manifest rollback, and bad artifact quarantine.
 - The stable external evidence checklist has matching owner, system, required evidence, stop or rollback condition, and artifact/hash fields for each stable gate entry.
 - Generated evidence contains no `voyavpn.example`, placeholder updater signatures, placeholder public keys, or production GitHub download URLs.
 - All external checkpoint evidence is attached or the release is stopped with an owner and follow-up.
 
 ## Stable Environment Preflight
 
-Prepared stable readiness is a release-owner gate that runs only after external variables, signing secrets, diagnostics configuration, and real artifact inputs have been provisioned. The release shell must expose the required names without printing or committing their values.
+Prepared stable readiness is a release-owner gate that runs only after external variables, signing secrets, and real artifact inputs have been provisioned. The release shell must expose the required names without printing or committing their values.
 
-Required prepared names include `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, `VOYAVPN_DIAGNOSTICS_ENDPOINT`, `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, Apple signing/notarization inputs, Windows signing inputs, and real stable artifact paths when defaults are not used.
+Required prepared names include `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, Apple signing/notarization inputs, Windows signing inputs, and real stable artifact paths when defaults are not used.
 
 Prepared release shell sequence:
 
@@ -62,7 +59,7 @@ pnpm tauri:stable-updater-config
 pnpm check:release:stable
 ```
 
-Expected unprepared-shell failures are missing external inputs, not repository blockers. A normal local shell may fail immediately on missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `VOYAVPN_DIAGNOSTICS_ENDPOINT`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing platform signing inputs, missing real stable artifacts, fixture artifact paths in stable mode, placeholder updater signatures, or forbidden production URLs.
+Expected unprepared-shell failures are missing external inputs, not repository blockers. A normal local shell may fail immediately on missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing platform signing inputs, missing real stable artifacts, fixture artifact paths in stable mode, placeholder updater signatures, or forbidden production URLs.
 
 Expected prepared-environment pass criteria: `pnpm tauri:stable-updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables `bundle.createUpdaterArtifacts`, updater metadata is signed and CDN-derived, app/core metadata use approved CDN production URLs, and `pnpm check:release:stable` exits successfully with zero failures. Stable pointer promotion must not start until the prepared environment passes `pnpm check:release:stable`.
 
@@ -77,4 +74,4 @@ pnpm run smoke:frontend
 pnpm run check:release:dry-run
 ```
 
-These checks prove local regression, packaging metadata shape, and dry-run release readiness. They do not prove CDN publication, signing, notarization, external smoke, legal approval, privacy approval, stable pointer promotion, rollback drills, or monitoring readiness.
+These checks prove local regression, packaging metadata shape, and dry-run release readiness. They do not prove CDN publication, signing, notarization, external smoke, legal approval, stable pointer promotion, rollback drills, or monitoring readiness.
