@@ -138,6 +138,83 @@ async fn convergence_migration_discards_node_overrides_and_raw_configuration() {
 }
 
 #[tokio::test]
+async fn subscription_cleanup_migration_preserves_current_columns_and_rows() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .expect("database test operation should succeed");
+    for migration in [
+        include_str!("../../migrations/0001_fresh_schema.sql"),
+        include_str!("../../migrations/0002_drop_core_type_columns.sql"),
+        include_str!("../../migrations/0003_converge_global_profile_dns_templates.sql"),
+    ] {
+        sqlx::raw_sql(migration)
+            .execute(&pool)
+            .await
+            .expect("pre-cleanup migration should apply");
+    }
+    sqlx::query(
+        r#"INSERT INTO subscriptions (
+            id, remarks, url, more_url, enabled, user_agent, sort, filter,
+            auto_update_interval, update_time, convert_target, prev_profile,
+            next_profile, pre_socks_port, memo
+        ) VALUES ('sub', 'Kept', 'https://example.test/sub', 'https://example.test/more',
+            1, 'Voya/Test', 7, 'US', 30, 123, 'singbox', 'before', 'after', 1080, 'legacy')"#,
+    )
+    .execute(&pool)
+    .await
+    .expect("legacy subscription should insert");
+
+    sqlx::raw_sql(include_str!(
+        "../../migrations/0004_remove_subscription_scheduler_columns.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("subscription cleanup migration should apply");
+
+    let columns = sqlx::query("PRAGMA table_info(subscriptions)")
+        .fetch_all(&pool)
+        .await
+        .expect("subscription schema should be readable")
+        .into_iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect::<Vec<_>>();
+    for removed in ["auto_update_interval", "update_time", "memo"] {
+        assert!(!columns.iter().any(|column| column == removed));
+    }
+
+    let row = sqlx::query("SELECT * FROM subscriptions WHERE id = 'sub'")
+        .fetch_one(&pool)
+        .await
+        .expect("migrated subscription should remain");
+    assert_eq!(row.get::<String, _>("id"), "sub");
+    assert_eq!(row.get::<String, _>("remarks"), "Kept");
+    assert_eq!(row.get::<String, _>("url"), "https://example.test/sub");
+    assert_eq!(
+        row.get::<String, _>("more_url"),
+        "https://example.test/more"
+    );
+    assert_eq!(row.get::<i32, _>("enabled"), 1);
+    assert_eq!(row.get::<String, _>("user_agent"), "Voya/Test");
+    assert_eq!(row.get::<i32, _>("sort"), 7);
+    assert_eq!(
+        row.get::<Option<String>, _>("filter").as_deref(),
+        Some("US")
+    );
+    assert_eq!(row.get::<String, _>("convert_target"), "singbox");
+    assert_eq!(
+        row.get::<Option<String>, _>("prev_profile").as_deref(),
+        Some("before")
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("next_profile").as_deref(),
+        Some("after")
+    );
+    assert_eq!(row.get::<Option<i32>, _>("pre_socks_port"), Some(1080));
+}
+
+#[tokio::test]
 async fn statistics_repository_rolls_over_cleans_orphans_and_clones() {
     let database = Database::connect_in_memory()
         .await
@@ -300,7 +377,7 @@ async fn file_database_persists_profile_across_pool_restart() {
 }
 
 #[tokio::test]
-async fn profile_repository_orders_by_profile_ex_sort_and_updates_groups() {
+async fn profile_repository_orders_by_profile_ex_sort() {
     let database = Database::connect_in_memory()
         .await
         .expect("database test operation should succeed");
@@ -347,26 +424,10 @@ async fn profile_repository_orders_by_profile_ex_sort_and_updates_groups() {
         .expect("database test operation should succeed");
     assert_eq!(ordered[0].0.index_id, "second");
     assert_eq!(ordered[0].1.sort, 10);
-
-    let updated = database
-        .profiles()
-        .update_subid_many(&["first".to_string(), "second".to_string()], "new")
-        .await
-        .expect("database test operation should succeed");
-    assert_eq!(updated, 2);
-    assert_eq!(
-        database
-            .profiles()
-            .list_by_subid(Some("new"))
-            .await
-            .expect("database test operation should succeed")
-            .len(),
-        2
-    );
 }
 
 #[tokio::test]
-async fn profile_batch_operations_roll_back_on_mid_batch_error() {
+async fn profile_batch_delete_rolls_back_on_mid_batch_error() {
     let database = Database::connect_in_memory()
         .await
         .expect("database test operation should succeed");
@@ -387,46 +448,6 @@ async fn profile_batch_operations_roll_back_on_mid_batch_error() {
         .upsert(&second)
         .await
         .expect("database test operation should succeed");
-    sqlx::query(
-        r#"
-            CREATE TRIGGER reject_second_profile_subid_update
-            BEFORE UPDATE OF subid ON profile_items
-            WHEN OLD.index_id = 'second'
-            BEGIN
-                SELECT RAISE(ABORT, 'blocked profile update');
-            END
-            "#,
-    )
-    .execute(database.pool())
-    .await
-    .expect("database test operation should succeed");
-
-    let update_error = database
-        .profiles()
-        .update_subid_many(&["first".to_string(), "second".to_string()], "new")
-        .await;
-    assert!(update_error.is_err());
-    assert_eq!(
-        database
-            .profiles()
-            .get("first")
-            .await
-            .expect("database test operation should succeed")
-            .expect("database test operation should succeed")
-            .subid,
-        "old"
-    );
-    assert_eq!(
-        database
-            .profiles()
-            .get("second")
-            .await
-            .expect("database test operation should succeed")
-            .expect("database test operation should succeed")
-            .subid,
-        "old"
-    );
-
     sqlx::query(
         r#"
             CREATE TRIGGER reject_second_profile_delete
@@ -511,8 +532,6 @@ async fn subscription_repository_persists_orders_and_deletes_sub_profiles() {
         url: "https://example.test/a".to_string(),
         sort: 20,
         filter: Some("US|JP".to_string()),
-        auto_update_interval: 30,
-        update_time: 123,
         convert_target: Some("clash".to_string()),
         ..SubItem::default()
     };
@@ -767,6 +786,22 @@ fn app_config_store_defaults_and_persists_across_restart() {
         loaded.system_proxy_item.sys_proxy_type,
         SysProxyType::Unchanged
     );
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn app_config_store_rejects_old_schema_without_changing_the_file() {
+    let path = temp_path("guiNConfig-invalid.json");
+    let original = br#"{"CoreBasicItem":{"Loglevel":"debug"},"EnableLegacyProtect":true}"#;
+    fs::write(&path, original).expect("invalid app config fixture should be written");
+
+    let store = AppConfigStore::new(&path);
+    assert!(store.load().is_err());
+    assert_eq!(
+        fs::read(&path).expect("invalid app config fixture should remain readable"),
+        original
+    );
+
     let _ = fs::remove_file(path);
 }
 

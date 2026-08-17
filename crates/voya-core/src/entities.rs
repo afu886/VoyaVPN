@@ -163,9 +163,6 @@ pub struct SubItem {
     pub sort: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
-    pub auto_update_interval: i32,
-    #[specta(type = f64)]
-    pub update_time: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub convert_target: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,8 +171,6 @@ pub struct SubItem {
     pub next_profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pre_socks_port: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memo: Option<String>,
 }
 
 impl Default for SubItem {
@@ -189,13 +184,10 @@ impl Default for SubItem {
             user_agent: String::new(),
             sort: 0,
             filter: None,
-            auto_update_interval: 0,
-            update_time: 0,
             convert_target: None,
             prev_profile: None,
             next_profile: None,
             pre_socks_port: None,
-            memo: None,
         }
     }
 }

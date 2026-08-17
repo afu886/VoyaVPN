@@ -41,15 +41,6 @@ pub struct GroupPreviewRoute {
     pub outbounds: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GroupPreviewBalancer {
-    pub tag: String,
-    pub selectors: Vec<String>,
-    pub strategy: Option<String>,
-    pub fallback_tag: Option<String>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GroupPreview {

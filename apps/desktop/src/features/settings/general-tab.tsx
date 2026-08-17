@@ -26,7 +26,7 @@ const themeOptions: Array<{
   { icon: Moon, labelKey: "menu.themeDark", value: "dark" },
 ];
 
-export const selectedOptionClass =
+const selectedOptionClass =
   "border border-primary bg-accent-blue-light text-brand hover:bg-accent-blue-light hover:text-brand";
 
 export function GeneralTab({ controller }: { controller: SettingsBundleController }) {

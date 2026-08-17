@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppToast = {
+type AppToast = {
   description?: string;
   id: string;
   title: string;

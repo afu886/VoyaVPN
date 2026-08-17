@@ -5,7 +5,7 @@ import { afterEach, vi } from "vitest";
 
 import type { ProfileItem_Deserialize, ProfileListItem_Serialize } from "@/ipc/bindings";
 import { useRuntimeEventStore } from "@/ipc/runtime-event-store";
-import { DEFAULT_PROFILE_COLUMN_VISIBILITY, useProfileColumnsStore } from "@/stores/profile-columns-store";
+import { useProfileColumnsStore } from "@/stores/profile-columns-store";
 
 import { CONFIG_TYPES, MOVE_ACTIONS, PROFILE_PROTOCOLS, SPEED_ACTIONS } from "./profile-constants";
 import { ProfilesScreen } from "./server-table";
@@ -33,7 +33,6 @@ const ipcMocks = vi.hoisted(() => ({
   setActiveProfile: vi.fn(),
   sortProfiles: vi.fn(),
   updateSubscriptions: vi.fn(),
-  validateGroupProfile: vi.fn(),
 }));
 
 vi.mock("@/ipc", async () => {
@@ -121,7 +120,7 @@ describe("ProfilesScreen", () => {
     });
     // Column visibility persists to localStorage, so reset it between tests to
     // keep the default-column expectations independent of prior toggles.
-    useProfileColumnsStore.setState({ columnVisibility: { ...DEFAULT_PROFILE_COLUMN_VISIBILITY } });
+    useProfileColumnsStore.getState().resetColumnVisibility();
     useRuntimeEventStore.setState({
       serverStatsByProfileId: {},
       speedtestResultsByProfileId: {},
@@ -165,7 +164,6 @@ describe("ProfilesScreen", () => {
     ipcMocks.setActiveProfile.mockImplementation(async (indexId: string) => makeProfile(0, { IndexId: indexId }));
     ipcMocks.sortProfiles.mockResolvedValue([]);
     ipcMocks.updateSubscriptions.mockResolvedValue({ imported: 0, messages: [], removedExisting: 0, skipped: 0, updated: 0 });
-    ipcMocks.validateGroupProfile.mockResolvedValue({ childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] });
   });
 
   it("keeps a 5k row profile list virtualized", async () => {
@@ -845,18 +843,15 @@ function makeProfile(index: number, overrides: ProfileItem_Deserialize = {}): Pr
 
 function makeSubscription() {
   return {
-    AutoUpdateInterval: 0,
     Enabled: true,
     Filter: null,
     Id: "sub-1",
-    Memo: null,
     MoreUrl: "",
     NextProfile: null,
     PreSocksPort: null,
     PrevProfile: null,
     Remarks: "Fixture",
     Sort: 1,
-    UpdateTime: 0,
     Url: "https://example.test/sub",
     UserAgent: "",
   };

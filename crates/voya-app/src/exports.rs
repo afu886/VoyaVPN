@@ -144,7 +144,6 @@ fn export_share_links(profiles: &[ProfileItem], config: &AppConfig) -> Result<St
 #[cfg(test)]
 mod tests {
     use voya_core::{ConfigType, ProfileItem};
-    use voya_platform::paths::StorageMode;
 
     use super::*;
 
@@ -170,10 +169,7 @@ mod tests {
         }
 
         let manager = ExportManager::new(&database);
-        let paths = AppPaths::new(
-            std::env::temp_dir().join("voyavpn-export-test"),
-            StorageMode::Portable,
-        );
+        let paths = AppPaths::new(std::env::temp_dir().join("voyavpn-export-test"));
         let result = manager
             .export_profiles(
                 &paths,

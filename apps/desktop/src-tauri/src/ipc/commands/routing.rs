@@ -13,19 +13,6 @@ pub async fn list_routings(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_routing(
-    state: tauri::State<'_, AppState>,
-    id: String,
-) -> Result<Option<RoutingItem>, AppError> {
-    validate_required_ipc_text(&id, "routing id", IPC_ID_MAX_CHARS, AppError::Routing)?;
-    RoutingManager::new(state.database())
-        .get_routing(&id)
-        .await
-        .map_err(routing_error)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn save_routing<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,

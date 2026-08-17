@@ -10,15 +10,12 @@ import {
   proxyListConnections,
   proxyStartMonitor,
   proxyStopMonitor,
-  loadAppConfig,
   loadUiPreferences,
 } from "@/ipc";
 import type {
-  AppConfig_Serialize,
   ProxyConnectionItem,
   ProxyConnectionsSnapshot,
   ProxyTrafficEvent,
-  UiItem_Serialize,
 } from "@/ipc/bindings";
 import { usePreferencesStore } from "@/stores/preferences-store";
 import { useShellStore } from "@/stores/shell-store";
@@ -215,28 +212,9 @@ vi.mock("@/ipc", () => ({
       simpleDnsItem: {},
     }),
   ),
-  loadConfigSources: vi.fn(() =>
-    Promise.resolve({
-      geoSourceUrl: null,
-      srsSourceUrl: null,
-      routeRulesTemplateSourceUrl: null,
-    }),
-  ),
   listRoutings: vi.fn(() => Promise.resolve([])),
   listProfiles: vi.fn(() => Promise.resolve([])),
   listSubscriptions: vi.fn(() => Promise.resolve([])),
-  loadAppConfig: vi.fn(() =>
-    Promise.resolve({
-      ConstItem: {
-        RouteRulesTemplateSourceUrl: null,
-      },
-      UIItem: {
-        ColorPrimaryName: "Teal",
-        CurrentLanguage: "en",
-        CurrentTheme: "FollowSystem",
-      },
-    }),
-  ),
   loadSettingsBundle: vi.fn(() => new Promise(() => undefined)),
   loadUiPreferences: vi.fn(() => Promise.resolve({ language: "en", theme: "system" })),
   moveRoutingRule: vi.fn(),
@@ -317,11 +295,7 @@ vi.mock("@/ipc", () => ({
   ),
   speedtestStatus: vi.fn(() => Promise.resolve({ running: false })),
   sortProfiles: vi.fn(),
-  validateGroupProfile: vi.fn(() =>
-    Promise.resolve({ childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] }),
-  ),
   tunRequestElevation: vi.fn(),
-  tunRevokeElevation: vi.fn(),
   systemProxyStatus: vi.fn(() =>
     Promise.resolve({
       effectiveMode: 0,
@@ -388,7 +362,6 @@ describe("App", () => {
     window.history.replaceState({}, "", "/");
     window.localStorage.clear();
     document.documentElement.className = "";
-    vi.mocked(loadAppConfig).mockClear();
     vi.mocked(loadUiPreferences).mockReset();
     vi.mocked(loadUiPreferences).mockResolvedValue({ language: "en", theme: "system" });
     vi.mocked(proxyCloseConnection).mockClear();
@@ -399,7 +372,6 @@ describe("App", () => {
     vi.mocked(proxyListConnections).mockResolvedValue({ connections: [], downloadTotal: 0, uploadTotal: 0 });
     vi.mocked(proxyStartMonitor).mockResolvedValue({ state: "running", running: true, stale: false, message: null });
     vi.mocked(proxyStopMonitor).mockResolvedValue({ state: "stopped", running: false, stale: true, message: null });
-    vi.mocked(loadAppConfig).mockResolvedValue(makeAppConfig());
     await changeLocale("en");
   });
 
@@ -825,36 +797,6 @@ function resetTestDom() {
   document.body.innerHTML = "";
   document.body.removeAttribute("data-scroll-locked");
   document.body.style.removeProperty("pointer-events");
-}
-
-function makeAppConfig(overrides: Partial<AppConfig_Serialize> = {}): AppConfig_Serialize {
-  return {
-    ConstItem: {
-      RouteRulesTemplateSourceUrl: null,
-    },
-    UIItem: makeUiItem(),
-    ...overrides,
-  } as AppConfig_Serialize;
-}
-
-function makeUiItem(overrides: Partial<UiItem_Serialize> = {}): UiItem_Serialize {
-  return {
-    AutoHideStartup: false,
-    ColorPrimaryName: "Teal",
-    CurrentLanguage: "en",
-    CurrentTheme: "FollowSystem",
-    DoubleClick2Activate: false,
-    EnableAutoAdjustMainLvColWidth: false,
-    EnableDragDropSort: false,
-    Hide2TrayWhenClose: false,
-    MacOSShowInDock: false,
-    MainColumnItem: [],
-    MainGirdHeight1: 0,
-    MainGirdHeight2: 0,
-    MainGirdOrientation: 0,
-    WindowSizeItem: [],
-    ...overrides,
-  };
 }
 
 function makeConnection(index: number, overrides: Partial<ProxyConnectionItem> = {}): ProxyConnectionItem {

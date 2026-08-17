@@ -36,7 +36,6 @@ test("loads the dedicated settings surface", async ({ page }) => {
   await expect(settings.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
   await expect(settings.getByText("Autostart", { exact: true })).toBeVisible();
 
-  await settings.getByRole("tab", { name: "Hotkeys" }).click();
   await expect(settings.getByText("Show window", { exact: true })).toBeVisible();
 
   const hotkeyCapture = settings.getByRole("textbox", { name: "Hotkey key" }).first();
@@ -54,6 +53,9 @@ test("loads the dedicated settings surface", async ({ page }) => {
 
   await hotkeyCapture.blur();
   await page.keyboard.press("Escape");
+  const unsavedDialog = page.getByRole("alertdialog");
+  await expect(unsavedDialog).toBeVisible();
+  await unsavedDialog.getByRole("button", { name: "Discard changes" }).click();
   await expect.poll(async () =>
     page.evaluate(() => {
       const state = window.__VOYA_SMOKE__.state as {
@@ -95,6 +97,9 @@ test("imports the default configuration template from the Settings sources card"
   await geoSource.fill(drafts.geo);
   await srsSource.fill(drafts.srs);
   await routingSource.fill(drafts.routing);
+  await expect(importButton).toBeDisabled();
+  await settings.getByRole("button", { exact: true, name: "Save all" }).click();
+  await expect(importButton).toBeEnabled();
 
   await importButton.click();
   let templateDialog = page.getByRole("dialog", { name: "Import configuration template" });
@@ -190,11 +195,10 @@ test("adds and imports profiles, activates one, and connects through the fake ru
   await expect(shareQrDialog.getByAltText("Generated QR code")).toBeVisible();
   await shareQrDialog.getByRole("button", { name: "Close" }).first().click();
 
-  await page.getByRole("button", { name: "Activate" }).click();
-  await expect(page.getByTestId("active-profile-marker")).toBeVisible();
-
   await page.getByRole("tab", { name: "Home" }).click();
-  await page.getByRole("button", { exact: true, name: "Connect" }).click();
+  const importedNode = page.getByRole("option", { name: /Smoke Imported VLESS/ });
+  await importedNode.dblclick();
+  await expect(importedNode).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("status-bar")).toContainText("Connected");
   await expect(page.getByTestId("status-bar")).toContainText("PID 4242");
 
@@ -209,7 +213,7 @@ test("uses the proxy groups and connections routes through the proxy runtime IPC
   await expect(page.getByTestId("status-bar")).toContainText("Route: /proxy/groups");
   await expect(page.getByRole("button", { name: /Smoke Node VLESS 23 ms Active/ })).toBeVisible();
   await page.getByRole("button", { name: /Smoke Backup Node/ }).click();
-  await page.getByRole("button", { exact: true, name: "Delay test" }).click();
+  await page.getByRole("button", { exact: true, name: "Test selected" }).click();
   await page.getByRole("button", { exact: true, name: "Direct" }).click();
 
   await page.getByRole("tab", { name: "Connections" }).click();

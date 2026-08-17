@@ -74,17 +74,14 @@ describe("SubscriptionsDialog", () => {
 
 function makeSubscription(): SubItem_Serialize {
   return {
-    AutoUpdateInterval: 0,
     ConvertTarget: null,
     Enabled: true,
     Filter: null,
     Id: "sub-1",
-    Memo: null,
     MoreUrl: "",
     PreSocksPort: null,
     Remarks: "Fixture sub",
     Sort: 1,
-    UpdateTime: 0,
     Url: "https://example.test/sub",
     UserAgent: "",
   };

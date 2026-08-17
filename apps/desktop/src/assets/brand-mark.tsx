@@ -18,5 +18,3 @@ export const BrandMark = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
-
-export default BrandMark;

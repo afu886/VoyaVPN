@@ -6,23 +6,23 @@ import { DNS_STRATEGIES } from "./dns-constants";
 
 export type DnsFieldErrors = Record<string, string>;
 
-const optionalNullableText = z.string().nullable().optional();
+const nullableText = z.string().nullable();
 
 const simpleDnsItemSchema = z.object({
-  UseSystemHosts: z.boolean().nullable().optional(),
-  AddCommonHosts: z.boolean().nullable().optional(),
-  FakeIP: z.boolean().nullable().optional(),
-  GlobalFakeIp: z.boolean().nullable().optional(),
-  BlockBindingQuery: z.boolean().nullable().optional(),
-  DirectDNS: optionalNullableText,
-  RemoteDNS: optionalNullableText,
-  BootstrapDNS: optionalNullableText,
-  Strategy4Freedom: z.enum(DNS_STRATEGIES).nullable().optional(),
-  Strategy4Proxy: z.enum(DNS_STRATEGIES).nullable().optional(),
-  ServeStale: z.boolean().nullable().optional(),
-  ParallelQuery: z.boolean().nullable().optional(),
-  Hosts: optionalNullableText.superRefine(validateHosts),
-  DirectExpectedIPs: optionalNullableText.superRefine(validateExpectedIps),
+  UseSystemHosts: z.boolean().nullable(),
+  AddCommonHosts: z.boolean().nullable(),
+  FakeIP: z.boolean().nullable(),
+  GlobalFakeIp: z.boolean().nullable(),
+  BlockBindingQuery: z.boolean().nullable(),
+  DirectDNS: nullableText,
+  RemoteDNS: nullableText,
+  BootstrapDNS: nullableText,
+  Strategy4Freedom: z.enum(DNS_STRATEGIES).nullable(),
+  Strategy4Proxy: z.enum(DNS_STRATEGIES).nullable(),
+  ServeStale: z.boolean().nullable(),
+  ParallelQuery: z.boolean().nullable(),
+  Hosts: nullableText.superRefine(validateHosts),
+  DirectExpectedIPs: nullableText.superRefine(validateExpectedIps),
 });
 
 export const dnsSettingsSchema: z.ZodType<DnsSettings_Deserialize> = z.object({

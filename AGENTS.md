@@ -41,6 +41,8 @@ pnpm --filter @voya/desktop test --run src/features/profiles/server-table.test.t
 pnpm run check:frontend:lint       # ESLint
 pnpm run check:rust:fmt  # cargo fmt --all --check
 pnpm run check:rust:clippy   # clippy --workspace --all-targets -D warnings
+pnpm run check:rust:deps     # cargo-machete 0.9.2; install it locally first
+pnpm run check:dead-code     # Knip workspace scan + strict production scan
 pnpm bindings:check      # Fail if generated IPC bindings drift (see IPC below)
 pnpm i18n:check          # Fail if locale files drift from v2rayN .resx source
 ```
@@ -61,7 +63,7 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 - **voya-net** — HTTP downloads, subscriptions, Clash REST/WebSocket, and ruleset/Geo asset acquisition.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
 - **voya-app** — Orchestration layer. Managers (one module per subsystem: `runtime`, `supervisor`, `profiles`, `subscriptions`, `routing`, `dns`, `proxy_runtime`, `statistics`, `sysproxy`, `tun`, `elevation`, `updates`, etc.) that combine the domain/db/net/platform crates. `proxy_runtime` exposes product-level proxy group/connection behavior through the sing-box Clash-compatible API. No Tauri wiring here.
-- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands/` contains 82 `#[tauri::command]` functions split by subsystem, including one debug-only demo command; `commands/mod.rs` re-exports every command and crate-private shell helper, `ipc/window.rs` has 3 more, and the fixed `collect_commands!` list registers 84 commands in release builds or 85 in debug builds; events live in `events.rs`).
+- **apps/desktop/src-tauri** — Tauri bootstrap and the *only* backend place that knows about Tauri APIs: command/event registration, `AppState` injection, tray, capabilities, plugins, packaging, lifecycle. `src/lib.rs` `run()` wires everything in `setup()`; IPC lives in `apps/desktop/src-tauri/src/ipc/` (`commands/` contains 63 `#[tauri::command]` functions split by subsystem, `ipc/window.rs` has 3 more, and the fixed `collect_commands!` list registers the same 66 commands in debug and release builds; events live in `events.rs`).
 
 ### Frontend (`apps/desktop/src/` + `packages/`)
 

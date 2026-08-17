@@ -258,22 +258,6 @@ impl<'pool> ProfileRepository<'pool> {
 
         Ok(result.rows_affected())
     }
-
-    pub async fn update_subid_many(&self, index_ids: &[String], subid: &str) -> Result<u64> {
-        let mut tx = self.pool.begin().await?;
-        let mut updated = 0;
-        for index_id in index_ids {
-            let result = sqlx::query("UPDATE profile_items SET subid = ? WHERE index_id = ?")
-                .bind(subid)
-                .bind(index_id)
-                .execute(&mut *tx)
-                .await?;
-            updated += result.rows_affected();
-        }
-
-        tx.commit().await?;
-        Ok(updated)
-    }
 }
 
 fn row_to_profile(row: SqliteRow) -> Result<ProfileItem> {

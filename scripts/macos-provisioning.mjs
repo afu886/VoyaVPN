@@ -36,7 +36,7 @@ export function plistBuddy(plistPath, keyPath, optional = false) {
   return result.stdout.trim();
 }
 
-export function plistBuddyXml(plistPath, keyPath, optional = false) {
+function plistBuddyXml(plistPath, keyPath, optional = false) {
   const result = spawnSync("/usr/libexec/PlistBuddy", ["-x", "-c", `Print ${keyPath}`, plistPath], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -50,7 +50,7 @@ export function plistBuddyXml(plistPath, keyPath, optional = false) {
   return result.stdout.trim();
 }
 
-export function parsePlistArray(output) {
+function parsePlistArray(output) {
   return output
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -244,7 +244,7 @@ export function localProvisioningUdid() {
   }
 }
 
-export function collectProvisioningProfiles(root, results = []) {
+function collectProvisioningProfiles(root, results = []) {
   if (!existsSync(root)) {
     return results;
   }

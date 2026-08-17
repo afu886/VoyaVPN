@@ -70,40 +70,6 @@ const GEOIP_PREFIX: &str = "geoip:";
 const GEOSITE_PREFIX: &str = "geosite:";
 const IP_IF_NON_MATCH: &str = "IPIfNonMatch";
 const IP_ON_DEMAND: &str = "IPOnDemand";
-pub const DEFAULT_SINGBOX_DNS_NORMAL: &str = r#"{
-  "servers": [
-    {
-      "tag": "remote",
-      "type": "tcp",
-      "server": "8.8.8.8",
-      "detour": "proxy"
-    },
-    {
-      "tag": "local",
-      "type": "udp",
-      "server": "223.5.5.5"
-    }
-  ],
-  "rules": [
-    {
-      "rule_set": [
-        "geosite-google"
-      ],
-      "server": "remote",
-      "strategy": "prefer_ipv4"
-    },
-    {
-      "rule_set": [
-        "geosite-cn"
-      ],
-      "server": "local",
-      "strategy": "prefer_ipv4"
-    }
-  ],
-  "final": "remote",
-  "strategy": "prefer_ipv4"
-}"#;
-
 const VMESS_SECURITIES: &[&str] = &[
     "aes-128-gcm",
     "chacha20-poly1305",

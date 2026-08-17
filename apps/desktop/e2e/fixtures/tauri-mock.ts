@@ -50,16 +50,8 @@ export async function installTauriSmokeMock(page: Page) {
 
     const state = {
       appConfig: makeAppConfig(),
-      autostart: {
-        artifactKind: "linuxDesktopFile",
-        artifactName: "VoyaVPN.desktop",
-        artifactPath: "/home/smoke/.config/autostart/VoyaVPN.desktop",
-        enabled: false,
-        platform: "linux",
-      },
       calls: [] as Array<{ command: string; args: CommandArgs }>,
       dns: makeDnsSettings(),
-      hotkeys: makeHotkeyStatus(),
       profiles: [] as ProfileRow[],
       routings: [makeRouting("routing-default", "Default routing", true)],
       runtime: {
@@ -74,6 +66,7 @@ export async function installTauriSmokeMock(page: Page) {
         routeRulesTemplateSourceUrl: null as string | null,
         srsSourceUrl: null as string | null,
       },
+      settingsBundle: makeSettingsBundle(),
       sysProxy: {
         effectiveMode: 0,
         exceptions: "",
@@ -84,7 +77,14 @@ export async function installTauriSmokeMock(page: Page) {
       },
       tun: {
         allowEnableTun: true,
+        backend: "process",
+        elevationGranted: true,
         enabled: false,
+        expectedProviderPath: null as string | null,
+        lastProviderError: null as string | null,
+        nativeComponentReady: true,
+        needsServiceInstall: false,
+        needsVpnPermission: false,
         preflight: {
           notes: [] as string[],
           platform: "linux",
@@ -92,9 +92,11 @@ export async function installTauriSmokeMock(page: Page) {
           state: "ready",
           windowsCleanupDevices: [] as string[],
         },
-        requiresSudoPassword: false,
+        providerPathMismatch: false,
+        providerState: "notApplicable",
+        requiresElevation: false,
+        resolvedProviderPath: null as string | null,
         restoreOnDisconnect: true,
-        sudoPasswordPresent: false,
       },
     };
 
@@ -125,25 +127,15 @@ export async function installTauriSmokeMock(page: Page) {
         case "plugin:updater|download_and_install":
         case "plugin:process|restart":
           return Promise.resolve(null);
-        case "app_health":
-          return Promise.resolve("ok");
-        case "load_app_config":
-          return Promise.resolve(clone(state.appConfig));
-        case "save_app_config": {
-          state.appConfig = mergeDeep(state.appConfig, readRecord(args, "config"));
-          return Promise.resolve(clone(state.appConfig));
-        }
         case "open_settings_window":
           return Promise.resolve(null);
         case "load_ui_preferences":
           return Promise.resolve(uiPreferencesFromConfig());
-        case "save_ui_preferences": {
-          const preferences = readRecord(args, "preferences");
-          state.appConfig.UIItem.ColorPrimaryName = null;
-          state.appConfig.UIItem.CurrentLanguage = String(preferences.language ?? "en");
-          state.appConfig.UIItem.CurrentTheme = themeModeToConfig(preferences.theme);
-          return Promise.resolve(uiPreferencesFromConfig());
-        }
+        case "load_settings_bundle":
+          return Promise.resolve(clone(state.settingsBundle));
+        case "save_settings_bundle":
+          state.settingsBundle = cloneRecord(args.bundle) as typeof state.settingsBundle;
+          return Promise.resolve(clone(state.settingsBundle));
         case "runtime_status":
           return Promise.resolve(clone(state.runtime));
         case "connect_active_profile": {
@@ -184,25 +176,14 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve(clone(state.sysProxy));
         case "tun_status":
           return Promise.resolve(clone(state.tun));
+        case "tun_request_elevation":
+          state.tun = { ...state.tun, elevationGranted: true, requiresElevation: false };
+          return Promise.resolve(clone(state.tun));
         case "set_tun_enabled":
           state.tun = { ...state.tun, enabled: Boolean(args.enabled) };
           return Promise.resolve(clone(state.tun));
-        case "sudo_begin_collection":
-          return Promise.resolve({ requestId: null, state: "ready" });
-        case "sudo_submit_password":
-          state.tun = { ...state.tun, sudoPasswordPresent: true };
-          return Promise.resolve({ requestId: args.requestId ?? null, state: "ready" });
-        case "sudo_clear_password":
-          state.tun = { ...state.tun, sudoPasswordPresent: false };
-          return Promise.resolve(null);
-        case "sudo_has_password":
-          return Promise.resolve(state.tun.sudoPasswordPresent);
         case "list_profiles":
           return Promise.resolve(filterProfiles(state.profiles, args.filter));
-        case "get_profile": {
-          const row = state.profiles.find((item) => item.profile.IndexId === args.indexId) ?? null;
-          return Promise.resolve(clone(row));
-        }
         case "save_profile": {
           const row = upsertProfile(readRecord(args, "profile"));
           return Promise.resolve(clone(row));
@@ -251,8 +232,6 @@ export async function installTauriSmokeMock(page: Page) {
               subid: row.profile.Subid,
             })),
           );
-        case "validate_group_profile":
-          return Promise.resolve({ childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] });
         case "preview_group_profile":
           return Promise.resolve({
             singboxRoutes: [],
@@ -260,10 +239,8 @@ export async function installTauriSmokeMock(page: Page) {
           });
         case "list_subscriptions":
           return Promise.resolve([]);
-        case "get_subscription":
-          return Promise.resolve(null);
         case "save_subscription":
-          return Promise.resolve({ Id: "sub-smoke", Remarks: "Smoke", Url: "", MoreUrl: "", Enabled: true, UserAgent: "", Sort: 0, UpdateTime: null });
+          return Promise.resolve({ Id: "sub-smoke", Remarks: "Smoke", Url: "", MoreUrl: "", Enabled: true, UserAgent: "", Sort: 0 });
         case "delete_subscriptions":
           return Promise.resolve(0);
         case "export_profile_share_links": {
@@ -283,10 +260,7 @@ export async function installTauriSmokeMock(page: Page) {
           const row = upsertProfile(importedProfile(String(args.text ?? "")));
           return Promise.resolve({ imported: 1, importedIndexIds: [row.profile.IndexId], removedExisting: 0, skipped: 0, subid: args.subid ?? null });
         }
-        case "import_profiles_from_file":
-          return Promise.resolve({ imported: 0, importedIndexIds: [], removedExisting: 0, skipped: 0, subid: args.subid ?? null });
         case "update_subscriptions":
-        case "run_due_subscription_updates":
           return Promise.resolve({ imported: 0, messages: [], removedExisting: 0, skipped: 0, updated: 0 });
         case "run_speedtest":
           return Promise.resolve({ action: args.action, message: "smoke skipped real speedtest", requested: readStringArray(args, "indexIds").length, started: false });
@@ -295,10 +269,6 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve({ running: false });
         case "list_routings":
           return Promise.resolve(clone(state.routings));
-        case "get_routing": {
-          const routing = state.routings.find((item) => item.Id === args.id) ?? null;
-          return Promise.resolve(clone(routing));
-        }
         case "save_routing": {
           const routing = upsertRouting(readRecord(args, "item"));
           return Promise.resolve(clone(routing));
@@ -356,6 +326,7 @@ export async function installTauriSmokeMock(page: Page) {
           state.appConfig.ConstItem.GeoSourceUrl = state.sources.geoSourceUrl;
           state.appConfig.ConstItem.RouteRulesTemplateSourceUrl = state.sources.routeRulesTemplateSourceUrl;
           state.appConfig.ConstItem.SrsSourceUrl = state.sources.srsSourceUrl;
+          state.settingsBundle.sources = clone(state.sources);
           state.routings = state.routings.map((routing, index) => ({
             ...routing,
             IsActive: index === 0,
@@ -425,29 +396,6 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve({ message: null, running: true, stale: false, state: "running" });
         case "proxy_stop_monitor":
           return Promise.resolve({ message: null, running: false, stale: true, state: "stopped" });
-        case "autostart_status":
-          return Promise.resolve(clone(state.autostart));
-        case "set_autostart_enabled":
-          state.autostart = { ...state.autostart, enabled: Boolean(args.enabled) };
-          return Promise.resolve(clone(state.autostart));
-        case "global_hotkey_status":
-          return Promise.resolve(clone(state.hotkeys));
-        case "save_global_hotkeys":
-          state.hotkeys = { ...state.hotkeys, settings: readArray(args, "settings") };
-          return Promise.resolve(clone(state.hotkeys));
-        case "load_config_sources":
-          return Promise.resolve(clone(state.sources));
-        case "save_config_sources":
-          state.sources = {
-            geoSourceUrl: readRecord(args, "settings").geoSourceUrl as string | null,
-            routeRulesTemplateSourceUrl:
-              readRecord(args, "settings").routeRulesTemplateSourceUrl as string | null,
-            srsSourceUrl: readRecord(args, "settings").srsSourceUrl as string | null,
-          };
-          state.appConfig.ConstItem.GeoSourceUrl = state.sources.geoSourceUrl;
-          state.appConfig.ConstItem.RouteRulesTemplateSourceUrl = state.sources.routeRulesTemplateSourceUrl;
-          state.appConfig.ConstItem.SrsSourceUrl = state.sources.srsSourceUrl;
-          return Promise.resolve(clone(state.sources));
         case "generate_qr_code":
           return Promise.resolve({
             mimeType: "image/svg+xml",
@@ -459,8 +407,6 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve([{ bytes: 1024, name: "geoip.db", usedProxy: false }]);
         case "update_srs_assets":
           return Promise.resolve([{ bytes: 512, name: "rules.srs", usedProxy: false }]);
-        case "ipc_demo_round_trip":
-          return Promise.resolve({ echoedMessage: readRecord(args, "request").message ?? "", messageLength: String(readRecord(args, "request").message ?? "").length });
         default:
           throw { kind: "state", message: `Unhandled smoke command: ${command}` };
       }
@@ -684,19 +630,68 @@ export async function installTauriSmokeMock(page: Page) {
           GeoSourceUrl: null as string | null,
           RouteRulesTemplateSourceUrl: null as string | null,
           SrsSourceUrl: null as string | null,
+          SubConvertUrl: null as string | null,
         },
-        CoreBasicItem: {},
-        CoreTypeItem: [],
-        GUIItem: {},
-        GrpcItem: {},
-        HysteriaItem: {},
-        Inbound: [],
+        CoreBasicItem: {
+          BindInterface: null as string | null,
+          DefAllowInsecure: false,
+          DefFingerprint: "",
+          DefUserAgent: "",
+          EnableCacheFile4Sbox: true,
+          EnableFragment: false,
+          LogEnabled: false,
+          Loglevel: "warning",
+          MuxEnabled: false,
+          SendThrough: null as string | null,
+        },
+        GUIItem: {
+          AutoRun: false,
+          DisplayRealTimeSpeed: false,
+          EnableStatistics: false,
+        },
+        GlobalHotkeys: [],
+        GrpcItem: {
+          HealthCheckTimeout: 20,
+          IdleTimeout: 60,
+          PermitWithoutStream: false,
+        },
+        HysteriaItem: {
+          DownMbps: 100,
+          HopInterval: 30,
+          UpMbps: 100,
+        },
+        Inbound: [{
+          AllowLANConn: false,
+          LocalPort: 10808,
+          NewPort4Lan: false,
+          Pass: "",
+          Protocol: "socks",
+          SecondLocalPortEnabled: false,
+          SniffingEnabled: true,
+          User: "",
+        }],
         IndexId: "",
-        MsgUIItem: {},
-        Mux4SboxItem: {},
-        RoutingBasicItem: {},
+        Mux4SboxItem: {
+          MaxConnections: 8,
+          Padding: null as boolean | null,
+          Protocol: "h2mux",
+        },
+        RoutingBasicItem: {
+          DomainStrategy: "AsIs",
+          DomainStrategy4Singbox: "",
+          RoutingIndexId: "",
+        },
         SimpleDNSItem: {},
-        SpeedTestItem: {},
+        SpeedTestItem: {
+          IPAPIUrl: "",
+          MixedConcurrencyCount: 5,
+          SpeedPingTestUrl: "https://www.google.com/generate_204",
+          SpeedTestDelayInterval: null as number | null,
+          SpeedTestPageSize: null as number | null,
+          SpeedTestTimeout: 10,
+          SpeedTestUrl: "https://cachefly.cachefly.net/50mb.test",
+          UdpTestTarget: "ntp:pool.ntp.org",
+        },
         SubIndexId: "",
         SystemProxyItem: {
           CustomSystemProxyPacPath: null,
@@ -706,9 +701,16 @@ export async function installTauriSmokeMock(page: Page) {
           SystemProxyAdvancedProtocol: "",
           SystemProxyExceptions: "",
         },
-        TunModeItem: {},
+        TunModeItem: {
+          AutoRoute: true,
+          EnableIPv6Address: false,
+          EnableTun: false,
+          IcmpRouting: "rule",
+          Mtu: 1500,
+          Stack: "",
+          StrictRoute: false,
+        },
         UIItem: {
-          ColorPrimaryName: "Teal" as string | null,
           CurrentLanguage: "en",
           CurrentTheme: "FollowSystem",
         },
@@ -724,15 +726,63 @@ export async function installTauriSmokeMock(page: Page) {
       };
     }
 
-    function themeModeToConfig(theme: unknown) {
-      switch (theme) {
-        case "dark":
-          return "Dark";
-        case "light":
-          return "Light";
-        default:
-          return "FollowSystem";
-      }
+    function makeSettingsBundle() {
+      return {
+        autostartEnabled: false,
+        coreBasicItem: {
+          DefAllowInsecure: false,
+          DefFingerprint: "chrome",
+          DefUserAgent: "",
+          EnableCacheFile4Sbox: true,
+          EnableFragment: false,
+          LogEnabled: false,
+          Loglevel: "warning",
+          MuxEnabled: false,
+        },
+        hysteriaItem: { DownMbps: 100, HopInterval: 30, UpMbps: 100 },
+        mux4SboxItem: { MaxConnections: 4, Padding: false, Protocol: "h2mux" },
+        network: {
+          systemProxy: {
+            customSystemProxyPacPath: null,
+            customSystemProxyScriptPath: null,
+            notProxyLocalAddress: true,
+            systemProxyAdvancedProtocol: "",
+            systemProxyExceptions: "",
+          },
+          tun: {
+            autoRoute: true,
+            enableIpv6Address: false,
+            icmpRouting: "rule",
+            mtu: 1500,
+            stack: "system",
+            strictRoute: false,
+          },
+        },
+        showWindowHotkey: {
+          Alt: true,
+          Control: true,
+          EGlobalHotkey: 0,
+          KeyCode: 86,
+          Shift: false,
+        },
+        sources: {
+          geoSourceUrl: null as string | null,
+          routeRulesTemplateSourceUrl: null as string | null,
+          srsSourceUrl: null as string | null,
+        },
+        speedTestItem: {
+          IPAPIUrl: "",
+          MixedConcurrencyCount: 5,
+          SpeedPingTestUrl: "https://www.google.com/generate_204",
+          SpeedTestDelayInterval: null,
+          SpeedTestPageSize: null,
+          SpeedTestTimeout: 10,
+          SpeedTestUrl: "https://cachefly.cachefly.net/50mb.test",
+          UdpTestTarget: "ntp:pool.ntp.org",
+        },
+        subConvertUrl: null,
+        uiPreferences: { language: "en", theme: "system" },
+      };
     }
 
     function makeDnsSettings() {
@@ -753,21 +803,6 @@ export async function installTauriSmokeMock(page: Page) {
           Strategy4Proxy: "UseIP",
           UseSystemHosts: true,
         },
-      };
-    }
-
-    function makeHotkeyStatus() {
-      const labels = ["Show window"];
-      return {
-        actions: labels.map((label, action) => ({ action, label })),
-        registered: [],
-        settings: labels.map((_label, EGlobalHotkey) => ({
-          Alt: false,
-          Control: false,
-          EGlobalHotkey,
-          KeyCode: null,
-          Shift: false,
-        })),
       };
     }
 

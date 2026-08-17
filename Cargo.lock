@@ -5156,7 +5156,6 @@ name = "voya-app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "flate2",
  "futures-util",
  "qrcode",
  "regex",
@@ -5167,7 +5166,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "specta",
- "tar",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
@@ -5180,7 +5178,6 @@ dependencies = [
  "voya-platform",
  "voya-udptest",
  "webpki-roots 1.0.7",
- "zeroize",
 ]
 
 [[package]]
@@ -5271,7 +5268,6 @@ dependencies = [
  "voya-db",
  "voya-platform",
  "windows-service",
- "zeroize",
 ]
 
 [[package]]

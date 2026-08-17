@@ -29,26 +29,6 @@ pub async fn list_profiles(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_profile(
-    state: tauri::State<'_, AppState>,
-    index_id: String,
-) -> Result<Option<ProfileListItem>, AppError> {
-    validate_required_ipc_text(
-        &index_id,
-        "profile index id",
-        IPC_ID_MAX_CHARS,
-        AppError::Profile,
-    )?;
-    let config = current_config(&state)?;
-
-    ProfileManager::new(state.database())
-        .get_profile(&config, &index_id)
-        .await
-        .map_err(profile_error)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn save_profile<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
@@ -264,36 +244,6 @@ pub async fn sort_profiles<R: tauri::Runtime>(
     )?;
 
     Ok(profiles)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn move_profiles_to_group<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    index_ids: Vec<String>,
-    subid: String,
-) -> Result<u32, AppError> {
-    validate_ipc_text_list(
-        &index_ids,
-        "profile index id",
-        IPC_ID_MAX_CHARS,
-        AppError::Profile,
-    )?;
-    validate_required_ipc_text(
-        &subid,
-        "subscription id",
-        IPC_ID_MAX_CHARS,
-        AppError::Profile,
-    )?;
-    let updated = ProfileManager::new(state.database())
-        .move_profiles_to_group(&index_ids, &subid)
-        .await
-        .map_err(profile_error)?;
-
-    emit_profile_invalidation(&app, "profiles-moved-to-group", index_ids, false)?;
-
-    Ok(u32::try_from(updated).unwrap_or(u32::MAX))
 }
 
 #[tauri::command]

@@ -25,7 +25,7 @@ export type LocaleDirection = (typeof localeOptions)[number]["direction"];
 
 const storageKey = "voyavpn.locale";
 
-export const i18nResources = {
+const i18nResources = {
   de,
   en,
   fa,

@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture, run, truthy } from "./lib/common.mjs";
@@ -25,7 +25,6 @@ const outRoot = resolve(repoRoot, "target", "native", "macos");
 const appBundle = resolve(process.env.VOYAVPN_MACOS_APP_BUNDLE || resolve(repoRoot, "target", "native", "macos", "VoyaVPN.app"));
 const appContents = resolve(appBundle, "Contents");
 const appInfoPlist = resolve(appContents, "Info.plist");
-const legacyTunnelHelper = resolve(appContents, "MacOS", "voyavpn-macos-tunnelctl");
 const appProvisioningProfileDestination = resolve(appContents, "embedded.provisionprofile");
 const appEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "macos-app.plist");
 const packetTunnelEntitlements = resolve(repoRoot, "apps", "desktop", "src-tauri", "entitlements", "packet-tunnel.plist");
@@ -148,10 +147,6 @@ function main() {
   packetTunnelProvisioningProfileDestination = tunnelLayout.provisioningProfile;
   embeddedLibboxFramework = tunnelLayout.embeddedLibboxFramework;
   removeUnsupportedLaunchServicesKeys();
-  if (existsSync(legacyTunnelHelper) && !truthy(process.env.VOYAVPN_PRESERVE_MACOS_TUNNEL_HELPER)) {
-    rmSync(legacyTunnelHelper, { force: true });
-    console.log("Removed legacy macOS tunnel helper; NetworkExtension is controlled in-process by the app.");
-  }
   const appProfileResult = provisioningProfile(
     appBundleIdentifier,
     "VOYAVPN_MACOS_APP_PROVISIONING_PROFILE",

@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { changeLocale, getLocaleDirection, i18nResources, localeOptions, type Locale } from "./index";
+import { changeLocale, getLocaleDirection, i18next, localeOptions, type Locale } from "./index";
 
 type LocaleTree = {
   [key: string]: LocaleTree | string;
@@ -136,7 +136,7 @@ describe("i18n locales", () => {
 });
 
 function localeTree(locale: Locale) {
-  return i18nResources[locale] as unknown as LocaleTree;
+  return i18next.getResourceBundle(locale, "translation") as LocaleTree;
 }
 
 function readLocaleFile(path: string) {

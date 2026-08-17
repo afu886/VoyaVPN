@@ -9,8 +9,7 @@ impl ShareFmt for ShadowsocksFmt {
     }
 
     fn parse(&self, input: &str) -> Result<ProfileItem, ShareError> {
-        let mut item =
-            parse_shadowsocks_legacy(input).or_else(|_| parse_shadowsocks_sip002(input))?;
+        let mut item = parse_shadowsocks_sip002(input)?;
         ensure_address_port("ss", &item)?;
         if nonempty_option(&item.protocol_extra.ss_method).is_none() {
             return Err(ShareError::MissingField {
@@ -89,57 +88,6 @@ pub fn parse_ss_sip008(input: &str) -> Result<Vec<ProfileItem>, ShareError> {
         result.push(item);
     }
     Ok(result)
-}
-
-fn parse_shadowsocks_legacy(input: &str) -> Result<ProfileItem, ShareError> {
-    let mut rest = input
-        .trim()
-        .strip_prefix_ci("ss://")
-        .ok_or(ShareError::UnsupportedProtocol)?
-        .to_string();
-    let mut remarks = String::new();
-    if let Some((before, after)) = rest.split_once('#') {
-        remarks = url_decode(after);
-        rest = before.to_string();
-    }
-    if rest.contains('@') {
-        return Err(ShareError::InvalidUri {
-            protocol: "ss",
-            reason: "not a legacy shadowsocks link".to_string(),
-        });
-    }
-    let decoded = base64_decode(rest.trim_end_matches('/'), "ss")?;
-    let Some((method_password, address_port)) = decoded.split_once('@') else {
-        return Err(ShareError::InvalidUri {
-            protocol: "ss",
-            reason: "missing @".to_string(),
-        });
-    };
-    let Some((method, password)) = method_password.split_once(':') else {
-        return Err(ShareError::InvalidUri {
-            protocol: "ss",
-            reason: "missing method/password".to_string(),
-        });
-    };
-    let Some((address, port)) = rsplit_host_port(address_port) else {
-        return Err(ShareError::InvalidUri {
-            protocol: "ss",
-            reason: "missing host/port".to_string(),
-        });
-    };
-
-    Ok(ProfileItem {
-        config_type: ConfigType::Shadowsocks,
-        remarks,
-        address,
-        port: parse_port("ss", port)?,
-        password: password.to_string(),
-        protocol_extra: ProtocolExtraItem {
-            ss_method: Some(method.to_string()),
-            ..ProtocolExtraItem::default()
-        },
-        ..ProfileItem::default()
-    })
 }
 
 fn parse_shadowsocks_sip002(input: &str) -> Result<ProfileItem, ShareError> {

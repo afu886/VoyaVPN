@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "includeEntryExports": true,
+  "ignoreWorkspaces": ["apps/mobile", "apps/web"],
+  "workspaces": {
+    ".": {
+      "ignoreBinaries": [
+        "pgrep",
+        "plutil",
+        "sc.exe",
+        "system_profiler",
+        "xcode-select"
+      ]
+    },
+    "apps/desktop": {
+      "project": ["src/**/*.{ts,tsx,css}", "e2e/**/*.ts"],
+      "ignoreDependencies": ["@tauri-apps/cli"],
+      "ignoreIssues": {
+        "src/ipc/bindings.ts": ["duplicates", "enumMembers", "exports", "types"]
+      }
+    },
+    "packages/ui": {
+      "project": ["src/**/*.{ts,tsx,css}"]
+    }
+  }
+}

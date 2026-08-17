@@ -9,8 +9,6 @@ use voya_core::CoreType;
 
 use crate::paths::{core_seed_resource_dir, AppPaths};
 
-pub const GITHUB_URL: &str = "https://github.com";
-pub const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const SING_BOX_EXES: &[&str] = &["sing-box", "sing-box-client"];
 
 const EMPTY_ENV: &[CoreEnvTemplate] = &[];
@@ -567,31 +565,6 @@ fn copy_seed_dir_contents(
     Ok(())
 }
 
-pub fn chmod_existing_core_executables(paths: &AppPaths) -> Result<Vec<PathBuf>, CoreInfoError> {
-    let mut updated = Vec::new();
-    for core_info in all_core_infos() {
-        let search_dir = paths.core_bin_dir(core_type_dir_name(core_info.core_type));
-        for name in core_info.executable_names() {
-            let executable_name = executable_name_for_current_os(name);
-            let candidate = search_dir.join(executable_name);
-            match candidate.try_exists() {
-                Ok(true) if candidate.is_file() => {
-                    ensure_executable_permission(&candidate)?;
-                    updated.push(candidate);
-                }
-                Ok(_) => {}
-                Err(source) => {
-                    return Err(CoreInfoError::InspectExecutable {
-                        path: candidate,
-                        source,
-                    });
-                }
-            }
-        }
-    }
-    Ok(updated)
-}
-
 pub fn ensure_executable_permission(path: impl AsRef<Path>) -> Result<(), CoreInfoError> {
     ensure_executable_permission_inner(path.as_ref())
 }
@@ -648,7 +621,7 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    use crate::paths::{core_seed_resources_dir, AppPaths, StorageMode};
+    use crate::paths::{core_seed_resources_dir, AppPaths};
 
     use super::*;
 
@@ -666,7 +639,7 @@ mod tests {
 
     #[test]
     fn coreinfo_arguments_and_env_match_singbox_template() {
-        let paths = AppPaths::new("/tmp/VoyaVPN", StorageMode::Portable);
+        let paths = AppPaths::new("/tmp/VoyaVPN");
 
         let sing_box = get_core_info(CoreType::sing_box).expect("sing-box core info");
         assert_eq!(
@@ -681,7 +654,7 @@ mod tests {
     #[test]
     fn coreinfo_executable_discovery_uses_core_subdir_and_probe_order() {
         let root = unique_temp_root("discover");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let sing_box = get_core_info(CoreType::sing_box).expect("sing-box core info");
         let exe = paths.core_bin_file(
             core_type_dir_name(CoreType::sing_box),
@@ -700,7 +673,7 @@ mod tests {
     #[test]
     fn coreinfo_seed_copy_missing_seed_is_noop() {
         let root = unique_temp_root("seed-missing");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let seed_root = core_seed_resources_dir(root.join("resources"));
 
         let outcome = copy_seed_core_asset(&paths, &seed_root, CoreType::sing_box)
@@ -738,7 +711,7 @@ mod tests {
     #[test]
     fn coreinfo_seed_copy_copies_missing_core_into_app_data() {
         let root = unique_temp_root("seed-copy");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let seed_root = core_seed_resources_dir(root.join("resources"));
         let seed_exe = seed_root
             .join(core_type_dir_name(CoreType::sing_box))
@@ -774,7 +747,7 @@ mod tests {
     #[test]
     fn coreinfo_seed_copy_does_not_overwrite_existing_core() {
         let root = unique_temp_root("seed-existing");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let seed_root = core_seed_resources_dir(root.join("resources"));
         let executable_name = executable_name_for_current_os("sing-box");
         let seed_exe = seed_root
@@ -805,7 +778,7 @@ mod tests {
     #[test]
     fn coreinfo_seed_copy_applies_unix_chmod_plan() {
         let root = unique_temp_root("seed-chmod");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let seed_root = core_seed_resources_dir(root.join("resources"));
         let sing_box = get_core_info(CoreType::sing_box).expect("sing-box core info");
         let seed_exe = seed_root
@@ -836,7 +809,7 @@ mod tests {
     #[test]
     fn coreinfo_discovery_chmods_unix_executables() {
         let root = unique_temp_root("chmod");
-        let paths = AppPaths::new(root.join("VoyaVPN"), StorageMode::Portable);
+        let paths = AppPaths::new(root.join("VoyaVPN"));
         let sing_box = get_core_info(CoreType::sing_box).expect("sing-box core info");
         let exe = paths.core_bin_file(core_type_dir_name(CoreType::sing_box), "sing-box-client");
         fs::create_dir_all(exe.parent().expect("sing-box exe parent"))

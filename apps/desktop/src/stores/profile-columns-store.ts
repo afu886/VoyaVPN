@@ -10,7 +10,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * structural `state` (#) column is intentionally omitted here so it stays
  * permanently visible (TanStack treats a missing id as visible).
  */
-export const DEFAULT_PROFILE_COLUMN_VISIBILITY: VisibilityState = {
+const DEFAULT_PROFILE_COLUMN_VISIBILITY: VisibilityState = {
   configType: true,
   remarks: true,
   address: true,

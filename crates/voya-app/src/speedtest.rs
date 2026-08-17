@@ -32,7 +32,7 @@ use voya_platform::{
         copy_seed_core_asset, discover_executable, discover_packaged_seed_executable,
         get_core_info, CoreInfo, CoreInfoError, TargetOs,
     },
-    paths::{AppPaths, PathError, StorageMode},
+    paths::{AppPaths, PathError},
     process::{ProcessError, ProcessHandle, ProcessRole, ProcessRunner, ProcessSpawn},
 };
 use voya_udptest::{UdpTestError, UdpTestService};
@@ -483,24 +483,6 @@ impl Drop for ProcessSpeedtestCoreSession {
     }
 }
 
-#[derive(Default)]
-struct NoopSpeedtestCoreBackend;
-
-impl SpeedtestCoreBackend for NoopSpeedtestCoreBackend {
-    fn start(
-        &self,
-        _core_type: CoreType,
-        _entries: Vec<SpeedtestConfigEntry>,
-        _cancel: CancellationFlag,
-    ) -> BoxFuture<'static, Result<Box<dyn SpeedtestCoreSession>>> {
-        Box::pin(async { Ok(Box::new(NoopSpeedtestCoreSession) as Box<dyn SpeedtestCoreSession>) })
-    }
-}
-
-struct NoopSpeedtestCoreSession;
-
-impl SpeedtestCoreSession for NoopSpeedtestCoreSession {}
-
 #[derive(Clone)]
 pub struct SpeedtestManager {
     probe: Arc<dyn SpeedtestProbe>,
@@ -530,16 +512,7 @@ impl SpeedtestManager {
     }
 
     #[must_use]
-    pub fn with_probe(probe: Arc<dyn SpeedtestProbe>) -> Self {
-        let paths = AppPaths::new(
-            std::env::temp_dir().join("voyavpn-speedtest-tests"),
-            StorageMode::UserData,
-        );
-        Self::with_probe_and_backend(paths, probe, Arc::new(NoopSpeedtestCoreBackend))
-    }
-
-    #[must_use]
-    pub fn with_probe_and_backend(
+    fn with_probe_and_backend(
         paths: AppPaths,
         probe: Arc<dyn SpeedtestProbe>,
         core_backend: Arc<dyn SpeedtestCoreBackend>,
@@ -2114,7 +2087,6 @@ mod tests {
     fn test_paths() -> AppPaths {
         AppPaths::new(
             std::env::temp_dir().join(format!("voyavpn-speedtest-tests-{}", uuid::Uuid::new_v4())),
-            StorageMode::UserData,
         )
     }
 

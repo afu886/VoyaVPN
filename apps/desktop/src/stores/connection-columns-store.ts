@@ -9,7 +9,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * the "Columns" menu to cut the forced horizontal scroll. The structural marker
  * track is rendered outside this map so it stays permanently visible.
  */
-export const DEFAULT_CONNECTION_COLUMN_VISIBILITY: VisibilityState = {
+const DEFAULT_CONNECTION_COLUMN_VISIBILITY: VisibilityState = {
   host: true,
   network: false,
   source: false,

@@ -59,19 +59,6 @@ impl<'db> UpdateManager<'db> {
         }
     }
 
-    #[must_use]
-    pub fn source_settings(&self, config: &AppConfig) -> ConfigSourceSettings {
-        source_settings(config)
-    }
-
-    pub fn save_source_settings(
-        &self,
-        config: &mut AppConfig,
-        settings: ConfigSourceSettings,
-    ) -> ConfigSourceSettings {
-        apply_source_settings(config, settings)
-    }
-
     pub async fn update_geo_assets(
         &self,
         config: &AppConfig,

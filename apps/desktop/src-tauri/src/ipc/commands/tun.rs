@@ -18,16 +18,6 @@ pub fn tun_request_elevation(state: tauri::State<'_, AppState>) -> Result<TunSta
     tun_manager(&state).status(&config).map_err(tun_error)
 }
 
-/// Remove the passwordless elevation launcher + sudoers drop-in and clear the
-/// session grant.
-#[tauri::command]
-#[specta::specta]
-pub fn tun_revoke_elevation(state: tauri::State<'_, AppState>) -> Result<TunStatus, AppError> {
-    state.elevation_manager().revoke();
-    let config = current_config(&state)?;
-    tun_manager(&state).status(&config).map_err(tun_error)
-}
-
 #[tauri::command]
 #[specta::specta]
 pub fn tun_status(state: tauri::State<'_, AppState>) -> Result<TunStatus, AppError> {

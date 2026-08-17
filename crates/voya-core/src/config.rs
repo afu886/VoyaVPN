@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::{GlobalHotkey, GridOrientation, SysProxyType, TrafficMode};
+use crate::{GlobalHotkey, SysProxyType, TrafficMode};
 
 pub const DEFAULT_LOCAL_PORT: i32 = 10808;
 pub const DEFAULT_LOG_LEVEL: &str = "warning";
@@ -18,7 +18,7 @@ pub const DEFAULT_REMOTE_DNS: &str = "https://cloudflare-dns.com/dns-query";
 pub const DEFAULT_BOOTSTRAP_DNS: &str = "119.29.29.29";
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct AppConfig {
     pub index_id: String,
     pub sub_index_id: String,
@@ -28,8 +28,6 @@ pub struct AppConfig {
     pub routing_basic_item: RoutingBasicItem,
     #[serde(rename = "GUIItem")]
     pub gui_item: GuiItem,
-    #[serde(rename = "MsgUIItem")]
-    pub msg_ui_item: MsgUiItem,
     #[serde(rename = "UIItem")]
     pub ui_item: UiItem,
     pub const_item: ConstItem,
@@ -55,7 +53,6 @@ impl Default for AppConfig {
             grpc_item: GrpcItem::default(),
             routing_basic_item: RoutingBasicItem::default(),
             gui_item: GuiItem::default(),
-            msg_ui_item: MsgUiItem::default(),
             ui_item: UiItem::default(),
             const_item: ConstItem::default(),
             speed_test_item: SpeedTestItem::default(),
@@ -71,7 +68,7 @@ impl Default for AppConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct CoreBasicItem {
     pub log_enabled: bool,
     pub loglevel: String,
@@ -105,15 +102,11 @@ impl Default for CoreBasicItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct InItem {
     pub local_port: i32,
     pub protocol: String,
-    pub udp_enabled: bool,
     pub sniffing_enabled: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dest_override: Option<Vec<String>>,
-    pub route_only: bool,
     #[serde(rename = "AllowLANConn")]
     pub allow_lan_conn: bool,
     pub new_port4_lan: bool,
@@ -127,10 +120,7 @@ impl Default for InItem {
         Self {
             local_port: DEFAULT_LOCAL_PORT,
             protocol: "socks".to_string(),
-            udp_enabled: true,
             sniffing_enabled: true,
-            dest_override: Some(vec!["http".to_string(), "tls".to_string()]),
-            route_only: false,
             allow_lan_conn: false,
             new_port4_lan: false,
             user: String::new(),
@@ -141,7 +131,7 @@ impl Default for InItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct GrpcItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idle_timeout: Option<i32>,
@@ -149,8 +139,6 @@ pub struct GrpcItem {
     pub health_check_timeout: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permit_without_stream: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub initial_windows_size: Option<i32>,
 }
 
 impl Default for GrpcItem {
@@ -159,94 +147,37 @@ impl Default for GrpcItem {
             idle_timeout: Some(60),
             health_check_timeout: Some(20),
             permit_without_stream: Some(false),
-            initial_windows_size: Some(0),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct GuiItem {
-    pub auto_run: bool,
-    pub enable_statistics: bool,
-    pub display_real_time_speed: bool,
-    pub keep_older_dedupl: bool,
-    pub auto_update_interval: i32,
-    pub tray_menu_servers_limit: i32,
-    #[serde(rename = "EnableHWA")]
-    pub enable_hwa: bool,
-    pub enable_log: bool,
-}
-
-impl Default for GuiItem {
-    fn default() -> Self {
-        Self {
-            auto_run: false,
-            enable_statistics: false,
-            display_real_time_speed: false,
-            keep_older_dedupl: false,
-            auto_update_interval: 0,
-            tray_menu_servers_limit: 20,
-            enable_hwa: false,
-            enable_log: true,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct MsgUiItem {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub main_msg_filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_refresh: Option<bool>,
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
+pub struct GuiItem {
+    pub auto_run: bool,
+    pub enable_statistics: bool,
+    pub display_real_time_speed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct UiItem {
-    pub enable_auto_adjust_main_lv_col_width: bool,
-    pub main_gird_height1: i32,
-    pub main_gird_height2: i32,
-    pub main_gird_orientation: GridOrientation,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub color_primary_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_theme: Option<String>,
     pub current_language: String,
-    pub enable_drag_drop_sort: bool,
-    pub double_click2_activate: bool,
-    pub auto_hide_startup: bool,
-    pub hide2_tray_when_close: bool,
-    #[serde(rename = "MacOSShowInDock")]
-    pub mac_os_show_in_dock: bool,
-    pub main_column_item: Vec<ColumnItem>,
-    pub window_size_item: Vec<WindowSizeItem>,
 }
 
 impl Default for UiItem {
     fn default() -> Self {
         Self {
-            enable_auto_adjust_main_lv_col_width: false,
-            main_gird_height1: 0,
-            main_gird_height2: 0,
-            main_gird_orientation: GridOrientation::Vertical,
-            color_primary_name: None,
             current_theme: None,
             current_language: DEFAULT_LANGUAGE.to_string(),
-            enable_drag_drop_sort: false,
-            double_click2_activate: false,
-            auto_hide_startup: false,
-            hide2_tray_when_close: false,
-            mac_os_show_in_dock: false,
-            main_column_item: Vec::new(),
-            window_size_item: Vec::new(),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct ConstItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_convert_url: Option<String>,
@@ -259,7 +190,7 @@ pub struct ConstItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct SpeedTestItem {
     pub speed_test_timeout: i32,
     pub speed_test_url: String,
@@ -290,7 +221,7 @@ impl Default for SpeedTestItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct RoutingBasicItem {
     pub domain_strategy: String,
     pub domain_strategy4_singbox: String,
@@ -307,16 +238,8 @@ impl Default for RoutingBasicItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct ColumnItem {
-    pub name: String,
-    pub width: i32,
-    pub index: i32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct Mux4SboxItem {
     pub protocol: String,
     pub max_connections: i32,
@@ -335,7 +258,7 @@ impl Default for Mux4SboxItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct HysteriaItem {
     pub up_mbps: i32,
     pub down_mbps: i32,
@@ -353,7 +276,7 @@ impl Default for HysteriaItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct ProxyUiItem {
     pub traffic_mode: TrafficMode,
     pub node_sorting: i32,
@@ -369,7 +292,7 @@ impl Default for ProxyUiItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct SystemProxyItem {
     pub sys_proxy_type: SysProxyType,
     pub system_proxy_exceptions: String,
@@ -395,7 +318,7 @@ impl Default for SystemProxyItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct KeyEventItem {
     #[serde(rename = "EGlobalHotkey")]
     pub global_hotkey: GlobalHotkey,
@@ -419,7 +342,7 @@ impl Default for KeyEventItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct TunModeItem {
     pub enable_tun: bool,
     pub auto_route: bool,
@@ -429,7 +352,6 @@ pub struct TunModeItem {
     #[serde(rename = "EnableIPv6Address")]
     pub enable_ipv6_address: bool,
     pub icmp_routing: String,
-    pub enable_legacy_protect: bool,
 }
 
 impl Default for TunModeItem {
@@ -442,21 +364,12 @@ impl Default for TunModeItem {
             mtu: 1500,
             enable_ipv6_address: false,
             icmp_routing: DEFAULT_TUN_ICMP_ROUTING.to_string(),
-            enable_legacy_protect: false,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct WindowSizeItem {
-    pub type_name: String,
-    pub width: i32,
-    pub height: i32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 pub struct SimpleDnsItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub use_system_hosts: Option<bool>,
@@ -531,7 +444,7 @@ mod tests {
         assert_eq!(config.inbound.len(), 1);
         assert_eq!(config.inbound[0].protocol, "socks");
         assert_eq!(config.inbound[0].local_port, 10808);
-        assert!(config.inbound[0].udp_enabled);
+        assert!(config.inbound[0].sniffing_enabled);
         assert_eq!(config.core_basic_item.loglevel, "warning");
         assert_eq!(config.routing_basic_item.domain_strategy, "AsIs");
         assert_eq!(config.tun_mode_item.mtu, 1500);
@@ -564,7 +477,6 @@ mod tests {
             .expect("default app config JSON should be an object");
 
         assert!(object.contains_key("GUIItem"));
-        assert!(object.contains_key("MsgUIItem"));
         assert!(object.contains_key("UIItem"));
         assert!(object.contains_key("ProxyUIItem"));
         assert!(!object.contains_key("ClashUIItem"));
@@ -572,101 +484,55 @@ mod tests {
     }
 
     #[test]
-    fn partial_config_json_is_backfilled_with_defaults() {
-        let config: AppConfig = serde_json::from_value(json!({
-            "CoreBasicItem": {
-                "Loglevel": "debug"
-            }
-        }))
-        .expect("partial app config JSON should deserialize with defaults");
+    fn current_app_config_schema_round_trips() {
+        let expected = AppConfig::default();
+        let json = serde_json::to_value(&expected).expect("app config should serialize");
+        let actual: AppConfig =
+            serde_json::from_value(json).expect("current app config should deserialize");
 
-        assert_eq!(config.core_basic_item.loglevel, "debug");
-        assert_eq!(config.inbound[0].local_port, DEFAULT_LOCAL_PORT);
-        assert_eq!(
-            config.simple_dns_item.bootstrap_dns.as_deref(),
-            Some(DEFAULT_BOOTSTRAP_DNS)
-        );
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn legacy_clash_ui_item_is_not_migrated() {
-        let config: AppConfig = serde_json::from_value(json!({
-            "ClashUIItem": {
-                "RuleMode": TrafficMode::Global.as_i32(),
-                "ProxiesSorting": 1
-            }
-        }))
-        .expect("legacy config JSON should deserialize with defaults");
+    fn missing_required_app_config_field_is_rejected() {
+        let mut json =
+            serde_json::to_value(AppConfig::default()).expect("app config should serialize");
+        json.as_object_mut()
+            .expect("app config JSON should be an object")
+            .remove("CoreBasicItem");
 
-        assert_eq!(config.proxy_ui_item, ProxyUiItem::default());
-
-        let json = serde_json::to_value(config).expect("app config should serialize");
-        let proxy_ui = json
-            .pointer("/ProxyUIItem")
-            .and_then(serde_json::Value::as_object)
-            .expect("proxy UI item should serialize");
-        assert_eq!(proxy_ui.len(), 2);
-        assert!(proxy_ui.contains_key("TrafficMode"));
-        assert!(proxy_ui.contains_key("NodeSorting"));
-        for removed_key in [
-            "RuleMode",
-            "EnableIPv6",
-            "EnableMixinContent",
-            "ProxiesSorting",
-            "ProxiesAutoRefresh",
-            "ProxiesAutoDelayTestInterval",
-            "ConnectionsAutoRefresh",
-            "ConnectionsRefreshInterval",
-            "ConnectionsColumnItem",
-        ] {
-            assert!(!proxy_ui.contains_key(removed_key));
-        }
+        let error = serde_json::from_value::<AppConfig>(json)
+            .expect_err("missing required app config field should fail");
+        assert!(error.to_string().contains("CoreBasicItem"));
     }
 
     #[test]
-    fn removed_config_sections_are_ignored_and_not_serialized() {
-        let config: AppConfig = serde_json::from_value(json!({
-            "KcpItem": { "Mtu": 1200 },
-            "Mux4RayItem": { "Concurrency": 4 },
-            "Fragment4RayItem": { "Packets": "tlshello" },
-            "DiagnosticsItem": {
-                "Enabled": false,
-                "AnonymousInstallId": "00000000-0000-4000-8000-000000000001",
-                "EndpointUrl": "https://diagnostics.voyavpn.test/ingest"
-            },
-            "CheckUpdateItem": {
-                "CheckPreReleaseUpdate": true
-            },
-            "ConstItem": {
-                "CdnBaseUrl": "https://cdn.voyavpn.test/stable",
-                "CdnReleaseIndexUrl": "https://cdn.voyavpn.test/stable/release-index.json",
-                "CdnCoreManifestUrl": "https://cdn.voyavpn.test/stable/core-assets.json"
-            }
-        }))
-        .expect("legacy app config JSON should deserialize");
+    fn unknown_app_config_fields_are_rejected_at_every_level() {
+        let mut root =
+            serde_json::to_value(AppConfig::default()).expect("app config should serialize");
+        root.as_object_mut()
+            .expect("app config JSON should be an object")
+            .insert("ClashUIItem".to_string(), json!({}));
+        assert!(serde_json::from_value::<AppConfig>(root).is_err());
 
-        let json = serde_json::to_value(config).expect("app config should serialize");
-        for key in [
-            "KcpItem",
-            "Mux4RayItem",
-            "Fragment4RayItem",
-            "DiagnosticsItem",
-            "CheckUpdateItem",
-        ] {
-            assert!(
-                json.get(key).is_none(),
-                "removed section {key} must stay absent"
-            );
-        }
-        let const_item = json
-            .get("ConstItem")
-            .and_then(serde_json::Value::as_object)
-            .expect("ConstItem should serialize");
-        for key in ["CdnBaseUrl", "CdnReleaseIndexUrl", "CdnCoreManifestUrl"] {
-            assert!(
-                !const_item.contains_key(key),
-                "removed constant {key} must stay absent"
-            );
-        }
+        let mut nested =
+            serde_json::to_value(AppConfig::default()).expect("app config should serialize");
+        nested
+            .pointer_mut("/ConstItem")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("ConstItem should be an object")
+            .insert("CdnBaseUrl".to_string(), json!("https://legacy.example"));
+        assert!(serde_json::from_value::<AppConfig>(nested).is_err());
+    }
+
+    #[test]
+    fn invalid_app_config_field_types_are_rejected() {
+        let mut json =
+            serde_json::to_value(AppConfig::default()).expect("app config should serialize");
+        *json
+            .pointer_mut("/Inbound/0/LocalPort")
+            .expect("default inbound port should exist") = json!("10808");
+
+        assert!(serde_json::from_value::<AppConfig>(json).is_err());
     }
 }

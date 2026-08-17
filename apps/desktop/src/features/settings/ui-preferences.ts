@@ -31,7 +31,7 @@ export function useUiPreferencesQuery() {
   });
 }
 
-export function normalizeUiPreferences(preferences: UiPreferences): NormalizedUiPreferences {
+function normalizeUiPreferences(preferences: UiPreferences): NormalizedUiPreferences {
   return {
     language: isLocale(preferences.language) ? preferences.language : getInitialLocale(),
     theme: isThemeMode(preferences.theme) ? preferences.theme : "system",

@@ -102,63 +102,9 @@ pub(super) fn ipc_text_error(
         InputSafetyError::TooLong => "value is too long".to_string(),
         InputSafetyError::ControlCharacters => "control characters are not allowed".to_string(),
         InputSafetyError::TooManyItems => "too many items".to_string(),
-        error => error.to_string(),
     };
 
     make_error(format!("invalid {field}: {reason}"))
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) enum IpcFileScope {
-    ProfileImport,
-}
-
-impl IpcFileScope {
-    fn invalid_path_error(self) -> AppError {
-        match self {
-            Self::ProfileImport => AppError::Subscription(
-                "invalid import file path: provide a relative file name inside the import directory"
-                    .to_string(),
-            ),
-        }
-    }
-
-    fn unavailable_error(self) -> AppError {
-        match self {
-            Self::ProfileImport => AppError::Subscription(
-                "import file is not available in the import directory".to_string(),
-            ),
-        }
-    }
-
-    fn prepare_error(self, source: io::Error) -> AppError {
-        match self {
-            Self::ProfileImport => {
-                AppError::Subscription(format!("failed to prepare import directory: {source}"))
-            }
-        }
-    }
-
-    fn scoped_file_error(self, error: InputSafetyError) -> AppError {
-        match error {
-            InputSafetyError::InvalidPath
-            | InputSafetyError::EmptyValue
-            | InputSafetyError::TooLong
-            | InputSafetyError::ControlCharacters
-            | InputSafetyError::TooManyItems => self.invalid_path_error(),
-            InputSafetyError::PathUnavailable => self.unavailable_error(),
-            InputSafetyError::PrepareDirectory(source) => self.prepare_error(source),
-        }
-    }
-}
-
-pub(super) fn resolve_scoped_ipc_file(
-    input: &str,
-    base_dir: &std::path::Path,
-    scope: IpcFileScope,
-) -> Result<PathBuf, AppError> {
-    input_safety::resolve_scoped_file(input, base_dir, IPC_PATH_MAX_CHARS)
-        .map_err(|error| scope.scoped_file_error(error))
 }
 
 pub(super) fn runtime_manager(state: &AppState) -> RuntimeManager<'_> {
@@ -722,12 +668,4 @@ pub(super) fn update_error(error: UpdateManagerError) -> AppError {
 
 pub(super) fn elevation_error(error: ElevationError) -> AppError {
     AppError::Sudo(error.to_string())
-}
-
-pub(super) fn current_unix_time() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| {
-            i64::try_from(duration.as_secs()).unwrap_or(i64::MAX)
-        })
 }

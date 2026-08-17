@@ -75,11 +75,6 @@ impl<'db> PresetManager<'db> {
         }
     }
 
-    #[must_use]
-    pub fn with_sources(database: &'db Database, sources: RegionalPresetCatalog) -> Self {
-        Self { database, sources }
-    }
-
     pub async fn import_config_template(
         &self,
         config: &mut AppConfig,

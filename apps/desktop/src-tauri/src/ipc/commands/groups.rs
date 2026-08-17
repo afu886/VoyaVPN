@@ -27,18 +27,6 @@ pub async fn list_group_child_candidates(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn validate_group_profile(
-    state: tauri::State<'_, AppState>,
-    profile: ProfileItem,
-) -> Result<GroupValidationResult, AppError> {
-    GroupManager::new(state.database())
-        .validate_group_profile(&profile)
-        .await
-        .map_err(group_error)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn preview_group_profile(
     state: tauri::State<'_, AppState>,
     profile: ProfileItem,

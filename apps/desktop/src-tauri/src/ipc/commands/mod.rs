@@ -1,9 +1,4 @@
-use std::{
-    collections::BTreeSet,
-    fs, io,
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -55,10 +50,9 @@ use voya_app::updates::{
     ConfigSourceSettings, ResourceUpdateFile, UpdateManager, UpdateManagerError,
 };
 use voya_core::{
-    AppConfig, CoreType, GlobalHotkey, GroupChildCandidate, GroupPreview, GroupValidationResult,
-    ImportProfilesResult, KeyEventItem, MoveAction, ProfileDedupeResult, ProfileItem,
-    ProfileListItem, ProfileSortKey, RoutingItem, RulesItem, SubItem, SubscriptionUpdateResult,
-    SysProxyType, TrafficMode,
+    AppConfig, CoreType, GlobalHotkey, GroupChildCandidate, GroupPreview, ImportProfilesResult,
+    KeyEventItem, MoveAction, ProfileDedupeResult, ProfileItem, ProfileListItem, ProfileSortKey,
+    RoutingItem, RulesItem, SubItem, SubscriptionUpdateResult, SysProxyType, TrafficMode,
 };
 use voya_platform::{
     coreinfo::{
@@ -73,11 +67,8 @@ use super::events::{
     next_log_line_id, CoreState, CoreStateEvent, InvalidateEvent, LogLevel, LogLineEvent,
     QueryInvalidation, TransientStreamEvent,
 };
-#[cfg(debug_assertions)]
-use super::events::{AppEvent, AppNotice, AppNoticeLevel, DemoRequest, DemoResponse};
 use crate::AppState;
 
-const PROFILE_IMPORT_DIR_NAME: &str = "imports";
 const IPC_ID_MAX_CHARS: usize = 128;
 const IPC_NAME_MAX_CHARS: usize = 256;
 const IPC_FILTER_MAX_CHARS: usize = 256;
@@ -92,7 +83,6 @@ const MISSING_CORE_SEARCH_DIR_LABEL: &str = "application core directory";
 pub enum AppError {
     EventEmit(String),
     Autostart(String),
-    ConfigLoad(String),
     ConfigSave(String),
     Certificate(String),
     ProxyRuntime(String),
@@ -195,8 +185,6 @@ pub struct SystemProxyStatusResponse {
 }
 
 mod app;
-#[cfg(debug_assertions)]
-mod demo;
 mod dns;
 mod groups;
 mod lifecycle;
@@ -213,8 +201,6 @@ mod tun;
 mod updates;
 
 pub use app::*;
-#[cfg(debug_assertions)]
-pub use demo::*;
 pub use dns::*;
 pub use groups::*;
 pub use presets::*;
@@ -230,13 +216,7 @@ pub use updates::*;
 
 pub(crate) use app::register_global_hotkeys_for_config;
 pub(crate) use lifecycle::emit_current_tun_status;
-// Retain the prior crate-visible helper path after moduleization.
-#[allow(unused_imports)]
-pub(crate) use lifecycle::emit_tun_changed;
 pub(crate) use support::{
     emit_core_state, emit_runtime_log, emit_statistics_zero,
     restore_system_proxy_after_native_tun_failure,
 };
-// Retain the prior crate-visible helper path after moduleization.
-#[allow(unused_imports)]
-pub(crate) use support::restore_system_proxy;

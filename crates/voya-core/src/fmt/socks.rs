@@ -9,7 +9,7 @@ impl ShareFmt for SocksFmt {
     }
 
     fn parse(&self, input: &str) -> Result<ProfileItem, ShareError> {
-        let mut item = parse_socks_new(input).or_else(|_| parse_socks_legacy(input))?;
+        let mut item = parse_socks_new(input)?;
         ensure_address_port("socks", &item)?;
         item.config_type = ConfigType::SOCKS;
         Ok(item)
@@ -46,47 +46,4 @@ fn parse_socks_new(input: &str) -> Result<ProfileItem, ShareError> {
         }
     }
     Ok(item)
-}
-
-fn parse_socks_legacy(input: &str) -> Result<ProfileItem, ShareError> {
-    let mut rest = input
-        .trim()
-        .strip_prefix_ci("socks://")
-        .ok_or(ShareError::UnsupportedProtocol)?
-        .to_string();
-    let mut remarks = String::new();
-    if let Some((before, after)) = rest.split_once('#') {
-        remarks = url_decode(after);
-        rest = before.to_string();
-    }
-    if !rest.contains('@') {
-        rest = base64_decode(&rest, "socks")?;
-    }
-    let Some((user_pass, address_port)) = rest.split_once('@') else {
-        return Err(ShareError::InvalidUri {
-            protocol: "socks",
-            reason: "missing @".to_string(),
-        });
-    };
-    let Some((username, password)) = user_pass.split_once(':') else {
-        return Err(ShareError::InvalidUri {
-            protocol: "socks",
-            reason: "missing username/password".to_string(),
-        });
-    };
-    let Some((address, port)) = rsplit_host_port(address_port) else {
-        return Err(ShareError::InvalidUri {
-            protocol: "socks",
-            reason: "missing host/port".to_string(),
-        });
-    };
-    Ok(ProfileItem {
-        config_type: ConfigType::SOCKS,
-        remarks,
-        address,
-        port: parse_port("socks", port)?,
-        username: username.to_string(),
-        password: password.to_string(),
-        ..ProfileItem::default()
-    })
 }

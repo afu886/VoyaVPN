@@ -77,30 +77,6 @@ impl<'db> ProfileManager<'db> {
             .collect())
     }
 
-    pub async fn get_profile(
-        &self,
-        config: &AppConfig,
-        index_id: &str,
-    ) -> Result<Option<ProfileListItem>> {
-        let Some(profile) = self.database.profiles().get(index_id).await? else {
-            return Ok(None);
-        };
-        let profile_ex = self.profile_ex().ensure(index_id).await?;
-        let server_stat = self
-            .database
-            .server_stats()
-            .get(index_id)
-            .await?
-            .unwrap_or_else(|| empty_server_stat(index_id));
-
-        Ok(Some(to_list_item(
-            profile,
-            profile_ex,
-            server_stat,
-            &config.index_id,
-        )))
-    }
-
     pub async fn save_profile(
         &self,
         config: &mut AppConfig,
@@ -313,14 +289,6 @@ impl<'db> ProfileManager<'db> {
         }
 
         self.list_profiles(config, subid, None).await
-    }
-
-    pub async fn move_profiles_to_group(&self, index_ids: &[String], subid: &str) -> Result<u64> {
-        Ok(self
-            .database
-            .profiles()
-            .update_subid_many(index_ids, subid)
-            .await?)
     }
 
     pub async fn dedupe_profiles(
@@ -600,7 +568,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn profile_copy_move_group_and_sort_update_profile_ex_state() {
+    async fn profile_copy_move_and_sort_update_profile_ex_state() {
         let database = Database::connect_in_memory()
             .await
             .expect("profile manager test operation should succeed");
@@ -610,7 +578,7 @@ mod tests {
             .save_profile(&mut config, sample_profile("a", "A", 1000))
             .await
             .expect("profile manager test operation should succeed");
-        let b = manager
+        manager
             .save_profile(&mut config, sample_profile("b", "B", 2000))
             .await
             .expect("profile manager test operation should succeed");
@@ -648,22 +616,6 @@ mod tests {
         assert_eq!(copied[0].profile.remarks, "A-clone");
         assert_eq!(copied[0].server_stat.total_up, 100);
         assert_eq!(copied[0].server_stat.total_down, 200);
-
-        manager
-            .move_profiles_to_group(
-                &[
-                    b.profile.index_id.clone(),
-                    copied[0].profile.index_id.clone(),
-                ],
-                "group-1",
-            )
-            .await
-            .expect("profile manager test operation should succeed");
-        let group = manager
-            .list_profiles(&config, Some("group-1"), None)
-            .await
-            .expect("profile manager test operation should succeed");
-        assert_eq!(group.len(), 2);
 
         manager
             .sort_profiles(&config, None, ProfileSortKey::Port, false)

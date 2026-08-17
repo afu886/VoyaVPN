@@ -356,7 +356,7 @@ mod tests {
     use voya_db::Database;
     use voya_platform::{
         coreinfo::{core_type_dir_name, executable_name_for_current_os},
-        paths::{core_seed_resources_dir, AppPaths, StorageMode},
+        paths::{core_seed_resources_dir, AppPaths},
         test_support::RecordingRunner,
         tun::{
             NativeTunController, NativeTunError, NativeTunProviderState, NativeTunStartRequest,
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn coreinfo_app_layer_resolves_launch_command_and_env() {
-        let paths = AppPaths::new("/tmp/VoyaVPN", StorageMode::Portable);
+        let paths = AppPaths::new("/tmp/VoyaVPN");
         let launch = core_launch_plan(
             CoreType::sing_box,
             "/tmp/VoyaVPN/bin/sing_box/sing-box",
@@ -725,7 +725,6 @@ mod tests {
             std::env::temp_dir()
                 .join("voyavpn-runtime-tests")
                 .join(format!("{}-{nanos}-{counter}", std::process::id())),
-            StorageMode::Portable,
         )
     }
 

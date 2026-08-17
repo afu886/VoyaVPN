@@ -4,7 +4,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { buttonVariants, type ButtonVariantProps } from "@voya/ui/components/button-variants";
 import { cn } from "@voya/ui/lib/utils";
 
-export type ButtonProps = React.ComponentPropsWithRef<"button"> &
+type ButtonProps = React.ComponentPropsWithRef<"button"> &
   ButtonVariantProps & {
   asChild?: boolean;
 };

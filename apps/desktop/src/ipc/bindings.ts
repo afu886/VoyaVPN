@@ -5,8 +5,6 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	appHealth: () => typedError<string, AppError>(__TAURI_INVOKE("app_health")),
-	loadAppConfig: () => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("load_app_config")),
 	loadUiPreferences: () => typedError<UiPreferences, AppError>(__TAURI_INVOKE("load_ui_preferences")),
 	loadSettingsBundle: () => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("load_settings_bundle")),
 	saveSettingsBundle: (bundle: SettingsBundle_Deserialize) => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("save_settings_bundle", { bundle })),
@@ -19,11 +17,6 @@ export const commands = {
 	 *  the passwordless elevation launcher. No admin password is stored.
 	 */
 	tunRequestElevation: () => typedError<TunStatus, AppError>(__TAURI_INVOKE("tun_request_elevation")),
-	/**
-	 *  Remove the passwordless elevation launcher + sudoers drop-in and clear the
-	 *  session grant.
-	 */
-	tunRevokeElevation: () => typedError<TunStatus, AppError>(__TAURI_INVOKE("tun_revoke_elevation")),
 	connectActiveProfile: () => typedError<RuntimeStatusResponse, AppError>(__TAURI_INVOKE("connect_active_profile")),
 	disconnectCore: () => typedError<RuntimeStatusResponse, AppError>(__TAURI_INVOKE("disconnect_core")),
 	restartCore: () => typedError<RuntimeStatusResponse, AppError>(__TAURI_INVOKE("restart_core")),
@@ -36,12 +29,6 @@ export const commands = {
 	loadDnsSettings: () => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("load_dns_settings")),
 	saveDnsSettings: (settings: DnsSettings_Deserialize) => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("save_dns_settings", { settings })),
 	listProfiles: (subid: string | null, filter: string | null) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("list_profiles", { subid, filter })),
-	getProfile: (indexId: string) => typedError<{
-	profile: ProfileItem_Serialize,
-	profileEx: ProfileExItem_Serialize,
-	serverStat: ServerStatItem,
-	isActive: boolean,
-} | null, AppError>(__TAURI_INVOKE("get_profile", { indexId })),
 	saveProfile: (profile: ProfileItem_Deserialize) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("save_profile", { profile })),
 	deleteProfiles: (indexIds: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_profiles", { indexIds })),
 	copyProfiles: (indexIds: string[]) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("copy_profiles", { indexIds })),
@@ -52,52 +39,16 @@ export const commands = {
 	setActiveProfile: (indexId: string) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("set_active_profile", { indexId })),
 	moveProfile: (subid: string | null, indexId: string, action: MoveAction, position: number | null) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("move_profile", { subid, indexId, action, position })),
 	sortProfiles: (subid: string | null, sortKey: ProfileSortKey, ascending: boolean) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("sort_profiles", { subid, sortKey, ascending })),
-	moveProfilesToGroup: (indexIds: string[], subid: string) => typedError<number, AppError>(__TAURI_INVOKE("move_profiles_to_group", { indexIds, subid })),
 	dedupeProfiles: (subid: string | null, keepOlder: boolean | null) => typedError<ProfileDedupeResult, AppError>(__TAURI_INVOKE("dedupe_profiles", { subid, keepOlder })),
 	listGroupChildCandidates: (currentIndexId: string | null, filter: string | null) => typedError<GroupChildCandidate[], AppError>(__TAURI_INVOKE("list_group_child_candidates", { currentIndexId, filter })),
-	validateGroupProfile: (profile: ProfileItem_Deserialize) => typedError<GroupValidationResult, AppError>(__TAURI_INVOKE("validate_group_profile", { profile })),
 	previewGroupProfile: (profile: ProfileItem_Deserialize) => typedError<GroupPreview, AppError>(__TAURI_INVOKE("preview_group_profile", { profile })),
 	saveGroupProfile: (profile: ProfileItem_Deserialize) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("save_group_profile", { profile })),
 	listSubscriptions: () => typedError<SubItem_Serialize[], AppError>(__TAURI_INVOKE("list_subscriptions")),
-	getSubscription: (id: string) => typedError<{
-	Id: string,
-	Remarks: string,
-	Url: string,
-	MoreUrl: string,
-	Enabled: boolean,
-	UserAgent: string,
-	Sort: number,
-	Filter?: string | null,
-	AutoUpdateInterval: number,
-	UpdateTime: number | null,
-	ConvertTarget?: string | null,
-	PrevProfile?: string | null,
-	NextProfile?: string | null,
-	PreSocksPort?: number | null,
-	Memo?: string | null,
-} | null, AppError>(__TAURI_INVOKE("get_subscription", { id })),
 	saveSubscription: (item: SubItem_Deserialize) => typedError<SubItem_Serialize, AppError>(__TAURI_INVOKE("save_subscription", { item })),
 	deleteSubscriptions: (ids: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_subscriptions", { ids })),
 	importProfilesFromText: (text: string, subid: string | null, isSub: boolean) => typedError<ImportProfilesResult, AppError>(__TAURI_INVOKE("import_profiles_from_text", { text, subid, isSub })),
-	importProfilesFromFile: (path: string, subid: string | null, isSub: boolean) => typedError<ImportProfilesResult, AppError>(__TAURI_INVOKE("import_profiles_from_file", { path, subid, isSub })),
 	updateSubscriptions: (subid: string | null, preferProxy: boolean, proxyUrl: string | null) => typedError<SubscriptionUpdateResult, AppError>(__TAURI_INVOKE("update_subscriptions", { subid, preferProxy, proxyUrl })),
-	runDueSubscriptionUpdates: (preferProxy: boolean, proxyUrl: string | null) => typedError<SubscriptionUpdateResult, AppError>(__TAURI_INVOKE("run_due_subscription_updates", { preferProxy, proxyUrl })),
 	listRoutings: () => typedError<RoutingItem_Serialize[], AppError>(__TAURI_INVOKE("list_routings")),
-	getRouting: (id: string) => typedError<{
-	Id: string,
-	Remarks: string,
-	Url: string,
-	RuleSet: RulesItem_Serialize[],
-	RuleNum: number,
-	Enabled: boolean,
-	Locked: boolean,
-	CustomIcon: string,
-	CustomRulesetPath4Singbox: string,
-	DomainStrategy: string,
-	DomainStrategy4Singbox: string,
-	Sort: number,
-	IsActive: boolean,
-} | null, AppError>(__TAURI_INVOKE("get_routing", { id })),
 	saveRouting: (item: RoutingItem_Deserialize) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("save_routing", { item })),
 	deleteRoutings: (ids: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_routings", { ids })),
 	setActiveRouting: (id: string) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("set_active_routing", { id })),
@@ -118,7 +69,6 @@ export const commands = {
 	cancelSpeedtest: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("cancel_speedtest")),
 	speedtestStatus: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("speedtest_status")),
 	appUpdateStatus: () => typedError<AppUpdaterStatus, AppError>(__TAURI_INVOKE("app_update_status")),
-	loadConfigSources: () => typedError<ConfigSourceSettings, AppError>(__TAURI_INVOKE("load_config_sources")),
 	updateGeoAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_geo_assets")),
 	updateSrsAssets: () => typedError<ResourceUpdateFile[], AppError>(__TAURI_INVOKE("update_srs_assets")),
 	/**
@@ -150,7 +100,6 @@ export const commands = {
 	 *  macOS / Linux / web fall back to the flat CSS neutral-gray veil.
 	 */
 	setWindowAcrylic: (dark: boolean) => typedError<null, AppError>(__TAURI_INVOKE("set_window_acrylic", { dark })),
-	ipcDemoRoundTrip: (request: DemoRequest) => typedError<DemoResponse, AppError>(__TAURI_INVOKE("ipc_demo_round_trip", { request })),
 };
 
 /** Events */
@@ -164,24 +113,23 @@ export const events = {
 export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
 
 export type AppConfig_Deserialize = {
-	IndexId?: string,
-	SubIndexId?: string,
-	CoreBasicItem?: CoreBasicItem_Deserialize,
-	TunModeItem?: TunModeItem,
-	GrpcItem?: GrpcItem_Deserialize,
-	RoutingBasicItem?: RoutingBasicItem,
-	GUIItem?: GuiItem,
-	MsgUIItem?: MsgUiItem_Deserialize,
-	UIItem?: UiItem_Deserialize,
-	ConstItem?: ConstItem_Deserialize,
-	SpeedTestItem?: SpeedTestItem_Deserialize,
-	Mux4SboxItem?: Mux4SboxItem_Deserialize,
-	HysteriaItem?: HysteriaItem,
-	ProxyUIItem?: ProxyUiItem,
-	SystemProxyItem?: SystemProxyItem_Deserialize,
-	Inbound?: InItem_Deserialize[],
-	GlobalHotkeys?: KeyEventItem_Deserialize[],
-	SimpleDNSItem?: SimpleDnsItem_Deserialize,
+	IndexId: string,
+	SubIndexId: string,
+	CoreBasicItem: CoreBasicItem_Deserialize,
+	TunModeItem: TunModeItem,
+	GrpcItem: GrpcItem_Deserialize,
+	RoutingBasicItem: RoutingBasicItem,
+	GUIItem: GuiItem,
+	UIItem: UiItem_Deserialize,
+	ConstItem: ConstItem_Deserialize,
+	SpeedTestItem: SpeedTestItem_Deserialize,
+	Mux4SboxItem: Mux4SboxItem_Deserialize,
+	HysteriaItem: HysteriaItem,
+	ProxyUIItem: ProxyUiItem,
+	SystemProxyItem: SystemProxyItem_Deserialize,
+	Inbound: InItem[],
+	GlobalHotkeys: KeyEventItem_Deserialize[],
+	SimpleDNSItem: SimpleDnsItem_Deserialize,
 };
 
 export type AppConfig_Serialize = {
@@ -192,7 +140,6 @@ export type AppConfig_Serialize = {
 	GrpcItem: GrpcItem_Serialize,
 	RoutingBasicItem: RoutingBasicItem,
 	GUIItem: GuiItem,
-	MsgUIItem: MsgUiItem_Serialize,
 	UIItem: UiItem_Serialize,
 	ConstItem: ConstItem_Serialize,
 	SpeedTestItem: SpeedTestItem_Serialize,
@@ -200,12 +147,12 @@ export type AppConfig_Serialize = {
 	HysteriaItem: HysteriaItem,
 	ProxyUIItem: ProxyUiItem,
 	SystemProxyItem: SystemProxyItem_Serialize,
-	Inbound: InItem_Serialize[],
+	Inbound: InItem[],
 	GlobalHotkeys: KeyEventItem_Serialize[],
 	SimpleDNSItem: SimpleDnsItem_Serialize,
 };
 
-export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configLoad"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
+export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
 
 export type AppEvent = { kind: "notice"; payload: AppNotice } | { kind: "selectTab"; payload: ShellTabTarget };
 
@@ -250,12 +197,6 @@ export type CertificateFetchResult = {
 	warning: string | null,
 };
 
-export type ColumnItem = {
-	Name?: string,
-	Width?: number,
-	Index?: number,
-};
-
 export type ConfigSourceSettings = {
 	geoSourceUrl: string | null,
 	srsSourceUrl: string | null,
@@ -277,10 +218,10 @@ export type ConfigType = number;
 export type ConstItem = ConstItem_Serialize | ConstItem_Deserialize;
 
 export type ConstItem_Deserialize = {
-	SubConvertUrl?: string | null,
-	GeoSourceUrl?: string | null,
-	SrsSourceUrl?: string | null,
-	RouteRulesTemplateSourceUrl?: string | null,
+	SubConvertUrl: string | null,
+	GeoSourceUrl: string | null,
+	SrsSourceUrl: string | null,
+	RouteRulesTemplateSourceUrl: string | null,
 };
 
 export type ConstItem_Serialize = {
@@ -293,16 +234,16 @@ export type ConstItem_Serialize = {
 export type CoreBasicItem = CoreBasicItem_Serialize | CoreBasicItem_Deserialize;
 
 export type CoreBasicItem_Deserialize = {
-	LogEnabled?: boolean,
-	Loglevel?: string,
-	MuxEnabled?: boolean,
-	DefAllowInsecure?: boolean,
-	DefFingerprint?: string,
-	DefUserAgent?: string,
-	SendThrough?: string | null,
-	BindInterface?: string | null,
-	EnableFragment?: boolean,
-	EnableCacheFile4Sbox?: boolean,
+	LogEnabled: boolean,
+	Loglevel: string,
+	MuxEnabled: boolean,
+	DefAllowInsecure: boolean,
+	DefFingerprint: string,
+	DefUserAgent: string,
+	SendThrough: string | null,
+	BindInterface: string | null,
+	EnableFragment: boolean,
+	EnableCacheFile4Sbox: boolean,
 };
 
 export type CoreBasicItem_Serialize = {
@@ -337,15 +278,6 @@ export type CoreStateEvent = {
 };
 
 export type CoreType = number;
-
-export type DemoRequest = {
-	message: string,
-};
-
-export type DemoResponse = {
-	echoedMessage: string,
-	messageLength: number,
-};
 
 export type DnsCommandError = {
 	message: string,
@@ -392,8 +324,6 @@ export type GlobalHotkeyBinding = {
 	accelerator: string,
 };
 
-export type GridOrientation = number;
-
 export type GroupChildCandidate = {
 	indexId: string,
 	remarks: string,
@@ -408,13 +338,6 @@ export type GroupChildCandidate = {
 export type GroupPreview = {
 	validation?: GroupValidationResult,
 	singboxRoutes?: GroupPreviewRoute[],
-};
-
-export type GroupPreviewBalancer = {
-	tag: string,
-	selectors: string[],
-	strategy: string | null,
-	fallbackTag: string | null,
 };
 
 export type GroupPreviewRoute = {
@@ -437,28 +360,21 @@ export type GroupValidationResult = {
 export type GrpcItem = GrpcItem_Serialize | GrpcItem_Deserialize;
 
 export type GrpcItem_Deserialize = {
-	IdleTimeout?: number | null,
-	HealthCheckTimeout?: number | null,
-	PermitWithoutStream?: boolean | null,
-	InitialWindowsSize?: number | null,
+	IdleTimeout: number | null,
+	HealthCheckTimeout: number | null,
+	PermitWithoutStream: boolean | null,
 };
 
 export type GrpcItem_Serialize = {
 	IdleTimeout?: number | null,
 	HealthCheckTimeout?: number | null,
 	PermitWithoutStream?: boolean | null,
-	InitialWindowsSize?: number | null,
 };
 
 export type GuiItem = {
-	AutoRun?: boolean,
-	EnableStatistics?: boolean,
-	DisplayRealTimeSpeed?: boolean,
-	KeepOlderDedupl?: boolean,
-	AutoUpdateInterval?: number,
-	TrayMenuServersLimit?: number,
-	EnableHWA?: boolean,
-	EnableLog?: boolean,
+	AutoRun: boolean,
+	EnableStatistics: boolean,
+	DisplayRealTimeSpeed: boolean,
 };
 
 export type HotkeyStatus = HotkeyStatus_Serialize | HotkeyStatus_Deserialize;
@@ -476,9 +392,9 @@ export type HotkeyStatus_Serialize = {
 };
 
 export type HysteriaItem = {
-	UpMbps?: number,
-	DownMbps?: number,
-	HopInterval?: number,
+	UpMbps: number,
+	DownMbps: number,
+	HopInterval: number,
 };
 
 export type ImportProfilesResult = {
@@ -498,29 +414,10 @@ export type ImportProfilesResult = {
 	messages?: string[],
 };
 
-export type InItem = InItem_Serialize | InItem_Deserialize;
-
-export type InItem_Deserialize = {
-	LocalPort?: number,
-	Protocol?: string,
-	UdpEnabled?: boolean,
-	SniffingEnabled?: boolean,
-	DestOverride?: string[] | null,
-	RouteOnly?: boolean,
-	AllowLANConn?: boolean,
-	NewPort4Lan?: boolean,
-	User?: string,
-	Pass?: string,
-	SecondLocalPortEnabled?: boolean,
-};
-
-export type InItem_Serialize = {
+export type InItem = {
 	LocalPort: number,
 	Protocol: string,
-	UdpEnabled: boolean,
 	SniffingEnabled: boolean,
-	DestOverride?: string[] | null,
-	RouteOnly: boolean,
 	AllowLANConn: boolean,
 	NewPort4Lan: boolean,
 	User: string,
@@ -535,11 +432,11 @@ export type InvalidateEvent = {
 export type KeyEventItem = KeyEventItem_Serialize | KeyEventItem_Deserialize;
 
 export type KeyEventItem_Deserialize = {
-	EGlobalHotkey?: GlobalHotkey,
-	Alt?: boolean,
-	Control?: boolean,
-	Shift?: boolean,
-	KeyCode?: number | null,
+	EGlobalHotkey: GlobalHotkey,
+	Alt: boolean,
+	Control: boolean,
+	Shift: boolean,
+	KeyCode: number | null,
 };
 
 export type KeyEventItem_Serialize = {
@@ -568,26 +465,14 @@ export type MissingCoreError = {
 
 export type MoveAction = number;
 
-export type MsgUiItem = MsgUiItem_Serialize | MsgUiItem_Deserialize;
-
-export type MsgUiItem_Deserialize = {
-	MainMsgFilter?: string | null,
-	AutoRefresh?: boolean | null,
-};
-
-export type MsgUiItem_Serialize = {
-	MainMsgFilter?: string | null,
-	AutoRefresh?: boolean | null,
-};
-
 export type MultipleLoad = number;
 
 export type Mux4SboxItem = Mux4SboxItem_Serialize | Mux4SboxItem_Deserialize;
 
 export type Mux4SboxItem_Deserialize = {
-	Protocol?: string,
-	MaxConnections?: number,
-	Padding?: boolean | null,
+	Protocol: string,
+	MaxConnections: number,
+	Padding: boolean | null,
 };
 
 export type Mux4SboxItem_Serialize = {
@@ -823,8 +708,8 @@ export type ProxyTrafficEvent = {
 };
 
 export type ProxyUiItem = {
-	TrafficMode?: TrafficMode,
-	NodeSorting?: number,
+	TrafficMode: TrafficMode,
+	NodeSorting: number,
 };
 
 export type QrCodeImage = {
@@ -853,9 +738,9 @@ export type ResourceUpdateFile = {
 };
 
 export type RoutingBasicItem = {
-	DomainStrategy?: string,
-	DomainStrategy4Singbox?: string,
-	RoutingIndexId?: string,
+	DomainStrategy: string,
+	DomainStrategy4Singbox: string,
+	RoutingIndexId: string,
 };
 
 export type RoutingItem = RoutingItem_Serialize | RoutingItem_Deserialize;
@@ -1058,20 +943,20 @@ export type ShellTabTarget = "profiles" | "proxyGroups" | "proxyConnections" | "
 export type SimpleDnsItem = SimpleDnsItem_Serialize | SimpleDnsItem_Deserialize;
 
 export type SimpleDnsItem_Deserialize = {
-	UseSystemHosts?: boolean | null,
-	AddCommonHosts?: boolean | null,
-	FakeIP?: boolean | null,
-	GlobalFakeIp?: boolean | null,
-	BlockBindingQuery?: boolean | null,
-	DirectDNS?: string | null,
-	RemoteDNS?: string | null,
-	BootstrapDNS?: string | null,
-	Strategy4Freedom?: string | null,
-	Strategy4Proxy?: string | null,
-	ServeStale?: boolean | null,
-	ParallelQuery?: boolean | null,
-	Hosts?: string | null,
-	DirectExpectedIPs?: string | null,
+	UseSystemHosts: boolean | null,
+	AddCommonHosts: boolean | null,
+	FakeIP: boolean | null,
+	GlobalFakeIp: boolean | null,
+	BlockBindingQuery: boolean | null,
+	DirectDNS: string | null,
+	RemoteDNS: string | null,
+	BootstrapDNS: string | null,
+	Strategy4Freedom: string | null,
+	Strategy4Proxy: string | null,
+	ServeStale: boolean | null,
+	ParallelQuery: boolean | null,
+	Hosts: string | null,
+	DirectExpectedIPs: string | null,
 };
 
 export type SimpleDnsItem_Serialize = {
@@ -1096,14 +981,14 @@ export type SpeedActionType = number;
 export type SpeedTestItem = SpeedTestItem_Serialize | SpeedTestItem_Deserialize;
 
 export type SpeedTestItem_Deserialize = {
-	SpeedTestTimeout?: number,
-	SpeedTestUrl?: string,
-	SpeedPingTestUrl?: string,
-	MixedConcurrencyCount?: number,
-	IPAPIUrl?: string,
-	UdpTestTarget?: string,
-	SpeedTestPageSize?: number | null,
-	SpeedTestDelayInterval?: number | null,
+	SpeedTestTimeout: number,
+	SpeedTestUrl: string,
+	SpeedPingTestUrl: string,
+	MixedConcurrencyCount: number,
+	IPAPIUrl: string,
+	UdpTestTarget: string,
+	SpeedTestPageSize: number | null,
+	SpeedTestDelayInterval: number | null,
 };
 
 export type SpeedTestItem_Serialize = {
@@ -1160,13 +1045,10 @@ export type SubItem_Deserialize = {
 	UserAgent?: string,
 	Sort?: number,
 	Filter?: string | null,
-	AutoUpdateInterval?: number,
-	UpdateTime?: number | null,
 	ConvertTarget?: string | null,
 	PrevProfile?: string | null,
 	NextProfile?: string | null,
 	PreSocksPort?: number | null,
-	Memo?: string | null,
 };
 
 export type SubItem_Serialize = {
@@ -1178,13 +1060,10 @@ export type SubItem_Serialize = {
 	UserAgent: string,
 	Sort: number,
 	Filter?: string | null,
-	AutoUpdateInterval: number,
-	UpdateTime: number | null,
 	ConvertTarget?: string | null,
 	PrevProfile?: string | null,
 	NextProfile?: string | null,
 	PreSocksPort?: number | null,
-	Memo?: string | null,
 };
 
 export type SubscriptionUpdateResult = {
@@ -1217,12 +1096,12 @@ export type SystemProxyAdvancedSettings = {
 export type SystemProxyItem = SystemProxyItem_Serialize | SystemProxyItem_Deserialize;
 
 export type SystemProxyItem_Deserialize = {
-	SysProxyType?: SysProxyType,
-	SystemProxyExceptions?: string,
-	NotProxyLocalAddress?: boolean,
-	SystemProxyAdvancedProtocol?: string,
-	CustomSystemProxyPacPath?: string | null,
-	CustomSystemProxyScriptPath?: string | null,
+	SysProxyType: SysProxyType,
+	SystemProxyExceptions: string,
+	NotProxyLocalAddress: boolean,
+	SystemProxyAdvancedProtocol: string,
+	CustomSystemProxyPacPath: string | null,
+	CustomSystemProxyScriptPath: string | null,
 };
 
 export type SystemProxyItem_Serialize = {
@@ -1291,7 +1170,6 @@ export type TunAdvancedSettings = {
 	mtu: number,
 	enableIpv6Address: boolean,
 	icmpRouting: string,
-	enableLegacyProtect: boolean,
 };
 
 export type TunBackend = "process" | "macosPacketTunnel" | "windowsService" | "unsupported";
@@ -1305,14 +1183,13 @@ export type TunChanged = {
 };
 
 export type TunModeItem = {
-	EnableTun?: boolean,
-	AutoRoute?: boolean,
-	StrictRoute?: boolean,
-	Stack?: string,
-	Mtu?: number,
-	EnableIPv6Address?: boolean,
-	IcmpRouting?: string,
-	EnableLegacyProtect?: boolean,
+	EnableTun: boolean,
+	AutoRoute: boolean,
+	StrictRoute: boolean,
+	Stack: string,
+	Mtu: number,
+	EnableIPv6Address: boolean,
+	IcmpRouting: string,
 };
 
 export type TunPlatform = "windows" | "linux" | "macos" | "other";
@@ -1368,37 +1245,13 @@ export type TunStatus = {
 export type UiItem = UiItem_Serialize | UiItem_Deserialize;
 
 export type UiItem_Deserialize = {
-	EnableAutoAdjustMainLvColWidth?: boolean,
-	MainGirdHeight1?: number,
-	MainGirdHeight2?: number,
-	MainGirdOrientation?: GridOrientation,
-	ColorPrimaryName?: string | null,
-	CurrentTheme?: string | null,
-	CurrentLanguage?: string,
-	EnableDragDropSort?: boolean,
-	DoubleClick2Activate?: boolean,
-	AutoHideStartup?: boolean,
-	Hide2TrayWhenClose?: boolean,
-	MacOSShowInDock?: boolean,
-	MainColumnItem?: ColumnItem[],
-	WindowSizeItem?: WindowSizeItem[],
+	CurrentTheme: string | null,
+	CurrentLanguage: string,
 };
 
 export type UiItem_Serialize = {
-	EnableAutoAdjustMainLvColWidth: boolean,
-	MainGirdHeight1: number,
-	MainGirdHeight2: number,
-	MainGirdOrientation: GridOrientation,
-	ColorPrimaryName?: string | null,
 	CurrentTheme?: string | null,
 	CurrentLanguage: string,
-	EnableDragDropSort: boolean,
-	DoubleClick2Activate: boolean,
-	AutoHideStartup: boolean,
-	Hide2TrayWhenClose: boolean,
-	MacOSShowInDock: boolean,
-	MainColumnItem: ColumnItem[],
-	WindowSizeItem: WindowSizeItem[],
 };
 
 export type UiPreferences = {
@@ -1410,12 +1263,6 @@ export type UiThemeMode = "system" | "light" | "dark";
 
 export type WindowChromeConfig = {
 	titleBarLayout: TitleBarLayout,
-};
-
-export type WindowSizeItem = {
-	TypeName?: string,
-	Width?: number,
-	Height?: number,
 };
 
 /* Tauri Specta runtime */

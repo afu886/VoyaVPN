@@ -16,21 +16,6 @@ pub fn next_log_line_id() -> u32 {
     NEXT_LOG_LINE_ID.fetch_add(1, Ordering::Relaxed)
 }
 
-#[cfg(debug_assertions)]
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DemoRequest {
-    pub message: String,
-}
-
-#[cfg(debug_assertions)]
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DemoResponse {
-    pub echoed_message: String,
-    pub message_length: u32,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInvalidation {

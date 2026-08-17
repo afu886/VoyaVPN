@@ -220,7 +220,6 @@ mod tests {
     };
 
     use voya_platform::{
-        paths::StorageMode,
         sysproxy::{PacManager, PacStartConfig},
         test_support::RecordingRunner,
     };
@@ -263,11 +262,7 @@ mod tests {
         app_dir: PathBuf,
     ) -> SystemProxyManager {
         let service = SystemProxyService::new(runner, pac);
-        SystemProxyManager::with_target_os(
-            service,
-            AppPaths::new(app_dir, StorageMode::Portable),
-            target_os,
-        )
+        SystemProxyManager::with_target_os(service, AppPaths::new(app_dir), target_os)
     }
 
     fn unique_app_dir(name: &str) -> PathBuf {

@@ -16,12 +16,6 @@ pub struct RecordingRunner {
 
 impl RecordingRunner {
     #[must_use]
-    pub fn with_next_pid(self, next_pid: u32) -> Self {
-        *self.next_pid.lock().expect("recording runner next pid") = next_pid;
-        self
-    }
-
-    #[must_use]
     pub fn with_oneshot_output(self, output: ProcessOutput) -> Self {
         *self
             .oneshot_output

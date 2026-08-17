@@ -32,6 +32,13 @@ corepack prepare pnpm@11.5.0 --activate
 pnpm install --frozen-lockfile
 ```
 
+The full local verification suite also requires the pinned Rust dependency
+scanner:
+
+```sh
+cargo install cargo-machete --locked --version 0.9.2
+```
+
 ## Development Commands
 
 Run the full Tauri app in development:
@@ -87,9 +94,11 @@ Run the final gate checks individually:
 
 ```sh
 pnpm run check:rust:test
+pnpm run check:rust:deps
 pnpm run check:frontend:typecheck
 pnpm run check:frontend:test
 pnpm run check:frontend:lint
+pnpm run check:dead-code
 pnpm bindings:check
 ```
 
@@ -100,6 +109,10 @@ pnpm --filter @voya/desktop test --run src/features/profiles/server-table.test.t
 ```
 
 `pnpm run check:rust:test` runs workspace all-target tests while excluding the Tauri shell library harness, then builds the shell binary test target. The shell library target keeps its lib test harness disabled because shell-level coverage lives in workspace crates and frontend tests; this avoids Windows WebView/Wry loader failures from an otherwise empty harness. Do not use bare `cargo test --workspace --all-targets` on Windows, because Cargo still forces explicitly disabled targets when `--all-targets` is passed.
+
+`pnpm run check:dead-code` runs both the workspace-wide Knip scan and a strict
+production-entry scan. `pnpm run check:rust:deps` runs cargo-machete against
+direct Cargo dependencies.
 
 Linux CI installs Tauri build prerequisites before compiling the Rust workspace. Local Linux machines need the same Tauri system libraries.
 

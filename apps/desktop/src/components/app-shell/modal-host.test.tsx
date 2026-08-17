@@ -9,8 +9,6 @@ import { useModalStore } from "@/stores/modal-store";
 const ipcMocks = vi.hoisted(() => ({
   connectActiveProfile: vi.fn(),
   installCoreSeed: vi.fn(),
-  loadAppConfig: vi.fn(),
-  loadConfigSources: vi.fn(),
   importConfigTemplate: vi.fn(),
 }));
 
@@ -25,12 +23,6 @@ describe("ModalHost", () => {
     vi.clearAllMocks();
     await changeLocale("en");
     useModalStore.setState({ stack: [] });
-    ipcMocks.loadAppConfig.mockResolvedValue({});
-    ipcMocks.loadConfigSources.mockResolvedValue({
-      geoSourceUrl: null,
-      routeRulesTemplateSourceUrl: null,
-      srsSourceUrl: null,
-    });
   });
 
   afterEach(() => {

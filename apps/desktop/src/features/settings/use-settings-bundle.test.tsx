@@ -186,7 +186,6 @@ function makeBundle(
         mtu: 9000,
         enableIpv6Address: false,
         icmpRouting: "",
-        enableLegacyProtect: false,
       },
       systemProxy: {
         systemProxyExceptions: "",

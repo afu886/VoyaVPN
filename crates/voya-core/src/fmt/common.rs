@@ -70,29 +70,6 @@ pub(super) fn parse_wireguard_endpoint(endpoint: &str) -> Option<(String, i32)> 
     Some((endpoint.to_string(), 2408))
 }
 
-pub(super) fn rsplit_host_port(input: &str) -> Option<(String, &str)> {
-    let (host, port) = input.rsplit_once(':')?;
-    let host = host.trim();
-    if host.is_empty() {
-        return None;
-    }
-    Some((host.trim_matches(['[', ']']).to_string(), port))
-}
-
-pub(super) fn parse_port(protocol: &'static str, port: &str) -> Result<i32, ShareError> {
-    let parsed = port.parse::<i32>().map_err(|_| ShareError::InvalidPort {
-        protocol,
-        port: port.to_string(),
-    })?;
-    if !(1..=65535).contains(&parsed) {
-        return Err(ShareError::InvalidPort {
-            protocol,
-            port: port.to_string(),
-        });
-    }
-    Ok(parsed)
-}
-
 pub(super) fn parse_positive_i32(value: &str) -> Option<i32> {
     value.parse::<i32>().ok().filter(|value| *value > 0)
 }

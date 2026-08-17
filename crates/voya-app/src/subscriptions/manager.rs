@@ -60,10 +60,6 @@ impl<'db> SubscriptionManager<'db> {
         Ok(self.database.subscriptions().list().await?)
     }
 
-    pub async fn get_subscription(&self, id: &str) -> Result<Option<SubItem>> {
-        Ok(self.database.subscriptions().get(id).await?)
-    }
-
     pub async fn save_subscription(
         &self,
         config: &mut AppConfig,
@@ -320,18 +316,10 @@ impl<'db> SubscriptionManager<'db> {
         subid: Option<&str>,
         prefer_proxy: bool,
         proxy_url: Option<&str>,
-        now: i64,
     ) -> Result<SubscriptionUpdateResult> {
         let subscriptions = self.database.subscriptions().list().await?;
-        self.update_subscription_snapshot(
-            config,
-            subscriptions,
-            subid,
-            prefer_proxy,
-            proxy_url,
-            now,
-        )
-        .await
+        self.update_subscription_snapshot(config, subscriptions, subid, prefer_proxy, proxy_url)
+            .await
     }
 
     async fn update_subscription_snapshot(
@@ -341,13 +329,12 @@ impl<'db> SubscriptionManager<'db> {
         subid: Option<&str>,
         prefer_proxy: bool,
         proxy_url: Option<&str>,
-        now: i64,
     ) -> Result<SubscriptionUpdateResult> {
         let client = SubscriptionClient::new();
         let mut result = SubscriptionUpdateResult::default();
         let subid = subid.map(str::trim).filter(|value| !value.is_empty());
 
-        for mut item in subscriptions {
+        for item in subscriptions {
             if subid.is_some_and(|wanted| wanted != item.id) {
                 continue;
             }
@@ -392,8 +379,6 @@ impl<'db> SubscriptionManager<'db> {
                         .await
                     {
                         Ok(import) if import.imported > 0 => {
-                            item.update_time = now;
-                            self.database.subscriptions().upsert(&item).await?;
                             result.updated = result.updated.saturating_add(1);
                             result.imported = result.imported.saturating_add(import.imported);
                             result.removed_existing = result
@@ -435,36 +420,6 @@ impl<'db> SubscriptionManager<'db> {
         }
 
         Ok(result)
-    }
-
-    pub async fn run_due_updates(
-        &self,
-        config: &mut AppConfig,
-        now: i64,
-        prefer_proxy: bool,
-        proxy_url: Option<&str>,
-    ) -> Result<SubscriptionUpdateResult> {
-        let due_subscriptions = self
-            .database
-            .subscriptions()
-            .list()
-            .await?
-            .into_iter()
-            .filter(|item| item.auto_update_interval > 0)
-            .filter(|item| {
-                now.saturating_sub(item.update_time) >= i64::from(item.auto_update_interval) * 60
-            })
-            .collect::<Vec<_>>();
-
-        self.update_subscription_snapshot(
-            config,
-            due_subscriptions,
-            None,
-            prefer_proxy,
-            proxy_url,
-            now,
-        )
-        .await
     }
 
     async fn parse_import_text(
@@ -634,7 +589,6 @@ fn normalize_subscription(item: &mut SubItem) {
     item.convert_target = trimmed_option(item.convert_target.take());
     item.prev_profile = trimmed_option(item.prev_profile.take());
     item.next_profile = trimmed_option(item.next_profile.take());
-    item.memo = trimmed_option(item.memo.take());
 }
 
 fn trimmed_option(value: Option<String>) -> Option<String> {
@@ -880,7 +834,7 @@ mod tests {
             .expect("subscription manager test operation should succeed");
 
         let result = manager
-            .update_subscriptions(&mut config, None, false, None, 900)
+            .update_subscriptions(&mut config, None, false, None)
             .await
             .expect("subscription manager test operation should succeed");
         assert_eq!(result.updated, 2);
@@ -895,16 +849,6 @@ mod tests {
         assert!(profiles.iter().any(|profile| profile.remarks == "US A"));
         assert!(profiles.iter().any(|profile| profile.remarks == "US B"));
         assert!(profiles.iter().any(|profile| profile.remarks == "US C"));
-        assert_eq!(
-            database
-                .subscriptions()
-                .get("sub-plain")
-                .await
-                .expect("subscription manager test operation should succeed")
-                .expect("subscription manager test operation should succeed")
-                .update_time,
-            900
-        );
         assert_eq!(
             seen_user_agents.lock().await.as_slice(),
             ["SubUA/3", "SubUA/3", "SubUA/3"]
@@ -950,7 +894,6 @@ mod tests {
                         remarks: remarks.to_string(),
                         url: format!("{base}{path}"),
                         filter: filter.map(str::to_string),
-                        update_time: 10,
                         ..SubItem::default()
                     },
                 )
@@ -968,7 +911,7 @@ mod tests {
             .expect("subscription manager test operation should succeed");
 
         let result = manager
-            .update_subscriptions(&mut config, None, false, None, 900)
+            .update_subscriptions(&mut config, None, false, None)
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1017,9 +960,6 @@ mod tests {
         assert_eq!(subscriptions.len(), 4);
         assert!(subscriptions
             .iter()
-            .all(|subscription| subscription.update_time == 10));
-        assert!(subscriptions
-            .iter()
             .all(|subscription| subscription.url != "https://example.test/new?remarks=Injected"));
 
         let filtered_profiles = database
@@ -1029,121 +969,6 @@ mod tests {
             .expect("subscription manager test operation should succeed");
         assert_eq!(filtered_profiles.len(), 1);
         assert_eq!(filtered_profiles[0].remarks, "JP old");
-    }
-
-    #[tokio::test]
-    async fn due_update_only_runs_subscriptions_past_their_interval() {
-        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
-        let base = spawn_http_fixture(
-            HashMap::from([(
-                "/due".to_string(),
-                "vless://uuid@example.test:443#Due".to_string(),
-            )]),
-            1,
-            Arc::clone(&seen_user_agents),
-        )
-        .await;
-        let database = Database::connect_in_memory()
-            .await
-            .expect("subscription manager test operation should succeed");
-        let manager = SubscriptionManager::new(&database);
-        let mut config = AppConfig::default();
-        manager
-            .save_subscription(
-                &mut config,
-                SubItem {
-                    id: "due".to_string(),
-                    remarks: "Due".to_string(),
-                    url: format!("{base}/due"),
-                    auto_update_interval: 1,
-                    update_time: 0,
-                    ..SubItem::default()
-                },
-            )
-            .await
-            .expect("subscription manager test operation should succeed");
-        manager
-            .save_subscription(
-                &mut config,
-                SubItem {
-                    id: "later".to_string(),
-                    remarks: "Later".to_string(),
-                    url: format!("{base}/later"),
-                    auto_update_interval: 60,
-                    update_time: 100,
-                    ..SubItem::default()
-                },
-            )
-            .await
-            .expect("subscription manager test operation should succeed");
-
-        let result = manager
-            .run_due_updates(&mut config, 120, false, None)
-            .await
-            .expect("subscription manager test operation should succeed");
-
-        assert_eq!(result.updated, 1);
-        assert_eq!(result.imported, 1);
-        assert_eq!(
-            database
-                .profiles()
-                .list()
-                .await
-                .expect("subscription manager test operation should succeed")
-                .len(),
-            1
-        );
-    }
-
-    #[tokio::test]
-    async fn due_update_uses_initial_subscription_snapshot() {
-        let seen_paths = Arc::new(Mutex::new(Vec::new()));
-        let database = Database::connect_in_memory()
-            .await
-            .expect("subscription manager test operation should succeed");
-        let base = spawn_due_snapshot_fixture(database.clone(), Arc::clone(&seen_paths)).await;
-        let manager = SubscriptionManager::new(&database);
-        let mut config = AppConfig::default();
-        manager
-            .save_subscription(
-                &mut config,
-                SubItem {
-                    id: "first".to_string(),
-                    remarks: "First".to_string(),
-                    url: format!("{base}/first"),
-                    auto_update_interval: 1,
-                    sort: 1,
-                    ..SubItem::default()
-                },
-            )
-            .await
-            .expect("subscription manager test operation should succeed");
-        manager
-            .save_subscription(
-                &mut config,
-                SubItem {
-                    id: "second".to_string(),
-                    remarks: "Second".to_string(),
-                    url: format!("{base}/second-original"),
-                    auto_update_interval: 1,
-                    sort: 2,
-                    ..SubItem::default()
-                },
-            )
-            .await
-            .expect("subscription manager test operation should succeed");
-
-        let result = manager
-            .run_due_updates(&mut config, 120, false, None)
-            .await
-            .expect("subscription manager test operation should succeed");
-
-        assert_eq!(result.updated, 2);
-        assert_eq!(result.imported, 2);
-        assert_eq!(
-            seen_paths.lock().await.as_slice(),
-            ["/first", "/second-original"]
-        );
     }
 
     #[tokio::test]
@@ -1587,77 +1412,5 @@ mod tests {
         });
 
         format!("http://{address}")
-    }
-
-    async fn spawn_due_snapshot_fixture(
-        database: Database,
-        seen_paths: Arc<Mutex<Vec<String>>>,
-    ) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("subscription manager test operation should succeed");
-        let address = listener
-            .local_addr()
-            .expect("subscription manager test operation should succeed");
-        let base = format!("http://{address}");
-        let server_base = base.clone();
-
-        tokio::spawn(async move {
-            for _ in 0..2 {
-                let Ok((mut socket, _)) = listener.accept().await else {
-                    break;
-                };
-                let database = database.clone();
-                let seen_paths = Arc::clone(&seen_paths);
-                let base = server_base.clone();
-                tokio::spawn(async move {
-                    let mut buffer = vec![0; 4096];
-                    let bytes_read = socket.read(&mut buffer).await.unwrap_or(0);
-                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
-                    let path = request
-                        .lines()
-                        .next()
-                        .and_then(|line| line.split_whitespace().nth(1))
-                        .and_then(|target| target.split('?').next())
-                        .unwrap_or("/")
-                        .to_string();
-                    seen_paths.lock().await.push(path.clone());
-
-                    if path == "/first" {
-                        database
-                            .subscriptions()
-                            .upsert(&SubItem {
-                                id: "second".to_string(),
-                                remarks: "Second mutated".to_string(),
-                                url: format!("{base}/second-mutated"),
-                                auto_update_interval: 1,
-                                sort: 2,
-                                ..SubItem::default()
-                            })
-                            .await
-                            .expect("subscription manager test operation should succeed");
-                    }
-
-                    let body = match path.as_str() {
-                        "/first" => "vless://uuid-first@example.test:443#First",
-                        "/second-original" => "vless://uuid-second@example.test:443#Second",
-                        "/second-mutated" => "vless://uuid-mutated@example.test:443#Mutated",
-                        _ => "",
-                    };
-                    let status = if body.is_empty() {
-                        "404 Not Found"
-                    } else {
-                        "200 OK"
-                    };
-                    let response = format!(
-                        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                        body.len()
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                });
-            }
-        });
-
-        base
     }
 }

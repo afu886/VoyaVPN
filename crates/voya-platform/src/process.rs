@@ -167,12 +167,6 @@ impl ProcessSpawn {
     }
 
     #[must_use]
-    pub fn with_stdin(mut self, stdin: ProcessStdin) -> Self {
-        self.stdin = Some(stdin);
-        self
-    }
-
-    #[must_use]
     pub fn with_generated_script(mut self, script: GeneratedScript) -> Self {
         self.generated_scripts.push(script);
         self

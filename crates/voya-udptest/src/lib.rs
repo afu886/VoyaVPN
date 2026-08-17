@@ -161,11 +161,6 @@ impl UdpTestService {
     }
 
     #[must_use]
-    pub fn from_kind_name(kind: Option<&str>) -> Self {
-        Self::new(kind.map_or(UdpTestKind::Ntp, UdpTestKind::from_name))
-    }
-
-    #[must_use]
     pub fn from_target(target: Option<&str>) -> (Self, UdpTestTarget) {
         let parsed = parse_udp_test_target(target);
         (Self::new(parsed.kind), parsed)

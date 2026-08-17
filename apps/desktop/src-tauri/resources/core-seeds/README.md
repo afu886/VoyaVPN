@@ -28,14 +28,6 @@ run:
 pnpm core:sing-box:install
 ```
 
-To only populate bundled seed resources before a package build, run:
-
-```
-node scripts/fetch-cores.mjs
-# or pin a version:
-SING_BOX_VERSION=v1.13.14 node scripts/fetch-cores.mjs
-```
-
 Set `VOYAVPN_SKIP_SING_BOX_POSTINSTALL=1` to skip the postinstall fetch. CI
 skips it by default unless `VOYAVPN_FETCH_SING_BOX_ON_INSTALL=1` is set. Tauri
 package builds still ensure the sing-box seed is present before generating the

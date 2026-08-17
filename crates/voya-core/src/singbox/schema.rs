@@ -116,11 +116,7 @@ pub struct SingboxDns {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_cache: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_expire: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub independent_cache: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_capacity: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reverse_mapping: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -245,8 +241,6 @@ pub struct SingboxRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip_cidr: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_ip_cidr: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub ip_is_private: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_name: Option<Vec<String>>,
@@ -259,8 +253,6 @@ pub struct SingboxRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strategy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sniffer: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub rcode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_type: Option<Vec<i32>>,
@@ -271,29 +263,9 @@ pub struct SingboxRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_drop: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_ip_is_private: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub ip_accept_any: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_port: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_port_range: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_type: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_is_expensive: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_is_constrained: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wifi_ssid: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wifi_bssid: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rule_set_ip_cidr_match_source: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rule_set_ip_cidr_accept_empty: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

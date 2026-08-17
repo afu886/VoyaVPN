@@ -431,8 +431,6 @@ pub struct ClashProvidersResponse {
 pub struct ClashProvider {
     pub name: Option<String>,
     pub proxies: Vec<ClashProxy>,
-    #[serde(rename = "type")]
-    pub provider_type: Option<String>,
     pub vehicle_type: Option<String>,
 }
 
@@ -503,15 +501,11 @@ pub struct ClashConnectionMetadata {
     pub destination_port: Option<String>,
     #[serde(deserialize_with = "deserialize_optional_string_lossy")]
     pub host: Option<String>,
-    #[serde(deserialize_with = "deserialize_optional_string_lossy")]
-    pub ns_mode: Option<String>,
     pub uid: Option<Value>,
     #[serde(deserialize_with = "deserialize_optional_string_lossy")]
     pub process: Option<String>,
     #[serde(deserialize_with = "deserialize_optional_string_lossy")]
     pub process_path: Option<String>,
-    #[serde(deserialize_with = "deserialize_optional_string_lossy")]
-    pub remote_destination: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]

@@ -24,7 +24,6 @@ pub struct TunAdvancedSettings {
     pub mtu: i32,
     pub enable_ipv6_address: bool,
     pub icmp_routing: String,
-    pub enable_legacy_protect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
@@ -57,29 +56,6 @@ pub struct SettingsBundle {
     pub hysteria_item: voya_core::HysteriaItem,
     pub network: NetworkSettings,
     pub speed_test_item: voya_core::SpeedTestItem,
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn app_health() -> Result<String, AppError> {
-    Ok("ok".to_string())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn load_app_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, AppError> {
-    let config = state
-        .config_store()
-        .load()
-        .map_err(|error| AppError::ConfigLoad(error.to_string()))?;
-    let mut guard = state
-        .config()
-        .write()
-        .map_err(|_| AppError::State("app config lock is poisoned".to_string()))?;
-
-    *guard = config.clone();
-
-    Ok(config)
 }
 
 #[tauri::command]
@@ -190,7 +166,6 @@ fn settings_bundle_from_config(config: &AppConfig) -> SettingsBundle {
                 mtu: config.tun_mode_item.mtu,
                 enable_ipv6_address: config.tun_mode_item.enable_ipv6_address,
                 icmp_routing: config.tun_mode_item.icmp_routing.clone(),
-                enable_legacy_protect: config.tun_mode_item.enable_legacy_protect,
             },
             system_proxy: SystemProxyAdvancedSettings {
                 system_proxy_exceptions: config.system_proxy_item.system_proxy_exceptions.clone(),
@@ -221,7 +196,6 @@ fn apply_settings_bundle(
     target.ui_item.current_language = bundle.ui_preferences.language.trim().to_string();
     target.ui_item.current_theme =
         Some(ui_theme_mode_to_config(bundle.ui_preferences.theme).to_string());
-    target.ui_item.color_primary_name = None;
     target.gui_item.auto_run = bundle.autostart_enabled;
 
     bundle.show_window_hotkey.global_hotkey = GlobalHotkey::ShowForm;
@@ -242,7 +216,6 @@ fn apply_settings_bundle(
     target.tun_mode_item.mtu = bundle.network.tun.mtu;
     target.tun_mode_item.enable_ipv6_address = bundle.network.tun.enable_ipv6_address;
     target.tun_mode_item.icmp_routing = bundle.network.tun.icmp_routing.trim().to_string();
-    target.tun_mode_item.enable_legacy_protect = bundle.network.tun.enable_legacy_protect;
 
     target.system_proxy_item.system_proxy_exceptions = bundle
         .network
@@ -452,7 +425,7 @@ mod tests {
         let original = AppConfig::default();
         let mut updated = original.clone();
         updated.ui_item.current_language = "zh-Hans".to_string();
-        updated.gui_item.enable_log = !updated.gui_item.enable_log;
+        updated.gui_item.display_real_time_speed = !updated.gui_item.display_real_time_speed;
 
         assert!(!saved_config_requires_runtime_restart(&original, &updated));
     }

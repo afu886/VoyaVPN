@@ -11,7 +11,6 @@ use thiserror::Error;
 use crate::coreinfo::{CoreLaunch, TargetOs};
 
 pub const MACOS_PACKET_TUNNEL_BUNDLE_ID: &str = "app.voyavpn.desktop.PacketTunnel";
-pub const MACOS_TUNNEL_HELPER_NAME: &str = "voyavpn-macos-tunnelctl";
 pub const WINDOWS_TUN_SERVICE_NAME: &str = "VoyaVPNTunnelService";
 pub const MACOS_PACKET_TUNNEL_START_TIMEOUT_MS: i64 = 20_000;
 const MACOS_PACKET_TUNNEL_APPEX_NAME: &str = "app.voyavpn.desktop.PacketTunnel.appex";

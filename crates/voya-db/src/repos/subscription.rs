@@ -22,9 +22,8 @@ impl<'pool> SubscriptionRepository<'pool> {
             r#"
             INSERT INTO subscriptions (
                 id, remarks, url, more_url, enabled, user_agent, sort, filter,
-                auto_update_interval, update_time, convert_target, prev_profile,
-                next_profile, pre_socks_port, memo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                convert_target, prev_profile, next_profile, pre_socks_port
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 remarks = excluded.remarks,
                 url = excluded.url,
@@ -33,13 +32,10 @@ impl<'pool> SubscriptionRepository<'pool> {
                 user_agent = excluded.user_agent,
                 sort = excluded.sort,
                 filter = excluded.filter,
-                auto_update_interval = excluded.auto_update_interval,
-                update_time = excluded.update_time,
                 convert_target = excluded.convert_target,
                 prev_profile = excluded.prev_profile,
                 next_profile = excluded.next_profile,
-                pre_socks_port = excluded.pre_socks_port,
-                memo = excluded.memo
+                pre_socks_port = excluded.pre_socks_port
             "#,
         )
         .bind(&item.id)
@@ -50,13 +46,10 @@ impl<'pool> SubscriptionRepository<'pool> {
         .bind(&item.user_agent)
         .bind(item.sort)
         .bind(&item.filter)
-        .bind(item.auto_update_interval)
-        .bind(item.update_time)
         .bind(&item.convert_target)
         .bind(&item.prev_profile)
         .bind(&item.next_profile)
         .bind(item.pre_socks_port)
-        .bind(&item.memo)
         .execute(self.pool)
         .await?;
 
@@ -117,12 +110,9 @@ fn row_to_subscription(row: SqliteRow) -> Result<SubItem> {
         user_agent: row.try_get("user_agent")?,
         sort: row.try_get("sort")?,
         filter: row.try_get("filter")?,
-        auto_update_interval: row.try_get("auto_update_interval")?,
-        update_time: row.try_get("update_time")?,
         convert_target: row.try_get("convert_target")?,
         prev_profile: row.try_get("prev_profile")?,
         next_profile: row.try_get("next_profile")?,
         pre_socks_port: row.try_get("pre_socks_port")?,
-        memo: row.try_get("memo")?,
     })
 }

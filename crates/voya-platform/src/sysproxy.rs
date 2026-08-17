@@ -62,18 +62,6 @@ pub struct SystemProxyStatus {
 }
 
 impl SystemProxyStatus {
-    pub fn from_request(
-        request: &SystemProxyRequest,
-        effective_type: SysProxyType,
-    ) -> Result<Self, SystemProxyError> {
-        let exceptions = validated_proxy_exceptions(&request.item.system_proxy_exceptions)?;
-        Ok(Self::from_request_with_exceptions(
-            request,
-            effective_type,
-            exceptions_to_csv(&exceptions),
-        ))
-    }
-
     fn from_request_with_exceptions(
         request: &SystemProxyRequest,
         effective_type: SysProxyType,

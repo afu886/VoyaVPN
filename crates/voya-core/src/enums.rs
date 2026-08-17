@@ -140,22 +140,6 @@ int_enum!(CoreType {
     sing_box = 24,
 });
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
-pub enum GridOrientation {
-    Horizontal = 0,
-    #[default]
-    Vertical = 1,
-    Tab = 2,
-}
-
-int_enum!(GridOrientation {
-    Horizontal = 0,
-    Vertical = 1,
-    Tab = 2,
-});
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[repr(i32)]
 #[specta(type = i32)]

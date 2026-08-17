@@ -37,7 +37,6 @@ export function NetworkTab({ controller }: { controller: SettingsBundleControlle
           <CheckboxField checked={bundle.network.tun.autoRoute} label={t("resx.TbSettingsTunAutoRoute")} onChange={(autoRoute) => patchTun({ autoRoute })} />
           <CheckboxField checked={bundle.network.tun.strictRoute} label={t("resx.TbSettingsTunStrictRoute")} onChange={(strictRoute) => patchTun({ strictRoute })} />
           <CheckboxField checked={bundle.network.tun.enableIpv6Address} label={t("resx.TbSettingsEnableIPv6Address")} onChange={(enableIpv6Address) => patchTun({ enableIpv6Address })} />
-          <CheckboxField checked={bundle.network.tun.enableLegacyProtect} label={t("resx.TbLegacyProtect")} onChange={(enableLegacyProtect) => patchTun({ enableLegacyProtect })} />
         </SettingsCheckboxGroup>
         <TextField id="rt-tun-stack" label={t("resx.TbSettingsTunStack")} onChange={(stack) => patchTun({ stack })} value={bundle.network.tun.stack} />
         <NumberField id="rt-tun-mtu" label={t("resx.TbMtu")} onChange={(mtu) => patchTun({ mtu: mtu ?? 1500 })} value={bundle.network.tun.mtu} />

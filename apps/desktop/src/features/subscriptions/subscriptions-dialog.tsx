@@ -40,7 +40,6 @@ type SubscriptionsDialogProps = {
 
 function createBlankSubscription(): SubItem_Deserialize {
   return {
-    AutoUpdateInterval: 0,
     Enabled: true,
     Filter: null,
     MoreUrl: "",
@@ -208,7 +207,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
                 onChange={(value) => setForm((current) => ({ ...current, MoreUrl: value }))}
                 value={form.MoreUrl ?? ""}
               />
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <TextField
                   label="Filter"
                   onChange={(value) => setForm((current) => ({ ...current, Filter: value || null }))}
@@ -218,12 +217,6 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
                   label="Convert target"
                   onChange={(value) => setForm((current) => ({ ...current, ConvertTarget: value || null }))}
                   value={form.ConvertTarget ?? ""}
-                />
-                <TextField
-                  label="Auto update minutes"
-                  onChange={(value) => setForm((current) => ({ ...current, AutoUpdateInterval: Number(value) || 0 }))}
-                  type="number"
-                  value={String(form.AutoUpdateInterval ?? 0)}
                 />
               </div>
               <div className="flex h-9 items-center rounded-md border bg-card px-3 shadow-xs">

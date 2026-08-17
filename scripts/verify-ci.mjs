@@ -3,10 +3,12 @@ import { spawnSync } from "node:child_process";
 const steps = [
   ["Rust formatting", "pnpm", ["run", "check:rust:fmt"]],
   ["Rust Clippy", "pnpm", ["run", "check:rust:clippy"]],
+  ["Rust dependency usage", "pnpm", ["run", "check:rust:deps"]],
   ["Rust tests", "pnpm", ["run", "check:rust:test"]],
   ["Frontend typecheck", "pnpm", ["run", "check:frontend:typecheck"]],
   ["Frontend tests", "pnpm", ["run", "check:frontend:test"]],
   ["Frontend lint", "pnpm", ["run", "check:frontend:lint"]],
+  ["Dead code and dependency usage", "pnpm", ["run", "check:dead-code"]],
   ["Generated binding drift", "pnpm", ["run", "bindings:check"]],
   ["i18n locale drift", "pnpm", ["run", "i18n:check"]],
 ];

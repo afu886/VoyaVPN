@@ -77,10 +77,6 @@ impl<'db> RoutingManager<'db> {
         Ok(self.database.routings().list().await?)
     }
 
-    pub async fn get_routing(&self, id: &str) -> Result<Option<RoutingItem>> {
-        Ok(self.database.routings().get(id).await?)
-    }
-
     pub async fn save_routing(
         &self,
         config: &mut AppConfig,

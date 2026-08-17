@@ -9,7 +9,7 @@ export type MissingCorePayload = {
   message: string;
 };
 
-export type ModalEntry = {
+type ModalEntry = {
   id: string;
   kind: ModalKind;
   missingCore?: MissingCorePayload;

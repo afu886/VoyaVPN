@@ -82,14 +82,6 @@ impl<'pool> ServerStatRepository<'pool> {
         rows.into_iter().map(row_to_server_stat).collect()
     }
 
-    pub async fn clear_all(&self) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM server_stat_items")
-            .execute(self.pool)
-            .await?;
-
-        Ok(result.rows_affected())
-    }
-
     pub async fn delete_orphans(&self) -> Result<u64> {
         let result = sqlx::query(
             r#"

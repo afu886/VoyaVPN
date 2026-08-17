@@ -59,7 +59,7 @@ export const PROFILE_PROTOCOLS: ProfileProtocolOption[] = [
   { description: "Ordered proxy chain", label: "Proxy Chain", value: CONFIG_TYPES.ProxyChain },
 ];
 
-export const PROFILE_PROTOCOL_LABELS = PROFILE_PROTOCOLS.reduce<Record<number, string>>(
+const PROFILE_PROTOCOL_LABELS = PROFILE_PROTOCOLS.reduce<Record<number, string>>(
   (labels, protocol) => {
     labels[protocol.value] = protocol.label;
     return labels;

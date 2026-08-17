@@ -26,15 +26,6 @@ impl<'db> ProfileExManager<'db> {
         Ok(self.database.profile_exs().list().await?)
     }
 
-    pub async fn get_sort(&self, index_id: &str) -> Result<i32> {
-        Ok(self
-            .database
-            .profile_exs()
-            .get(index_id)
-            .await?
-            .map_or(0, |item| item.sort))
-    }
-
     pub async fn get_max_sort(&self) -> Result<i32> {
         Ok(self.database.profile_exs().max_sort().await?)
     }

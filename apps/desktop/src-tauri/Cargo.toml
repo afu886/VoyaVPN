@@ -10,6 +10,10 @@ version.workspace = true
 
 [package.metadata]
 
+[package.metadata.cargo-machete]
+# Required by tauri::generate_context!, which cargo-machete cannot observe.
+ignored = ["serde_json"]
+
 [lib]
 name = "voyavpn_lib"
 crate-type = ["rlib"]
@@ -46,7 +50,6 @@ voya-app.workspace = true
 voya-core.workspace = true
 voya-db.workspace = true
 voya-platform.workspace = true
-zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.8"

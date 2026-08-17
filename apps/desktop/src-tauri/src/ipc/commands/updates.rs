@@ -23,16 +23,6 @@ pub fn app_update_status<R: tauri::Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_config_sources(
-    state: tauri::State<'_, AppState>,
-) -> Result<ConfigSourceSettings, AppError> {
-    let config = current_config(&state)?;
-
-    Ok(update_manager(&state).source_settings(&config))
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn update_geo_assets(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<ResourceUpdateFile>, AppError> {

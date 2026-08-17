@@ -1,6 +1,6 @@
 import type { CoreType } from "@/ipc/bindings";
 
-export const CORE_TYPES = {
+const CORE_TYPES = {
   singBox: 24,
 } as const satisfies Record<string, CoreType>;
 

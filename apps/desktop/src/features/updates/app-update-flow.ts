@@ -2,7 +2,7 @@ import { appUpdateStatus } from "@/ipc";
 import type { AppUpdaterStatus } from "@/ipc/bindings";
 import { check as checkForTauriUpdate, getVersion, type Update as TauriUpdate } from "@/ipc/updater";
 
-export type AppUpdateInfo = {
+type AppUpdateInfo = {
   currentVersion: string;
   version: string;
   date: string | null;
@@ -27,7 +27,7 @@ export type AppUpdateFlowDeps = {
   getCurrentVersion: typeof getVersion;
 };
 
-export const defaultAppUpdateFlowDeps: AppUpdateFlowDeps = {
+const defaultAppUpdateFlowDeps: AppUpdateFlowDeps = {
   appUpdateStatus,
   checkForAppUpdate: checkForTauriUpdate,
   getCurrentVersion: getVersion,

@@ -39,7 +39,7 @@ export const SYS_PROXY_TYPE = {
 // without PAC support).
 export const PROXY_MODE_OPTIONS: SysProxyMode[] = ["forcedClear", "pac", "forcedChange"];
 
-export function sysProxyTypeToMode(mode: number): SysProxyMode {
+function sysProxyTypeToMode(mode: number): SysProxyMode {
   switch (mode) {
     case SYS_PROXY_TYPE.forcedChange:
       return "forcedChange";
@@ -73,7 +73,7 @@ export function statusToTunChanged(status: TunStatus): TunChanged {
 }
 
 /** A connect/restart failed because TUN needs one-time system authorization. */
-export function isElevationRequiredError(error: unknown) {
+function isElevationRequiredError(error: unknown) {
   if (!(error instanceof IpcCommandError)) {
     return false;
   }

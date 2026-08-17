@@ -31,7 +31,7 @@ use voya_core::AppConfig;
 use voya_db::{AppConfigStore, Database, DATABASE_NAME};
 use voya_platform::{
     coreinfo::{copy_seed_core_assets, TargetOs},
-    paths::{core_seed_resources_dir, AppPaths, StorageMode},
+    paths::{core_seed_resources_dir, AppPaths},
     process::{ProcessLogSink, ProcessOutputStream, ProcessRole, StdProcessRunner},
     sysproxy::{platform_pac_manager, SystemProxyService},
 };
@@ -137,7 +137,7 @@ pub fn run() {
         })
         .setup(move |app| {
             let app_config_dir = app.path().app_config_dir()?;
-            let runtime_paths = AppPaths::new(&app_config_dir, StorageMode::UserData);
+            let runtime_paths = AppPaths::new(&app_config_dir);
             runtime_paths.ensure_dirs()?;
             let system_proxy_manager = SystemProxyManager::new(
                 SystemProxyService::new(Arc::new(StdProcessRunner::new()), platform_pac_manager()),

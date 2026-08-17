@@ -22,7 +22,7 @@ All OS-specific implementation lives in `voya-platform` or the Tauri shell where
 
 Boundary ownership:
 
-- `voya-platform::paths`: config, log, temp, portable-mode, and binary directory resolution.
+- `voya-platform::paths`: config, log, temp, application-data, and binary directory resolution.
 - `voya-platform::process`: process spawning, termination, permissions, stdout/stderr streaming, and Windows job containment.
 - `voya-platform::elevation`: Unix `sudo -S` flow and Windows elevation integration.
 - `voya-platform::tun`: TUN setup/teardown helpers and platform-specific preflight.
@@ -58,3 +58,11 @@ The platform boundary remains unchanged after the monorepo migration. Path refer
 - Locale JSON now lives at `packages/i18n/src/locales`.
 
 Tauri-specific platform integration still belongs in `apps/desktop/src-tauri`; reusable OS behavior remains in `voya-platform`.
+
+## Amendment (2026-08): Single Storage Layout
+
+VoyaVPN no longer probes for or supports a portable storage mode. `AppPaths` is
+constructed from the application-data directory supplied by the Tauri shell,
+and all config, database, log, temp, and downloaded-core paths derive from that
+directory. No environment variable or executable-adjacent fallback may switch
+the persistence root.

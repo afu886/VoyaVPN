@@ -8,6 +8,7 @@ permissions:
 
 env:
   RUST_TOOLCHAIN_VERSION: "1.96.0"
+  CARGO_MACHETE_VERSION: "0.9.2"
 
 jobs:
   dependency-audit:
@@ -82,11 +83,17 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked --version "$CARGO_MACHETE_VERSION"
+
       - name: Check Rust formatting
         run: pnpm run check:rust:fmt
 
       - name: Lint Rust
         run: pnpm run check:rust:clippy
+
+      - name: Check Rust dependency usage
+        run: pnpm run check:rust:deps
 
       - name: Run Rust tests
         run: pnpm run check:rust:test
@@ -99,6 +106,9 @@ jobs:
 
       - name: Lint frontend
         run: pnpm run check:frontend:lint
+
+      - name: Check dead code and dependency usage
+        run: pnpm run check:dead-code
 
       - name: Check generated IPC binding drift
         run: pnpm run bindings:check

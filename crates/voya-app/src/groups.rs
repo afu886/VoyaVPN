@@ -51,10 +51,7 @@ impl<'db> GroupManager<'db> {
         ))
     }
 
-    pub async fn validate_group_profile(
-        &self,
-        profile: &ProfileItem,
-    ) -> Result<GroupValidationResult> {
+    async fn validate_group_profile(&self, profile: &ProfileItem) -> Result<GroupValidationResult> {
         let profiles = self.profiles_with_draft(profile).await?;
 
         Ok(validate_group_profile(profile, &profiles))

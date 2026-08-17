@@ -18,8 +18,8 @@ import { truthy } from "./lib/common.mjs";
 export { isCliEntrypoint, repoRootFromScript, truthy } from "./lib/common.mjs";
 
 export const DEFAULT_SING_BOX_VERSION = "v1.13.14";
-export const SING_BOX_REPO = "SagerNet/sing-box";
-export const SING_BOX_CORE_DIR = "sing_box";
+const SING_BOX_REPO = "SagerNet/sing-box";
+const SING_BOX_CORE_DIR = "sing_box";
 
 const SING_BOX_OS = {
   darwin: "darwin",
@@ -32,7 +32,7 @@ const SING_BOX_ARCH = {
   x64: "amd64",
 };
 
-export function singBoxVersionLabel(version = DEFAULT_SING_BOX_VERSION) {
+function singBoxVersionLabel(version = DEFAULT_SING_BOX_VERSION) {
   return String(version).replace(/^v/i, "");
 }
 
@@ -55,11 +55,11 @@ export function singBoxExecutableName(platform = process.platform) {
   return platform === "win32" ? "sing-box.exe" : "sing-box";
 }
 
-export function isSingBoxPayloadFile(name) {
+function isSingBoxPayloadFile(name) {
   return /^sing-box(\.exe)?$/i.test(name) || /^licen[cs]e(\..*)?$/i.test(name);
 }
 
-export function seedRoot(repoRoot) {
+function seedRoot(repoRoot) {
   return join(repoRoot, "apps", "desktop", "src-tauri", "resources", "core-seeds");
 }
 
@@ -92,7 +92,7 @@ export function defaultAppConfigDir({
   return join(configRoot, "app.voyavpn.desktop");
 }
 
-export function singBoxAppBinDir(appConfigDir) {
+function singBoxAppBinDir(appConfigDir) {
   return join(appConfigDir, "bin", SING_BOX_CORE_DIR);
 }
 
@@ -112,12 +112,12 @@ export function shouldSkipSingBoxInstall({ env = process.env, postinstall = fals
   return { reason: null, skip: false };
 }
 
-export function hasExpectedSingBoxExecutable(dir, platform = process.platform) {
+function hasExpectedSingBoxExecutable(dir, platform = process.platform) {
   const executable = join(dir, singBoxExecutableName(platform));
   return existsSync(executable) && statSync(executable).isFile();
 }
 
-export function ensureExecutablePermission(path, platform = process.platform) {
+function ensureExecutablePermission(path, platform = process.platform) {
   if (platform === "win32" || !existsSync(path)) {
     return;
   }
@@ -126,7 +126,7 @@ export function ensureExecutablePermission(path, platform = process.platform) {
   chmodSync(path, mode | 0o755);
 }
 
-export function probeSingBoxExecutable(path, { platform = process.platform, spawn = spawnSync } = {}) {
+function probeSingBoxExecutable(path, { platform = process.platform, spawn = spawnSync } = {}) {
   if (!existsSync(path) || !statSync(path).isFile()) {
     return false;
   }
@@ -141,7 +141,7 @@ export function probeSingBoxExecutable(path, { platform = process.platform, spaw
   return result.status === 0 && /sing-box/i.test(output);
 }
 
-export function copyDirectoryContents(sourceDir, targetDir) {
+function copyDirectoryContents(sourceDir, targetDir) {
   mkdirSync(targetDir, { recursive: true });
   for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
     const sourcePath = join(sourceDir, entry.name);
@@ -154,7 +154,7 @@ export function copyDirectoryContents(sourceDir, targetDir) {
   }
 }
 
-export function copySingBoxSeedToAppData({
+function copySingBoxSeedToAppData({
   appConfigDir,
   logger = console,
   platform = process.platform,
@@ -173,7 +173,7 @@ export function copySingBoxSeedToAppData({
   return { copied: true, sourceDir, targetDir };
 }
 
-export function copySingBoxAppDataToSeed({
+function copySingBoxAppDataToSeed({
   appConfigDir,
   logger = console,
   platform = process.platform,
@@ -192,7 +192,7 @@ export function copySingBoxAppDataToSeed({
   return { copied: true, sourceDir, targetDir };
 }
 
-export async function download(url, destFile, { fetchImpl = fetch } = {}) {
+async function download(url, destFile, { fetchImpl = fetch } = {}) {
   const response = await fetchImpl(url, {
     headers: { "User-Agent": "voyavpn-sing-box-core-installer" },
     redirect: "follow",
@@ -207,7 +207,7 @@ export async function download(url, destFile, { fetchImpl = fetch } = {}) {
   return buffer;
 }
 
-export function extractArchive(archiveFile, destDir, { platform = process.platform, spawn = spawnSync } = {}) {
+function extractArchive(archiveFile, destDir, { platform = process.platform, spawn = spawnSync } = {}) {
   mkdirSync(destDir, { recursive: true });
   const command =
     platform === "win32"
@@ -242,7 +242,7 @@ function stagePayloadRecursive(sourceDir, destinationSeedDir, kept, platform) {
   }
 }
 
-export function stageExtractedSingBoxPayload(extractDir, destinationSeedDir, { platform = process.platform } = {}) {
+function stageExtractedSingBoxPayload(extractDir, destinationSeedDir, { platform = process.platform } = {}) {
   rmSync(destinationSeedDir, { force: true, recursive: true });
   mkdirSync(destinationSeedDir, { recursive: true });
 
@@ -258,7 +258,7 @@ export function stageExtractedSingBoxPayload(extractDir, destinationSeedDir, { p
   return kept;
 }
 
-export async function fetchAndStageSingBoxSeed({
+async function fetchAndStageSingBoxSeed({
   arch = process.arch,
   fetchImpl = fetch,
   logger = console,

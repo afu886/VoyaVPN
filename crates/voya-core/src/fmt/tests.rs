@@ -228,15 +228,13 @@ fn fmt_negative_inputs_cover_port_host_and_large_base64_edges() {
 }
 
 #[test]
-fn fmt_shadowsocks_legacy_and_plugins_parse() {
+fn fmt_shadowsocks_rejects_legacy_full_link_base64_and_parses_plugins() {
     let legacy_payload = base64_encode("aes-128-gcm:pass@example.com:8388", false);
     let legacy = format!("ss://{legacy_payload}#legacy");
-    let parsed = parse_share_link(&legacy).expect("parse legacy ss");
-    assert_eq!(parsed.config_type, ConfigType::Shadowsocks);
-    assert_eq!(
-        parsed.protocol_extra.ss_method.as_deref(),
-        Some("aes-128-gcm")
-    );
+    assert!(parse_share_link(&legacy).is_err());
+
+    let legacy_socks_payload = base64_encode("user:pass@example.com:1080", false);
+    assert!(parse_share_link(&format!("socks://{legacy_socks_payload}")).is_err());
 
     let plugin =
         url_encode("v2ray-plugin;mode=websocket;host=ws.example;path=/a\\=b\\,c;tls;mux=0");

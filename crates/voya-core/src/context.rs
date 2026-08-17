@@ -719,12 +719,9 @@ fn pre_socks_item<E: CoreGenEnv>(
     node: &ProfileItem,
     env: &E,
 ) -> Option<ProfileItem> {
-    let enable_legacy_protect =
-        config.tun_mode_item.enable_legacy_protect || env.platform().is_non_windows();
-
     if node.config_type != ConfigType::Custom
         && config.tun_mode_item.enable_tun
-        && enable_legacy_protect
+        && env.platform().is_non_windows()
     {
         return Some(ProfileItem {
             config_type: ConfigType::SOCKS,
@@ -1310,6 +1307,24 @@ mod tests {
         assert_eq!(pre_context.node.config_type, ConfigType::SOCKS);
         assert_eq!(pre_context.node.address, LOOPBACK);
         assert_eq!(pre_context.node.port, 20808);
+    }
+
+    #[test]
+    fn context_build_all_keeps_tun_direct_on_windows() {
+        let active = vless_profile("active", "Active", "active.example.com");
+        let mut config = app_config("active");
+        config.tun_mode_item.enable_tun = true;
+        let env = MemoryEnv {
+            platform: CoreGenPlatform::Windows,
+            profiles: vec![active.clone()],
+            ..MemoryEnv::default()
+        };
+
+        let result = CoreConfigContextBuilder::new(&env).build_all(&config, &active);
+
+        assert!(result.success());
+        assert!(result.main_result.context.is_tun_enabled);
+        assert!(result.pre_socks_result.is_none());
     }
 
     #[test]

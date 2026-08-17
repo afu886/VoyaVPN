@@ -1,9 +1,7 @@
-import { useId } from "react";
 import type * as React from "react";
 import { Controller } from "react-hook-form";
 import type { Control, FieldPath, UseFormRegister } from "react-hook-form";
 
-import { Badge } from "@voya/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@voya/ui/components/card";
 import { Checkbox } from "@voya/ui/components/checkbox";
 import { Input } from "@voya/ui/components/input";
@@ -15,9 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@voya/ui/components/select";
-import { Switch } from "@voya/ui/components/switch";
 import { cn } from "@voya/ui/lib/utils";
-import { useI18n } from "@voya/i18n/use-i18n";
 import { ShieldCheck } from "lucide-react";
 
 import type { ParsedProfileFormValues, ProfileFormValues } from "./profile-form-schema";
@@ -194,42 +190,6 @@ export function CheckboxField({ className, control, id, label, name }: CheckboxF
         </Card>
       )}
     />
-  );
-}
-
-export function ToggleButton({
-  checked,
-  description,
-  label,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  description: string;
-  label: string;
-  onCheckedChange: (enabled: boolean) => void;
-}) {
-  const { t } = useI18n();
-  const generatedId = useId();
-  const inputId = `${fieldId(label)}-${generatedId}`;
-
-  return (
-    <Card
-      className={cn(
-        "h-16 justify-center gap-0 rounded-md px-3 py-0 shadow-none transition-colors",
-        checked ? "border-primary bg-accent/60" : "bg-card",
-      )}
-      title={description}
-    >
-      <Label className="h-full w-full min-w-0 cursor-pointer justify-between gap-3 text-xs" htmlFor={inputId}>
-        <span className="grid min-w-0 gap-1">
-          <span className="truncate font-medium text-foreground">{label}</span>
-          <Badge className="w-fit" variant={checked ? "default" : "secondary"}>
-            {checked ? t("panes.profiles.toggle.on") : t("panes.profiles.toggle.off")}
-          </Badge>
-        </span>
-        <Switch aria-label={label} checked={checked} id={inputId} onCheckedChange={onCheckedChange} />
-      </Label>
-    </Card>
   );
 }
 

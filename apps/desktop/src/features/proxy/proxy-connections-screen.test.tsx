@@ -4,10 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProxyConnectionItem, ProxyConnectionsSnapshot } from "@/ipc/bindings";
-import {
-  DEFAULT_CONNECTION_COLUMN_VISIBILITY,
-  useConnectionColumnsStore,
-} from "@/stores/connection-columns-store";
+import { useConnectionColumnsStore } from "@/stores/connection-columns-store";
 
 import { ProxyConnectionsScreen } from "./proxy-connections-screen";
 
@@ -79,7 +76,7 @@ describe("ProxyConnectionsScreen", () => {
     ipcMocks.state.proxyConnections = null;
     // Column visibility persists to localStorage, so reset it between tests to
     // keep default-column expectations independent of prior toggles.
-    useConnectionColumnsStore.setState({ columnVisibility: { ...DEFAULT_CONNECTION_COLUMN_VISIBILITY } });
+    useConnectionColumnsStore.getState().resetColumnVisibility();
   });
 
   it("ships high-signal columns and collapses niche ones by default", async () => {
