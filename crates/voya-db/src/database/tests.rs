@@ -3,8 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::AppConfigStore;
 use sqlx::Row;
 use voya_core::{
-    ConfigType, ProfileExItem, ProfileItem, ProtocolExtraItem, RoutingItem, RuleType, RulesItem,
-    ServerStatItem, SubItem, SysProxyType, TransportExtraItem,
+    AppConfig, ConfigType, ProfileExItem, ProfileItem, ProtocolExtraItem, RoutingItem, RuleType,
+    RulesItem, ServerStatItem, SubItem, SysProxyType, TransportExtraItem,
 };
 
 use super::*;
@@ -790,6 +790,120 @@ fn app_config_store_defaults_and_persists_across_restart() {
 }
 
 #[test]
+fn app_config_store_converges_retired_voya_fields_and_preserves_live_settings() {
+    let path = temp_path("guiNConfig-retired-fields.json");
+    let mut value =
+        serde_json::to_value(AppConfig::default()).expect("default app config should serialize");
+    *value
+        .pointer_mut("/IndexId")
+        .expect("default profile index should exist") = serde_json::json!("active-profile");
+    *value
+        .pointer_mut("/TunModeItem/EnableTun")
+        .expect("default TUN setting should exist") = serde_json::json!(true);
+    *value
+        .pointer_mut("/UIItem/CurrentLanguage")
+        .expect("default language should exist") = serde_json::json!("zh-Hans");
+
+    let root = value
+        .as_object_mut()
+        .expect("app config JSON should be an object");
+    for key in [
+        "KcpItem",
+        "MsgUIItem",
+        "Mux4RayItem",
+        "CheckUpdateItem",
+        "DiagnosticsItem",
+        "Fragment4RayItem",
+    ] {
+        root.insert(key.to_string(), serde_json::json!({}));
+    }
+    for (pointer, fields) in [
+        ("/TunModeItem", &["EnableLegacyProtect"][..]),
+        ("/GrpcItem", &["InitialWindowsSize"]),
+        (
+            "/GUIItem",
+            &[
+                "KeepOlderDedupl",
+                "AutoUpdateInterval",
+                "TrayMenuServersLimit",
+                "EnableHWA",
+                "EnableLog",
+            ],
+        ),
+        (
+            "/UIItem",
+            &[
+                "EnableAutoAdjustMainLvColWidth",
+                "MainGirdHeight1",
+                "MainGirdHeight2",
+                "MainGirdOrientation",
+                "ColorPrimaryName",
+                "EnableDragDropSort",
+                "DoubleClick2Activate",
+                "AutoHideStartup",
+                "Hide2TrayWhenClose",
+                "MacOSShowInDock",
+                "MainColumnItem",
+                "WindowSizeItem",
+            ],
+        ),
+        (
+            "/ConstItem",
+            &["CdnBaseUrl", "CdnReleaseIndexUrl", "CdnCoreManifestUrl"],
+        ),
+        (
+            "/ProxyUIItem",
+            &[
+                "RuleMode",
+                "EnableIPv6",
+                "EnableMixinContent",
+                "ProxiesSorting",
+                "ProxiesAutoRefresh",
+                "ProxiesAutoDelayTestInterval",
+                "ConnectionsAutoRefresh",
+                "ConnectionsRefreshInterval",
+                "ConnectionsColumnItem",
+            ],
+        ),
+        ("/Inbound/0", &["UdpEnabled", "DestOverride", "RouteOnly"]),
+    ] {
+        let section = value
+            .pointer_mut(pointer)
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("retired field parent should be an object");
+        for field in fields {
+            section.insert((*field).to_string(), serde_json::json!(false));
+        }
+    }
+    fs::write(
+        &path,
+        serde_json::to_vec_pretty(&value).expect("retired app config should serialize"),
+    )
+    .expect("retired app config fixture should be written");
+
+    let loaded = AppConfigStore::new(&path)
+        .load()
+        .expect("retired Voya config should converge");
+
+    assert_eq!(loaded.index_id, "active-profile");
+    assert!(loaded.tun_mode_item.enable_tun);
+    assert_eq!(loaded.ui_item.current_language, "zh-Hans");
+
+    let persisted = fs::read_to_string(&path).expect("converged app config should be readable");
+    let persisted_value: serde_json::Value =
+        serde_json::from_str(&persisted).expect("converged app config should remain valid JSON");
+    assert!(persisted_value.get("KcpItem").is_none());
+    assert!(persisted_value
+        .pointer("/TunModeItem/EnableLegacyProtect")
+        .is_none());
+    assert!(persisted_value.pointer("/Inbound/0/UdpEnabled").is_none());
+    serde_json::from_value::<AppConfig>(persisted_value)
+        .expect("converged app config should match the current strict schema");
+
+    let _ = fs::remove_file(path);
+}
+
+#[test]
 fn app_config_store_rejects_old_schema_without_changing_the_file() {
     let path = temp_path("guiNConfig-invalid.json");
     let original = br#"{"CoreBasicItem":{"Loglevel":"debug"},"EnableLegacyProtect":true}"#;
@@ -835,10 +949,8 @@ fn temp_path(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("database test operation should succeed")
         .as_nanos();
+    let root = std::env::temp_dir().join("voyavpn-tests");
+    fs::create_dir_all(&root).expect("database test directory should exist");
 
-    std::env::temp_dir().join("voyavpn-tests").join(format!(
-        "{}-{}-{name}",
-        std::process::id(),
-        nanos
-    ))
+    root.join(format!("{}-{}-{name}", std::process::id(), nanos))
 }
