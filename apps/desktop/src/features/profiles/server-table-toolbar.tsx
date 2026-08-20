@@ -200,25 +200,25 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
                 </MenubarTrigger>
                 <MenubarContent align="end">
                   <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Top, null))}
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Top, null))}
                   >
                     <ChevronsUp className="size-4" aria-hidden="true" />
                     {t("panes.profiles.menu.moveTop")}
                   </MenubarItem>
                   <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Up, null))}
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Up, null))}
                   >
                     <ArrowUp className="size-4" aria-hidden="true" />
                     {t("panes.profiles.menu.moveUp")}
                   </MenubarItem>
                   <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Down, null))}
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Down, null))}
                   >
                     <ArrowDown className="size-4" aria-hidden="true" />
                     {t("panes.profiles.menu.moveDown")}
                   </MenubarItem>
                   <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.IndexId, MOVE_ACTIONS.Bottom, null))}
+                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Bottom, null))}
                   >
                     <ChevronsDown className="size-4" aria-hidden="true" />
                     {t("panes.profiles.menu.moveBottom")}

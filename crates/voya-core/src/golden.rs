@@ -9,10 +9,10 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 
 use crate::{
-    generate_singbox_config, generate_singbox_config_value, AppConfig, ConfigType,
-    CoreConfigContext, CoreGenPlatform, CoreType, MultipleLoad, ProfileItem, ProtocolExtraItem,
-    RoutingItem, RuleType, RulesItem, TransportExtraItem, BLOCK_TAG, DIRECT_TAG, LOOPBACK,
-    PROXY_TAG,
+    generate_singbox_config, generate_singbox_config_value, AppConfig, CoreConfigContext,
+    CoreGenPlatform, CoreType, MultipleLoad, ProfileItem, ProfileProtocol, ProfileTransport,
+    RoutingItem, RuleType, RulesItem, ServerEndpoint, TlsMode, TlsSettings, BLOCK_TAG, DIRECT_TAG,
+    LOOPBACK, PROXY_TAG,
 };
 
 #[derive(Debug, Deserialize)]
@@ -263,25 +263,25 @@ fn singbox_vless_ws_tls_mux_context() -> CoreConfigContext {
 
     let node = ProfileItem {
         index_id: "n-vless".to_string(),
-        config_type: ConfigType::VLESS,
         remarks: "vless-ws".to_string(),
-        address: "server.example".to_string(),
-        port: 443,
-        password: "00000000-0000-0000-0000-000000000011".to_string(),
-        network: "ws".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "tls.example".to_string(),
-        alpn: "h2,http/1.1".to_string(),
-        ech_config_list: "ech.example+https://dns.example/dns-query".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            vless_encryption: Some("none".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::Vless {
+            server: endpoint("server.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000011".to_string(),
+            flow: None,
+            encryption: Some("none".to_string()),
         },
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Websocket {
             host: Some("cdn.example".to_string()),
             path: Some("/ws?ed=2048".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: Some(tls_settings(
+            "tls.example",
+            &["h2", "http/1.1"],
+            vec![
+                "ech.example".to_string(),
+                "https://dns.example/dns-query".to_string(),
+            ],
+        )),
         ..ProfileItem::default()
     };
 
@@ -293,19 +293,14 @@ fn singbox_tuic_tls_outbound() -> Value {
     config.core_basic_item.def_fingerprint = "chrome".to_string();
     let node = ProfileItem {
         index_id: "n-tuic".to_string(),
-        config_type: ConfigType::TUIC,
         remarks: "tuic-tls".to_string(),
-        address: "tuic.example".to_string(),
-        port: 443,
-        username: "00000000-0000-0000-0000-000000000021".to_string(),
-        password: "tuic-pass".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "tuic.example".to_string(),
-        alpn: "h3".to_string(),
-        protocol_extra: ProtocolExtraItem {
+        protocol: ProfileProtocol::Tuic {
+            server: endpoint("tuic.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000021".to_string(),
+            password: "tuic-pass".to_string(),
             congestion_control: Some("bbr".to_string()),
-            ..ProtocolExtraItem::default()
         },
+        tls: Some(tls_settings("tuic.example", &["h3"], Vec::new())),
         ..ProfileItem::default()
     };
 
@@ -317,14 +312,16 @@ fn singbox_anytls_tls_outbound() -> Value {
     config.core_basic_item.def_fingerprint = "safari".to_string();
     let node = ProfileItem {
         index_id: "n-anytls".to_string(),
-        config_type: ConfigType::Anytls,
         remarks: "anytls-tls".to_string(),
-        address: "anytls.example".to_string(),
-        port: 8443,
-        password: "anytls-pass".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "anytls.example".to_string(),
-        alpn: "h2,http/1.1".to_string(),
+        protocol: ProfileProtocol::Anytls {
+            server: endpoint("anytls.example", 8443),
+            password: "anytls-pass".to_string(),
+        },
+        tls: Some(tls_settings(
+            "anytls.example",
+            &["h2", "http/1.1"],
+            Vec::new(),
+        )),
         ..ProfileItem::default()
     };
 
@@ -336,22 +333,17 @@ fn singbox_naive_quic_tls_outbound() -> Value {
     config.core_basic_item.def_fingerprint = "edge".to_string();
     let node = ProfileItem {
         index_id: "n-naive".to_string(),
-        config_type: ConfigType::Naive,
         remarks: "naive-quic".to_string(),
-        address: "naive.example".to_string(),
-        port: 443,
-        username: "naive-user".to_string(),
-        password: "naive-pass".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "naive.example".to_string(),
-        alpn: "h3".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            naive_quic: Some(true),
+        protocol: ProfileProtocol::Naive {
+            server: endpoint("naive.example", 443),
+            username: "naive-user".to_string(),
+            password: "naive-pass".to_string(),
+            quic: true,
             congestion_control: Some("bbr".to_string()),
             insecure_concurrency: Some(4),
-            uot: Some(true),
-            ..ProtocolExtraItem::default()
+            udp_over_tcp: true,
         },
+        tls: Some(tls_settings("naive.example", &["h3"], Vec::new())),
         ..ProfileItem::default()
     };
 
@@ -376,12 +368,9 @@ fn singbox_proxy_chain_detour() -> Value {
     let n2 = singbox_socks_node("n2", "node-2");
     let chain = ProfileItem {
         index_id: "chain".to_string(),
-        config_type: ConfigType::ProxyChain,
         remarks: "chain".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("n1,n2".to_string()),
-            group_type: Some("ProxyChain".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::ProxyChain {
+            child_profile_ids: vec!["n1".to_string(), "n2".to_string()],
         },
         ..ProfileItem::default()
     };
@@ -398,13 +387,12 @@ fn singbox_policy_group_selector() -> Value {
     let n2 = singbox_socks_node("n2", "node-2");
     let group = ProfileItem {
         index_id: "group".to_string(),
-        config_type: ConfigType::PolicyGroup,
         remarks: "fallback".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("n1,n1,n2".to_string()),
-            group_type: Some("PolicyGroup".to_string()),
-            multiple_load: Some(MultipleLoad::Fallback),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::PolicyGroup {
+            child_profile_ids: vec!["n1".to_string(), "n1".to_string(), "n2".to_string()],
+            source_subscription_id: None,
+            filter: None,
+            strategy: MultipleLoad::Fallback,
         },
         ..ProfileItem::default()
     };
@@ -483,11 +471,13 @@ fn singbox_pre_socks_configs() -> Vec<Value> {
         config,
         ProfileItem {
             index_id: "pre-socks".to_string(),
-            config_type: ConfigType::SOCKS,
             remarks: "pre-socks".to_string(),
-            address: LOOPBACK.to_string(),
-            port: 20_808,
-            network: "raw".to_string(),
+            protocol: ProfileProtocol::Socks {
+                server: endpoint(LOOPBACK, 20_808),
+                username: String::new(),
+                password: String::new(),
+            },
+            transport: Some(raw_transport()),
             ..ProfileItem::default()
         },
     );
@@ -656,11 +646,13 @@ fn singbox_context(app_config: AppConfig, node: ProfileItem) -> CoreConfigContex
 fn singbox_base_remote_node() -> ProfileItem {
     ProfileItem {
         remarks: "remote".to_string(),
-        address: "server.example".to_string(),
-        port: 443,
-        network: "raw".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "server.example".to_string(),
+        protocol: ProfileProtocol::Vmess {
+            server: endpoint("server.example", 443),
+            uuid: String::new(),
+            cipher: None,
+        },
+        transport: Some(raw_transport()),
+        tls: Some(tls_settings("server.example", &[], Vec::new())),
         ..ProfileItem::default()
     }
 }
@@ -668,14 +660,45 @@ fn singbox_base_remote_node() -> ProfileItem {
 fn singbox_socks_node(index_id: &str, remarks: &str) -> ProfileItem {
     ProfileItem {
         index_id: index_id.to_string(),
-        config_type: ConfigType::SOCKS,
         remarks: remarks.to_string(),
-        address: LOOPBACK.to_string(),
-        port: 1080,
-        username: "user".to_string(),
-        password: "pass".to_string(),
-        network: "raw".to_string(),
+        protocol: ProfileProtocol::Socks {
+            server: endpoint(LOOPBACK, 1080),
+            username: "user".to_string(),
+            password: "pass".to_string(),
+        },
+        transport: Some(raw_transport()),
         ..ProfileItem::default()
+    }
+}
+
+fn endpoint(address: &str, port: i32) -> ServerEndpoint {
+    ServerEndpoint {
+        address: address.to_string(),
+        port,
+    }
+}
+
+fn raw_transport() -> ProfileTransport {
+    ProfileTransport::Tcp {
+        header: None,
+        host: None,
+        path: None,
+    }
+}
+
+fn tls_settings(server_name: &str, alpn: &[&str], ech_config: Vec<String>) -> TlsSettings {
+    TlsSettings {
+        mode: TlsMode::Tls,
+        server_name: Some(server_name.to_string()),
+        alpn: alpn.iter().map(|value| (*value).to_string()).collect(),
+        reality_public_key: None,
+        reality_short_id: None,
+        reality_spider_x: None,
+        mldsa65_verify: None,
+        certificate_pem: None,
+        certificate_sha256: Vec::new(),
+        ech_config,
+        final_mask: None,
     }
 }
 

@@ -1,5 +1,5 @@
 use std::{
-    fs, io,
+    io,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -8,8 +8,10 @@ use thiserror::Error;
 use voya_core::{AppConfig, InboundProtocol, SysProxyType};
 use voya_platform::{
     coreinfo::TargetOs,
+    filesystem,
     paths::{AppPaths, PathError},
     sysproxy::{SystemProxyError, SystemProxyRequest, SystemProxyService, SystemProxyStatus},
+    tun::{tun_backend, TunBackend},
 };
 
 const SYSPROXY_SCRIPT_DIR_NAME: &str = "sysproxy";
@@ -130,7 +132,7 @@ impl SystemProxyManager {
             .inbound
             .first()
             .map_or(voya_core::DEFAULT_LOCAL_PORT, |inbound| inbound.local_port);
-        let pac_port = socks_port + InboundProtocol::pac.as_i32();
+        let pac_port = socks_port + InboundProtocol::pac.port_offset();
 
         Ok(SystemProxyRequest {
             target_os: self.target_os,
@@ -150,27 +152,21 @@ impl SystemProxyManager {
 
     fn dirty_marker_exists(&self) -> Result<bool, SystemProxyManagerError> {
         let path = self.dirty_marker_path();
-        match fs::metadata(&path) {
-            Ok(_) => Ok(true),
-            Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(source) => Err(SystemProxyManagerError::DirtyMarkerInspect { path, source }),
-        }
+        filesystem::file_exists(&path)
+            .map_err(|source| SystemProxyManagerError::DirtyMarkerInspect { path, source })
     }
 
     fn write_dirty_marker(&self) -> Result<(), SystemProxyManagerError> {
         self.paths.ensure_dirs()?;
         let path = self.dirty_marker_path();
-        fs::write(&path, SYSPROXY_DIRTY_MARKER_CONTENTS)
+        filesystem::write_file_with_parent(&path, SYSPROXY_DIRTY_MARKER_CONTENTS)
             .map_err(|source| SystemProxyManagerError::DirtyMarkerWrite { path, source })
     }
 
     fn clear_dirty_marker(&self) -> Result<(), SystemProxyManagerError> {
         let path = self.dirty_marker_path();
-        match fs::remove_file(&path) {
-            Ok(()) => Ok(()),
-            Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(source) => Err(SystemProxyManagerError::DirtyMarkerRemove { path, source }),
-        }
+        filesystem::remove_file_if_exists(&path)
+            .map_err(|source| SystemProxyManagerError::DirtyMarkerRemove { path, source })
     }
 }
 
@@ -188,6 +184,79 @@ pub enum SystemProxyManagerError {
     DirtyMarkerWrite { path: PathBuf, source: io::Error },
     #[error("failed to remove system proxy dirty marker {path}: {source}")]
     DirtyMarkerRemove { path: PathBuf, source: io::Error },
+}
+
+#[derive(Debug, Clone)]
+pub struct RuntimeSystemProxyConfig {
+    pub config: AppConfig,
+    pub force_disable: bool,
+}
+
+#[must_use]
+pub fn runtime_system_proxy_config(
+    config: &AppConfig,
+    force_disable: bool,
+    target_os: TargetOs,
+) -> RuntimeSystemProxyConfig {
+    let mut runtime = RuntimeSystemProxyConfig {
+        config: config.clone(),
+        force_disable,
+    };
+
+    if force_disable {
+        return runtime;
+    }
+    if should_disable_native_tun_system_proxy(config, target_os) {
+        runtime.force_disable = true;
+    } else if should_apply_tun_system_proxy_fallback(config, target_os) {
+        runtime.config.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
+    }
+    runtime
+}
+
+#[must_use]
+pub fn should_disable_native_tun_system_proxy(config: &AppConfig, target_os: TargetOs) -> bool {
+    config.tun_mode_item.enable_tun && tun_backend(target_os).is_native()
+}
+
+#[must_use]
+pub fn should_apply_tun_system_proxy_fallback(config: &AppConfig, target_os: TargetOs) -> bool {
+    config.tun_mode_item.enable_tun
+        && config.system_proxy_item.sys_proxy_type == SysProxyType::ForcedClear
+        && tun_backend(target_os) == TunBackend::Process
+}
+
+#[must_use]
+pub fn runtime_proxy_url(
+    prefer_proxy: bool,
+    proxy_url: Option<String>,
+    config: &AppConfig,
+    target_os: TargetOs,
+) -> Option<String> {
+    let explicit = proxy_url.and_then(|value| {
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    });
+
+    if !prefer_proxy {
+        return explicit;
+    }
+    explicit.or_else(|| runtime_default_proxy_url(config, target_os))
+}
+
+#[must_use]
+pub fn runtime_default_proxy_url(config: &AppConfig, target_os: TargetOs) -> Option<String> {
+    if config.tun_mode_item.enable_tun && tun_backend(target_os).is_native() {
+        return None;
+    }
+
+    let port = config
+        .inbound
+        .first()
+        .map_or(voya_core::DEFAULT_LOCAL_PORT, |inbound| inbound.local_port);
+    (1..=65_535)
+        .contains(&port)
+        .then(|| format!("http://127.0.0.1:{port}"))
 }
 
 fn current_tick_string() -> String {
@@ -403,5 +472,26 @@ mod tests {
         assert!(!restored);
         assert!(runner.oneshots().is_empty());
         let _ = fs::remove_dir_all(app_dir);
+    }
+
+    #[test]
+    fn runtime_proxy_policy_separates_native_tun_and_process_fallback() {
+        let mut config = AppConfig::default();
+        config.tun_mode_item.enable_tun = true;
+
+        let native = runtime_system_proxy_config(&config, false, TargetOs::Macos);
+        assert!(native.force_disable);
+        assert!(runtime_default_proxy_url(&config, TargetOs::Macos).is_none());
+
+        let process = runtime_system_proxy_config(&config, false, TargetOs::Linux);
+        assert!(!process.force_disable);
+        assert_eq!(
+            process.config.system_proxy_item.sys_proxy_type,
+            SysProxyType::ForcedChange
+        );
+        assert_eq!(
+            runtime_proxy_url(true, None, &config, TargetOs::Linux).as_deref(),
+            Some("http://127.0.0.1:10808")
+        );
     }
 }

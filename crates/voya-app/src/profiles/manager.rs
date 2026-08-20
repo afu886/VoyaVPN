@@ -8,14 +8,12 @@ use std::{
 use thiserror::Error;
 use voya_core::{
     profile_items_match, AppConfig, MoveAction, ProfileDedupeResult, ProfileExItem, ProfileItem,
-    ProfileListItem, ProfileSortKey, ServerStatItem,
+    ProfileListItem, ProfileProtocol, ProfileSortKey, ProfileTransport, ServerEndpoint,
+    ServerStatItem,
 };
 use voya_db::{Database, DbError};
 
-use super::{
-    ProfileExManager, DEFAULT_NETWORK, DEFAULT_PROFILE_SORT_STEP, STREAM_SECURITY_REALITY,
-    STREAM_SECURITY_TLS, VALID_NETWORKS,
-};
+use super::{ProfileExManager, DEFAULT_PROFILE_SORT_STEP};
 
 static PROFILE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -52,10 +50,14 @@ impl<'db> ProfileManager<'db> {
     pub async fn list_profiles(
         &self,
         config: &AppConfig,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         filter: Option<&str>,
     ) -> Result<Vec<ProfileListItem>> {
-        let items = self.database.profiles().list_with_profile_ex(subid).await?;
+        let items = self
+            .database
+            .profiles()
+            .list_with_profile_ex(subscription_id)
+            .await?;
         let stats = self.server_stats_by_index_id().await?;
         let filter = filter.map(str::trim).filter(|value| !value.is_empty());
 
@@ -64,7 +66,7 @@ impl<'db> ProfileManager<'db> {
             .filter(|(profile, _)| {
                 filter.is_none_or(|filter| {
                     contains_case_insensitive(&profile.remarks, filter)
-                        || contains_case_insensitive(&profile.address, filter)
+                        || contains_case_insensitive(profile.address(), filter)
                 })
             })
             .map(|(profile, profile_ex)| {
@@ -213,12 +215,16 @@ impl<'db> ProfileManager<'db> {
     pub async fn move_profile(
         &self,
         config: &AppConfig,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         index_id: &str,
         action: MoveAction,
         position: Option<i32>,
     ) -> Result<Vec<ProfileListItem>> {
-        let items = self.database.profiles().list_with_profile_ex(subid).await?;
+        let items = self
+            .database
+            .profiles()
+            .list_with_profile_ex(subscription_id)
+            .await?;
         let Some(index) = items
             .iter()
             .position(|(profile, _)| profile.index_id == index_id)
@@ -266,17 +272,21 @@ impl<'db> ProfileManager<'db> {
             self.profile_ex().set_sort(index_id, sort).await?;
         }
 
-        self.list_profiles(config, subid, None).await
+        self.list_profiles(config, subscription_id, None).await
     }
 
     pub async fn sort_profiles(
         &self,
         config: &AppConfig,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         sort_key: ProfileSortKey,
         ascending: bool,
     ) -> Result<Vec<ProfileListItem>> {
-        let mut items = self.database.profiles().list_with_profile_ex(subid).await?;
+        let mut items = self
+            .database
+            .profiles()
+            .list_with_profile_ex(subscription_id)
+            .await?;
         sort_profile_pairs(&mut items, sort_key, ascending);
 
         for (offset, (profile, _)) in items.iter().enumerate() {
@@ -288,16 +298,20 @@ impl<'db> ProfileManager<'db> {
                 .await?;
         }
 
-        self.list_profiles(config, subid, None).await
+        self.list_profiles(config, subscription_id, None).await
     }
 
     pub async fn dedupe_profiles(
         &self,
         config: &mut AppConfig,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         keep_older: bool,
     ) -> Result<ProfileDedupeResult> {
-        let mut profiles = self.database.profiles().list_by_subid(subid).await?;
+        let mut profiles = self
+            .database
+            .profiles()
+            .list_by_subscription_id(subscription_id)
+            .await?;
         let total = profiles.len();
         if !keep_older {
             profiles.reverse();
@@ -343,7 +357,7 @@ impl<'db> ProfileManager<'db> {
         let profiles = self.database.profiles().list().await?;
         let next_active = profiles
             .iter()
-            .find(|profile| profile.port > 0)
+            .find(|profile| profile.port() > 0)
             .or_else(|| profiles.first())
             .map(|profile| profile.index_id.clone())
             .unwrap_or_default();
@@ -367,23 +381,211 @@ impl<'db> ProfileManager<'db> {
 
 pub(crate) fn normalize_profile(_config: &AppConfig, profile: &mut ProfileItem) {
     profile.index_id = profile.index_id.trim().to_string();
-    profile.config_version = 4;
-    profile.address = profile.address.trim().to_string();
-    profile.password = profile.password.trim().to_string();
-    profile.username = profile.username.trim().to_string();
-    profile.network = profile.network.trim().to_string();
-    profile.stream_security = profile.stream_security.trim().to_string();
-
-    if !profile.stream_security.is_empty()
-        && profile.stream_security != STREAM_SECURITY_TLS
-        && profile.stream_security != STREAM_SECURITY_REALITY
-    {
-        profile.stream_security.clear();
+    trim_string(&mut profile.remarks);
+    normalize_protocol(&mut profile.protocol);
+    if let Some(transport) = &mut profile.transport {
+        normalize_transport(transport);
     }
-
-    if !profile.network.is_empty() && !VALID_NETWORKS.contains(&profile.network.as_str()) {
-        profile.network = DEFAULT_NETWORK.to_string();
+    if let Some(tls) = &mut profile.tls {
+        trim_option(&mut tls.server_name);
+        trim_option(&mut tls.reality_public_key);
+        trim_option(&mut tls.reality_short_id);
+        trim_option(&mut tls.reality_spider_x);
+        trim_option(&mut tls.mldsa65_verify);
+        trim_option(&mut tls.certificate_pem);
+        trim_option(&mut tls.final_mask);
+        normalize_values(&mut tls.alpn);
+        normalize_values(&mut tls.certificate_sha256);
+        normalize_values(&mut tls.ech_config);
     }
+}
+
+fn normalize_protocol(protocol: &mut ProfileProtocol) {
+    match protocol {
+        ProfileProtocol::Vmess {
+            server,
+            uuid,
+            cipher,
+        } => {
+            normalize_server(server);
+            trim_string(uuid);
+            trim_option(cipher);
+        }
+        ProfileProtocol::Custom { source, filter } => {
+            trim_string(source);
+            trim_option(filter);
+        }
+        ProfileProtocol::Shadowsocks {
+            server,
+            password,
+            method,
+            ..
+        } => {
+            normalize_server(server);
+            trim_string(password);
+            trim_string(method);
+        }
+        ProfileProtocol::Socks {
+            server,
+            username,
+            password,
+        }
+        | ProfileProtocol::Http {
+            server,
+            username,
+            password,
+        } => {
+            normalize_server(server);
+            trim_string(username);
+            trim_string(password);
+        }
+        ProfileProtocol::Vless {
+            server,
+            uuid,
+            flow,
+            encryption,
+        } => {
+            normalize_server(server);
+            trim_string(uuid);
+            trim_option(flow);
+            trim_option(encryption);
+        }
+        ProfileProtocol::Trojan { server, password }
+        | ProfileProtocol::Anytls { server, password } => {
+            normalize_server(server);
+            trim_string(password);
+        }
+        ProfileProtocol::Hysteria2 {
+            server,
+            password,
+            port_hops,
+            obfuscation_password,
+        } => {
+            normalize_server(server);
+            trim_string(password);
+            trim_option(port_hops);
+            trim_option(obfuscation_password);
+        }
+        ProfileProtocol::Tuic {
+            server,
+            uuid,
+            password,
+            congestion_control,
+        } => {
+            normalize_server(server);
+            trim_string(uuid);
+            trim_string(password);
+            trim_option(congestion_control);
+        }
+        ProfileProtocol::WireGuard {
+            server,
+            private_key,
+            peer_public_key,
+            preshared_key,
+            interface_address,
+            allowed_ips,
+            reserved,
+            ..
+        } => {
+            normalize_server(server);
+            trim_string(private_key);
+            trim_option(peer_public_key);
+            trim_option(preshared_key);
+            trim_option(interface_address);
+            trim_option(allowed_ips);
+            trim_option(reserved);
+        }
+        ProfileProtocol::Naive {
+            server,
+            username,
+            password,
+            congestion_control,
+            ..
+        } => {
+            normalize_server(server);
+            trim_string(username);
+            trim_string(password);
+            trim_option(congestion_control);
+        }
+        ProfileProtocol::PolicyGroup {
+            child_profile_ids,
+            source_subscription_id,
+            filter,
+            ..
+        } => {
+            normalize_values(child_profile_ids);
+            trim_option(source_subscription_id);
+            trim_option(filter);
+        }
+        ProfileProtocol::ProxyChain { child_profile_ids } => {
+            normalize_values(child_profile_ids);
+        }
+    }
+}
+
+fn normalize_transport(transport: &mut ProfileTransport) {
+    match transport {
+        ProfileTransport::Tcp { header, host, path } => {
+            trim_option(header);
+            trim_option(host);
+            trim_option(path);
+        }
+        ProfileTransport::Kcp { header, seed, .. } => {
+            trim_option(header);
+            trim_option(seed);
+        }
+        ProfileTransport::Websocket { host, path }
+        | ProfileTransport::HttpUpgrade { host, path }
+        | ProfileTransport::Http2 { host, path }
+        | ProfileTransport::Quic { host, path } => {
+            trim_option(host);
+            trim_option(path);
+        }
+        ProfileTransport::Xhttp {
+            host,
+            path,
+            mode,
+            extra,
+        } => {
+            trim_option(host);
+            trim_option(path);
+            trim_option(mode);
+            trim_option(extra);
+        }
+        ProfileTransport::Grpc {
+            authority,
+            service_name,
+            mode,
+        } => {
+            trim_option(authority);
+            trim_option(service_name);
+            trim_option(mode);
+        }
+    }
+}
+
+fn normalize_server(server: &mut ServerEndpoint) {
+    trim_string(&mut server.address);
+}
+
+fn normalize_values(values: &mut Vec<String>) {
+    for value in values.iter_mut() {
+        trim_string(value);
+    }
+    values.retain(|value| !value.is_empty());
+}
+
+fn trim_option(value: &mut Option<String>) {
+    if let Some(value) = value {
+        trim_string(value);
+    }
+    if value.as_ref().is_some_and(String::is_empty) {
+        *value = None;
+    }
+}
+
+fn trim_string(value: &mut String) {
+    *value = value.trim().to_string();
 }
 
 fn sort_profile_pairs(
@@ -394,21 +596,21 @@ fn sort_profile_pairs(
     match sort_key {
         ProfileSortKey::Sort => items.sort_by_key(|(_, profile_ex)| profile_ex.sort),
         ProfileSortKey::ConfigType => {
-            items.sort_by_key(|(profile, _)| profile.config_type.as_i32());
+            items.sort_by_key(|(profile, _)| profile.config_type().sort_rank());
         }
         ProfileSortKey::Remarks => {
             items.sort_by(|(left, _), (right, _)| text_cmp(&left.remarks, &right.remarks));
         }
         ProfileSortKey::Address => {
-            items.sort_by(|(left, _), (right, _)| text_cmp(&left.address, &right.address));
+            items.sort_by(|(left, _), (right, _)| text_cmp(left.address(), right.address()));
         }
-        ProfileSortKey::Port => items.sort_by_key(|(profile, _)| profile.port),
+        ProfileSortKey::Port => items.sort_by_key(|(profile, _)| profile.port()),
         ProfileSortKey::Network => {
-            items.sort_by(|(left, _), (right, _)| text_cmp(&left.network, &right.network));
+            items.sort_by(|(left, _), (right, _)| text_cmp(left.network(), right.network()));
         }
         ProfileSortKey::StreamSecurity => {
             items.sort_by(|(left, _), (right, _)| {
-                text_cmp(&left.stream_security, &right.stream_security)
+                text_cmp(left.stream_security(), right.stream_security())
             });
         }
         ProfileSortKey::Delay => {
@@ -427,8 +629,13 @@ fn sort_profile_pairs(
                 )
             });
         }
-        ProfileSortKey::Subid => {
-            items.sort_by(|(left, _), (right, _)| text_cmp(&left.subid, &right.subid));
+        ProfileSortKey::SubscriptionId => {
+            items.sort_by(|(left, _), (right, _)| {
+                text_cmp(
+                    left.subscription_id.as_deref().unwrap_or(""),
+                    right.subscription_id.as_deref().unwrap_or(""),
+                )
+            });
         }
     }
 
@@ -504,7 +711,10 @@ fn generate_profile_id() -> String {
 
 #[cfg(test)]
 mod tests {
-    use voya_core::{ConfigType, MoveAction, ProfileSortKey, ProtocolExtraItem};
+    use voya_core::{
+        MoveAction, MultipleLoad, ProfileProtocol, ProfileSortKey, ProfileTransport,
+        ServerEndpoint, TlsMode, TlsSettings,
+    };
 
     use super::*;
 
@@ -526,8 +736,7 @@ mod tests {
             .expect("profile manager test operation should succeed");
 
         assert_eq!(config.index_id, first.profile.index_id);
-        assert_eq!(first.profile.config_version, 4);
-        assert_eq!(first.profile.network, DEFAULT_NETWORK);
+        assert_eq!(first.profile.network(), "raw");
         assert!(first.profile_ex.sort < second.profile_ex.sort);
 
         let listed = manager
@@ -645,15 +854,16 @@ mod tests {
             .save_profile(&mut config, duplicate)
             .await
             .expect("profile manager test operation should succeed");
-        let mut group = ProfileItem {
+        let group = ProfileItem {
             index_id: "group".to_string(),
-            config_type: ConfigType::PolicyGroup,
             remarks: "Group".to_string(),
+            protocol: ProfileProtocol::PolicyGroup {
+                child_profile_ids: vec![old.profile.index_id.clone()],
+                source_subscription_id: None,
+                filter: None,
+                strategy: MultipleLoad::LeastPing,
+            },
             ..ProfileItem::default()
-        };
-        group.protocol_extra = ProtocolExtraItem {
-            child_items: Some(old.profile.index_id.clone()),
-            ..ProtocolExtraItem::default()
         };
         manager
             .save_profile(&mut config, group)
@@ -717,17 +927,33 @@ mod tests {
     fn sample_profile(index_id: &str, remarks: &str, port: i32) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VMess,
             remarks: remarks.to_string(),
-            address: " example.com ".to_string(),
-            port,
-            password: "uuid".to_string(),
-            network: "invalid-network".to_string(),
-            stream_security: STREAM_SECURITY_TLS.to_string(),
-            protocol_extra: ProtocolExtraItem {
-                vmess_security: Some("auto".to_string()),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::Vmess {
+                server: ServerEndpoint {
+                    address: " example.com ".to_string(),
+                    port,
+                },
+                uuid: "uuid".to_string(),
+                cipher: Some("auto".to_string()),
             },
+            transport: Some(ProfileTransport::Tcp {
+                header: None,
+                host: None,
+                path: None,
+            }),
+            tls: Some(TlsSettings {
+                mode: TlsMode::Tls,
+                server_name: None,
+                alpn: Vec::new(),
+                reality_public_key: None,
+                reality_short_id: None,
+                reality_spider_x: None,
+                mldsa65_verify: None,
+                certificate_pem: None,
+                certificate_sha256: Vec::new(),
+                ech_config: Vec::new(),
+                final_mask: None,
+            }),
             ..ProfileItem::default()
         }
     }

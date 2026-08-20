@@ -1,17 +1,22 @@
 //! Share-link parsers and exporters.
 //!
-//! The behavior is ported from `ServiceLib/Handler/Fmt` while keeping this
-//! crate pure: helpers that recognize full custom configs return the content
-//! and suggested extension instead of writing temp files.
+//! Standard protocol links remain interoperable. Voya-only profile groups are
+//! exchanged through the versioned `voya://profiles/v1/` bundle contract.
 
-use std::{collections::BTreeMap, net::IpAddr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::IpAddr,
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use percent_encoding::percent_decode_str;
 use serde_json::{Map, Value};
 use url::Url;
 
-use crate::{ConfigType, MultipleLoad, ProfileItem, ProtocolExtraItem, TransportExtraItem};
+use crate::{
+    ConfigType, MultipleLoad, ProfileItem, ProfileProtocol, ProfileTransport, ServerEndpoint,
+    TlsMode, TlsSettings,
+};
 
 const DEFAULT_SECURITY: &str = "auto";
 const DEFAULT_NETWORK: &str = "raw";
@@ -25,7 +30,7 @@ const HYSTERIA2_DEFAULT_SCHEME: &str = "hysteria2://";
 const HYSTERIA2_ALT_SCHEME: &str = "hy2://";
 const NAIVE_HTTPS_SCHEME: &str = "naive+https://";
 const NAIVE_QUIC_SCHEME: &str = "naive+quic://";
-const INNER_URI_PROTOCOL: &str = "v2rayn://";
+const VOYA_PROFILE_BUNDLE_PREFIX: &str = "voya://profiles/v1/";
 const MAX_BASE64_DECODE_INPUT: usize = 1024 * 1024;
 
 const NETWORKS: &[&str] = &["raw", "xhttp", "kcp", "grpc", "ws", "httpupgrade"];
@@ -55,8 +60,8 @@ use uri::*;
 pub use anytls::AnytlsFmt;
 pub use api::{CustomConfigImport, CustomConfigKind, ShareError, ShareFmt};
 pub use entry::{
-    export_inner_share_links, export_share_link, export_share_link_with_options,
-    parse_full_custom_config, parse_inner_share_links, parse_share_lines, parse_share_link,
+    export_share_link, export_share_link_with_options, export_voya_profile_bundle,
+    parse_full_custom_config, parse_share_lines, parse_share_link, parse_voya_profile_bundle,
     ShareLinkOptions,
 };
 pub use hysteria2::Hysteria2Fmt;

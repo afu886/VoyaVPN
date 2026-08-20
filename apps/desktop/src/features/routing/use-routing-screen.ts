@@ -10,19 +10,19 @@ import {
   saveRoutingRule,
   setActiveRouting,
 } from "@/ipc";
-import type { MoveAction, RoutingItem_Serialize, RulesItem_Serialize } from "@/ipc/bindings";
+import type { MoveAction, RoutingRule, Routing_Serialize } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { type RoutingFormPayload, type RoutingRulePayload } from "./routing-form-schema";
 
 type RoutingDialogState =
   | { mode: "create"; routing?: null }
-  | { mode: "edit"; routing: RoutingItem_Serialize }
+  | { mode: "edit"; routing: Routing_Serialize }
   | null;
 
 type RuleDialogState =
   | { mode: "create"; rule?: null }
-  | { mode: "edit"; rule: RulesItem_Serialize }
+  | { mode: "edit"; rule: RoutingRule }
   | null;
 
 export function useRoutingScreen() {
@@ -39,15 +39,15 @@ export function useRoutingScreen() {
   const routings = useMemo(() => routingsQuery.data ?? [], [routingsQuery.data]);
   const selectedRouting = useMemo(
     () =>
-      routings.find((routing) => routing.Id === selectedRoutingId) ??
-      routings.find((routing) => routing.IsActive) ??
+      routings.find((routing) => routing.id === selectedRoutingId) ??
+      routings.find((routing) => routing.isActive) ??
       routings[0] ??
       null,
     [routings, selectedRoutingId],
   );
   const selectedRule =
-    selectedRouting?.RuleSet.find((rule) => rule.Id === selectedRuleId) ??
-    selectedRouting?.RuleSet[0] ??
+    selectedRouting?.rules.find((rule) => rule.id === selectedRuleId) ??
+    selectedRouting?.rules[0] ??
     null;
   async function runOperation(operation: () => Promise<unknown>) {
     setOperationError(null);
@@ -64,7 +64,7 @@ export function useRoutingScreen() {
   async function handleSaveRouting(routing: RoutingFormPayload) {
     const saved = await runOperation(async () => {
       const saved = await saveRouting(routing);
-      setSelectedRoutingId(saved.Id);
+      setSelectedRoutingId(saved.id);
     });
     if (saved) {
       setRoutingDialog(null);
@@ -76,9 +76,9 @@ export function useRoutingScreen() {
       return;
     }
     const saved = await runOperation(async () => {
-      const saved = await saveRoutingRule(selectedRouting.Id, rule);
-      setSelectedRoutingId(saved.Id);
-      setSelectedRuleId(rule.Id ?? saved.RuleSet.at(-1)?.Id ?? null);
+      const saved = await saveRoutingRule(selectedRouting.id, rule);
+      setSelectedRoutingId(saved.id);
+      setSelectedRuleId(rule.id ?? saved.rules.at(-1)?.id ?? null);
     });
     if (saved) {
       setRuleDialog(null);
@@ -92,14 +92,14 @@ export function useRoutingScreen() {
 
   function activateSelectedRouting() {
     if (selectedRouting) {
-      void runOperation(() => setActiveRouting(selectedRouting.Id));
+      void runOperation(() => setActiveRouting(selectedRouting.id));
     }
   }
 
   function deleteSelectedRouting() {
     if (selectedRouting) {
       void runOperation(async () => {
-        await deleteRoutings([selectedRouting.Id]);
+        await deleteRoutings([selectedRouting.id]);
         setSelectedRoutingId(null);
         setSelectedRuleId(null);
       });
@@ -108,13 +108,13 @@ export function useRoutingScreen() {
 
   function moveSelectedRule(action: MoveAction) {
     if (selectedRouting && selectedRule) {
-      void runOperation(() => moveRoutingRule(selectedRouting.Id, selectedRule.Id, action, null));
+      void runOperation(() => moveRoutingRule(selectedRouting.id, selectedRule.id, action, null));
     }
   }
 
   function deleteSelectedRule() {
     if (selectedRouting && selectedRule) {
-      void runOperation(() => deleteRoutingRules(selectedRouting.Id, [selectedRule.Id]));
+      void runOperation(() => deleteRoutingRules(selectedRouting.id, [selectedRule.id]));
     }
   }
 

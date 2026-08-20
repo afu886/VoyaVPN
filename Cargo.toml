@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/voya-app",
+    "crates/voya-contracts",
     "crates/voya-core",
     "crates/voya-db",
     "crates/voya-net",
@@ -31,6 +32,7 @@ thiserror = "2.0"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync"] }
 tracing = "0.1"
 voya-app = { path = "crates/voya-app" }
+voya-contracts = { path = "crates/voya-contracts" }
 voya-core = { path = "crates/voya-core" }
 voya-db = { path = "crates/voya-db" }
 voya-net = { path = "crates/voya-net" }
@@ -48,3 +50,4 @@ all = { level = "warn", priority = -1 }
 dbg_macro = "warn"
 todo = "warn"
 unwrap_used = "warn"
+undocumented_unsafe_blocks = "warn"

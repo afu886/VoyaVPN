@@ -24,12 +24,12 @@ import { useModalStore } from "@/stores/modal-store";
 import { useI18n } from "@voya/i18n/use-i18n";
 
 import { SettingsSurface } from "./settings-dialog";
-import { useSettingsBundle } from "./use-settings-bundle";
+import { useAppSettings } from "./use-app-settings";
 
 export function SettingsWindow() {
   const { direction, t } = useI18n();
   const { titleBarLayout } = useWindowChrome();
-  const controller = useSettingsBundle();
+  const controller = useAppSettings();
   const [confirmClose, setConfirmClose] = useState(false);
   const title = t("modal.settings");
 

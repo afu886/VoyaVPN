@@ -49,7 +49,7 @@ pub async fn set_tun_enabled<R: tauri::Runtime>(
         .set_enabled(&mut config, enabled)
         .map_err(tun_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_tun_changed(&app, &status)?;
     restart_if_connected_after_config_change(&app, &state, &config, "TUN changed").await?;
 

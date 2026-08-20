@@ -3,12 +3,13 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
-use voya_app::{
-    proxy_runtime::{ProxyConnectionsSnapshot, ProxyMonitorStatus, ProxyTrafficEvent},
-    speedtest::SpeedTestResult,
-    tun::{TunBackend, TunProviderState},
+pub use voya_contracts::{
+    AppNotice, CoreState, CoreStateEvent, LogLevel, LogLineEvent, QueryInvalidation,
+    ShellTabTarget, StatisticsSnapshot, SysProxyChanged, SysProxyMode, TunChanged,
 };
-use voya_core::{CoreType, ServerStatItem};
+use voya_contracts::{
+    ProxyConnectionsSnapshot, ProxyMonitorStatus, ProxyTrafficEvent, SpeedTestResult,
+};
 
 static NEXT_LOG_LINE_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -16,95 +17,10 @@ pub fn next_log_line_id() -> u32 {
     NEXT_LOG_LINE_ID.fetch_add(1, Ordering::Relaxed)
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryInvalidation {
-    pub query_key: Vec<String>,
-    pub reason: String,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidateEvent {
     pub keys: Vec<QueryInvalidation>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct LogLineEvent {
-    pub id: u32,
-    pub level: LogLevel,
-    pub line: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum CoreState {
-    Disconnected,
-    Connecting,
-    Connected,
-    Disconnecting,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CoreStateEvent {
-    pub state: CoreState,
-    pub active_profile_id: Option<String>,
-    pub main_pid: Option<u32>,
-    pub pre_pid: Option<u32>,
-    pub running_core_type: Option<CoreType>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct StatisticsSnapshot {
-    pub active_profile_id: Option<String>,
-    pub proxy_upload_bytes_per_second: f64,
-    pub proxy_download_bytes_per_second: f64,
-    pub direct_upload_bytes_per_second: f64,
-    pub direct_download_bytes_per_second: f64,
-    pub upload_bytes_per_second: f64,
-    pub download_bytes_per_second: f64,
-    pub server_stat: Option<ServerStatItem>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SysProxyMode {
-    Unchanged,
-    ForcedChange,
-    ForcedClear,
-    Pac,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SysProxyChanged {
-    pub requested_mode: SysProxyMode,
-    pub effective_mode: SysProxyMode,
-    pub pac_available: bool,
-    pub proxy: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TunChanged {
-    pub enabled: bool,
-    pub backend: TunBackend,
-    pub provider_state: TunProviderState,
-    pub native_component_ready: bool,
-    pub last_provider_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Type, Event)]
@@ -119,31 +35,6 @@ pub enum TransientStreamEvent {
     ProxyTraffic(ProxyTrafficEvent),
     ProxyConnections(ProxyConnectionsSnapshot),
     SpeedtestResult(SpeedTestResult),
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AppNoticeLevel {
-    Info,
-    Warning,
-    Error,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AppNotice {
-    pub level: AppNoticeLevel,
-    pub title: String,
-    pub message: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ShellTabTarget {
-    Profiles,
-    ProxyGroups,
-    ProxyConnections,
-    Logs,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Type, Event)]

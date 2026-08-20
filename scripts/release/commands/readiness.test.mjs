@@ -75,11 +75,11 @@ describe("release readiness production blocker scan", () => {
     expect(matches).toEqual([]);
   });
 
-  it("allows source URL constants that preserve upstream acquisition evidence", () => {
+  it("allows Voya source URL constants used by strict routing bundles", () => {
     const matches = findProductionBlockersInText(
       "crates/voya-net/src/subscription.rs",
-      `pub const RUSSIA_GEO_SOURCE_URL: &str =
-    "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/{0}.dat";`,
+      `pub const VOYA_ROUTING_SOURCE_URL: &str =
+    "https://cdn.voyavpn.test/routing/v1.json";`,
     );
 
     expect(matches).toEqual([]);

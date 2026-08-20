@@ -9,7 +9,7 @@ pub(super) fn gen_inbounds(config: &mut SingboxConfig, context: &CoreConfigConte
         .unwrap_or_default();
     let listen_port = inbound_port(&context.app_config, InboundProtocol::socks);
     let is_using_local_mixed_port =
-        context.node.address == LOOPBACK && context.node.port == listen_port;
+        context.node.address() == LOOPBACK && context.node.port() == listen_port;
     let mixed_inbound_available = !context.is_tun_enabled || !is_using_local_mixed_port;
 
     config.inbounds.clear();
@@ -50,7 +50,7 @@ pub(super) fn gen_inbounds(config: &mut SingboxConfig, context: &CoreConfigConte
 fn build_mixed_inbound(in_item: &InItem, protocol: InboundProtocol) -> SingboxInbound {
     build_mixed_inbound_with(
         inbound_protocol_tag(protocol),
-        in_item.local_port + protocol.as_i32(),
+        in_item.local_port + protocol.port_offset(),
     )
 }
 

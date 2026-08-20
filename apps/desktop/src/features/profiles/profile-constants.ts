@@ -1,38 +1,37 @@
-import type { ConfigType, MoveAction, SpeedActionType } from "@/ipc/bindings";
+import type { MoveAction, ProfileKind, SpeedTestKind } from "@/ipc/bindings";
 
 export const CONFIG_TYPES = {
-  VMess: 1,
-  Custom: 2,
-  Shadowsocks: 3,
-  SOCKS: 4,
-  VLESS: 5,
-  Trojan: 6,
-  Hysteria2: 7,
-  TUIC: 8,
-  WireGuard: 9,
-  HTTP: 10,
-  Anytls: 11,
-  Naive: 12,
-  PolicyGroup: 101,
-  ProxyChain: 102,
-} as const satisfies Record<string, ConfigType>;
+  VMess: "vmess",
+  Custom: "custom",
+  Shadowsocks: "shadowsocks",
+  SOCKS: "socks",
+  VLESS: "vless",
+  Trojan: "trojan",
+  Hysteria2: "hysteria2",
+  TUIC: "tuic",
+  WireGuard: "wireGuard",
+  HTTP: "http",
+  Anytls: "anytls",
+  Naive: "naive",
+  PolicyGroup: "policyGroup",
+  ProxyChain: "proxyChain",
+} as const satisfies Record<string, ProfileKind>;
 
 export const MOVE_ACTIONS = {
-  Top: 1,
-  Up: 2,
-  Down: 3,
-  Bottom: 4,
-  Position: 5,
+  Top: "top",
+  Up: "up",
+  Down: "down",
+  Bottom: "bottom",
+  Position: "position",
 } as const satisfies Record<string, MoveAction>;
 
 export const SPEED_ACTIONS = {
-  Tcping: 0,
-  Realping: 1,
-  UdpTest: 2,
-  Speedtest: 3,
-  Mixedtest: 4,
-  FastRealping: 5,
-} as const satisfies Record<string, SpeedActionType>;
+  Download: "download",
+  Latency: "latency",
+  Mixed: "mixed",
+  TcpConnect: "tcpConnect",
+  Udp: "udp",
+} as const satisfies Record<string, SpeedTestKind>;
 
 export type ProfileProtocol = (typeof CONFIG_TYPES)[keyof typeof CONFIG_TYPES];
 
@@ -59,7 +58,7 @@ export const PROFILE_PROTOCOLS: ProfileProtocolOption[] = [
   { description: "Ordered proxy chain", label: "Proxy Chain", value: CONFIG_TYPES.ProxyChain },
 ];
 
-const PROFILE_PROTOCOL_LABELS = PROFILE_PROTOCOLS.reduce<Record<number, string>>(
+const PROFILE_PROTOCOL_LABELS = PROFILE_PROTOCOLS.reduce<Partial<Record<ProfileKind, string>>>(
   (labels, protocol) => {
     labels[protocol.value] = protocol.label;
     return labels;
@@ -84,6 +83,8 @@ export const SECURITY_OPTIONS = [
   { label: "REALITY", value: "reality" },
 ];
 
-export function getProtocolLabel(configType: ConfigType | null | undefined) {
-  return PROFILE_PROTOCOL_LABELS[Number(configType)] ?? `Type ${String(configType ?? "")}`;
+export function getProtocolLabel(configType: ProfileKind | null | undefined) {
+  return configType == null
+    ? ""
+    : (PROFILE_PROTOCOL_LABELS[configType] ?? `Type ${configType}`);
 }

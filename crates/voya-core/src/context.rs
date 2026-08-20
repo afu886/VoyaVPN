@@ -4,13 +4,12 @@ use std::{
 };
 
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    AppConfig, ConfigType, CoreType, InboundProtocol, ProfileItem, ProtocolExtraItem, RoutingItem,
-    RulesItem, SimpleDnsItem, SubItem,
+    AppConfig, ConfigType, CoreType, InboundProtocol, ProfileItem, ProfileProtocol,
+    ProfileTransport, RoutingItem, RulesItem, ServerEndpoint, SimpleDnsItem, SubItem, TlsMode,
 };
 
 pub const PROXY_TAG: &str = "proxy";
@@ -49,8 +48,7 @@ const SS_SECURITIES_IN_SINGBOX: &[&str] = &[
     "xchacha20",
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoreGenPlatform {
     Windows,
     MacOS,
@@ -74,8 +72,7 @@ impl CoreGenPlatform {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NodeValidatorResult {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
@@ -132,8 +129,7 @@ impl NodeValidatorResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CoreConfigContext {
     pub node: ProfileItem,
     pub run_core_type: CoreType,
@@ -185,8 +181,7 @@ impl CoreConfigContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CoreConfigContextBuilderResult {
     pub context: CoreConfigContext,
     pub validator_result: NodeValidatorResult,
@@ -208,8 +203,7 @@ impl Default for CoreConfigContextBuilderResult {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CoreConfigContextBuilderAllResult {
     pub main_result: CoreConfigContextBuilderResult,
     pub pre_socks_result: Option<CoreConfigContextBuilderResult>,
@@ -261,9 +255,9 @@ pub trait CoreGenEnv {
 
     fn get_profile_items_ordered_by_index_ids(&self, index_ids: &[String]) -> Vec<ProfileItem>;
 
-    fn get_profile_items_by_subid(&self, subid: &str) -> Vec<ProfileItem>;
+    fn get_profile_items_by_subscription_id(&self, subscription_id: &str) -> Vec<ProfileItem>;
 
-    fn get_sub_item(&self, subid: &str) -> Option<SubItem>;
+    fn get_subscription(&self, subscription_id: &str) -> Option<SubItem>;
 
     fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem>;
 
@@ -272,8 +266,6 @@ pub trait CoreGenEnv {
     fn get_singbox_ruleset_paths(&self) -> BTreeMap<String, String> {
         BTreeMap::new()
     }
-
-    fn next_virtual_chain_id(&self, node: &ProfileItem, child_index_ids: &[String]) -> String;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -322,7 +314,7 @@ where
             singbox_ruleset_paths: self.env.get_singbox_ruleset_paths(),
         };
 
-        let (active_node, node_result) = self.resolve_node(&mut context, node, true);
+        let (active_node, node_result) = self.resolve_node(&mut context, node);
         if !node_result.success() {
             return CoreConfigContextBuilderResult {
                 context,
@@ -396,96 +388,13 @@ where
         &self,
         context: &mut CoreConfigContext,
         node: &ProfileItem,
-        include_sub_chain: bool,
     ) -> (ProfileItem, NodeValidatorResult) {
         if node.index_id.trim().is_empty() {
             return (node.clone(), NodeValidatorResult::empty());
         }
 
-        if include_sub_chain {
-            let (virtual_chain_node, chain_result) = self.build_subscription_chain_node(node);
-            if let Some(virtual_chain_node) = virtual_chain_node {
-                context.all_proxies_map.insert(
-                    virtual_chain_node.index_id.clone(),
-                    virtual_chain_node.clone(),
-                );
-                let (resolved_node, mut resolved_result) =
-                    self.resolve_node(context, &virtual_chain_node, false);
-                prepend_warnings(&mut resolved_result, &chain_result.warnings);
-                return (resolved_node, resolved_result);
-            }
-
-            if !chain_result.warnings.is_empty() {
-                let mut fill_result = self.register_node(context, node);
-                prepend_warnings(&mut fill_result, &chain_result.warnings);
-                return (node.clone(), fill_result);
-            }
-        }
-
         let register_result = self.register_node(context, node);
         (node.clone(), register_result)
-    }
-
-    fn build_subscription_chain_node(
-        &self,
-        node: &ProfileItem,
-    ) -> (Option<ProfileItem>, NodeValidatorResult) {
-        let mut result = NodeValidatorResult::empty();
-        if node.subid.trim().is_empty() || node.config_type == ConfigType::Custom {
-            return (None, result);
-        }
-
-        let Some(sub_item) = self.env.get_sub_item(&node.subid) else {
-            return (None, result);
-        };
-
-        let prev_node = sub_item
-            .prev_profile
-            .as_deref()
-            .and_then(nonempty)
-            .and_then(|remark| match self.env.get_profile_by_remarks(remark) {
-                Some(profile) => Some(profile),
-                None => {
-                    result.push_warning(format!("subscription prev profile not found: {remark}"));
-                    None
-                }
-            });
-        let next_node = sub_item
-            .next_profile
-            .as_deref()
-            .and_then(nonempty)
-            .and_then(|remark| match self.env.get_profile_by_remarks(remark) {
-                Some(profile) => Some(profile),
-                None => {
-                    result.push_warning(format!("subscription next profile not found: {remark}"));
-                    None
-                }
-            });
-
-        if prev_node.is_none() && next_node.is_none() {
-            return (None, result);
-        }
-
-        let child_items = [prev_node.as_ref(), Some(node), next_node.as_ref()]
-            .into_iter()
-            .flatten()
-            .map(|profile| profile.index_id.clone())
-            .filter(|index_id| !index_id.trim().is_empty())
-            .collect::<Vec<_>>();
-
-        let chain_node = ProfileItem {
-            index_id: self.env.next_virtual_chain_id(node, &child_items),
-            config_type: ConfigType::ProxyChain,
-            remarks: node.remarks.clone(),
-            protocol_extra: ProtocolExtraItem {
-                group_type: Some("ProxyChain".to_string()),
-                child_items: Some(list_to_string(&child_items)),
-                ..ProtocolExtraItem::default()
-            },
-            ..ProfileItem::default()
-        };
-
-        (Some(chain_node), result)
     }
 
     fn register_node(
@@ -493,7 +402,7 @@ where
         context: &mut CoreConfigContext,
         node: &ProfileItem,
     ) -> NodeValidatorResult {
-        if node.config_type.is_group_type() {
+        if node.config_type().is_group_type() {
             return self.register_group_node(context, node);
         }
 
@@ -505,7 +414,7 @@ where
         context: &mut CoreConfigContext,
         node: &ProfileItem,
     ) -> NodeValidatorResult {
-        if !node.config_type.is_group_type() {
+        if !node.config_type().is_group_type() {
             return NodeValidatorResult::empty();
         }
 
@@ -523,7 +432,7 @@ where
         global_visited: &mut BTreeSet<String>,
         ancestors: &BTreeSet<String>,
     ) -> NodeValidatorResult {
-        let group_child_list = self.group_child_profile_items(&node.protocol_extra);
+        let group_child_list = self.group_child_profile_items(&node.protocol);
         let mut child_index_ids = Vec::new();
         let mut child_index_seen = BTreeSet::new();
         let mut child_result = NodeValidatorResult::empty();
@@ -546,7 +455,7 @@ where
                 continue;
             }
 
-            if !child_node.config_type.is_group_type() {
+            if !child_node.config_type().is_group_type() {
                 let child_node_result = register_single_node(context, &child_node);
                 child_result.extend_prefixed_warnings(
                     &format!("group child {} / {}", node.remarks, child_node.remarks),
@@ -608,43 +517,49 @@ where
         child_result.errors.clear();
 
         let mut resolved_node = node.clone();
-        resolved_node.protocol_extra.child_items = Some(list_to_string(&child_index_ids));
+        resolved_node
+            .protocol
+            .replace_child_profile_ids(child_index_ids);
         context
             .all_proxies_map
             .insert(resolved_node.index_id.clone(), resolved_node);
         child_result
     }
 
-    fn group_child_profile_items(&self, protocol_extra: &ProtocolExtraItem) -> Vec<ProfileItem> {
+    fn group_child_profile_items(&self, protocol: &ProfileProtocol) -> Vec<ProfileItem> {
         let mut items = Vec::new();
-        items.extend(self.sub_child_profile_items(protocol_extra));
-        items.extend(self.selected_child_profile_items(protocol_extra));
+        items.extend(self.sub_child_profile_items(protocol));
+        items.extend(self.selected_child_profile_items(protocol));
         items
     }
 
-    fn selected_child_profile_items(&self, protocol_extra: &ProtocolExtraItem) -> Vec<ProfileItem> {
-        let child_ids = string_to_list(protocol_extra.child_items.as_deref());
+    fn selected_child_profile_items(&self, protocol: &ProfileProtocol) -> Vec<ProfileItem> {
+        let child_ids = protocol.child_profile_ids();
         if child_ids.is_empty() {
             return Vec::new();
         }
-        self.env.get_profile_items_ordered_by_index_ids(&child_ids)
+        self.env.get_profile_items_ordered_by_index_ids(child_ids)
     }
 
-    fn sub_child_profile_items(&self, protocol_extra: &ProtocolExtraItem) -> Vec<ProfileItem> {
-        let Some(subid) = protocol_extra.sub_child_items.as_deref().and_then(nonempty) else {
+    fn sub_child_profile_items(&self, protocol: &ProfileProtocol) -> Vec<ProfileItem> {
+        let ProfileProtocol::PolicyGroup {
+            source_subscription_id: Some(subscription_id),
+            filter,
+            ..
+        } = protocol
+        else {
             return Vec::new();
         };
-        let filter = protocol_extra
-            .filter
+        let filter = filter
             .as_deref()
             .and_then(nonempty)
             .and_then(|value| Regex::new(value).ok());
 
         self.env
-            .get_profile_items_by_subid(subid)
+            .get_profile_items_by_subscription_id(subscription_id)
             .into_iter()
             .filter(|profile| {
-                !profile.config_type.is_complex_type()
+                !profile.config_type().is_complex_type()
                     && profile_is_valid(profile)
                     && filter
                         .as_ref()
@@ -691,8 +606,7 @@ where
             return;
         };
 
-        let (active_rule_node, rule_result) =
-            self.resolve_node(context, &rule_outbound_node, false);
+        let (active_rule_node, rule_result) = self.resolve_node(context, &rule_outbound_node);
         validator_result
             .warnings
             .extend(rule_result.warnings.iter().map(|warning| {
@@ -714,332 +628,11 @@ where
     }
 }
 
-fn pre_socks_item<E: CoreGenEnv>(
-    config: &AppConfig,
-    node: &ProfileItem,
-    env: &E,
-) -> Option<ProfileItem> {
-    if node.config_type != ConfigType::Custom
-        && config.tun_mode_item.enable_tun
-        && env.platform().is_non_windows()
-    {
-        return Some(ProfileItem {
-            config_type: ConfigType::SOCKS,
-            address: LOOPBACK.to_string(),
-            port: env.get_local_port(InboundProtocol::socks),
-            ..ProfileItem::default()
-        });
-    }
-
-    if node.config_type == ConfigType::Custom && matches!(node.pre_socks_port, Some(1..=65535)) {
-        return Some(ProfileItem {
-            config_type: ConfigType::SOCKS,
-            address: LOOPBACK.to_string(),
-            port: node.pre_socks_port.unwrap_or_default(),
-            ..ProfileItem::default()
-        });
-    }
-
-    None
-}
-
-fn register_single_node(
-    context: &mut CoreConfigContext,
-    node: &ProfileItem,
-) -> NodeValidatorResult {
-    if node.config_type.is_group_type() {
-        return NodeValidatorResult::empty();
-    }
-
-    let result = validate_node(node, context.run_core_type);
-    if !result.success() {
-        return result;
-    }
-
-    context
-        .all_proxies_map
-        .insert(node.index_id.clone(), node.clone());
-
-    push_domain_if_needed(&mut context.protect_domain_list, &node.address);
-
-    if !node.ech_config_list.trim().is_empty() {
-        let ech_query_sni = if node.stream_security == STREAM_SECURITY_TLS
-            && node.ech_config_list.contains("://")
-        {
-            node.ech_config_list
-                .split_once('+')
-                .map_or(node.sni.as_str(), |(sni, _)| sni)
-        } else {
-            node.sni.as_str()
-        };
-        push_domain_if_needed(&mut context.protect_domain_list, ech_query_sni);
-    }
-
-    if let Some(download_address) = xhttp_download_settings_address(node) {
-        push_domain_if_needed(&mut context.protect_domain_list, &download_address);
-    }
-
-    result
-}
-
-#[must_use]
-pub fn validate_node(item: &ProfileItem, core_type: CoreType) -> NodeValidatorResult {
-    let mut result = NodeValidatorResult::empty();
-
-    if item.config_type == ConfigType::Custom || item.config_type.is_group_type() {
-        return result;
-    }
-
-    if item.address.trim().is_empty() {
-        result.push_error("invalid Address");
-    }
-    if !(1..=65535).contains(&item.port) {
-        result.push_error("invalid Port");
-    }
-
-    let network = get_network(item);
-    if core_type == CoreType::sing_box {
-        if SINGBOX_UNSUPPORTED_TRANSPORTS.contains(&network.as_str()) {
-            result.push_error(format!("sing_box does not support network {network}"));
-        }
-        if !singbox_supports_config_type(item.config_type) {
-            result.push_error(format!(
-                "sing_box does not support protocol {:?}",
-                item.config_type
-            ));
-        }
-        if !singbox_transport_supported_protocol(item.config_type) && network != DEFAULT_NETWORK {
-            result.push_error(format!(
-                "sing_box does not support protocol {:?} with network {network}",
-                item.config_type
-            ));
-        }
-        if item.config_type == ConfigType::Shadowsocks
-            && !SINGBOX_SHADOWSOCKS_ALLOWED_TRANSPORTS.contains(&network.as_str())
-        {
-            result.push_error(format!(
-                "sing_box does not support Shadowsocks with network {network}"
-            ));
-        }
-    }
-
-    match item.config_type {
-        ConfigType::VMess => {
-            if item.password.trim().is_empty() || !is_guid_like(&item.password) {
-                result.push_error("invalid Password");
-            }
-        }
-        ConfigType::VLESS => {
-            if item.password.trim().is_empty()
-                || (!is_guid_like(&item.password) && item.password.chars().count() > 30)
-            {
-                result.push_error("invalid Password");
-            }
-            if !FLOWS.contains(
-                &item
-                    .protocol_extra
-                    .flow
-                    .as_deref()
-                    .unwrap_or_default()
-                    .trim(),
-            ) {
-                result.push_error("invalid Flow");
-            }
-        }
-        ConfigType::Shadowsocks => {
-            if item.password.trim().is_empty() {
-                result.push_error("invalid Password");
-            }
-            if !SS_SECURITIES_IN_SINGBOX.contains(
-                &item
-                    .protocol_extra
-                    .ss_method
-                    .as_deref()
-                    .unwrap_or_default()
-                    .trim(),
-            ) {
-                result.push_error("invalid SsMethod");
-            }
-        }
-        _ => {}
-    }
-
-    if item.stream_security == "reality" && item.public_key.trim().is_empty() {
-        result.push_error("invalid PublicKey");
-    }
-
-    if !item.finalmask.trim().is_empty()
-        && serde_json::from_str::<Value>(&item.finalmask).map_or(true, |value| !value.is_object())
-    {
-        result.push_error("invalid Finalmask");
-    }
-
-    result
-}
-
-fn profile_is_valid(item: &ProfileItem) -> bool {
-    validate_node(item, CoreType::sing_box).success()
-}
-
-fn get_network(item: &ProfileItem) -> String {
-    let network = item.network.trim();
-    if network.is_empty() {
-        DEFAULT_NETWORK.to_string()
-    } else {
-        network.to_string()
-    }
-}
-
-fn singbox_supports_config_type(config_type: ConfigType) -> bool {
-    matches!(
-        config_type,
-        ConfigType::VMess
-            | ConfigType::VLESS
-            | ConfigType::Shadowsocks
-            | ConfigType::Trojan
-            | ConfigType::Hysteria2
-            | ConfigType::TUIC
-            | ConfigType::Anytls
-            | ConfigType::Naive
-            | ConfigType::WireGuard
-            | ConfigType::SOCKS
-            | ConfigType::HTTP
-    )
-}
-
-fn singbox_transport_supported_protocol(config_type: ConfigType) -> bool {
-    matches!(
-        config_type,
-        ConfigType::VMess | ConfigType::VLESS | ConfigType::Trojan | ConfigType::Shadowsocks
-    )
-}
-
-fn is_guid_like(value: &str) -> bool {
-    let value = value
-        .trim()
-        .trim_start_matches(['{', '('])
-        .trim_end_matches(['}', ')']);
-    if value.len() == 32 {
-        return value.chars().all(|ch| ch.is_ascii_hexdigit());
-    }
-    let expected = [8, 4, 4, 4, 12];
-    let chunks = value.split('-').collect::<Vec<_>>();
-    chunks.len() == expected.len()
-        && chunks.iter().zip(expected).all(|(chunk, len)| {
-            chunk.len() == len && chunk.chars().all(|ch| ch.is_ascii_hexdigit())
-        })
-}
-
-fn is_builtin_outbound(outbound_tag: Option<&str>) -> bool {
-    outbound_tag.is_some_and(|tag| matches!(tag, PROXY_TAG | DIRECT_TAG | BLOCK_TAG))
-}
-
-fn xhttp_download_settings_address(node: &ProfileItem) -> Option<String> {
-    let extra = node.transport_extra.xhttp_extra.as_deref()?.trim();
-    if extra.is_empty() {
-        return None;
-    }
-    let value = serde_json::from_str::<Value>(extra).ok()?;
-    value
-        .get("downloadSettings")
-        .and_then(|settings| settings.get("address"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|address| !address.is_empty())
-        .map(str::to_string)
-}
-
-fn push_domain_if_needed(protect_domain_list: &mut Vec<String>, candidate: &str) {
-    let candidate = candidate.trim();
-    if is_domain(candidate) && !protect_domain_list.iter().any(|domain| domain == candidate) {
-        protect_domain_list.push(candidate.to_string());
-    }
-}
-
-fn merge_protect_domains(target: &mut Vec<String>, source: &[String]) {
-    for domain in source {
-        push_domain_if_needed(target, domain);
-    }
-}
-
-#[must_use]
-pub fn is_domain(candidate: &str) -> bool {
-    let candidate = candidate.trim();
-    if candidate.is_empty()
-        || candidate.contains("://")
-        || candidate.contains('/')
-        || candidate.contains('\\')
-        || candidate.parse::<IpAddr>().is_ok()
-    {
-        return false;
-    }
-
-    let blocked_ext = [
-        "json", "txt", "xml", "cfg", "ini", "log", "yaml", "yml", "toml",
-    ];
-    if candidate
-        .rsplit_once('.')
-        .map(|(_, extension)| extension)
-        .is_some_and(|extension| blocked_ext.contains(&extension.to_ascii_lowercase().as_str()))
-    {
-        return false;
-    }
-
-    candidate.split('.').all(|label| {
-        !label.is_empty()
-            && label
-                .chars()
-                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
-    }) && candidate.chars().any(|ch| ch.is_ascii_alphabetic())
-}
-
-fn push_unique_child_index(
-    child_index_ids: &mut Vec<String>,
-    child_index_seen: &mut BTreeSet<String>,
-    child_index_id: &str,
-) {
-    if child_index_seen.insert(child_index_id.to_string()) {
-        child_index_ids.push(child_index_id.to_string());
-    }
-}
-
-fn string_to_list(value: Option<&str>) -> Vec<String> {
-    value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.replace(['\r', '\n'], ""))
-        .map(|value| {
-            value
-                .split(',')
-                .filter_map(nonempty)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn list_to_string(values: &[String]) -> String {
-    values.join(",")
-}
-
-fn nonempty(value: &str) -> Option<&str> {
-    let value = value.trim();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-fn prepend_warnings(result: &mut NodeValidatorResult, warnings: &[String]) {
-    if warnings.is_empty() {
-        return;
-    }
-    let mut merged = warnings.to_vec();
-    merged.append(&mut result.warnings);
-    result.warnings = merged;
-}
-
+mod node_registration;
+mod validation;
+use node_registration::{pre_socks_item, register_single_node};
+use validation::*;
+pub use validation::{is_domain, validate_node};
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1092,24 +685,25 @@ mod tests {
                 .collect()
         }
 
-        fn get_profile_items_by_subid(&self, subid: &str) -> Vec<ProfileItem> {
+        fn get_profile_items_by_subscription_id(&self, subscription_id: &str) -> Vec<ProfileItem> {
             self.profiles
                 .iter()
-                .filter(|profile| profile.subid == subid)
+                .filter(|profile| profile.subscription_id.as_deref() == Some(subscription_id))
                 .cloned()
                 .collect()
         }
 
-        fn get_sub_item(&self, subid: &str) -> Option<SubItem> {
-            self.subs.iter().find(|sub| sub.id == subid).cloned()
+        fn get_subscription(&self, subscription_id: &str) -> Option<SubItem> {
+            self.subs
+                .iter()
+                .find(|sub| sub.id == subscription_id)
+                .cloned()
         }
 
         fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem> {
             self.routings
                 .iter()
-                .find(|routing| {
-                    routing.is_active || routing.id == config.routing_basic_item.routing_index_id
-                })
+                .find(|routing| routing.id == config.routing_basic_item.routing_index_id)
                 .or_else(|| self.routings.first())
                 .cloned()
         }
@@ -1117,12 +711,8 @@ mod tests {
         fn get_local_port(&self, protocol: InboundProtocol) -> i32 {
             match protocol {
                 InboundProtocol::socks => self.local_socks_port,
-                _ => self.local_socks_port + protocol.as_i32(),
+                _ => self.local_socks_port + protocol.port_offset(),
             }
-        }
-
-        fn next_virtual_chain_id(&self, node: &ProfileItem, child_index_ids: &[String]) -> String {
-            format!("inner-{}-{}", node.index_id, child_index_ids.join("-"))
         }
     }
 
@@ -1134,7 +724,6 @@ mod tests {
             profiles: vec![active],
             routings: vec![RoutingItem {
                 id: "routing".to_string(),
-                is_active: true,
                 ..RoutingItem::default()
             }],
             ..MemoryEnv::default()
@@ -1155,41 +744,6 @@ mod tests {
     }
 
     #[test]
-    fn context_builds_subscription_virtual_proxy_chain_deterministically() {
-        let prev = vless_profile("prev", "Prev", "prev.example.com");
-        let mut active = vless_profile("active", "Active", "active.example.com");
-        active.subid = "sub".to_string();
-        let next = vless_profile("next", "Next", "next.example.com");
-        let env = MemoryEnv {
-            profiles: vec![prev, active.clone(), next],
-            subs: vec![SubItem {
-                id: "sub".to_string(),
-                prev_profile: Some("Prev".to_string()),
-                next_profile: Some("Next".to_string()),
-                ..SubItem::default()
-            }],
-            ..MemoryEnv::default()
-        };
-
-        let result = CoreConfigContextBuilder::new(&env).build(&app_config("active"), &active);
-
-        assert!(result.success());
-        assert_eq!(result.context.node.config_type, ConfigType::ProxyChain);
-        assert_eq!(
-            result.context.node.index_id,
-            "inner-active-prev-active-next"
-        );
-        assert_eq!(
-            result.context.node.protocol_extra.child_items.as_deref(),
-            Some("prev,active,next")
-        );
-        assert!(result
-            .context
-            .all_proxies_map
-            .contains_key("inner-active-prev-active-next"));
-    }
-
-    #[test]
     fn context_registers_rule_outbounds_by_remark() {
         let active = vless_profile("active", "Active", "active.example.com");
         let rule_node = vless_profile("rule", "RuleNode", "rule.example.com");
@@ -1197,7 +751,6 @@ mod tests {
             profiles: vec![active.clone(), rule_node],
             routings: vec![RoutingItem {
                 id: "routing".to_string(),
-                is_active: true,
                 rule_set: vec![RulesItem {
                     id: "rule-1".to_string(),
                     outbound_tag: Some("RuleNode".to_string()),
@@ -1227,14 +780,21 @@ mod tests {
         let leaf = vless_profile("leaf", "Leaf", "leaf.example.com");
         let mut root = group_profile("root", "Root", "leaf,leaf,nested");
         let nested = group_profile("nested", "Nested", "root,leaf");
-        root.protocol_extra.sub_child_items = Some("sub".to_string());
-        root.protocol_extra.filter = Some("^Sub".to_string());
+        if let ProfileProtocol::PolicyGroup {
+            source_subscription_id,
+            filter,
+            ..
+        } = &mut root.protocol
+        {
+            *source_subscription_id = Some("sub".to_string());
+            *filter = Some("^Sub".to_string());
+        }
         let sub_leaf = ProfileItem {
-            subid: "sub".to_string(),
+            subscription_id: Some("sub".to_string()),
             ..vless_profile("sub-leaf", "Sub Leaf", "sub.example.com")
         };
         let ignored_sub_leaf = ProfileItem {
-            subid: "sub".to_string(),
+            subscription_id: Some("sub".to_string()),
             ..vless_profile("ignored-sub-leaf", "Ignored", "ignored.example.com")
         };
         let env = MemoryEnv {
@@ -1250,8 +810,15 @@ mod tests {
                 .context
                 .all_proxies_map
                 .get("root")
-                .and_then(|profile| profile.protocol_extra.child_items.as_deref()),
-            Some("sub-leaf,leaf,nested")
+                .map(|profile| profile.protocol.child_profile_ids()),
+            Some(
+                [
+                    "sub-leaf".to_string(),
+                    "leaf".to_string(),
+                    "nested".to_string()
+                ]
+                .as_slice()
+            )
         );
         assert!(result
             .validator_result
@@ -1263,9 +830,22 @@ mod tests {
     #[test]
     fn context_protect_domains_include_address_and_ech_sni() {
         let mut active = vless_profile("active", "Active", "node.example.com");
-        active.stream_security = STREAM_SECURITY_TLS.to_string();
-        active.sni = "fallback.example.com".to_string();
-        active.ech_config_list = "ech-query.example.com+https://dns.example/dns-query".to_string();
+        active.tls = Some(crate::TlsSettings {
+            mode: TlsMode::Tls,
+            server_name: Some("fallback.example.com".to_string()),
+            alpn: Vec::new(),
+            reality_public_key: None,
+            reality_short_id: None,
+            reality_spider_x: None,
+            mldsa65_verify: None,
+            certificate_pem: None,
+            certificate_sha256: Vec::new(),
+            ech_config: vec![
+                "ech-query.example.com".to_string(),
+                "https://dns.example/dns-query".to_string(),
+            ],
+            final_mask: None,
+        });
         let env = MemoryEnv {
             profiles: vec![active.clone()],
             ..MemoryEnv::default()
@@ -1304,9 +884,9 @@ mod tests {
             .as_ref()
             .expect("pre socks context")
             .context;
-        assert_eq!(pre_context.node.config_type, ConfigType::SOCKS);
-        assert_eq!(pre_context.node.address, LOOPBACK);
-        assert_eq!(pre_context.node.port, 20808);
+        assert_eq!(pre_context.node.config_type(), ConfigType::SOCKS);
+        assert_eq!(pre_context.node.address(), LOOPBACK);
+        assert_eq!(pre_context.node.port(), 20808);
     }
 
     #[test]
@@ -1331,13 +911,21 @@ mod tests {
     fn context_custom_pre_socks_uses_configured_port_without_tun() {
         let active = ProfileItem {
             index_id: "custom".to_string(),
-            config_type: ConfigType::Custom,
-            pre_socks_port: Some(18888),
+            subscription_id: Some("custom-sub".to_string()),
             remarks: "Custom".to_string(),
+            protocol: ProfileProtocol::Custom {
+                source: String::new(),
+                filter: None,
+            },
             ..ProfileItem::default()
         };
         let env = MemoryEnv {
             profiles: vec![active.clone()],
+            subs: vec![SubItem {
+                id: "custom-sub".to_string(),
+                pre_socks_port: Some(18888),
+                ..SubItem::default()
+            }],
             ..MemoryEnv::default()
         };
 
@@ -1348,8 +936,8 @@ mod tests {
             .as_ref()
             .expect("custom pre socks context")
             .context;
-        assert_eq!(pre_context.node.config_type, ConfigType::SOCKS);
-        assert_eq!(pre_context.node.port, 18888);
+        assert_eq!(pre_context.node.config_type(), ConfigType::SOCKS);
+        assert_eq!(pre_context.node.port(), 18888);
     }
 
     fn app_config(active_id: &str) -> AppConfig {
@@ -1365,16 +953,29 @@ mod tests {
     fn vless_profile(index_id: &str, remarks: &str, address: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VLESS,
             remarks: remarks.to_string(),
-            address: address.to_string(),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            stream_security: STREAM_SECURITY_TLS.to_string(),
-            protocol_extra: ProtocolExtraItem {
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: address.to_string(),
+                    port: 443,
+                },
+                uuid: "00000000-0000-0000-0000-000000000000".to_string(),
                 flow: Some(String::new()),
-                ..ProtocolExtraItem::default()
+                encryption: Some("none".to_string()),
             },
+            tls: Some(crate::TlsSettings {
+                mode: TlsMode::Tls,
+                server_name: None,
+                alpn: Vec::new(),
+                reality_public_key: None,
+                reality_short_id: None,
+                reality_spider_x: None,
+                mldsa65_verify: None,
+                certificate_pem: None,
+                certificate_sha256: Vec::new(),
+                ech_config: Vec::new(),
+                final_mask: None,
+            }),
             ..ProfileItem::default()
         }
     }
@@ -1382,12 +983,12 @@ mod tests {
     fn group_profile(index_id: &str, remarks: &str, child_items: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::PolicyGroup,
             remarks: remarks.to_string(),
-            protocol_extra: ProtocolExtraItem {
-                child_items: Some(child_items.to_string()),
-                group_type: Some("PolicyGroup".to_string()),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::PolicyGroup {
+                child_profile_ids: child_items.split(',').map(str::to_string).collect(),
+                source_subscription_id: None,
+                filter: None,
+                strategy: crate::MultipleLoad::LeastPing,
             },
             ..ProfileItem::default()
         }

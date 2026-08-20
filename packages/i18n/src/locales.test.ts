@@ -10,7 +10,6 @@ type LocaleTree = {
 };
 
 const desktopSourceRoot = resolve(findRepoRoot(process.cwd()), "apps/desktop/src");
-const overlaysRoot = resolve(findRepoRoot(process.cwd()), "packages/i18n/src/overlays");
 const sourceModules = readSourceModules(desktopSourceRoot);
 
 describe("i18n locales", () => {
@@ -42,31 +41,17 @@ describe("i18n locales", () => {
     }
   });
 
-  it("generates Voya-owned resources from aligned locale overlays", () => {
-    const englishOverlay = readLocaleFile(resolve(overlaysRoot, "en.json"));
-    const englishKeys = flattenKeys(englishOverlay).sort();
-
-    for (const locale of localeOptions) {
-      const overlay = readLocaleFile(resolve(overlaysRoot, `${locale.code}.json`));
-      const generated = { ...localeTree(locale.code) };
-
-      delete generated.resx;
-
-      expect(flattenKeys(overlay).sort(), locale.code).toEqual(englishKeys);
-      expect(generated, locale.code).toEqual(overlay);
-    }
-  });
-
-  it("keeps only production-referenced overlay and ResX resources", () => {
-    const englishResx = localeTree("en").resx;
+  it("uses directly maintained Voya resources without compatibility namespaces", () => {
     const productionKeys = collectProductionTranslationKeys();
 
-    expect(isLocaleTree(englishResx) ? Object.keys(englishResx).length : 0).toBeGreaterThan(0);
-    expect(flattenKeys(localeTree("en")).sort()).toEqual([...productionKeys].sort());
-    expect([...productionKeys].some((key) => key.startsWith("backup."))).toBe(false);
+    expect(localeTree("en")).not.toHaveProperty("resx");
+    expect([...productionKeys].some((key) => key.startsWith("resx."))).toBe(false);
 
     for (const locale of localeOptions) {
-      expect(flattenKeys(localeTree(locale.code)).sort()).toEqual([...productionKeys].sort());
+      const localeKeys = new Set(flattenKeys(localeTree(locale.code)));
+      for (const key of productionKeys) {
+        expect(localeKeys.has(key), `${locale.code}:${key}`).toBe(true);
+      }
     }
   });
 
@@ -135,10 +120,6 @@ describe("i18n locales", () => {
 
 function localeTree(locale: Locale) {
   return i18next.getResourceBundle(locale, "translation") as LocaleTree;
-}
-
-function readLocaleFile(path: string) {
-  return JSON.parse(readFileSync(path, "utf8")) as LocaleTree;
 }
 
 function flattenKeys(tree: LocaleTree, prefix = ""): string[] {

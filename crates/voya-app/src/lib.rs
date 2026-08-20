@@ -5,6 +5,7 @@
 
 pub mod autostart;
 pub mod certificates;
+pub mod contract_map;
 mod coregen;
 pub mod dns;
 pub mod elevation;
@@ -19,6 +20,7 @@ pub mod qr;
 pub mod redaction;
 pub mod routing;
 pub mod runtime;
+pub mod services;
 pub mod settings_save;
 pub mod speedtest;
 pub mod statistics;

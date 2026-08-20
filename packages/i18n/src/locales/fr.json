@@ -1,15 +1,22 @@
 {
   "actions": {
+    "activate": "Activate",
+    "apply": "Apply",
+    "cancel": "Cancel",
     "clear": "Clear",
     "close": "Close",
     "closeAll": "Close all",
     "connect": "Connect",
+    "delete": "Delete",
     "disconnect": "Disconnect",
+    "edit": "Edit",
     "refresh": "Refresh",
     "refreshRuntimeState": "Refresh runtime state",
+    "reload": "Reload",
     "reloadCoreConfig": "Reload core configuration",
     "restart": "Restart",
     "runningProxyGroupDelayTest": "Running proxy group delay test",
+    "save": "Save",
     "settings": "Settings",
     "testSelected": "Test selected"
   },
@@ -63,14 +70,9 @@
       "customSourcesRequired": "L’URL source du modèle de routage est requise pour une importation personnalisée.",
       "default": "Par défaut",
       "defaultDescription": "Efface les sources régionales, restaure le DNS intégré et importe le modèle de routage intégré.",
-      "dnsFallbackWarning": "Un ou plusieurs modèles DNS étaient indisponibles. La configuration DNS de secours a été conservée.",
       "import": "Importer un modèle de configuration",
       "invalidSourceUrl": "Chaque source personnalisée doit être une URL HTTPS valide sans identifiants.",
-      "iran": "Iran",
-      "iranDescription": "Utiliser les sources Geo, de jeux de règles, de routage et DNS pour l’Iran.",
       "reusedDescription": "Le modèle de routage correspondant existait déjà ; il a été réutilisé et activé.",
-      "russia": "Russie",
-      "russiaDescription": "Utiliser les sources Geo, de jeux de règles, de routage et DNS pour la Russie.",
       "selectPrompt": "Sélectionnez un modèle",
       "title": "Importer un modèle de configuration"
     },
@@ -86,6 +88,26 @@
     "srsSource": "sing-box ruleset source"
   },
   "panes": {
+    "dns": {
+      "errorCount": "{{count}} errors",
+      "loading": "Loading DNS settings",
+      "simpleTitle": "Simple DNS"
+    },
+    "groups": {
+      "applyChildren": "Apply",
+      "chooseChildren": "Choose children",
+      "chooseDescription": "Choose servers, policy groups, or proxy chains for the current group.",
+      "filterChildren": "Filter child profiles",
+      "loadingChildren": "Loading profiles",
+      "loadMode": "Load mode",
+      "noChildren": "No child profiles selected",
+      "noGeneratedRoutes": "No generated routes",
+      "noMatches": "No matching profiles",
+      "preview": "Preview",
+      "previewGenerated": "Preview generated from validated children",
+      "selectChildren": "Select child profiles",
+      "selectedChildren": "Selected children"
+    },
     "logs": {
       "empty": "No log lines",
       "jumpToLatest": "Jump to latest",
@@ -151,14 +173,14 @@
         "clipboardUnavailable": "Clipboard write is unavailable in this context.",
         "copied": "Copied {{count}} exported profile(s) to clipboard.",
         "export": "Export",
-        "innerLinks": "Inner links",
         "noSelection": "Select at least one profile to export.",
         "saveClientConfig": "Save client config",
         "savedFile": "Saved export to {{path}}.",
         "saveShareLinks": "Save share links",
         "shareBase64": "Share links (Base64)",
         "shareLinks": "Share links",
-        "showQr": "Show QR"
+        "showQr": "Show QR",
+        "voyaBundle": "Voya profile bundle"
       },
       "fields": {
         "address": "Address",
@@ -223,6 +245,17 @@
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
         "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
+      "importDialog": {
+        "description": "Import share links, subscription URLs, or JSON payloads.",
+        "file": "File",
+        "manual": "Manual import",
+        "mode": "Mode",
+        "paste": "Paste",
+        "payload": "Import payload",
+        "subscriptionTarget": "Subscription target",
+        "target": "Target",
+        "title": "Import Profiles"
+      },
       "menu": {
         "move": "Move",
         "moveBottom": "Move to bottom",
@@ -278,10 +311,33 @@
       "empty": "No proxy groups",
       "title": "Proxy Groups"
     },
+    "routing": {
+      "active": "Active",
+      "domain": "domain",
+      "editor": "Routing profile editor",
+      "network": "network",
+      "outbound": "Outbound",
+      "port": "port",
+      "profile": "Profile",
+      "profileCount": "{{count}} profiles",
+      "profiles": "Profiles",
+      "remarks": "remarks",
+      "rule": "Rule",
+      "ruleEditor": "Routing rule editor",
+      "rulesCount": "{{count}} rules ·",
+      "type": "type"
+    },
     "subscriptions": {
+      "description": "Manage subscription sources and run updates.",
+      "details": "Subscription details",
       "empty": "No subscriptions",
       "emptyDescription": "Add a subscription source to import profiles automatically.",
-      "loading": "Loading subscriptions"
+      "enabled": "Enabled",
+      "loading": "Loading subscriptions",
+      "sources": "Sources",
+      "title": "Subscriptions",
+      "updateAll": "Update all",
+      "updateSelected": "Update selected"
     }
   },
   "proxy": {
@@ -324,44 +380,25 @@
     "scanScreen": "Screen",
     "screenUnavailable": "Screen QR scanning is unavailable on this platform or permission state."
   },
-  "resx": {
-    "TbHopInt7": "Intervalle de saut de port",
-    "TbIcmpRoutingPolicy": "Politique de routage ICMP",
-    "TbMtu": "MTU",
-    "TbSettingsAdvancedProtocol": "Paramètres avancés du proxy, choix du protocole (optionnel)",
-    "TbSettingsBindInterface": "Lier l'interface",
-    "TbSettingsCore": "Core : paramètres de base",
-    "TbSettingsCustomSystemProxyPacPath": "Chemin fichier PAC personnalisé",
-    "TbSettingsCustomSystemProxyScriptPath": "Chemin script proxy système personnalisé",
-    "TbSettingsDefAllowInsecure": "Ignorer la vérif. du certificat (Dangereux)",
-    "TbSettingsDefFingerprint": "Empreinte TLS par défaut (fingerprint)",
-    "TbSettingsDefUserAgent": "Agent utilisateur (User-Agent)",
-    "TbSettingsEnableCacheFile4Sbox": "Activer le fichier de cache de sing-box (fichiers règles)",
-    "TbSettingsEnableFragment": "Activer le fragmentation (Fragment)",
-    "TbSettingsEnableIPv6Address": "Activer IPv6",
-    "TbSettingsException": "Exceptions",
-    "TbSettingsHysteriaBandwidth": "Bande passante maximale Hysteria (Up/Down)",
-    "TbSettingsIPAPIUrl": "Adresse de test d’informations de connexion actuelles",
-    "TbSettingsLogEnabled": "Activer les journaux",
-    "TbSettingsLogLevel": "Niveau de journalisation",
-    "TbSettingsMixedConcurrencyCount": "Niveau de concurrence lors des tests multithread",
-    "TbSettingsMux4SboxProtocol": "Protocole de multiplexage Mux (sing-box)",
-    "TbSettingsMuxEnabled": "Activer Mux multiplex",
-    "TbSettingsNotProxyLocalAddress": "Ne pas utiliser le proxy pour les adresses locales (Intranet)",
-    "TbSettingsSendThrough": "Adresse de sortie locale (SendThrough)",
-    "TbSettingsSpeedPingTestUrl": "Adresse de test de connexion réelle",
-    "TbSettingsSpeedTestTimeout": "Valeur délai d'expiration test vitesse unique",
-    "TbSettingsSpeedTestUrl": "URL du fichier de test de vitesse",
-    "TbSettingsSubConvert": "URL de conversion d’abonnement (optionnel)",
-    "TbSettingsTunAutoRoute": "Routage automatique",
-    "TbSettingsTunMode": "Paramètres du mode Tun",
-    "TbSettingsTunStack": "Pile de protocoles",
-    "TbSettingsTunStrictRoute": "Routage strict",
-    "TbSettingsUdpTestUrl": "URL de test UDP"
-  },
   "settings": {
     "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
     "closeUnsavedTitle": "Unsaved settings",
+    "core": {
+      "allowInsecure": "Ignorer la vérif. du certificat (Dangereux)",
+      "bindInterface": "Lier l'interface",
+      "cacheFileEnabled": "Activer le fichier de cache de sing-box (fichiers règles)",
+      "fingerprint": "Empreinte TLS par défaut (fingerprint)",
+      "fragmentEnabled": "Activer le fragmentation (Fragment)",
+      "hysteriaBandwidth": "Bande passante maximale Hysteria (Up/Down)",
+      "hysteriaHopInterval": "Intervalle de saut de port",
+      "logEnabled": "Activer les journaux",
+      "logLevel": "Niveau de journalisation",
+      "muxEnabled": "Activer Mux multiplex",
+      "muxProtocol": "Protocole de multiplexage Mux (sing-box)",
+      "sendThrough": "Adresse de sortie locale (SendThrough)",
+      "title": "Core : paramètres de base",
+      "userAgent": "Agent utilisateur (User-Agent)"
+    },
     "discardChanges": "Discard changes",
     "fields": {
       "hysteriaDownMbps": "Bande passante descendante max Hysteria (Mbps)",
@@ -371,12 +408,37 @@
       "speedTestDelayInterval": "Délai entre les lots de test de vitesse (secondes)",
       "speedTestPageSize": "Serveurs par lot de test de vitesse"
     },
+    "network": {
+      "bypassLocalAddress": "Ne pas utiliser le proxy pour les adresses locales (Intranet)",
+      "customPacPath": "Chemin fichier PAC personnalisé",
+      "customScriptPath": "Chemin script proxy système personnalisé",
+      "enableIpv6Address": "Activer IPv6",
+      "icmpRoutingPolicy": "Politique de routage ICMP",
+      "mtu": "MTU",
+      "systemProxyExceptions": "Exceptions",
+      "systemProxyProtocol": "Paramètres avancés du proxy, choix du protocole (optionnel)",
+      "tunAutoRoute": "Routage automatique",
+      "tunMode": "Paramètres du mode Tun",
+      "tunStack": "Pile de protocoles",
+      "tunStrictRoute": "Routage strict"
+    },
     "saveAll": "Save all",
     "saveBeforeActions": "Save or discard pending changes before running this action.",
+    "sources": {
+      "subscriptionConverter": "URL de conversion d’abonnement (optionnel)"
+    },
     "startup": "Démarrage",
     "tabGeneral": "Général",
     "tabTests": "Tests",
     "tabUpdates": "Mises à jour",
+    "tests": {
+      "downloadUrl": "URL du fichier de test de vitesse",
+      "ipApiUrl": "Adresse de test d’informations de connexion actuelles",
+      "mixedConcurrency": "Niveau de concurrence lors des tests multithread",
+      "pingUrl": "Adresse de test de connexion réelle",
+      "timeout": "Valeur délai d'expiration test vitesse unique",
+      "udpTarget": "URL de test UDP"
+    },
     "unsavedChanges": "Unsaved changes"
   },
   "status": {

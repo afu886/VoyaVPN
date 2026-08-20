@@ -11,12 +11,12 @@ fn fmt_share_round_trips_all_supported_protocols() {
         let uri = export_share_link(&source).expect("export share link");
         let parsed = parse_share_link(&uri).expect("parse exported share link");
 
-        assert_eq!(parsed.config_type, source.config_type, "{uri}");
-        assert_eq!(parsed.address, source.address, "{uri}");
-        assert_eq!(parsed.port, source.port, "{uri}");
+        assert_eq!(parsed.config_type(), source.config_type(), "{uri}");
+        assert_eq!(parsed.address(), source.address(), "{uri}");
+        assert_eq!(parsed.port(), source.port(), "{uri}");
         assert_eq!(parsed.remarks, source.remarks, "{uri}");
-        assert_eq!(parsed.password, source.password, "{uri}");
-        assert_eq!(parsed.username, source.username, "{uri}");
+        assert_eq!(parsed.password(), source.password(), "{uri}");
+        assert_eq!(parsed.username(), source.username(), "{uri}");
     }
 }
 
@@ -30,11 +30,13 @@ fn fmt_share_export_materializes_supported_global_runtime_options() {
         hysteria_hop_interval: 25,
     };
     let vless = ProfileItem {
-        config_type: ConfigType::VLESS,
-        address: "vless.example".to_string(),
-        port: 443,
-        password: "00000000-0000-0000-0000-000000000001".to_string(),
-        stream_security: STREAM_SECURITY_TLS.to_string(),
+        protocol: ProfileProtocol::Vless {
+            server: endpoint("vless.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000001".to_string(),
+            flow: None,
+            encryption: Some(NONE.to_string()),
+        },
+        tls: Some(tls(TlsMode::Tls, "vless.example")),
         ..ProfileItem::default()
     };
     let vless_link = export_share_link_with_options(&vless, &options)
@@ -51,10 +53,12 @@ fn fmt_share_export_materializes_supported_global_runtime_options() {
     );
 
     let hysteria = ProfileItem {
-        config_type: ConfigType::Hysteria2,
-        address: "hy2.example".to_string(),
-        port: 443,
-        password: "secret".to_string(),
+        protocol: ProfileProtocol::Hysteria2 {
+            server: endpoint("hy2.example", 443),
+            password: "secret".to_string(),
+            port_hops: None,
+            obfuscation_password: None,
+        },
         ..ProfileItem::default()
     };
     let hysteria_link = export_share_link_with_options(&hysteria, &options)
@@ -80,55 +84,57 @@ fn fmt_share_export_materializes_supported_global_runtime_options() {
 #[test]
 fn fmt_base_query_round_trips_transport_security_and_masks() {
     let source = ProfileItem {
-        config_type: ConfigType::VLESS,
         remarks: "advanced vless".to_string(),
-        address: "vless.example".to_string(),
-        port: 443,
-        password: "00000000-0000-0000-0000-000000000001".to_string(),
-        network: "xhttp".to_string(),
-        stream_security: "reality".to_string(),
-        sni: "sni.example".to_string(),
-        public_key: "public-key".to_string(),
-        short_id: "abcd".to_string(),
-        spider_x: "/spider".to_string(),
-        mldsa65_verify: "pqv-token".to_string(),
-        ech_config_list: "https://ech.example/config".to_string(),
-        cert_sha: "sha256-pin".to_string(),
-        finalmask: r#"{"tcp":{"fragment":{"packets":"tlshello"}}}"#.to_string(),
-        protocol_extra: ProtocolExtraItem {
-            vless_encryption: Some(NONE.to_string()),
+        protocol: ProfileProtocol::Vless {
+            server: endpoint("vless.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000001".to_string(),
             flow: Some("xtls-rprx-vision".to_string()),
-            ..ProtocolExtraItem::default()
+            encryption: Some(NONE.to_string()),
         },
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Xhttp {
             host: Some("cdn.example".to_string()),
             path: Some("/xhttp".to_string()),
-            xhttp_mode: Some("stream-one".to_string()),
-            xhttp_extra: Some(r#"{"downloadSettings":{"address":"cdn2.example"}}"#.to_string()),
-            ..TransportExtraItem::default()
-        },
+            mode: Some("stream-one".to_string()),
+            extra: Some(r#"{"downloadSettings":{"address":"cdn2.example"}}"#.to_string()),
+        }),
+        tls: Some(TlsSettings {
+            mode: TlsMode::Reality,
+            server_name: Some("sni.example".to_string()),
+            alpn: Vec::new(),
+            reality_public_key: Some("public-key".to_string()),
+            reality_short_id: Some("abcd".to_string()),
+            reality_spider_x: Some("/spider".to_string()),
+            mldsa65_verify: Some("pqv-token".to_string()),
+            certificate_pem: None,
+            certificate_sha256: vec!["sha256-pin".to_string()],
+            ech_config: vec!["https://ech.example/config".to_string()],
+            final_mask: Some(r#"{"tcp":{"fragment":{"packets":"tlshello"}}}"#.to_string()),
+        }),
         ..ProfileItem::default()
     };
 
     let uri = export_share_link(&source).expect("export advanced vless");
     let parsed = parse_share_link(&uri).expect("parse advanced vless");
 
-    assert_eq!(parsed.stream_security, "reality");
-    assert_eq!(parsed.network, "xhttp");
-    assert_eq!(parsed.mldsa65_verify, "pqv-token");
-    assert_eq!(parsed.ech_config_list, "https://ech.example/config");
-    assert_eq!(parsed.cert_sha, "sha256-pin");
-    assert!(parsed.finalmask.contains("\"fragment\""));
+    let parsed_tls = parsed.tls.as_ref().expect("TLS settings");
+    assert_eq!(parsed_tls.mode, TlsMode::Reality);
+    assert_eq!(parsed_tls.mldsa65_verify.as_deref(), Some("pqv-token"));
     assert_eq!(
-        parsed.transport_extra.xhttp_mode.as_deref(),
-        Some("stream-one")
+        parsed_tls.ech_config,
+        vec!["https://ech.example/config".to_string()]
     );
-    assert!(parsed
-        .transport_extra
-        .xhttp_extra
+    assert_eq!(parsed_tls.certificate_sha256, vec!["sha256-pin"]);
+    assert!(parsed_tls
+        .final_mask
         .as_deref()
-        .unwrap_or_default()
-        .contains("downloadSettings"));
+        .is_some_and(|value| value.contains("\"fragment\"")));
+    let Some(ProfileTransport::Xhttp { mode, extra, .. }) = parsed.transport.as_ref() else {
+        panic!("expected xhttp transport");
+    };
+    assert_eq!(mode.as_deref(), Some("stream-one"));
+    assert!(extra
+        .as_deref()
+        .is_some_and(|value| value.contains("downloadSettings")));
 }
 
 #[test]
@@ -138,11 +144,10 @@ fn fmt_query_parser_preserves_values_containing_equals() {
     )
     .expect("parse vless with equals in query value");
 
-    assert_eq!(parsed.network, "xhttp");
-    assert_eq!(
-        parsed.transport_extra.xhttp_extra.as_deref(),
-        Some("left=right==")
-    );
+    let Some(ProfileTransport::Xhttp { extra, .. }) = parsed.transport else {
+        panic!("expected xhttp transport");
+    };
+    assert_eq!(extra.as_deref(), Some("left=right=="));
 }
 
 #[test]
@@ -185,11 +190,12 @@ fn fmt_negative_inputs_return_typed_errors_without_panicking() {
         "ss://not-base64",
         "wireguard://key@example.com:notaport",
         "tuic://onlyuser@example.com:443",
-        "v2rayn://vless/not-base64",
+        "voya://profiles/v1/not-base64",
+        "v2rayn://retired-private-format",
     ] {
         let result = panic::catch_unwind(|| {
-            if starts_with_ci(bad, INNER_URI_PROTOCOL) {
-                parse_inner_share_links(bad, "sub").map(|_| ())
+            if starts_with_ci(bad, VOYA_PROFILE_BUNDLE_PREFIX) {
+                parse_voya_profile_bundle(bad, "sub").map(|_| ())
             } else {
                 parse_share_link(bad).map(|_| ())
             }
@@ -228,13 +234,12 @@ fn fmt_negative_inputs_cover_port_host_and_large_base64_edges() {
 }
 
 #[test]
-fn fmt_shadowsocks_rejects_legacy_full_link_base64_and_parses_plugins() {
-    let legacy_payload = base64_encode("aes-128-gcm:pass@example.com:8388", false);
-    let legacy = format!("ss://{legacy_payload}#legacy");
-    assert!(parse_share_link(&legacy).is_err());
+fn fmt_shadowsocks_rejects_full_link_base64_and_parses_plugins() {
+    let old_payload = base64_encode("aes-128-gcm:pass@example.com:8388", false);
+    assert!(parse_share_link(&format!("ss://{old_payload}#old")).is_err());
 
-    let legacy_socks_payload = base64_encode("user:pass@example.com:1080", false);
-    assert!(parse_share_link(&format!("socks://{legacy_socks_payload}")).is_err());
+    let old_socks_payload = base64_encode("user:pass@example.com:1080", false);
+    assert!(parse_share_link(&format!("socks://{old_socks_payload}")).is_err());
 
     let plugin =
         url_encode("v2ray-plugin;mode=websocket;host=ws.example;path=/a\\=b\\,c;tls;mux=0");
@@ -243,9 +248,11 @@ fn fmt_shadowsocks_rejects_legacy_full_link_base64_and_parses_plugins() {
         base64_encode("aes-256-gcm:pass", true)
     );
     let parsed = parse_share_link(&sip002).expect("parse plugin ss");
-    assert_eq!(parsed.network, "ws");
-    assert_eq!(parsed.stream_security, STREAM_SECURITY_TLS);
-    assert_eq!(parsed.transport_extra.path.as_deref(), Some("/a=b,c"));
+    assert_eq!(parsed.stream_security(), STREAM_SECURITY_TLS);
+    let Some(ProfileTransport::Websocket { path, .. }) = parsed.transport else {
+        panic!("expected websocket transport");
+    };
+    assert_eq!(path.as_deref(), Some("/a=b,c"));
 }
 
 #[test]
@@ -270,45 +277,44 @@ fn fmt_parses_common_multiline_import_shapes() {
     }"#;
     let vmess = format!("vmess://{}", base64_encode(vmess_json, false));
     let parsed = parse_share_link(&vmess).expect("parse vmess base64 json");
-    assert_eq!(parsed.config_type, ConfigType::VMess);
+    assert_eq!(parsed.config_type(), ConfigType::VMess);
     assert_eq!(parsed.remarks, "JMS-TEST@example.test:17701");
-    assert_eq!(parsed.address, "node-vmess.example.test");
-    assert_eq!(parsed.port, 17701);
-    assert_eq!(parsed.network, DEFAULT_NETWORK);
-    assert_eq!(
-        parsed.protocol_extra.vmess_security.as_deref(),
-        Some(DEFAULT_SECURITY)
-    );
+    assert_eq!(parsed.address(), "node-vmess.example.test");
+    assert_eq!(parsed.port(), 17701);
+    assert_eq!(parsed.network(), DEFAULT_NETWORK);
+    let ProfileProtocol::Vmess { cipher, .. } = parsed.protocol else {
+        panic!("expected VMess protocol");
+    };
+    assert_eq!(cipher.as_deref(), Some(DEFAULT_SECURITY));
 
     let paddingless_vmess = format!("vmess://{}", base64_encode(vmess_json, true));
     let parsed = parse_share_link(&paddingless_vmess).expect("parse paddingless vmess");
-    assert_eq!(parsed.address, "node-vmess.example.test");
+    assert_eq!(parsed.address(), "node-vmess.example.test");
 
     let vless = "vless://00000000-0000-0000-0000-000000000002@node-vless.example.test:443?encryption=none&security=tls&sni=node-vless.example.test&fp=randomized&insecure=0&allowInsecure=0&type=ws&host=node-vless.example.test&path=%2F%3Fed%3D2048#node-vless.example.test";
     let parsed = parse_share_link(vless).expect("parse vless ws tls");
-    assert_eq!(parsed.config_type, ConfigType::VLESS);
-    assert_eq!(parsed.address, "node-vless.example.test");
-    assert_eq!(parsed.network, "ws");
-    assert_eq!(parsed.stream_security, STREAM_SECURITY_TLS);
-    assert_eq!(
-        parsed.transport_extra.host.as_deref(),
-        Some("node-vless.example.test")
-    );
-    assert_eq!(parsed.transport_extra.path.as_deref(), Some("/?ed=2048"));
+    assert_eq!(parsed.config_type(), ConfigType::VLESS);
+    assert_eq!(parsed.address(), "node-vless.example.test");
+    assert_eq!(parsed.stream_security(), STREAM_SECURITY_TLS);
+    let Some(ProfileTransport::Websocket { host, path }) = parsed.transport else {
+        panic!("expected websocket transport");
+    };
+    assert_eq!(host.as_deref(), Some("node-vless.example.test"));
+    assert_eq!(path.as_deref(), Some("/?ed=2048"));
 
     let ss_user_info = base64_encode("aes-256-gcm:test-password", true);
     let ss = format!(
         "ss://{ss_user_info}@node-ss.example.test:17701?#JMS-TEST%40node-ss.example.test%3A17701"
     );
     let parsed = parse_share_link(&ss).expect("parse sip002 ss with empty query");
-    assert_eq!(parsed.config_type, ConfigType::Shadowsocks);
-    assert_eq!(parsed.address, "node-ss.example.test");
-    assert_eq!(parsed.port, 17701);
+    assert_eq!(parsed.config_type(), ConfigType::Shadowsocks);
+    assert_eq!(parsed.address(), "node-ss.example.test");
+    assert_eq!(parsed.port(), 17701);
     assert_eq!(parsed.remarks, "JMS-TEST@node-ss.example.test:17701");
-    assert_eq!(
-        parsed.protocol_extra.ss_method.as_deref(),
-        Some("aes-256-gcm")
-    );
+    let ProfileProtocol::Shadowsocks { method, .. } = parsed.protocol else {
+        panic!("expected Shadowsocks protocol");
+    };
+    assert_eq!(method, "aes-256-gcm");
 }
 
 #[test]
@@ -333,83 +339,106 @@ fn fmt_wireguard_config_parses_peers_and_inline_comments() {
 
     let resolved = parse_wireguard_config(config).expect("wireguard config");
     assert_eq!(resolved.len(), 2);
-    assert_eq!(resolved[0].address, "2001:db8::1");
-    assert_eq!(resolved[0].port, 51820);
-    assert_eq!(resolved[0].password, "interface-private-key");
+    assert_eq!(resolved[0].address(), "2001:db8::1");
+    assert_eq!(resolved[0].port(), 51820);
+    let ProfileProtocol::WireGuard {
+        private_key,
+        reserved,
+        allowed_ips,
+        interface_address,
+        mtu,
+        ..
+    } = &resolved[0].protocol
+    else {
+        panic!("expected WireGuard protocol");
+    };
+    assert_eq!(private_key, "interface-private-key");
+    assert_eq!(reserved.as_deref(), Some("1, 2, 3"));
+    assert_eq!(allowed_ips.as_deref(), Some("10.0.0.0/8, 192.168.0.0/16"));
     assert_eq!(
-        resolved[0].protocol_extra.wg_reserved.as_deref(),
-        Some("1, 2, 3")
-    );
-    assert_eq!(
-        resolved[0].protocol_extra.wg_allowed_ips.as_deref(),
-        Some("10.0.0.0/8, 192.168.0.0/16")
-    );
-    assert_eq!(
-        resolved[0].protocol_extra.wg_interface_address.as_deref(),
+        interface_address.as_deref(),
         Some("10.0.0.2/32, fd00::2/128")
     );
-    assert_eq!(resolved[0].protocol_extra.wg_mtu, Some(1420));
-    assert_eq!(resolved[1].address, "example.com");
-    assert_eq!(resolved[1].port, 12345);
+    assert_eq!(*mtu, Some(1420));
+    assert_eq!(resolved[1].address(), "example.com");
+    assert_eq!(resolved[1].port(), 12345);
 }
 
 #[test]
-fn share_inner_format_round_trips_group_references() {
+fn voya_profile_bundle_round_trips_group_references() {
     let child_a = ProfileItem {
         index_id: "child-a".to_string(),
-        config_type: ConfigType::SOCKS,
         remarks: "child-a".to_string(),
-        address: "127.0.0.1".to_string(),
-        port: 1080,
-        username: "u".to_string(),
-        password: "p".to_string(),
+        protocol: ProfileProtocol::Socks {
+            server: endpoint("127.0.0.1", 1080),
+            username: "u".to_string(),
+            password: "p".to_string(),
+        },
         ..ProfileItem::default()
     };
     let child_b = ProfileItem {
         index_id: "child-b".to_string(),
-        config_type: ConfigType::VMess,
         remarks: "child-b".to_string(),
-        address: "vmess.example".to_string(),
-        port: 443,
-        password: "00000000-0000-0000-0000-000000000002".to_string(),
+        protocol: ProfileProtocol::Vmess {
+            server: endpoint("vmess.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000002".to_string(),
+            cipher: None,
+        },
         ..ProfileItem::default()
     };
     let group = ProfileItem {
         index_id: "group-1".to_string(),
-        config_type: ConfigType::PolicyGroup,
         remarks: "group-1".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("child-a,child-b".to_string()),
-            sub_child_items: Some("original-sub".to_string()),
-            multiple_load: Some(MultipleLoad::LeastPing),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::PolicyGroup {
+            child_profile_ids: vec!["child-a".to_string(), "child-b".to_string()],
+            source_subscription_id: Some("original-sub".to_string()),
+            filter: None,
+            strategy: MultipleLoad::LeastPing,
         },
         ..ProfileItem::default()
     };
 
-    let uri = export_inner_share_links(&[group, child_a, child_b]).expect("export inner");
-    let resolved = parse_inner_share_links(&uri, "sub-123").expect("parse inner");
+    let uri =
+        export_voya_profile_bundle(&[group, child_a, child_b]).expect("export Voya profile bundle");
+    assert!(uri.starts_with(VOYA_PROFILE_BUNDLE_PREFIX));
+    let resolved = parse_voya_profile_bundle(&uri, "sub-123").expect("parse Voya profile bundle");
     assert_eq!(resolved.len(), 3);
     let resolved_group = resolved
         .iter()
         .find(|item| item.remarks == "group-1")
         .expect("resolved group");
-    assert_eq!(
-        resolved_group.protocol_extra.sub_child_items.as_deref(),
-        Some("sub-123")
-    );
-    let child_ids = resolved_group
-        .protocol_extra
-        .child_items
-        .as_deref()
-        .unwrap_or_default();
-    assert!(child_ids.contains("inner-import-2"));
-    assert!(child_ids.contains("inner-import-3"));
+    let ProfileProtocol::PolicyGroup {
+        child_profile_ids,
+        source_subscription_id,
+        ..
+    } = &resolved_group.protocol
+    else {
+        panic!("expected policy group");
+    };
+    assert_eq!(source_subscription_id.as_deref(), Some("sub-123"));
+    assert_eq!(child_profile_ids, &["voya-import-2", "voya-import-3"]);
+}
+
+#[test]
+fn voya_profile_bundle_rejects_versions_fields_missing_refs_and_cycles() {
+    for json in [
+        r#"{"schemaVersion":2,"profiles":[]}"#,
+        r#"{"schemaVersion":1,"profiles":[],"retired":true}"#,
+        r#"{"schemaVersion":1,"profiles":[{"kind":"proxyChain","reference":"a","name":"a","childRefs":["missing"],"includeCurrentSubscription":false}]}"#,
+        r#"{"schemaVersion":1,"profiles":[{"kind":"proxyChain","reference":"a","name":"a","childRefs":["b"],"includeCurrentSubscription":false},{"kind":"proxyChain","reference":"b","name":"b","childRefs":["a"],"includeCurrentSubscription":false}]}"#,
+    ] {
+        let payload = base64_encode(json, true)
+            .replace('+', "-")
+            .replace('/', "_");
+        let uri = format!("{VOYA_PROFILE_BUNDLE_PREFIX}{payload}");
+        assert!(parse_voya_profile_bundle(&uri, "sub").is_err());
+    }
 }
 
 #[test]
 fn share_full_custom_import_helpers_classify_configs_without_file_writes() {
-    let unsupported = r#"{"remarks":"legacy custom","inbounds":[],"outbounds":[],"routing":{}}"#;
+    let unsupported =
+        r#"{"remarks":"unsupported custom","inbounds":[],"outbounds":[],"routing":{}}"#;
     assert!(parse_full_custom_config(unsupported, None).is_err());
 
     let singbox_array = r#"[{"inbounds":[],"outbounds":[],"route":{},"dns":{}}]"#;
@@ -437,160 +466,174 @@ proptest! {
 
 fn sample_profiles() -> Vec<ProfileItem> {
     vec![
-        ProfileItem {
-            config_type: ConfigType::VMess,
-            remarks: "vmess demo".to_string(),
-            address: "example.com".to_string(),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000003".to_string(),
-            network: DEFAULT_NETWORK.to_string(),
-            protocol_extra: ProtocolExtraItem {
-                alter_id: Some("0".to_string()),
-                vmess_security: Some(DEFAULT_SECURITY.to_string()),
-                ..ProtocolExtraItem::default()
+        profile(
+            "vmess demo",
+            ProfileProtocol::Vmess {
+                server: endpoint("example.com", 443),
+                uuid: "00000000-0000-0000-0000-000000000003".to_string(),
+                cipher: Some(DEFAULT_SECURITY.to_string()),
             },
-            transport_extra: TransportExtraItem {
-                raw_header_type: Some(NONE.to_string()),
-                ..TransportExtraItem::default()
+            Some(raw_transport()),
+            None,
+        ),
+        profile(
+            "vless demo",
+            ProfileProtocol::Vless {
+                server: endpoint("vless.example", 8443),
+                uuid: "00000000-0000-0000-0000-000000000004".to_string(),
+                flow: None,
+                encryption: Some(NONE.to_string()),
             },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::VLESS,
-            remarks: "vless demo".to_string(),
-            address: "vless.example".to_string(),
-            port: 8443,
-            password: "00000000-0000-0000-0000-000000000004".to_string(),
-            network: "ws".to_string(),
-            stream_security: STREAM_SECURITY_TLS.to_string(),
-            sni: "vless.example".to_string(),
-            alpn: "h2,http/1.1".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                vless_encryption: Some(NONE.to_string()),
-                ..ProtocolExtraItem::default()
-            },
-            transport_extra: TransportExtraItem {
+            Some(ProfileTransport::Websocket {
                 host: Some("vless.example".to_string()),
                 path: Some("/ws".to_string()),
-                ..TransportExtraItem::default()
+            }),
+            Some(tls(TlsMode::Tls, "vless.example")),
+        ),
+        profile(
+            "trojan demo",
+            ProfileProtocol::Trojan {
+                server: endpoint("trojan.example", 443),
+                password: "trojan-pass".to_string(),
             },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::Trojan,
-            remarks: "trojan demo".to_string(),
-            address: "trojan.example".to_string(),
-            port: 443,
-            password: "trojan-pass".to_string(),
-            network: "grpc".to_string(),
-            stream_security: STREAM_SECURITY_TLS.to_string(),
-            protocol_extra: ProtocolExtraItem {
-                flow: Some("xtls-rprx-vision".to_string()),
-                ..ProtocolExtraItem::default()
+            Some(ProfileTransport::Grpc {
+                authority: Some("trojan.example".to_string()),
+                service_name: Some("svc".to_string()),
+                mode: Some(GRPC_MULTI_MODE.to_string()),
+            }),
+            Some(tls(TlsMode::Tls, "trojan.example")),
+        ),
+        profile(
+            "ss demo",
+            ProfileProtocol::Shadowsocks {
+                server: endpoint("1.2.3.4", 8388),
+                password: "pass123".to_string(),
+                method: "aes-128-gcm".to_string(),
+                udp_over_tcp: false,
             },
-            transport_extra: TransportExtraItem {
-                grpc_authority: Some("trojan.example".to_string()),
-                grpc_service_name: Some("svc".to_string()),
-                grpc_mode: Some(GRPC_MULTI_MODE.to_string()),
-                ..TransportExtraItem::default()
+            Some(raw_transport()),
+            None,
+        ),
+        profile(
+            "socks demo",
+            ProfileProtocol::Socks {
+                server: endpoint("127.0.0.1", 1080),
+                username: "user".to_string(),
+                password: "pass".to_string(),
             },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::Shadowsocks,
-            remarks: "ss demo".to_string(),
-            address: "1.2.3.4".to_string(),
-            port: 8388,
-            password: "pass123".to_string(),
-            network: DEFAULT_NETWORK.to_string(),
-            protocol_extra: ProtocolExtraItem {
-                ss_method: Some("aes-128-gcm".to_string()),
-                ..ProtocolExtraItem::default()
+            None,
+            None,
+        ),
+        profile(
+            "hy2 demo",
+            ProfileProtocol::Hysteria2 {
+                server: endpoint("hy2.example", 443),
+                password: "hy2-pass".to_string(),
+                port_hops: Some("1000:2000".to_string()),
+                obfuscation_password: Some("obfs-pass".to_string()),
             },
-            transport_extra: TransportExtraItem {
-                raw_header_type: Some(NONE.to_string()),
-                ..TransportExtraItem::default()
-            },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::SOCKS,
-            remarks: "socks demo".to_string(),
-            address: "127.0.0.1".to_string(),
-            port: 1080,
-            username: "user".to_string(),
-            password: "pass".to_string(),
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::Hysteria2,
-            remarks: "hy2 demo".to_string(),
-            address: "hy2.example".to_string(),
-            port: 443,
-            password: "hy2-pass".to_string(),
-            sni: "hy2.example".to_string(),
-            cert_sha: "sha-pin,second".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                salamander_pass: Some("obfs-pass".to_string()),
-                ports: Some("1000:2000".to_string()),
-                ..ProtocolExtraItem::default()
-            },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::TUIC,
-            remarks: "tuic demo".to_string(),
-            address: "tuic.example".to_string(),
-            port: 443,
-            username: "uuid".to_string(),
-            password: "tuic-pass".to_string(),
-            protocol_extra: ProtocolExtraItem {
+            None,
+            Some(TlsSettings {
+                certificate_sha256: vec!["sha-pin".to_string(), "second".to_string()],
+                ..tls(TlsMode::Tls, "hy2.example")
+            }),
+        ),
+        profile(
+            "tuic demo",
+            ProfileProtocol::Tuic {
+                server: endpoint("tuic.example", 443),
+                uuid: "uuid".to_string(),
+                password: "tuic-pass".to_string(),
                 congestion_control: Some("bbr".to_string()),
-                ..ProtocolExtraItem::default()
             },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::WireGuard,
-            remarks: "wg demo".to_string(),
-            address: "2001:db8::1".to_string(),
-            port: 51820,
-            password: "private-key".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                wg_public_key: Some("public-key".to_string()),
-                wg_preshared_key: Some("psk".to_string()),
-                wg_reserved: Some("1,2,3".to_string()),
-                wg_interface_address: Some("10.0.0.2/32".to_string()),
-                wg_mtu: Some(1420),
-                ..ProtocolExtraItem::default()
+            None,
+            Some(tls(TlsMode::Tls, "tuic.example")),
+        ),
+        profile(
+            "wg demo",
+            ProfileProtocol::WireGuard {
+                server: endpoint("2001:db8::1", 51820),
+                private_key: "private-key".to_string(),
+                peer_public_key: Some("public-key".to_string()),
+                preshared_key: Some("psk".to_string()),
+                interface_address: Some("10.0.0.2/32".to_string()),
+                allowed_ips: None,
+                reserved: Some("1,2,3".to_string()),
+                mtu: Some(1420),
             },
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::Anytls,
-            remarks: "anytls demo".to_string(),
-            address: "anytls.example".to_string(),
-            port: 443,
-            password: "anytls-pass".to_string(),
-            stream_security: STREAM_SECURITY_TLS.to_string(),
-            sni: "anytls.example".to_string(),
-            ..ProfileItem::default()
-        },
-        ProfileItem {
-            config_type: ConfigType::Naive,
-            remarks: "naive demo".to_string(),
-            address: "naive.example".to_string(),
-            port: 443,
-            username: "user".to_string(),
-            password: "pass".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                naive_quic: Some(true),
+            None,
+            None,
+        ),
+        profile(
+            "anytls demo",
+            ProfileProtocol::Anytls {
+                server: endpoint("anytls.example", 443),
+                password: "anytls-pass".to_string(),
+            },
+            None,
+            Some(tls(TlsMode::Tls, "anytls.example")),
+        ),
+        profile(
+            "naive demo",
+            ProfileProtocol::Naive {
+                server: endpoint("naive.example", 443),
+                username: "user".to_string(),
+                password: "pass".to_string(),
+                quic: true,
+                congestion_control: None,
                 insecure_concurrency: Some(4),
-                ..ProtocolExtraItem::default()
+                udp_over_tcp: false,
             },
-            ..ProfileItem::default()
-        },
+            None,
+            Some(tls(TlsMode::Tls, "naive.example")),
+        ),
     ]
+}
+
+fn profile(
+    remarks: &str,
+    protocol: ProfileProtocol,
+    transport: Option<ProfileTransport>,
+    tls: Option<TlsSettings>,
+) -> ProfileItem {
+    ProfileItem {
+        remarks: remarks.to_string(),
+        protocol,
+        transport,
+        tls,
+        ..ProfileItem::default()
+    }
+}
+
+fn endpoint(address: &str, port: i32) -> ServerEndpoint {
+    ServerEndpoint {
+        address: address.to_string(),
+        port,
+    }
+}
+
+fn raw_transport() -> ProfileTransport {
+    ProfileTransport::Tcp {
+        header: Some(NONE.to_string()),
+        host: None,
+        path: None,
+    }
+}
+
+fn tls(mode: TlsMode, server_name: &str) -> TlsSettings {
+    TlsSettings {
+        mode,
+        server_name: Some(server_name.to_string()),
+        alpn: Vec::new(),
+        reality_public_key: None,
+        reality_short_id: None,
+        reality_spider_x: None,
+        mldsa65_verify: None,
+        certificate_pem: None,
+        certificate_sha256: Vec::new(),
+        ech_config: Vec::new(),
+        final_mask: None,
+    }
 }
 
 fn fmt_test_context(

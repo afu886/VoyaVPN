@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import type { AppSettingsV1, AppearanceSettings } from "@/ipc/bindings";
+
+import { makeAppSettings } from "./app-settings.test-fixture";
+import { CoreTab } from "./core-tab";
+import { GeneralTab } from "./general-tab";
+import { NetworkTab } from "./network-tab";
+import { TestsTab } from "./tests-tab";
+import type { AppSettingsController } from "./use-app-settings";
+
+type SettingsTab = (props: { controller: AppSettingsController }) => React.ReactNode;
+
+describe("semantic settings tabs", () => {
+  it.each([
+    [CoreTab, "Loading"],
+    [NetworkTab, "Loading"],
+    [TestsTab, "Loading"],
+    [GeneralTab, "Loading"],
+  ] as Array<[SettingsTab, string]>)("renders the pending %p state", (Component, label) => {
+    render(<Component controller={emptyController(true, null)} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it.each([CoreTab, NetworkTab, TestsTab, GeneralTab] as SettingsTab[])(
+    "renders the failed %p state",
+    (Component) => {
+      render(<Component controller={emptyController(false, "settings failed")} />);
+      expect(screen.getByText("settings failed")).toBeInTheDocument();
+    },
+  );
+
+  it("updates all core, multiplexing, and Hysteria controls", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<TabHarness Component={CoreTab} />);
+
+    for (const checkbox of screen.getAllByRole("checkbox")) await user.click(checkbox);
+    for (const input of container.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])')) {
+      fireEvent.change(input, { target: { value: input.type === "number" ? "" : "changed" } });
+      if (input.type === "number") fireEvent.change(input, { target: { value: "12" } });
+    }
+
+    expect(container.querySelector("#rt-user-agent")).toHaveValue("changed");
+    expect(container.querySelector("#rt-hysteria-up")).toHaveValue(12);
+  });
+
+  it("updates TUN and system proxy controls including nullable paths", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<TabHarness Component={NetworkTab} />);
+
+    for (const checkbox of screen.getAllByRole("checkbox")) await user.click(checkbox);
+    for (const input of container.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])')) {
+      fireEvent.change(input, { target: { value: input.type === "number" ? "" : " value " } });
+    }
+
+    expect(container.querySelector("#rt-tun-mtu")).toHaveValue(1500);
+    expect(container.querySelector("#rt-sysproxy-pac-path")).toHaveValue(" value ");
+    expect(container.querySelector("#rt-sysproxy-script-path")).toHaveValue(" value ");
+  });
+
+  it("updates every speed-test setting and handles empty numbers", () => {
+    const { container } = render(<TabHarness Component={TestsTab} />);
+
+    for (const input of container.querySelectorAll<HTMLInputElement>("input")) {
+      fireEvent.change(input, { target: { value: input.type === "number" ? "" : "https://new.example.test" } });
+      if (input.type === "number") fireEvent.change(input, { target: { value: "25" } });
+    }
+
+    expect(screen.getByLabelText("Speed Test URL")).toHaveValue("https://new.example.test");
+    expect(container.querySelector("#rt-speedtest-timeout")).toHaveValue(25);
+  });
+
+  it("updates appearance, behavior, and the single shortcut contract", async () => {
+    const user = userEvent.setup();
+    render(<TabHarness Component={GeneralTab} />);
+
+    await user.click(screen.getByRole("button", { name: "Dark" }));
+    await user.click(screen.getByRole("button", { name: "简" }));
+    await user.click(screen.getByRole("checkbox", { name: "Autostart" }));
+    await user.click(screen.getByRole("button", { name: "Ctrl" }));
+    await user.click(screen.getByRole("button", { name: "Alt" }));
+    await user.click(screen.getByRole("button", { name: "Shift" }));
+
+    const hotkey = screen.getByLabelText("Hotkey key");
+    fireEvent.keyDown(hotkey, { key: "Alt", keyCode: 18, which: 18 });
+    fireEvent.keyDown(hotkey, { key: "A", keyCode: 65, which: 65 });
+    expect(hotkey).toHaveValue("A");
+    fireEvent.keyDown(hotkey, { key: "F1", keyCode: 112, which: 112 });
+    expect(hotkey).toHaveValue("F1");
+    fireEvent.keyDown(hotkey, { key: "Backspace", keyCode: 8, which: 8 });
+    expect(hotkey).toHaveValue("Backspace");
+    fireEvent.keyDown(hotkey, { key: "Unknown", keyCode: 200, which: 200 });
+    expect(hotkey).toHaveValue("Key 200");
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(hotkey).toHaveValue("");
+  });
+});
+
+function TabHarness({ Component }: { Component: SettingsTab }) {
+  const [settings, setSettings] = useState(makeAppSettings());
+  const controller: AppSettingsController = {
+    dirty: false,
+    discard: async () => undefined,
+    error: null,
+    reload: async () => undefined,
+    save: async () => true,
+    saved: false,
+    setAppearance: (appearance: AppearanceSettings) => {
+      setSettings((current) => ({ ...current, appearance }));
+    },
+    settings,
+    update: setSettings,
+    working: false,
+  };
+  return <Component controller={controller} />;
+}
+
+function emptyController(working: boolean, error: string | null): AppSettingsController {
+  return {
+    dirty: false,
+    discard: vi.fn(),
+    error,
+    reload: vi.fn(),
+    save: vi.fn(),
+    saved: false,
+    setAppearance: vi.fn(),
+    settings: null,
+    update: vi.fn<(updater: (current: AppSettingsV1) => AppSettingsV1) => void>(),
+    working,
+  };
+}

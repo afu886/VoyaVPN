@@ -6,7 +6,7 @@ use thiserror::Error;
 pub mod blob {
     use serde::{de::DeserializeOwned, Serialize};
     use thiserror::Error;
-    use voya_core::{ProtocolExtraItem, RulesItem, TransportExtraItem};
+    use voya_core::{ProfileProtocol, ProfileTransport, RulesItem, TlsSettings};
 
     #[derive(Debug, Error)]
     pub enum BlobError {
@@ -24,20 +24,28 @@ pub mod blob {
         },
     }
 
-    pub fn protocol_extra_to_text(value: &ProtocolExtraItem) -> Result<String, BlobError> {
-        to_text("ProtocolExtraItem", value)
+    pub fn profile_protocol_to_text(value: &ProfileProtocol) -> Result<String, BlobError> {
+        to_text("ProfileProtocol", value)
     }
 
-    pub fn protocol_extra_from_text(value: &str) -> Result<ProtocolExtraItem, BlobError> {
-        from_text_or_default("ProtocolExtraItem", value)
+    pub fn profile_protocol_from_text(value: &str) -> Result<ProfileProtocol, BlobError> {
+        from_text("ProfileProtocol", value)
     }
 
-    pub fn transport_extra_to_text(value: &TransportExtraItem) -> Result<String, BlobError> {
-        to_text("TransportExtraItem", value)
+    pub fn profile_transport_to_text(value: &ProfileTransport) -> Result<String, BlobError> {
+        to_text("ProfileTransport", value)
     }
 
-    pub fn transport_extra_from_text(value: &str) -> Result<TransportExtraItem, BlobError> {
-        from_text_or_default("TransportExtraItem", value)
+    pub fn profile_transport_from_text(value: &str) -> Result<ProfileTransport, BlobError> {
+        from_text("ProfileTransport", value)
+    }
+
+    pub fn tls_settings_to_text(value: &TlsSettings) -> Result<String, BlobError> {
+        to_text("TlsSettings", value)
+    }
+
+    pub fn tls_settings_from_text(value: &str) -> Result<TlsSettings, BlobError> {
+        from_text("TlsSettings", value)
     }
 
     pub fn rules_to_text(value: &[RulesItem]) -> Result<String, BlobError> {
@@ -62,61 +70,11 @@ pub mod blob {
         serde_json::to_string(value).map_err(|source| BlobError::Serialize { type_name, source })
     }
 
-    fn from_text_or_default<T>(type_name: &'static str, value: &str) -> Result<T, BlobError>
+    fn from_text<T>(type_name: &'static str, value: &str) -> Result<T, BlobError>
     where
-        T: DeserializeOwned + Default,
+        T: DeserializeOwned,
     {
-        if value.trim().is_empty() {
-            return Ok(T::default());
-        }
-
         serde_json::from_str(value).map_err(|source| BlobError::Deserialize { type_name, source })
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use voya_core::{MultipleLoad, ProtocolExtraItem, TransportExtraItem};
-
-        use super::*;
-
-        #[test]
-        fn protocol_and_transport_extras_are_text_only_at_blob_boundary() {
-            let proto = ProtocolExtraItem {
-                flow: Some("xtls-rprx-vision".to_string()),
-                multiple_load: Some(MultipleLoad::RoundRobin),
-                ..ProtocolExtraItem::default()
-            };
-            let transport = TransportExtraItem {
-                host: Some("example.com".to_string()),
-                path: Some("/ws".to_string()),
-                ..TransportExtraItem::default()
-            };
-
-            let proto_text =
-                protocol_extra_to_text(&proto).expect("database test operation should succeed");
-            let transport_text = transport_extra_to_text(&transport)
-                .expect("database test operation should succeed");
-
-            assert_eq!(
-                proto_text,
-                r#"{"Flow":"xtls-rprx-vision","MultipleLoad":3}"#
-            );
-            assert_eq!(transport_text, r#"{"Host":"example.com","Path":"/ws"}"#);
-            assert_eq!(
-                protocol_extra_from_text(&proto_text)
-                    .expect("database test operation should succeed"),
-                proto
-            );
-            assert_eq!(
-                transport_extra_from_text(&transport_text)
-                    .expect("database test operation should succeed"),
-                transport
-            );
-            assert_eq!(
-                protocol_extra_from_text("").expect("database test operation should succeed"),
-                ProtocolExtraItem::default()
-            );
-        }
     }
 }
 
@@ -130,8 +88,20 @@ pub enum DbError {
     Migrate(#[from] MigrateError),
     #[error(transparent)]
     Blob(#[from] blob::BlobError),
-    #[error("invalid {enum_name} discriminant {value} in database")]
-    InvalidEnum { enum_name: &'static str, value: i32 },
+    #[error("invalid {enum_name} value `{value}` in database")]
+    InvalidEnum {
+        enum_name: &'static str,
+        value: String,
+    },
+    #[error(
+        "unsupported Voya database schema at {path}: found version {found:?}, expected version {expected}; reset it manually with: {manual_reset_command}"
+    )]
+    UnsupportedDatabaseSchema {
+        path: PathBuf,
+        found: Option<i64>,
+        expected: i64,
+        manual_reset_command: String,
+    },
     #[error("filesystem error at {path}: {source}")]
     Io {
         path: PathBuf,

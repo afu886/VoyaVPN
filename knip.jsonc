@@ -13,8 +13,10 @@
       ]
     },
     "apps/desktop": {
+      "entry": ["src/**/*.{test,spec}.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx,css}", "e2e/**/*.ts"],
       "ignoreDependencies": ["@tauri-apps/cli"],
+      "ignoreBinaries": ["tauri-driver"],
       "ignoreIssues": {
         "src/ipc/bindings.ts": ["duplicates", "enumMembers", "exports", "types"]
       }

@@ -60,9 +60,9 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
   const subscriptions = useMemo(() => subscriptionsQuery.data ?? [], [subscriptionsQuery.data]);
   const canImport = text.trim().length > 0;
   const targetLabel = useMemo(() => {
-    const selected = subscriptions.find((item) => item.Id === selectedSubid);
+    const selected = subscriptions.find((item) => item.id === selectedSubid);
 
-    return selected ? selected.Remarks : "Manual import";
+    return selected ? selected.remarks : "Manual import";
   }, [selectedSubid, subscriptions]);
 
   async function handleImport() {
@@ -73,7 +73,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
     setResultMessages([]);
     setResultText(null);
     try {
-      const result = await importProfilesFromText(text, selectedSubid || null, Boolean(selectedSubid));
+      const result = await importProfilesFromText(text, selectedSubid || null);
       setResultText(formatImportResult(result, targetLabel));
       setResultMessages(
         (result.messages ?? []).map((message) => ({
@@ -210,10 +210,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="size-4" aria-hidden="true" />
-            Import Profiles
+            {t("panes.profiles.importDialog.title")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Import share links, subscription URLs, or JSON payloads.
+            {t("panes.profiles.importDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -222,7 +222,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
             <div className="grid gap-3 md:grid-cols-[minmax(14rem,1fr)_12rem_auto_auto] md:items-end">
               <div className="grid min-w-0 gap-1">
                 <Label className="text-xs text-muted-foreground" htmlFor="import-target">
-                  Target
+                  {t("panes.profiles.importDialog.target")}
                 </Label>
                 <Select
                   onValueChange={(value) => setSelectedSubid(decodeSelectValue(value))}
@@ -232,10 +232,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={EMPTY_SELECT_VALUE}>Manual import</SelectItem>
+                    <SelectItem value={EMPTY_SELECT_VALUE}>{t("panes.profiles.importDialog.manual")}</SelectItem>
                     {subscriptions.map((item) => (
-                      <SelectItem key={item.Id} value={item.Id}>
-                        {item.Remarks || item.Url}
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.remarks || item.url}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -244,7 +244,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
 
               <div className="grid min-w-0 gap-1">
                 <Label className="text-xs text-muted-foreground" htmlFor="import-subscription-target">
-                  Mode
+                  {t("panes.profiles.importDialog.mode")}
                 </Label>
                 <div className="flex h-9 items-center rounded-md border bg-card px-3 shadow-xs">
                   <Label
@@ -257,27 +257,27 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                       id="import-subscription-target"
                       onCheckedChange={(checked) => {
                         if (checked === true) {
-                          setSelectedSubid((current) => current || subscriptions[0]?.Id || "");
+                          setSelectedSubid((current) => current || subscriptions[0]?.id || "");
                           return;
                         }
 
                         setSelectedSubid("");
                       }}
                     />
-                    <span className="truncate">Subscription target</span>
+                    <span className="truncate">{t("panes.profiles.importDialog.subscriptionTarget")}</span>
                   </Label>
                 </div>
               </div>
 
               <Button disabled={scanning} onClick={() => void handlePaste()} type="button" variant="outline">
                 <ClipboardPaste className="size-4" aria-hidden="true" />
-                Paste
+                {t("panes.profiles.importDialog.paste")}
               </Button>
 
               <Button asChild variant="outline">
                 <Label className="cursor-pointer" htmlFor="import-payload-file">
                   <FileUp className="size-4" aria-hidden="true" />
-                  File
+                  {t("panes.profiles.importDialog.file")}
                 </Label>
               </Button>
               <input
@@ -335,7 +335,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
 
             <div className="grid gap-1">
               <Label className="text-xs text-muted-foreground" htmlFor="import-payload">
-                Import payload
+                {t("panes.profiles.importDialog.payload")}
               </Label>
               <Textarea
                 className="min-h-72 resize-y bg-card font-mono text-xs"
@@ -373,10 +373,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            Close
+            {t("actions.close")}
           </Button>
           <Button disabled={!canImport || scanning} onClick={() => void handleImport()} type="button">
-            Import payload
+            {t("panes.profiles.importDialog.payload")}
           </Button>
         </DialogFooter>
       </DialogContent>

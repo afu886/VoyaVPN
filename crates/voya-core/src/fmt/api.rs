@@ -44,8 +44,8 @@ pub enum ShareError {
     },
     #[error("invalid full custom config")]
     InvalidFullConfig,
-    #[error("invalid inner v2rayn profile: {reason}")]
-    InvalidInner { reason: String },
+    #[error("invalid Voya profile bundle: {reason}")]
+    InvalidVoyaBundle { reason: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

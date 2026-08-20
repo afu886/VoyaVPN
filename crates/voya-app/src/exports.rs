@@ -1,9 +1,8 @@
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
+pub use voya_contracts::{ExportProfilesFormat, ExportProfilesRequest, ExportProfilesResult};
 use voya_core::{
-    export_inner_share_links, export_share_link_with_options, generate_singbox_config_json,
+    export_share_link_with_options, export_voya_profile_bundle, generate_singbox_config_json,
     AppConfig, CoreConfigContextBuilder, ProfileItem, ShareError, ShareLinkOptions,
     SingboxConfigError,
 };
@@ -11,30 +10,6 @@ use voya_db::{Database, DbError};
 use voya_platform::{coreinfo::TargetOs, paths::AppPaths};
 
 use crate::runtime::load_runtime_core_gen_env;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ExportProfilesFormat {
-    ShareLinks,
-    ShareLinksBase64,
-    InnerLinks,
-    ClientConfig,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ExportProfilesRequest {
-    pub index_ids: Vec<String>,
-    pub format: ExportProfilesFormat,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ExportProfilesResult {
-    pub text: String,
-    pub count: u32,
-    pub format: ExportProfilesFormat,
-}
 
 #[derive(Debug, Error)]
 pub enum ExportManagerError {
@@ -75,7 +50,7 @@ impl<'db> ExportManager<'db> {
             ExportProfilesFormat::ShareLinksBase64 => {
                 BASE64_STANDARD.encode(export_share_links(&profiles, config)?)
             }
-            ExportProfilesFormat::InnerLinks => export_inner_share_links(&profiles)?,
+            ExportProfilesFormat::VoyaBundle => export_voya_profile_bundle(&profiles)?,
             ExportProfilesFormat::ClientConfig => {
                 self.export_client_config(paths, config, target_os, &profiles[0])
                     .await?
@@ -143,7 +118,7 @@ fn export_share_links(profiles: &[ProfileItem], config: &AppConfig) -> Result<St
 
 #[cfg(test)]
 mod tests {
-    use voya_core::{ConfigType, ProfileItem};
+    use voya_core::{ProfileItem, ProfileProtocol, ServerEndpoint};
 
     use super::*;
 
@@ -157,11 +132,16 @@ mod tests {
                 .profiles()
                 .upsert(&ProfileItem {
                     index_id: id.to_string(),
-                    config_type: ConfigType::VLESS,
                     remarks: id.to_string(),
-                    address: format!("{id}.example.test"),
-                    port: 443,
-                    password: "00000000-0000-0000-0000-000000000000".to_string(),
+                    protocol: ProfileProtocol::Vless {
+                        server: ServerEndpoint {
+                            address: format!("{id}.example.test"),
+                            port: 443,
+                        },
+                        uuid: "00000000-0000-0000-0000-000000000000".to_string(),
+                        flow: None,
+                        encryption: Some("none".to_string()),
+                    },
                     ..ProfileItem::default()
                 })
                 .await

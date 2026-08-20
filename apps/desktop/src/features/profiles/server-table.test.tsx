@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, vi } from "vitest";
 
-import type { ProfileItem_Deserialize, ProfileListItem_Serialize } from "@/ipc/bindings";
+import type { Profile } from "@/ipc/bindings";
 import { useRuntimeEventStore } from "@/ipc/runtime-event-store";
 import { useProfileColumnsStore } from "@/stores/profile-columns-store";
+import { makeProfileFixture } from "@/test/profile-fixture";
 
-import { CONFIG_TYPES, MOVE_ACTIONS, PROFILE_PROTOCOLS, SPEED_ACTIONS } from "./profile-constants";
+import { MOVE_ACTIONS, PROFILE_PROTOCOLS, SPEED_ACTIONS } from "./profile-constants";
 import { ProfilesScreen } from "./server-table";
 import { applyLiveUpdates } from "./server-table-live-updates";
 
@@ -136,17 +137,17 @@ describe("ProfilesScreen", () => {
       text: indexIds.map((indexId) => `vless://${indexId}@example.test:443`).join("\n"),
     }));
     ipcMocks.generateQrCode.mockResolvedValue({ mimeType: "image/svg+xml", svg: "<svg />" });
-    ipcMocks.importProfilesFromText.mockResolvedValue({ imported: 1, importedIndexIds: ["profile-new"], removedExisting: 0, skipped: 0, subid: null });
+    ipcMocks.importProfilesFromText.mockResolvedValue({ imported: 1, importedProfileIds: ["profile-new"], removedExisting: 0, skipped: 0, subscriptionId: null });
     ipcMocks.listGroupChildCandidates.mockResolvedValue([]);
     ipcMocks.listSubscriptions.mockResolvedValue([]);
     ipcMocks.moveProfile.mockResolvedValue([]);
     ipcMocks.previewGroupProfile.mockResolvedValue({
-      validation: { childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] },
+      validation: { childProfileIds: [], errors: [], valid: true, warnings: [] },
       singboxRoutes: [],
     });
     ipcMocks.cancelSpeedtest.mockResolvedValue({ running: false });
     ipcMocks.runSpeedtest.mockResolvedValue({
-      action: SPEED_ACTIONS.Speedtest,
+      action: SPEED_ACTIONS.Download,
       cancelled: false,
       completedCount: 0,
       results: [],
@@ -158,10 +159,10 @@ describe("ProfilesScreen", () => {
       status: "unavailable",
       text: null,
     });
-    ipcMocks.saveGroupProfile.mockImplementation(async (profile: ProfileItem_Deserialize) => makeProfile(100, profile));
-    ipcMocks.saveProfile.mockImplementation(async (profile: ProfileItem_Deserialize) => makeProfile(99, profile));
+    ipcMocks.saveGroupProfile.mockImplementation(async (profile: Profile) => makeProfile(100, profile));
+    ipcMocks.saveProfile.mockImplementation(async (profile: Profile) => makeProfile(99, profile));
     ipcMocks.saveSubscription.mockResolvedValue(makeSubscription());
-    ipcMocks.setActiveProfile.mockImplementation(async (indexId: string) => makeProfile(0, { IndexId: indexId }));
+    ipcMocks.setActiveProfile.mockImplementation(async (profileId: string) => makeProfile(0, { id: profileId }));
     ipcMocks.sortProfiles.mockResolvedValue([]);
     ipcMocks.updateSubscriptions.mockResolvedValue({ imported: 0, messages: [], removedExisting: 0, skipped: 0, updated: 0 });
   });
@@ -185,13 +186,14 @@ describe("ProfilesScreen", () => {
     for (let tick = 0; tick < 60; tick += 1) {
       const stats = Object.fromEntries(
         profiles.map((profile, index) => [
-          profile.profile.IndexId,
+          profile.profile.id,
           {
-            ...profile.serverStat!,
-            TodayDown: index * 2048 + tick,
-            TodayUp: index * 1024 + tick,
-            TotalDown: index * 8192 + tick,
-            TotalUp: index * 4096 + tick,
+            dateNow: profile.traffic.date ?? 0,
+            indexId: profile.profile.id,
+            todayDown: index * 2048 + tick,
+            todayUp: index * 1024 + tick,
+            totalDown: index * 8192 + tick,
+            totalUp: index * 4096 + tick,
           },
         ]),
       );
@@ -201,17 +203,17 @@ describe("ProfilesScreen", () => {
 
     expect(performance.now() - startedAt).toBeLessThan(1000);
     expect(updated).toHaveLength(500);
-    expect(updated[499].serverStat?.TodayDown).toBe(499 * 2048 + 59);
+    expect(updated[499].traffic.todayDownload).toBe(499 * 2048 + 59);
   });
 
   it("shows speedtest status messages even when a previous speed value exists", async () => {
     const profile = makeProfile(0);
-    profile.profileEx = {
-      ...profile.profileEx,
-      Delay: -1,
-      IpInfo: "Skipped",
-      Message: "request timed out",
-      Speed: 2048,
+    profile.metrics = {
+      ...profile.metrics,
+      delayMs: -1,
+      ipInfo: "Skipped",
+      message: "request timed out",
+      speedBytesPerSecond: 2048,
     };
     ipcMocks.listProfiles.mockResolvedValue([profile]);
 
@@ -275,7 +277,10 @@ describe("ProfilesScreen", () => {
     await userEvent.click(speedButton);
 
     await waitFor(() => expect(speedButton).toBeDisabled());
-    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith(SPEED_ACTIONS.FastRealping, ["profile-0"]);
+    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith({
+      kind: SPEED_ACTIONS.Latency,
+      target: { scope: "all" },
+    });
 
     rejectSpeedtest(new Error("boom"));
 
@@ -294,7 +299,10 @@ describe("ProfilesScreen", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Real" }));
 
-    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith(SPEED_ACTIONS.Realping, ["profile-0"]);
+    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith({
+      kind: SPEED_ACTIONS.Latency,
+      target: { scope: "profiles", profileIds: ["profile-0"] },
+    });
   });
 
   it("reflects an already running speedtest from the runtime store", async () => {
@@ -426,7 +434,6 @@ describe("ProfilesScreen", () => {
       expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith(
         "vless://uuid@example.test:443#US",
         null,
-        false,
       ),
     );
     expect(ipcMocks.updateSubscriptions).not.toHaveBeenCalled();
@@ -434,8 +441,8 @@ describe("ProfilesScreen", () => {
 
   it("refreshes and selects imported profiles after dialog import", async () => {
     const importedProfile = makeProfile(7, {
-      IndexId: "profile-imported",
-      Remarks: "Imported node",
+      id: "profile-imported",
+      remarks: "Imported node",
     });
     ipcMocks.listProfiles
       .mockResolvedValueOnce([])
@@ -445,12 +452,12 @@ describe("ProfilesScreen", () => {
       failed: 0,
       filtered: 0,
       imported: 1,
-      importedIndexIds: ["profile-imported"],
+      importedProfileIds: ["profile-imported"],
       messages: [],
       parsed: 1,
       removedExisting: 0,
       skipped: 0,
-      subid: null,
+      subscriptionId: null,
     });
 
     renderProfiles();
@@ -469,8 +476,8 @@ describe("ProfilesScreen", () => {
 
   it("refreshes and selects a profile imported from a scanned screen QR code", async () => {
     const importedProfile = makeProfile(8, {
-      IndexId: "profile-scanned",
-      Remarks: "Scanned node",
+      id: "profile-scanned",
+      remarks: "Scanned node",
     });
     ipcMocks.listProfiles
       .mockResolvedValueOnce([])
@@ -486,12 +493,12 @@ describe("ProfilesScreen", () => {
       failed: 0,
       filtered: 0,
       imported: 1,
-      importedIndexIds: ["profile-scanned"],
+      importedProfileIds: ["profile-scanned"],
       messages: [],
       parsed: 1,
       removedExisting: 0,
       skipped: 0,
-      subid: null,
+      subscriptionId: null,
     });
 
     renderProfiles();
@@ -515,11 +522,11 @@ describe("ProfilesScreen", () => {
     const clipboardText = "vless://uuid@example.test:443#US";
     const readText = mockClipboardReadText(`\n${clipboardText}\n`);
     const importedProfile = makeProfile(1, {
-      IndexId: "profile-clipboard",
-      Remarks: "Clipboard node",
+      id: "profile-clipboard",
+      remarks: "Clipboard node",
     });
     let imported = false;
-    ipcMocks.listProfiles.mockImplementation(async (_subid: string | null, filter: string | null) =>
+    ipcMocks.listProfiles.mockImplementation(async (_subscription_id: string | null, filter: string | null) =>
       imported && !filter ? [importedProfile] : [],
     );
     ipcMocks.importProfilesFromText.mockImplementation(async () => {
@@ -529,15 +536,15 @@ describe("ProfilesScreen", () => {
         failed: 0,
         filtered: 0,
         imported: 1,
-        importedIndexIds: ["profile-clipboard"],
+        importedProfileIds: ["profile-clipboard"],
         messages: [],
         parsed: 1,
         removedExisting: 0,
         removedDuplicates: 2,
         skipped: 0,
-        subid: null,
+        subscriptionId: null,
         updated: 1,
-        updatedIndexIds: ["profile-clipboard"],
+        updatedProfileIds: ["profile-clipboard"],
       };
     });
 
@@ -551,7 +558,7 @@ describe("ProfilesScreen", () => {
 
     await waitFor(() => expect(readText).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith(clipboardText, null, false),
+      expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith(clipboardText, null),
     );
     expect(await screen.findByText("Clipboard node")).toBeInTheDocument();
     expect(filterInput).toHaveValue("");
@@ -609,7 +616,16 @@ describe("ProfilesScreen", () => {
 
   it("keeps the QR dialog closed when the selected profile cannot export a share link", async () => {
     ipcMocks.listProfiles.mockResolvedValue([
-      makeProfile(0, { ConfigType: CONFIG_TYPES.PolicyGroup, Remarks: "Policy group" }),
+      makeProfile(0, {
+        protocol: {
+          childProfileIds: [],
+          filter: null,
+          kind: "policyGroup",
+          sourceSubscriptionId: null,
+          strategy: "leastPing",
+        },
+        remarks: "Policy group",
+      }),
     ]);
     ipcMocks.exportProfileShareLinks.mockRejectedValue(
       new Error("share export does not support policy groups"),
@@ -687,11 +703,13 @@ describe("ProfilesScreen", () => {
     await waitFor(() =>
       expect(ipcMocks.saveProfile).toHaveBeenCalledWith(
         expect.objectContaining({
-          Address: "wg.example.test",
-          ConfigType: CONFIG_TYPES.WireGuard,
-          Password: "private-key",
-          ProtocolExtra: expect.objectContaining({ WgPublicKey: "peer-key" }),
-          Remarks: "WireGuard test",
+          protocol: expect.objectContaining({
+            kind: "wireGuard",
+            peerPublicKey: "peer-key",
+            privateKey: "private-key",
+            server: { address: "wg.example.test", port: 443 },
+          }),
+          remarks: "WireGuard test",
         }),
       ),
     );
@@ -704,30 +722,29 @@ describe("ProfilesScreen", () => {
     ipcMocks.listGroupChildCandidates.mockResolvedValue([
       {
         address: "a.example.test",
-        configType: CONFIG_TYPES.VLESS,
-        indexId: "leaf-a",
         isGroup: false,
+        profileId: "leaf-a",
+        protocol: "vless",
         reason: null,
         remarks: "Leaf A",
         selectable: true,
-        subid: "",
+        subscriptionId: "",
       },
       {
         address: "chain",
-        configType: CONFIG_TYPES.ProxyChain,
-        indexId: "chain-a",
         isGroup: true,
+        profileId: "chain-a",
+        protocol: "proxyChain",
         reason: null,
         remarks: "Chain A",
         selectable: true,
-        subid: "",
+        subscriptionId: "",
       },
     ]);
     ipcMocks.previewGroupProfile.mockResolvedValue({
       validation: {
-        childIndexIds: ["leaf-a", "chain-a"],
+        childProfileIds: ["leaf-a", "chain-a"],
         errors: [],
-        normalizedChildItems: "leaf-a,chain-a",
         valid: true,
         warnings: [],
       },
@@ -773,12 +790,11 @@ describe("ProfilesScreen", () => {
     await waitFor(() =>
       expect(ipcMocks.saveGroupProfile).toHaveBeenCalledWith(
         expect.objectContaining({
-          ConfigType: CONFIG_TYPES.PolicyGroup,
-          ProtocolExtra: expect.objectContaining({
-            ChildItems: "leaf-a,chain-a",
-            GroupType: "PolicyGroup",
+          protocol: expect.objectContaining({
+            childProfileIds: ["leaf-a", "chain-a"],
+            kind: "policyGroup",
           }),
-          Remarks: "Mixed policy",
+          remarks: "Mixed policy",
         }),
       ),
     );
@@ -789,70 +805,21 @@ function makeProfiles(count: number) {
   return Array.from({ length: count }, (_, index) => makeProfile(index));
 }
 
-function makeProfile(index: number, overrides: ProfileItem_Deserialize = {}): ProfileListItem_Serialize {
-  const indexId = overrides.IndexId ?? `profile-${index}`;
-
-  return {
-    isActive: index === 0,
-    profile: {
-      Address: `node-${index}.example.test`,
-      Alpn: "",
-      Cert: "",
-      CertSha: "",
-      ConfigType: CONFIG_TYPES.VMess,
-      ConfigVersion: 4,
-      DisplayLog: true,
-      EchConfigList: "",
-      Finalmask: "",
-      IndexId: indexId,
-      IsSub: false,
-      Mldsa65Verify: "",
-      Network: "tcp",
-      Password: `uuid-${index}`,
-      Port: 443,
-      ProtocolExtra: {},
-      PublicKey: "",
-      Remarks: `Server ${index}`,
-      ShortId: "",
-      Sni: "",
-      SpiderX: "",
-      StreamSecurity: "",
-      Subid: "",
-      TransportExtra: {},
-      Username: "",
-      ...overrides,
-    },
-    profileEx: {
-      Delay: index % 2 === 0 ? 40 + index : 0,
-      IndexId: indexId,
-      IpInfo: index % 2 === 0 ? "US" : null,
-      Message: null,
-      Sort: index * 10,
-      Speed: index % 2 === 0 ? 2048 : null,
-    },
-    serverStat: {
-      DateNow: 1,
-      IndexId: indexId,
-      TodayDown: index * 2048,
-      TodayUp: index * 1024,
-      TotalDown: index * 8192,
-      TotalUp: index * 4096,
-    },
-  };
+function makeProfile(index: number, overrides: Partial<Profile> = {}) {
+  return makeProfileFixture(index, overrides);
 }
 
 function makeSubscription() {
   return {
-    Enabled: true,
-    Filter: null,
-    Id: "sub-1",
-    MoreUrl: "",
-    NextProfile: null,
-    PreSocksPort: null,
-    PrevProfile: null,
-    Remarks: "Fixture",
-    Sort: 1,
-    Url: "https://example.test/sub",
-    UserAgent: "",
+    additionalUrl: "",
+    converterTarget: null,
+    enabled: true,
+    filter: null,
+    id: "sub-1",
+    preSocksPort: null,
+    remarks: "Fixture",
+    sort: 1,
+    url: "https://example.test/sub",
+    userAgent: "",
   };
 }

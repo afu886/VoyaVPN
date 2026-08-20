@@ -53,10 +53,10 @@ beforeEach(async () => {
   ipcMocks.listSubscriptions.mockResolvedValue([]);
   ipcMocks.importProfilesFromText.mockResolvedValue({
     imported: 1,
-    importedIndexIds: ["profile-from-qr"],
+    importedProfileIds: ["profile-from-qr"],
     removedExisting: 0,
     skipped: 0,
-    subid: null,
+    subscriptionId: null,
   });
 });
 
@@ -85,7 +85,7 @@ describe("ImportProfilesDialog QR scanning", () => {
 
     await user.click(screen.getByRole("button", { name: "Import payload" }));
     await waitFor(() =>
-      expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith("vless://image.example", null, false),
+      expect(ipcMocks.importProfilesFromText).toHaveBeenCalledWith("vless://image.example", null),
     );
   });
 

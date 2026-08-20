@@ -51,10 +51,12 @@ import type {
   GroupChildCandidate,
   GroupPreview,
   GroupPreviewRoute,
+  LoadStrategy,
 } from "@/ipc/bindings";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
 import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import { CONFIG_TYPES, getProtocolLabel, type ProfileProtocol } from "@/features/profiles/profile-constants";
 import {
@@ -72,12 +74,12 @@ type GroupBuilderProps = {
 };
 
 const multipleLoadOptions = [
-  { label: "Least ping", value: 0 },
-  { label: "Fallback", value: 1 },
-  { label: "Random", value: 2 },
-  { label: "Round robin", value: 3 },
-  { label: "Least load", value: 4 },
-];
+  { label: "Least ping", value: "leastPing" },
+  { label: "Fallback", value: "fallback" },
+  { label: "Random", value: "random" },
+  { label: "Round robin", value: "roundRobin" },
+  { label: "Least load", value: "leastLoad" },
+] as const satisfies ReadonlyArray<{ label: string; value: LoadStrategy }>;
 
 export function GroupBuilder({
   configType,
@@ -86,6 +88,7 @@ export function GroupBuilder({
   register,
   setValue,
 }: GroupBuilderProps) {
+  const { t } = useI18n();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [preview, setPreview] = useState<GroupPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -94,9 +97,9 @@ export function GroupBuilder({
   const mountedRef = useMountedRef();
   const multipleLoadId = useId();
   const values = useWatch({ control }) as ProfileFormValues;
-  const childItems = (values.ProtocolExtra?.ChildItems ?? "") as string;
-  const currentIndexId = (values.IndexId ?? "") || null;
-  const multipleLoad = values.ProtocolExtra?.MultipleLoad;
+  const childItems = (values.protocolOptions?.childProfileIds ?? "") as string;
+  const currentIndexId = (values.indexId ?? "") || null;
+  const multipleLoad = values.protocolOptions?.loadStrategy;
   const selectedIds = useMemo(() => splitIds(childItems), [childItems]);
   const candidatesQuery = useQuery({
     queryFn: () => listGroupChildCandidates(currentIndexId, null),
@@ -104,7 +107,7 @@ export function GroupBuilder({
   });
   const candidates = useMemo(() => candidatesQuery.data ?? [], [candidatesQuery.data]);
   const candidatesById = useMemo(
-    () => new Map(candidates.map((candidate) => [candidate.indexId, candidate])),
+    () => new Map(candidates.map((candidate) => [candidate.profileId, candidate])),
     [candidates],
   );
   const isProxyChain = configType === CONFIG_TYPES.ProxyChain;
@@ -118,7 +121,7 @@ export function GroupBuilder({
   }, []);
 
   function setSelectedIds(ids: string[]) {
-    setValue("ProtocolExtra.ChildItems", ids.join(","), {
+    setValue("protocolOptions.childProfileIds", ids.join(","), {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -172,24 +175,24 @@ export function GroupBuilder({
           groupType={groupType}
           label={isProxyChain ? "Chain marker" : "Group marker"}
         />
-        <LabeledField label="Subscription child group" {...register("ProtocolExtra.SubChildItems")} />
+        <LabeledField label="Subscription child group" {...register("protocolOptions.sourceSubscriptionId")} />
         <div className="grid gap-1.5">
-          <Label htmlFor={multipleLoadId}>Load mode</Label>
+          <Label htmlFor={multipleLoadId}>{t("panes.groups.loadMode")}</Label>
           <Select
             onValueChange={(value) => {
-              setValue("ProtocolExtra.MultipleLoad", optionalNumber(value) ?? 0, {
+              setValue("protocolOptions.loadStrategy", value as LoadStrategy, {
                 shouldDirty: true,
                 shouldValidate: true,
               });
             }}
-            value={String(multipleLoad ?? 0)}
+            value={multipleLoad ?? "leastPing"}
           >
             <SelectTrigger className="w-full" id={multipleLoadId}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {multipleLoadOptions.map((option) => (
-                <SelectItem key={option.value} value={String(option.value)}>
+                <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
@@ -199,7 +202,7 @@ export function GroupBuilder({
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
-        <LabeledField label="Subscription filter" placeholder="^US|Japan" {...register("ProtocolExtra.Filter")} />
+        <LabeledField label="Subscription filter" placeholder="^US|Japan" {...register("protocolOptions.filter")} />
         <div className="flex items-end">
           <Button
             className="w-full"
@@ -211,7 +214,7 @@ export function GroupBuilder({
             variant="outline"
           >
             <Plus className="size-4" aria-hidden="true" />
-            Choose children
+            {t("panes.groups.chooseChildren")}
           </Button>
         </div>
       </div>
@@ -220,17 +223,17 @@ export function GroupBuilder({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />
-            Selected children
+            {t("panes.groups.selectedChildren")}
           </div>
           <Button disabled={previewLoading} onClick={() => void loadPreview()} size="sm" type="button" variant="outline">
             <Eye className="size-4" aria-hidden="true" />
-            Preview
+            {t("panes.groups.preview")}
           </Button>
         </div>
 
         {selectedIds.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-            No child profiles selected
+            {t("panes.groups.noChildren")}
           </div>
         ) : (
           <div className="grid gap-2">
@@ -245,7 +248,7 @@ export function GroupBuilder({
                       {candidate?.remarks || indexId}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
-                      {candidate ? `${getProtocolLabel(candidate.configType)} · ${candidate.address || "group"}` : indexId}
+                      {candidate ? `${getProtocolLabel(candidate.protocol)} · ${candidate.address || "group"}` : indexId}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -309,6 +312,7 @@ function ServerPickerDialog({
   onSelected: (ids: string[]) => void;
   open: boolean;
 }) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState("");
   const searchId = useId();
   const pickerId = useId();
@@ -320,7 +324,7 @@ function ServerPickerDialog({
     }
 
     return candidates.filter((candidate) =>
-      [candidate.remarks, candidate.address, candidate.indexId, getProtocolLabel(candidate.configType)]
+      [candidate.remarks, candidate.address, candidate.profileId, getProtocolLabel(candidate.protocol)]
         .join(" ")
         .toLowerCase()
         .includes(needle),
@@ -333,10 +337,10 @@ function ServerPickerDialog({
     }
     onDraftIdsChange((current) => {
       if (selected) {
-        return current.includes(candidate.indexId) ? current : [...current, candidate.indexId];
+        return current.includes(candidate.profileId) ? current : [...current, candidate.profileId];
       }
 
-      return current.filter((indexId) => indexId !== candidate.indexId);
+      return current.filter((indexId) => indexId !== candidate.profileId);
     });
   }
 
@@ -346,16 +350,16 @@ function ServerPickerDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers3 className="size-4" aria-hidden="true" />
-            Select child profiles
+            {t("panes.groups.selectChildren")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Choose servers, policy groups, or proxy chains for the current group.
+            {t("panes.groups.chooseDescription")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-1.5">
           <Label className="sr-only" htmlFor={searchId}>
-            Filter child profiles
+            {t("panes.groups.filterChildren")}
           </Label>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -376,14 +380,14 @@ function ServerPickerDialog({
 
         <ScrollArea className="min-h-0 overflow-hidden rounded-md border" id={pickerId}>
           {loading ? (
-            <div className="grid h-40 place-items-center text-sm text-muted-foreground">Loading profiles</div>
+            <div className="grid h-40 place-items-center text-sm text-muted-foreground">{t("panes.groups.loadingChildren")}</div>
           ) : filtered.length === 0 ? (
-            <div className="grid h-40 place-items-center text-sm text-muted-foreground">No matching profiles</div>
+            <div className="grid h-40 place-items-center text-sm text-muted-foreground">{t("panes.groups.noMatches")}</div>
           ) : (
             <div className="divide-y">
               {filtered.map((candidate) => {
-                const checked = draftIdSet.has(candidate.indexId);
-                const checkboxId = `${pickerId}-${toDomId(candidate.indexId)}`;
+                const checked = draftIdSet.has(candidate.profileId);
+                const checkboxId = `${pickerId}-${toDomId(candidate.profileId)}`;
 
                 return (
                   <Label
@@ -392,7 +396,7 @@ function ServerPickerDialog({
                       candidate.selectable ? "hover:bg-accent" : "text-muted-foreground",
                     )}
                     htmlFor={checkboxId}
-                    key={candidate.indexId}
+                    key={candidate.profileId}
                   >
                     <Checkbox
                       checked={checked}
@@ -401,13 +405,13 @@ function ServerPickerDialog({
                       onCheckedChange={(nextChecked) => toggleCandidate(candidate, nextChecked === true)}
                     />
                     <span className="min-w-0">
-                      <span className="block truncate font-medium">{candidate.remarks || candidate.indexId}</span>
+                      <span className="block truncate font-medium">{candidate.remarks || candidate.profileId}</span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {candidate.indexId} · {candidate.address || "group"}
+                        {candidate.profileId} · {candidate.address || "group"}
                       </span>
                     </span>
                     <Badge className="justify-self-end bg-background text-muted-foreground" variant="outline">
-                      {candidate.isGroup ? "Nested" : getProtocolLabel(candidate.configType)}
+                      {candidate.isGroup ? "Nested" : getProtocolLabel(candidate.protocol)}
                     </Badge>
                   </Label>
                 );
@@ -418,7 +422,7 @@ function ServerPickerDialog({
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            Cancel
+            {t("actions.cancel")}
           </Button>
           <Button
             onClick={() => {
@@ -427,7 +431,7 @@ function ServerPickerDialog({
             }}
             type="button"
           >
-            Apply
+            {t("actions.apply")}
           </Button>
         </DialogFooter>
       </ScrollableDialogContent>
@@ -436,21 +440,16 @@ function ServerPickerDialog({
 }
 
 function GroupPreviewPanel({ preview }: { preview: GroupPreview }) {
-  const validation = preview.validation ?? {
-    childIndexIds: [],
-    errors: [],
-    normalizedChildItems: "",
-    valid: false,
-    warnings: [],
-  };
-  const singboxRoutes = preview.singboxRoutes ?? [];
+  const { t } = useI18n();
+  const validation = preview.validation;
+  const singboxRoutes = preview.singboxRoutes;
 
   return (
     <Card className="grid gap-3 rounded-lg bg-muted/30 p-3 shadow-none">
       {validation.valid ? (
         <div className="flex items-center gap-2 text-sm text-success">
           <CheckCircle2 className="size-4" aria-hidden="true" />
-          Preview generated from validated children
+          {t("panes.groups.previewGenerated")}
         </div>
       ) : (
         <ValidationMessage tone="error" messages={validation.errors ?? []} />
@@ -475,6 +474,7 @@ function PreviewList({
   routes: GroupPreviewRoute[];
   title: string;
 }) {
+  const { t } = useI18n();
   return (
     <section className="grid gap-2">
       <h4 className="text-sm font-medium">{title}</h4>
@@ -489,7 +489,7 @@ function PreviewList({
       ) : null}
       <ScrollArea className="h-48 rounded-md border bg-background">
         {routes.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">No generated routes</div>
+          <div className="px-3 py-6 text-center text-sm text-muted-foreground">{t("panes.groups.noGeneratedRoutes")}</div>
         ) : (
           <div className="divide-y">
             {routes.map((route) => (
@@ -619,15 +619,6 @@ function splitIds(value?: string | null) {
   }
 
   return [...ids];
-}
-
-function optionalNumber(value: unknown) {
-  if (value === "" || value == null) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function toDomId(value: string) {

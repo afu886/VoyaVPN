@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@voya/ui/components/dialog";
-import type { RoutingItem_Serialize } from "@/ipc/bindings";
+import type { Routing_Serialize } from "@/ipc/bindings";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import { SINGBOX_DOMAIN_STRATEGIES } from "./routing-constants";
 import { CheckboxField, SelectField, TextField } from "./routing-form-fields";
@@ -35,8 +36,9 @@ export function RoutingProfileDialog({
   onOpenChange: (open: boolean) => void;
   onSubmit: (routing: RoutingFormPayload) => Promise<void>;
   open: boolean;
-  routing: RoutingItem_Serialize | null;
+  routing: Routing_Serialize | null;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(() => routingToForm(routing));
   const [fieldErrors, setFieldErrors] = useState<ErrorMap>({});
 
@@ -63,7 +65,7 @@ export function RoutingProfileDialog({
             <Route className="size-4" aria-hidden="true" />
             {mode === "edit" ? "Edit routing profile" : "Create routing profile"}
           </DialogTitle>
-          <DialogDescription className="sr-only">Routing profile editor</DialogDescription>
+          <DialogDescription className="sr-only">{t("panes.routing.editor")}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -72,49 +74,49 @@ export function RoutingProfileDialog({
           onSubmit={(event) => void submitForm(event)}
         >
           <TextField
-            error={fieldErrors.Remarks}
-            label="Remarks"
-            onChange={(value) => setForm((current) => ({ ...current, Remarks: value }))}
-            value={form.Remarks ?? ""}
+            error={fieldErrors.remarks}
+            label="remarks"
+            onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
+            value={form.remarks ?? ""}
           />
           <div className="grid gap-3">
             <SelectField
-              error={fieldErrors.DomainStrategy4Singbox}
+              error={fieldErrors.singboxDomainStrategy}
               label="sing-box domain strategy"
-              onChange={(value) => setForm((current) => ({ ...current, DomainStrategy4Singbox: value }))}
+              onChange={(value) => setForm((current) => ({ ...current, singboxDomainStrategy: value }))}
               options={SINGBOX_DOMAIN_STRATEGIES.map((strategy) => ({
                 label: strategy || "default",
                 value: strategy,
               }))}
-              value={form.DomainStrategy4Singbox ?? ""}
+              value={form.singboxDomainStrategy ?? ""}
             />
           </div>
           <TextField
-            error={fieldErrors.CustomRulesetPath4Singbox}
+            error={fieldErrors.singboxRulesetPath}
             label="Ruleset path for sing-box"
-            onChange={(value) => setForm((current) => ({ ...current, CustomRulesetPath4Singbox: value }))}
-            value={form.CustomRulesetPath4Singbox ?? ""}
+            onChange={(value) => setForm((current) => ({ ...current, singboxRulesetPath: value }))}
+            value={form.singboxRulesetPath ?? ""}
           />
           <TextField
-            error={fieldErrors.Url}
+            error={fieldErrors.sourceUrl}
             label="Source URL"
-            onChange={(value) => setForm((current) => ({ ...current, Url: value }))}
-            value={form.Url ?? ""}
+            onChange={(value) => setForm((current) => ({ ...current, sourceUrl: value }))}
+            value={form.sourceUrl ?? ""}
           />
           <CheckboxField
-            checked={form.Enabled ?? true}
-            label="Enabled"
-            onCheckedChange={(checked) => setForm((current) => ({ ...current, Enabled: checked }))}
+            checked={form.enabled ?? true}
+            label="enabled"
+            onCheckedChange={(checked) => setForm((current) => ({ ...current, enabled: checked }))}
           />
         </form>
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            Cancel
+            {t("actions.cancel")}
           </Button>
           <Button form="routing-profile-form" type="submit">
             <Save className="size-4" aria-hidden="true" />
-            Save
+            {t("actions.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

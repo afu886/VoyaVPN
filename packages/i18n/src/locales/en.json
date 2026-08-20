@@ -1,15 +1,22 @@
 {
   "actions": {
+    "activate": "Activate",
+    "apply": "Apply",
+    "cancel": "Cancel",
     "clear": "Clear",
     "close": "Close",
     "closeAll": "Close all",
     "connect": "Connect",
+    "delete": "Delete",
     "disconnect": "Disconnect",
+    "edit": "Edit",
     "refresh": "Refresh",
     "refreshRuntimeState": "Refresh runtime state",
+    "reload": "Reload",
     "reloadCoreConfig": "Reload core configuration",
     "restart": "Restart",
     "runningProxyGroupDelayTest": "Running proxy group delay test",
+    "save": "Save",
     "settings": "Settings",
     "testSelected": "Test selected"
   },
@@ -63,14 +70,9 @@
       "customSourcesRequired": "A routing template source URL is required for a custom import.",
       "default": "Default",
       "defaultDescription": "Clear regional sources, restore built-in DNS, and import the built-in routing template.",
-      "dnsFallbackWarning": "One or more DNS templates were unavailable. The fallback DNS configuration was kept.",
       "import": "Import configuration template",
       "invalidSourceUrl": "Each custom source must be a valid HTTPS URL without credentials.",
-      "iran": "Iran",
-      "iranDescription": "Use the Iran geo, ruleset, routing, and DNS sources.",
       "reusedDescription": "The matching routing template already existed and was reused and activated.",
-      "russia": "Russia",
-      "russiaDescription": "Use the Russia geo, ruleset, routing, and DNS sources.",
       "selectPrompt": "Select a template",
       "title": "Import configuration template"
     },
@@ -86,6 +88,26 @@
     "srsSource": "sing-box ruleset source"
   },
   "panes": {
+    "dns": {
+      "errorCount": "{{count}} errors",
+      "loading": "Loading DNS settings",
+      "simpleTitle": "Simple DNS"
+    },
+    "groups": {
+      "applyChildren": "Apply",
+      "chooseChildren": "Choose children",
+      "chooseDescription": "Choose servers, policy groups, or proxy chains for the current group.",
+      "filterChildren": "Filter child profiles",
+      "loadingChildren": "Loading profiles",
+      "loadMode": "Load mode",
+      "noChildren": "No child profiles selected",
+      "noGeneratedRoutes": "No generated routes",
+      "noMatches": "No matching profiles",
+      "preview": "Preview",
+      "previewGenerated": "Preview generated from validated children",
+      "selectChildren": "Select child profiles",
+      "selectedChildren": "Selected children"
+    },
     "logs": {
       "empty": "No log lines",
       "jumpToLatest": "Jump to latest",
@@ -151,14 +173,14 @@
         "clipboardUnavailable": "Clipboard write is unavailable in this context.",
         "copied": "Copied {{count}} exported profile(s) to clipboard.",
         "export": "Export",
-        "innerLinks": "Inner links",
         "noSelection": "Select at least one profile to export.",
         "saveClientConfig": "Save client config",
         "savedFile": "Saved export to {{path}}.",
         "saveShareLinks": "Save share links",
         "shareBase64": "Share links (Base64)",
         "shareLinks": "Share links",
-        "showQr": "Show QR"
+        "showQr": "Show QR",
+        "voyaBundle": "Voya profile bundle"
       },
       "fields": {
         "address": "Address",
@@ -223,6 +245,17 @@
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
         "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
+      "importDialog": {
+        "description": "Import share links, subscription URLs, or JSON payloads.",
+        "file": "File",
+        "manual": "Manual import",
+        "mode": "Mode",
+        "paste": "Paste",
+        "payload": "Import payload",
+        "subscriptionTarget": "Subscription target",
+        "target": "Target",
+        "title": "Import Profiles"
+      },
       "menu": {
         "move": "Move",
         "moveBottom": "Move to bottom",
@@ -278,10 +311,33 @@
       "empty": "No proxy groups",
       "title": "Proxy Groups"
     },
+    "routing": {
+      "active": "Active",
+      "domain": "domain",
+      "editor": "Routing profile editor",
+      "network": "network",
+      "outbound": "Outbound",
+      "port": "port",
+      "profile": "Profile",
+      "profileCount": "{{count}} profiles",
+      "profiles": "Profiles",
+      "remarks": "remarks",
+      "rule": "Rule",
+      "ruleEditor": "Routing rule editor",
+      "rulesCount": "{{count}} rules ·",
+      "type": "type"
+    },
     "subscriptions": {
+      "description": "Manage subscription sources and run updates.",
+      "details": "Subscription details",
       "empty": "No subscriptions",
       "emptyDescription": "Add a subscription source to import profiles automatically.",
-      "loading": "Loading subscriptions"
+      "enabled": "Enabled",
+      "loading": "Loading subscriptions",
+      "sources": "Sources",
+      "title": "Subscriptions",
+      "updateAll": "Update all",
+      "updateSelected": "Update selected"
     }
   },
   "proxy": {
@@ -324,44 +380,25 @@
     "scanScreen": "Screen",
     "screenUnavailable": "Screen QR scanning is unavailable on this platform or permission state."
   },
-  "resx": {
-    "TbHopInt7": "Port hopping interval",
-    "TbIcmpRoutingPolicy": "ICMP routing policy",
-    "TbMtu": "MTU",
-    "TbSettingsAdvancedProtocol": "Advanced proxy settings, protocol selection (optional)",
-    "TbSettingsBindInterface": "Bind Interface",
-    "TbSettingsCore": "Core: basic settings",
-    "TbSettingsCustomSystemProxyPacPath": "Custom PAC file path",
-    "TbSettingsCustomSystemProxyScriptPath": "Custom system proxy script file path",
-    "TbSettingsDefAllowInsecure": "Allow Insecure",
-    "TbSettingsDefFingerprint": "Default TLS fingerprint",
-    "TbSettingsDefUserAgent": "User-Agent",
-    "TbSettingsEnableCacheFile4Sbox": "Enable cache file for sing-box (ruleset files)",
-    "TbSettingsEnableFragment": "Enable fragment",
-    "TbSettingsEnableIPv6Address": "Enable IPv6 Address",
-    "TbSettingsException": "Exception",
-    "TbSettingsHysteriaBandwidth": "Hysteria Max bandwidth (Up/Down)",
-    "TbSettingsIPAPIUrl": "Current connection info test URL",
-    "TbSettingsLogEnabled": "Enable Log",
-    "TbSettingsLogLevel": "Log Level",
-    "TbSettingsMixedConcurrencyCount": "The number of concurrent tests during multi-test",
-    "TbSettingsMux4SboxProtocol": "sing-box Mux Protocol",
-    "TbSettingsMuxEnabled": "Turn on Mux Multiplexing",
-    "TbSettingsNotProxyLocalAddress": "Do not use proxy servers for local (intranet) addresses",
-    "TbSettingsSendThrough": "Local outbound address (SendThrough)",
-    "TbSettingsSpeedPingTestUrl": "Speed Ping Test URL",
-    "TbSettingsSpeedTestTimeout": "Speed Test Single Timeout Value",
-    "TbSettingsSpeedTestUrl": "Speed Test URL",
-    "TbSettingsSubConvert": "Subscription conversion URL",
-    "TbSettingsTunAutoRoute": "Auto Route",
-    "TbSettingsTunMode": "Tun Mode settings",
-    "TbSettingsTunStack": "Stack",
-    "TbSettingsTunStrictRoute": "Strict Route",
-    "TbSettingsUdpTestUrl": "UDP Test Url"
-  },
   "settings": {
     "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
     "closeUnsavedTitle": "Unsaved settings",
+    "core": {
+      "allowInsecure": "Allow Insecure",
+      "bindInterface": "Bind Interface",
+      "cacheFileEnabled": "Enable cache file for sing-box (ruleset files)",
+      "fingerprint": "Default TLS fingerprint",
+      "fragmentEnabled": "Enable fragment",
+      "hysteriaBandwidth": "Hysteria Max bandwidth (Up/Down)",
+      "hysteriaHopInterval": "Port hopping interval",
+      "logEnabled": "Enable Log",
+      "logLevel": "Log Level",
+      "muxEnabled": "Turn on Mux Multiplexing",
+      "muxProtocol": "sing-box Mux Protocol",
+      "sendThrough": "Local outbound address (SendThrough)",
+      "title": "Core: basic settings",
+      "userAgent": "User-Agent"
+    },
     "discardChanges": "Discard changes",
     "fields": {
       "hysteriaDownMbps": "Hysteria max download bandwidth (Mbps)",
@@ -371,12 +408,37 @@
       "speedTestDelayInterval": "Delay between speed test batches (seconds)",
       "speedTestPageSize": "Servers per speed test batch"
     },
+    "network": {
+      "bypassLocalAddress": "Do not use proxy servers for local (intranet) addresses",
+      "customPacPath": "Custom PAC file path",
+      "customScriptPath": "Custom system proxy script file path",
+      "enableIpv6Address": "Enable IPv6 Address",
+      "icmpRoutingPolicy": "ICMP routing policy",
+      "mtu": "MTU",
+      "systemProxyExceptions": "Exception",
+      "systemProxyProtocol": "Advanced proxy settings, protocol selection (optional)",
+      "tunAutoRoute": "Auto Route",
+      "tunMode": "Tun Mode settings",
+      "tunStack": "Stack",
+      "tunStrictRoute": "Strict Route"
+    },
     "saveAll": "Save all",
     "saveBeforeActions": "Save or discard pending changes before running this action.",
+    "sources": {
+      "subscriptionConverter": "Subscription conversion URL"
+    },
     "startup": "Startup",
     "tabGeneral": "General",
     "tabTests": "Tests",
     "tabUpdates": "Updates",
+    "tests": {
+      "downloadUrl": "Speed Test URL",
+      "ipApiUrl": "Current connection info test URL",
+      "mixedConcurrency": "The number of concurrent tests during multi-test",
+      "pingUrl": "Speed Ping Test URL",
+      "timeout": "Speed Test Single Timeout Value",
+      "udpTarget": "UDP Test Url"
+    },
     "unsavedChanges": "Unsaved changes"
   },
   "status": {

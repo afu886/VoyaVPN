@@ -5,9 +5,12 @@ use super::{lifecycle::*, support::*, *};
 pub async fn run_speedtest<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    action: voya_core::SpeedActionType,
-    index_ids: Vec<String>,
+    request: voya_contracts::SpeedTestRequest,
 ) -> Result<SpeedtestRunResult, AppError> {
+    let index_ids = match request.target {
+        voya_contracts::SpeedTestTarget::All => Vec::new(),
+        voya_contracts::SpeedTestTarget::Profiles { profile_ids } => profile_ids,
+    };
     validate_ipc_text_list(
         &index_ids,
         "profile index id",
@@ -17,18 +20,13 @@ pub async fn run_speedtest<R: tauri::Runtime>(
     let config = current_config(&state)?;
     let manager = speedtest_manager(&state);
     let emit_app = app.clone();
-    let result = manager
-        .run_with_callback(
-            state.database(),
-            &config,
-            action,
-            index_ids,
-            move |result| {
-                if let Err(error) = emit_speedtest_result(&emit_app, &result) {
-                    tracing::warn!(?error, "failed to emit speedtest result");
-                }
-            },
-        )
+    let result = state
+        .services()
+        .run_speedtest(&manager, &config, request.kind, index_ids, move |result| {
+            if let Err(error) = emit_speedtest_result(&emit_app, &result) {
+                tracing::warn!(?error, "failed to emit speedtest result");
+            }
+        })
         .await
         .map_err(speedtest_error)?;
 

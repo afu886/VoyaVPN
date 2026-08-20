@@ -1,11 +1,10 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { loadSettingsBundle, saveSettingsBundle } from "@/ipc";
+import { loadAppSettings, saveAppSettings } from "@/ipc";
 import type {
-  SettingsBundle_Deserialize,
-  SettingsBundle_Serialize,
-  UiPreferences,
+  AppSettingsV1,
+  AppearanceSettings,
 } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 
@@ -13,35 +12,35 @@ import { applyUiPreferences, UI_PREFERENCES_QUERY_KEY } from "./ui-preferences";
 
 const PREFERENCES_STORAGE_KEY = "voyavpn.preferences";
 const LOCALE_STORAGE_KEY = "voyavpn.locale";
-const SETTINGS_BUNDLE_QUERY_KEY = ["settings-bundle"] as const;
+const APP_SETTINGS_QUERY_KEY = ["app-settings"] as const;
 
-export type SettingsBundleController = {
-  bundle: SettingsBundle_Serialize | null;
+export type AppSettingsController = {
+  settings: AppSettingsV1 | null;
   dirty: boolean;
   discard: () => Promise<void>;
   error: string | null;
   reload: () => Promise<void>;
   save: () => Promise<boolean>;
   saved: boolean;
-  setUiPreferences: (preferences: UiPreferences) => void;
+  setAppearance: (preferences: AppearanceSettings) => void;
   update: (
-    updater: (current: SettingsBundle_Serialize) => SettingsBundle_Serialize,
+    updater: (current: AppSettingsV1) => AppSettingsV1,
   ) => void;
   working: boolean;
 };
 
-export function useSettingsBundle(): SettingsBundleController {
+export function useAppSettings(): AppSettingsController {
   const queryClient = useQueryClient();
   const settingsQuery = useQuery({
-    queryFn: loadSettingsBundle,
-    queryKey: SETTINGS_BUNDLE_QUERY_KEY,
+    queryFn: loadAppSettings,
+    queryKey: APP_SETTINGS_QUERY_KEY,
   });
-  const [draft, setDraft] = useState<SettingsBundle_Serialize | null>(null);
+  const [draft, setDraft] = useState<AppSettingsV1 | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const original = settingsQuery.data ?? null;
-  const bundle = draft ?? original;
+  const settings = draft ?? original;
 
   const load = useCallback(async () => {
     setOperationError(null);
@@ -53,10 +52,10 @@ export function useSettingsBundle(): SettingsBundleController {
     }
   }, [settingsQuery]);
 
-  const dirty = Boolean(draft && original && !bundlesEqual(draft, original));
+  const dirty = Boolean(draft && original && !settingsEqual(draft, original));
 
   const update = useCallback(
-    (updater: (current: SettingsBundle_Serialize) => SettingsBundle_Serialize) => {
+    (updater: (current: AppSettingsV1) => AppSettingsV1) => {
       setSaved(false);
       setDraft((current) => {
         const next = current ?? settingsQuery.data;
@@ -66,9 +65,9 @@ export function useSettingsBundle(): SettingsBundleController {
     [settingsQuery.data],
   );
 
-  const setUiPreferences = useCallback(
-    (preferences: UiPreferences) => {
-      update((current) => ({ ...current, uiPreferences: preferences }));
+  const setAppearance = useCallback(
+    (preferences: AppearanceSettings) => {
+      update((current) => ({ ...current, appearance: preferences }));
       void applyUiPreferencesPreview(preferences).catch((previewError: unknown) => {
         setOperationError(getErrorMessage(previewError));
       });
@@ -83,33 +82,33 @@ export function useSettingsBundle(): SettingsBundleController {
     setDraft(null);
     setSaved(false);
     setOperationError(null);
-    await applyUiPreferences(original.uiPreferences).catch((rollbackError: unknown) => {
+    await applyUiPreferences(original.appearance).catch((rollbackError: unknown) => {
       setOperationError(getErrorMessage(rollbackError));
     });
   }, [original]);
 
   const save = useCallback(async () => {
-    if (!bundle) {
+    if (!settings) {
       return false;
     }
     setSaving(true);
     setOperationError(null);
     setSaved(false);
     try {
-      const authoritative = await saveSettingsBundle(bundle as SettingsBundle_Deserialize);
-      queryClient.setQueryData(SETTINGS_BUNDLE_QUERY_KEY, authoritative);
+      const authoritative = await saveAppSettings(settings);
+      queryClient.setQueryData(APP_SETTINGS_QUERY_KEY, authoritative);
       setDraft(null);
       setSaved(true);
-      await applyUiPreferences(authoritative.uiPreferences);
-      queryClient.setQueryData(UI_PREFERENCES_QUERY_KEY, authoritative.uiPreferences);
+      await applyUiPreferences(authoritative.appearance);
+      queryClient.setQueryData(UI_PREFERENCES_QUERY_KEY, authoritative.appearance);
       return true;
     } catch (saveError) {
       setOperationError(getErrorMessage(saveError));
       try {
-        const authoritative = await loadSettingsBundle();
-        queryClient.setQueryData(SETTINGS_BUNDLE_QUERY_KEY, authoritative);
+        const authoritative = await loadAppSettings();
+        queryClient.setQueryData(APP_SETTINGS_QUERY_KEY, authoritative);
         setDraft(null);
-        await applyUiPreferences(authoritative.uiPreferences);
+        await applyUiPreferences(authoritative.appearance);
       } catch {
         // Keep the original save error; a later Reload can retry the snapshot.
       }
@@ -117,23 +116,23 @@ export function useSettingsBundle(): SettingsBundleController {
     } finally {
       setSaving(false);
     }
-  }, [bundle, queryClient]);
+  }, [settings, queryClient]);
 
   return {
-    bundle,
+    settings,
     dirty,
     discard,
     error: operationError ?? (settingsQuery.error ? getErrorMessage(settingsQuery.error) : null),
     reload: load,
     save,
     saved,
-    setUiPreferences,
+    setAppearance,
     update,
     working: saving || settingsQuery.isPending || settingsQuery.isFetching,
   };
 }
 
-async function applyUiPreferencesPreview(preferences: UiPreferences) {
+async function applyUiPreferencesPreview(preferences: AppearanceSettings) {
   const stored = new Map(
     [PREFERENCES_STORAGE_KEY, LOCALE_STORAGE_KEY].map((key) => [
       key,
@@ -153,6 +152,6 @@ async function applyUiPreferencesPreview(preferences: UiPreferences) {
   }
 }
 
-function bundlesEqual(left: SettingsBundle_Serialize, right: SettingsBundle_Serialize) {
+function settingsEqual(left: AppSettingsV1, right: AppSettingsV1) {
   return JSON.stringify(left) === JSON.stringify(right);
 }

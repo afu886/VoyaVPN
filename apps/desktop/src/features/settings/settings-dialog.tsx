@@ -14,9 +14,9 @@ import { SettingsTabBar, SettingsTabTrigger } from "./settings-tabs";
 import { SourcesTab } from "./sources-tab";
 import { TestsTab } from "./tests-tab";
 import {
-  useSettingsBundle,
-  type SettingsBundleController,
-} from "./use-settings-bundle";
+  useAppSettings,
+  type AppSettingsController,
+} from "./use-app-settings";
 
 export type SettingsTab = "core" | "general" | "network" | "sources" | "tests" | "updates";
 
@@ -35,7 +35,7 @@ export function SettingsSurface({
   controller,
   initialTab = "general",
 }: {
-  controller?: SettingsBundleController;
+  controller?: AppSettingsController;
   initialTab?: SettingsTab;
 }) {
   if (controller) {
@@ -45,7 +45,7 @@ export function SettingsSurface({
 }
 
 function OwnedSettingsSurface({ initialTab }: { initialTab: SettingsTab }) {
-  const controller = useSettingsBundle();
+  const controller = useAppSettings();
   return <SettingsSurfaceView controller={controller} initialTab={initialTab} />;
 }
 
@@ -53,7 +53,7 @@ function SettingsSurfaceView({
   controller,
   initialTab,
 }: {
-  controller: SettingsBundleController;
+  controller: AppSettingsController;
   initialTab: SettingsTab;
 }) {
   const { direction, t } = useI18n();
@@ -110,7 +110,7 @@ function SettingsPane({
   controller,
   tab,
 }: {
-  controller: SettingsBundleController;
+  controller: AppSettingsController;
   tab: SettingsTab;
 }) {
   const { t } = useI18n();

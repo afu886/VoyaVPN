@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { IpcCommandError, loadDnsSettings, saveDnsSettings } from "@/ipc";
-import type { DnsSettings_Serialize } from "@/ipc/bindings";
+import type { DnsSettings } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { dnsSettingsSchema, zodIssuesToErrorMap } from "./dns-form-schema";
@@ -14,7 +14,7 @@ export function useDnsSettings() {
     queryFn: loadDnsSettings,
     queryKey: ["dns"],
   });
-  const [draft, setDraft] = useState<DnsSettings_Serialize | null>(null);
+  const [draft, setDraft] = useState<DnsSettings | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const form = draft ?? dnsQuery.data ?? null;
@@ -64,23 +64,17 @@ export function useDnsSettings() {
     }
   }
 
-  function updateSimple(patch: Partial<DnsSettings_Serialize["simpleDnsItem"]>) {
+  function updateSimple(patch: Partial<DnsSettings>) {
     setDraft((current) =>
       current
         ? {
             ...current,
-            simpleDnsItem: {
-              ...current.simpleDnsItem,
-              ...patch,
-            },
+            ...patch,
           }
         : dnsQuery.data
           ? {
               ...dnsQuery.data,
-              simpleDnsItem: {
-                ...dnsQuery.data.simpleDnsItem,
-                ...patch,
-              },
+              ...patch,
             }
           : current,
     );

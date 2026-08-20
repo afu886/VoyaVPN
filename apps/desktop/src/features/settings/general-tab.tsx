@@ -15,7 +15,7 @@ import {
   SettingsGroup,
   SettingsRow,
 } from "./settings-form";
-import type { SettingsBundleController } from "./use-settings-bundle";
+import type { AppSettingsController } from "./use-app-settings";
 
 const themeOptions: Array<{
   icon: typeof Monitor;
@@ -30,11 +30,11 @@ const themeOptions: Array<{
 const selectedOptionClass =
   "border border-primary bg-accent-blue-light text-brand hover:bg-accent-blue-light hover:text-brand";
 
-export function GeneralTab({ controller }: { controller: SettingsBundleController }) {
+export function GeneralTab({ controller }: { controller: AppSettingsController }) {
   const { localeOptions, t } = useI18n();
-  const { bundle, setUiPreferences, update, working } = controller;
+  const { settings, setAppearance, update, working } = controller;
 
-  if (!bundle) {
+  if (!settings) {
     return (
       <p className="text-xs text-muted-foreground">
         {working ? t("options.loading") : controller.error}
@@ -42,7 +42,12 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
     );
   }
 
-  const hotkey = bundle.showWindowHotkey;
+  const hotkey = settings.shortcuts.showWindowShortcut ?? {
+    alt: false,
+    control: false,
+    shift: false,
+    keyCode: 0,
+  };
 
   return (
     <div className="grid gap-4">
@@ -51,7 +56,7 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
           <div className="flex flex-wrap gap-2">
             {themeOptions.map((option) => {
               const Icon = option.icon;
-              const selected = bundle.uiPreferences.theme === option.value;
+              const selected = settings.appearance.theme === option.value;
               return (
                 <Button
                   key={option.value}
@@ -59,7 +64,7 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
                   className={cn("h-8 min-w-0 px-3", selected && selectedOptionClass)}
                   disabled={working}
                   onClick={() =>
-                    setUiPreferences({ ...bundle.uiPreferences, theme: option.value })
+                    setAppearance({ ...settings.appearance, theme: option.value })
                   }
                   type="button"
                   variant={selected ? "secondary" : "outline"}
@@ -75,7 +80,7 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
         <SettingsRow align="start" label={t("modal.language")}>
           <div className="flex flex-wrap gap-2">
             {localeOptions.map((locale) => {
-              const selected = bundle.uiPreferences.language === locale.code;
+              const selected = settings.appearance.language === locale.code;
               return (
                 <Button
                   key={locale.code}
@@ -83,7 +88,7 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
                   className={cn("h-8 min-w-12 px-2 text-xs", selected && selectedOptionClass)}
                   disabled={working}
                   onClick={() =>
-                    setUiPreferences({ ...bundle.uiPreferences, language: locale.code })
+                    setAppearance({ ...settings.appearance, language: locale.code })
                   }
                   type="button"
                   variant={selected ? "secondary" : "outline"}
@@ -101,18 +106,21 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
       <SettingsGroup>
         <SettingsCheckboxGroup id="settings-startup-group" label={t("settings.startup")}>
           <SettingsCheckbox
-            checked={bundle.autostartEnabled}
+            checked={settings.behavior.autostart}
             disabled={working}
             label={t("options.autostart")}
             onCheckedChange={(checked) =>
-              update((current) => ({ ...current, autostartEnabled: checked === true }))
+              update((current) => ({
+                ...current,
+                behavior: { ...current.behavior, autostart: checked === true },
+              }))
             }
           />
         </SettingsCheckboxGroup>
 
         <SettingsRow label={t("options.hotkeyShowWindow")}>
           <div className="flex flex-wrap items-center gap-2">
-            {(["Control", "Alt", "Shift"] as const).map((modifier) => (
+            {(["control", "alt", "shift"] as const).map((modifier) => (
               <Button
                 key={modifier}
                 aria-pressed={hotkey[modifier]}
@@ -120,16 +128,18 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
                 onClick={() =>
                   update((current) => ({
                     ...current,
-                    showWindowHotkey: {
-                      ...current.showWindowHotkey,
-                      [modifier]: !current.showWindowHotkey[modifier],
+                    shortcuts: {
+                      showWindowShortcut: {
+                        ...(current.shortcuts.showWindowShortcut ?? hotkey),
+                        [modifier]: !(current.shortcuts.showWindowShortcut ?? hotkey)[modifier],
+                      },
                     },
                   }))
                 }
                 type="button"
                 variant={hotkey[modifier] ? "secondary" : "outline"}
               >
-                {modifier === "Control" ? "Ctrl" : modifier}
+                {modifier === "control" ? "Ctrl" : modifier[0].toUpperCase() + modifier.slice(1)}
               </Button>
             ))}
             <Input
@@ -141,19 +151,24 @@ export function GeneralTab({ controller }: { controller: SettingsBundleControlle
                 if (keyCode !== null) {
                   update((current) => ({
                     ...current,
-                    showWindowHotkey: { ...current.showWindowHotkey, KeyCode: keyCode },
+                    shortcuts: {
+                      showWindowShortcut: {
+                        ...(current.shortcuts.showWindowShortcut ?? hotkey),
+                        keyCode,
+                      },
+                    },
                   }));
                 }
               }}
               readOnly
-              value={keyCodeLabel(hotkey.KeyCode ?? null)}
+              value={keyCodeLabel(settings.shortcuts.showWindowShortcut?.keyCode ?? null)}
             />
             <Button
               className="h-7 px-2 text-xs"
               onClick={() =>
                 update((current) => ({
                   ...current,
-                  showWindowHotkey: { ...current.showWindowHotkey, KeyCode: null },
+                  shortcuts: { showWindowShortcut: null },
                 }))
               }
               type="button"

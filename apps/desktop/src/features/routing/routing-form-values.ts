@@ -1,120 +1,118 @@
-import type { RoutingItem_Serialize, RulesItem_Serialize } from "@/ipc/bindings";
+import type { RoutingRule, RoutingRuleScope, Routing_Serialize } from "@/ipc/bindings";
 
 import { RULE_TYPES } from "./routing-constants";
 
 export type RuleFormState = {
-  Id?: string;
-  Domain: string;
-  Enabled: boolean;
-  InboundTag: string;
-  Ip: string;
-  Network: string;
-  OutboundTag: string;
-  Port: string;
-  Process: string;
-  Protocol: string;
-  Remarks: string;
-  RuleType: number;
-  Type: string;
+  id?: string;
+  domain: string;
+  enabled: boolean;
+  inboundTags: string;
+  ip: string;
+  network: string;
+  outbound: string;
+  port: string;
+  process: string;
+  protocol: string;
+  remarks: string;
+  scope: RoutingRuleScope;
+  kind: string;
 };
 
 export type RoutingFormState = {
-  Id?: string;
-  CustomIcon?: string;
-  CustomRulesetPath4Singbox: string;
-  DomainStrategy: string;
-  DomainStrategy4Singbox: string;
-  Enabled: boolean;
-  IsActive?: boolean;
-  Locked?: boolean;
-  Remarks: string;
-  RuleNum?: number;
-  RuleSet: RulesItem_Serialize[];
-  Sort?: number;
-  Url: string;
+  id?: string;
+  icon?: string;
+  singboxRulesetPath: string;
+  domainStrategy: string;
+  singboxDomainStrategy: string;
+  enabled: boolean;
+  isActive?: boolean;
+  locked?: boolean;
+  remarks: string;
+  rules: RoutingRule[];
+  sort?: number;
+  sourceUrl: string;
 };
 
 type RulePayload = {
-  Id?: string;
-  Domain: string[] | null;
-  Enabled: boolean;
-  InboundTag: string[] | null;
-  Ip: string[] | null;
-  Network: string | null;
-  OutboundTag: string | null;
-  Port: string | null;
-  Process: string[] | null;
-  Protocol: string[] | null;
-  Remarks: string | null;
-  RuleType: number;
-  Type: string | null;
+  id: string;
+  domain: string[] | null;
+  enabled: boolean;
+  inboundTags: string[] | null;
+  ip: string[] | null;
+  network: string | null;
+  outbound: string | null;
+  port: string | null;
+  process: string[] | null;
+  protocol: string[] | null;
+  remarks: string | null;
+  scope: RoutingRuleScope;
+  kind: string | null;
 };
 
-export function routingToForm(routing: RoutingItem_Serialize | null): RoutingFormState {
+export function routingToForm(routing: Routing_Serialize | null): RoutingFormState {
   return routing
     ? {
-        CustomIcon: routing.CustomIcon,
-        CustomRulesetPath4Singbox: routing.CustomRulesetPath4Singbox,
-        DomainStrategy: routing.DomainStrategy || "AsIs",
-        DomainStrategy4Singbox: routing.DomainStrategy4Singbox,
-        Enabled: routing.Enabled,
-        Id: routing.Id,
-        IsActive: routing.IsActive,
-        Locked: routing.Locked,
-        Remarks: routing.Remarks,
-        RuleNum: routing.RuleNum,
-        RuleSet: routing.RuleSet,
-        Sort: routing.Sort,
-        Url: routing.Url,
+        icon: routing.icon,
+        singboxRulesetPath: routing.singboxRulesetPath,
+        domainStrategy: routing.domainStrategy || "AsIs",
+        singboxDomainStrategy: routing.singboxDomainStrategy,
+        enabled: routing.enabled,
+        id: routing.id,
+        isActive: routing.isActive,
+        locked: routing.locked,
+        remarks: routing.remarks,
+        rules: routing.rules,
+        sort: routing.sort,
+        sourceUrl: routing.sourceUrl,
       }
     : createDefaultRouting();
 }
 
-export function ruleToForm(rule: RulesItem_Serialize | null): RuleFormState {
+export function ruleToForm(rule: RoutingRule | null): RuleFormState {
   return {
-    Id: rule?.Id,
-    Domain: listToText(rule?.Domain),
-    Enabled: rule?.Enabled ?? true,
-    InboundTag: listToText(rule?.InboundTag),
-    Ip: listToText(rule?.Ip),
-    Network: rule?.Network ?? "",
-    OutboundTag: rule?.OutboundTag ?? "proxy",
-    Port: rule?.Port ?? "",
-    Process: listToText(rule?.Process),
-    Protocol: listToText(rule?.Protocol),
-    Remarks: rule?.Remarks ?? "",
-    RuleType: rule?.RuleType ?? RULE_TYPES.Routing,
-    Type: rule?.Type ?? "",
+    id: rule?.id,
+    domain: listToText(rule?.domain),
+    enabled: rule?.enabled ?? true,
+    inboundTags: listToText(rule?.inboundTags),
+    ip: listToText(rule?.ip),
+    network: rule?.network ?? "",
+    outbound: rule?.outbound ?? "proxy",
+    port: rule?.port ?? "",
+    process: listToText(rule?.process),
+    protocol: listToText(rule?.protocol),
+    remarks: rule?.remarks ?? "",
+    scope: rule?.scope ?? RULE_TYPES.Routing,
+    kind: rule?.kind ?? "",
   };
 }
 
 export function formToRule(form: RuleFormState): RulePayload {
   return {
-    Id: form.Id,
-    Domain: textToList(form.Domain),
-    Enabled: form.Enabled,
-    InboundTag: textToList(form.InboundTag),
-    Ip: textToList(form.Ip),
-    Network: emptyToNull(form.Network),
-    OutboundTag: emptyToNull(form.OutboundTag),
-    Port: emptyToNull(form.Port),
-    Process: textToList(form.Process),
-    Protocol: textToList(form.Protocol),
-    Remarks: emptyToNull(form.Remarks),
-    RuleType: form.RuleType,
-    Type: emptyToNull(form.Type),
+    id: form.id ?? "",
+    domain: textToList(form.domain),
+    enabled: form.enabled,
+    inboundTags: textToList(form.inboundTags),
+    ip: textToList(form.ip),
+    network: emptyToNull(form.network),
+    outbound: emptyToNull(form.outbound),
+    port: emptyToNull(form.port),
+    process: textToList(form.process),
+    protocol: textToList(form.protocol),
+    remarks: emptyToNull(form.remarks),
+    scope: form.scope,
+    kind: emptyToNull(form.kind),
   };
 }
 
 function createDefaultRouting(): RoutingFormState {
   return {
-    CustomRulesetPath4Singbox: "",
-    DomainStrategy: "AsIs",
-    DomainStrategy4Singbox: "",
-    Enabled: true,
-    Remarks: "",
-    RuleSet: [],
-    Url: "",
+    singboxRulesetPath: "",
+    domainStrategy: "AsIs",
+    singboxDomainStrategy: "",
+    enabled: true,
+    remarks: "",
+    rules: [],
+    sourceUrl: "",
   };
 }
 

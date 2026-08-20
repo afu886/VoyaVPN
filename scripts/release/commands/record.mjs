@@ -615,9 +615,10 @@ keys, signing tokens, and account passwords must not be pasted into this file.
 
 ## Required Command Evidence
 
-${checkbox("pnpm run verify:ci")}
+${checkbox("pnpm run verify:local")}
 ${checkbox("pnpm run build")}
-${checkbox("pnpm run check:frontend:smoke")}
+${checkbox("pnpm run check:frontend:smoke:mock")}
+${checkbox("pnpm run check:desktop:smoke")}
 ${checkbox("pnpm release -- readiness --mode dry-run")}
 ${checkbox("pnpm release -- updater-config")}
 ${checkbox("pnpm release -- readiness --mode stable")}
@@ -626,9 +627,10 @@ ${checkbox("pnpm release -- verify-staging --download-and-hash")}
 
 | Command | Runner or machine | Started at | Finished at | Result | Evidence path or hash | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| pnpm run verify:ci |  |  |  |  |  |  |
+| pnpm run verify:local |  |  |  |  |  |  |
 | pnpm run build |  |  |  |  |  |  |
-| pnpm run check:frontend:smoke |  |  |  |  |  |  |
+| pnpm run check:frontend:smoke:mock |  |  |  |  |  |  |
+| pnpm run check:desktop:smoke |  |  |  |  |  |  |
 | pnpm release -- readiness --mode dry-run |  |  |  |  |  |  |
 | pnpm release -- updater-config |  |  |  |  |  |  |
 | pnpm release -- readiness --mode stable |  |  |  |  |  |  |

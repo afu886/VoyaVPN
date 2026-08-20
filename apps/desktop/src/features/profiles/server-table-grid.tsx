@@ -128,7 +128,7 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                   }
 
                   const item = row.original;
-                  const indexId = item.profile.IndexId;
+                  const indexId = item.profile.id;
                   const isSelected = selectedIds.has(indexId);
 
                   return (
@@ -168,7 +168,7 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                       >
                         <td className="flex h-full items-center justify-center border-e px-2">
                           <Checkbox
-                            aria-label={t("panes.profiles.aria.selectRow", { name: item.profile.Remarks || indexId })}
+                            aria-label={t("panes.profiles.aria.selectRow", { name: item.profile.remarks || indexId })}
                             checked={isSelected}
                             onClick={(event) => event.stopPropagation()}
                             onCheckedChange={(checked) => toggleSelection(indexId, checked === true)}

@@ -1,15 +1,22 @@
 {
   "actions": {
+    "activate": "Activate",
+    "apply": "Apply",
+    "cancel": "Cancel",
     "clear": "清除",
     "close": "關閉",
     "closeAll": "關閉全部",
     "connect": "連線",
+    "delete": "Delete",
     "disconnect": "中斷連線",
+    "edit": "Edit",
     "refresh": "重新整理",
     "refreshRuntimeState": "重新整理執行狀態",
+    "reload": "Reload",
     "reloadCoreConfig": "重新載入核心設定",
     "restart": "重新啟動",
     "runningProxyGroupDelayTest": "執行中代理群組延遲測試",
+    "save": "Save",
     "settings": "設定",
     "testSelected": "測試所選"
   },
@@ -63,14 +70,9 @@
       "customSourcesRequired": "自訂匯入必須填寫路由範本來源網址。",
       "default": "預設",
       "defaultDescription": "清除區域來源、還原內建 DNS，並匯入內建路由範本。",
-      "dnsFallbackWarning": "一個或多個 DNS 範本無法使用，已保留回退 DNS 設定。",
       "import": "匯入設定範本",
       "invalidSourceUrl": "每個自訂來源都必須是不含憑證的有效 HTTPS URL。",
-      "iran": "伊朗",
-      "iranDescription": "使用伊朗的 Geo、規則集、路由及 DNS 來源。",
       "reusedDescription": "已重複使用並啟用現有的相同路由範本。",
-      "russia": "俄羅斯",
-      "russiaDescription": "使用俄羅斯的 Geo、規則集、路由及 DNS 來源。",
       "selectPrompt": "請選擇範本",
       "title": "匯入設定範本"
     },
@@ -86,6 +88,26 @@
     "srsSource": "sing-box 規則集來源"
   },
   "panes": {
+    "dns": {
+      "errorCount": "{{count}} errors",
+      "loading": "Loading DNS settings",
+      "simpleTitle": "Simple DNS"
+    },
+    "groups": {
+      "applyChildren": "Apply",
+      "chooseChildren": "Choose children",
+      "chooseDescription": "Choose servers, policy groups, or proxy chains for the current group.",
+      "filterChildren": "Filter child profiles",
+      "loadingChildren": "Loading profiles",
+      "loadMode": "Load mode",
+      "noChildren": "No child profiles selected",
+      "noGeneratedRoutes": "No generated routes",
+      "noMatches": "No matching profiles",
+      "preview": "Preview",
+      "previewGenerated": "Preview generated from validated children",
+      "selectChildren": "Select child profiles",
+      "selectedChildren": "Selected children"
+    },
     "logs": {
       "empty": "尚無日誌",
       "jumpToLatest": "跳至最新",
@@ -151,14 +173,14 @@
         "clipboardUnavailable": "目前環境不支援寫入剪貼簿。",
         "copied": "已複製 {{count}} 個匯出設定到剪貼簿。",
         "export": "匯出",
-        "innerLinks": "內部連結",
         "noSelection": "請至少選擇一個設定再匯出。",
         "saveClientConfig": "儲存用戶端設定",
         "savedFile": "已儲存匯出到 {{path}}。",
         "saveShareLinks": "儲存分享連結",
         "shareBase64": "分享連結（Base64）",
         "shareLinks": "分享連結",
-        "showQr": "顯示 QR Code"
+        "showQr": "顯示 QR Code",
+        "voyaBundle": "Voya 節點包"
       },
       "fields": {
         "address": "位址",
@@ -223,6 +245,17 @@
         "clipboardUnavailable": "目前 WebView 不支援讀取剪貼簿文字。",
         "discardedNodeOverrides": "已捨棄 {{count}} 個節點級覆寫項，將使用全域設定。"
       },
+      "importDialog": {
+        "description": "Import share links, subscription URLs, or JSON payloads.",
+        "file": "File",
+        "manual": "Manual import",
+        "mode": "Mode",
+        "paste": "Paste",
+        "payload": "Import payload",
+        "subscriptionTarget": "Subscription target",
+        "target": "Target",
+        "title": "Import Profiles"
+      },
       "menu": {
         "move": "移動",
         "moveBottom": "移至底部",
@@ -278,10 +311,33 @@
       "empty": "尚無代理群組",
       "title": "代理群組"
     },
+    "routing": {
+      "active": "Active",
+      "domain": "domain",
+      "editor": "Routing profile editor",
+      "network": "network",
+      "outbound": "Outbound",
+      "port": "port",
+      "profile": "Profile",
+      "profileCount": "{{count}} profiles",
+      "profiles": "Profiles",
+      "remarks": "remarks",
+      "rule": "Rule",
+      "ruleEditor": "Routing rule editor",
+      "rulesCount": "{{count}} rules ·",
+      "type": "type"
+    },
     "subscriptions": {
+      "description": "Manage subscription sources and run updates.",
+      "details": "Subscription details",
       "empty": "尚無訂閱",
       "emptyDescription": "新增訂閱來源以自動匯入設定檔。",
-      "loading": "正在載入訂閱"
+      "enabled": "Enabled",
+      "loading": "正在載入訂閱",
+      "sources": "Sources",
+      "title": "Subscriptions",
+      "updateAll": "Update all",
+      "updateSelected": "Update selected"
     }
   },
   "proxy": {
@@ -324,44 +380,25 @@
     "scanScreen": "螢幕",
     "screenUnavailable": "目前平台或權限狀態不支援螢幕 QR Code 掃描。"
   },
-  "resx": {
-    "TbHopInt7": "連接埠跳轉間隔",
-    "TbIcmpRoutingPolicy": "ICMP 路由策略",
-    "TbMtu": "MTU",
-    "TbSettingsAdvancedProtocol": "進階代理設定，協定選擇 (可選)",
-    "TbSettingsBindInterface": "綁定網路介面",
-    "TbSettingsCore": "Core: 基礎設定",
-    "TbSettingsCustomSystemProxyPacPath": "自訂 PAC 檔案路徑",
-    "TbSettingsCustomSystemProxyScriptPath": "自訂系統代理程式腳本檔案路徑",
-    "TbSettingsDefAllowInsecure": "預設跳過憑證驗證 (allowinsecure)",
-    "TbSettingsDefFingerprint": "預設 TLS 指紋 (fingerprint)",
-    "TbSettingsDefUserAgent": "使用者代理 (User-Agent)",
-    "TbSettingsEnableCacheFile4Sbox": "啟用 sing-box（規則集檔案）的快取檔案",
-    "TbSettingsEnableFragment": "啟用分片（Fragment）",
-    "TbSettingsEnableIPv6Address": "啟用 IPv6",
-    "TbSettingsException": "例外",
-    "TbSettingsHysteriaBandwidth": "Hysteria 最大頻寬 (Up/Dw)",
-    "TbSettingsIPAPIUrl": "目前連接資訊測試地址",
-    "TbSettingsLogEnabled": "啟用日誌",
-    "TbSettingsLogLevel": "日誌等級",
-    "TbSettingsMixedConcurrencyCount": "多執行緒測試時的並發數量",
-    "TbSettingsMux4SboxProtocol": "sing-box Mux 多路復用協定",
-    "TbSettingsMuxEnabled": "開啟 Mux 多路復用",
-    "TbSettingsNotProxyLocalAddress": "請勿將代理伺服器用於本機（Intranet）位址",
-    "TbSettingsSendThrough": "本機出站位址 (SendThrough)",
-    "TbSettingsSpeedPingTestUrl": "真連線測試位址",
-    "TbSettingsSpeedTestTimeout": "測速單個超時值",
-    "TbSettingsSpeedTestUrl": "測速檔案位址",
-    "TbSettingsSubConvert": "訂閱轉換網址 (可選)",
-    "TbSettingsTunAutoRoute": "自動路由",
-    "TbSettingsTunMode": "Tun 模式設定",
-    "TbSettingsTunStack": "協定堆疊",
-    "TbSettingsTunStrictRoute": "嚴格路由",
-    "TbSettingsUdpTestUrl": "UDP 測試網址"
-  },
   "settings": {
     "closeUnsavedDescription": "儲存全部修改、放棄修改，或繼續編輯。",
     "closeUnsavedTitle": "設定尚未儲存",
+    "core": {
+      "allowInsecure": "預設跳過憑證驗證 (allowinsecure)",
+      "bindInterface": "綁定網路介面",
+      "cacheFileEnabled": "啟用 sing-box（規則集檔案）的快取檔案",
+      "fingerprint": "預設 TLS 指紋 (fingerprint)",
+      "fragmentEnabled": "啟用分片（Fragment）",
+      "hysteriaBandwidth": "Hysteria 最大頻寬 (Up/Dw)",
+      "hysteriaHopInterval": "連接埠跳轉間隔",
+      "logEnabled": "啟用日誌",
+      "logLevel": "日誌等級",
+      "muxEnabled": "開啟 Mux 多路復用",
+      "muxProtocol": "sing-box Mux 多路復用協定",
+      "sendThrough": "本機出站位址 (SendThrough)",
+      "title": "Core: 基礎設定",
+      "userAgent": "使用者代理 (User-Agent)"
+    },
     "discardChanges": "放棄修改",
     "fields": {
       "hysteriaDownMbps": "Hysteria 最大下行頻寬 (Mbps)",
@@ -371,12 +408,37 @@
       "speedTestDelayInterval": "測速批次間隔 (秒)",
       "speedTestPageSize": "每批測速的伺服器數量"
     },
+    "network": {
+      "bypassLocalAddress": "請勿將代理伺服器用於本機（Intranet）位址",
+      "customPacPath": "自訂 PAC 檔案路徑",
+      "customScriptPath": "自訂系統代理程式腳本檔案路徑",
+      "enableIpv6Address": "啟用 IPv6",
+      "icmpRoutingPolicy": "ICMP 路由策略",
+      "mtu": "MTU",
+      "systemProxyExceptions": "例外",
+      "systemProxyProtocol": "進階代理設定，協定選擇 (可選)",
+      "tunAutoRoute": "自動路由",
+      "tunMode": "Tun 模式設定",
+      "tunStack": "協定堆疊",
+      "tunStrictRoute": "嚴格路由"
+    },
     "saveAll": "儲存全部",
     "saveBeforeActions": "請先儲存或放棄待處理的修改，再執行此操作。",
+    "sources": {
+      "subscriptionConverter": "訂閱轉換網址 (可選)"
+    },
     "startup": "啟動",
     "tabGeneral": "通用",
     "tabTests": "測試",
     "tabUpdates": "更新",
+    "tests": {
+      "downloadUrl": "測速檔案位址",
+      "ipApiUrl": "目前連接資訊測試地址",
+      "mixedConcurrency": "多執行緒測試時的並發數量",
+      "pingUrl": "真連線測試位址",
+      "timeout": "測速單個超時值",
+      "udpTarget": "UDP 測試網址"
+    },
     "unsavedChanges": "存在未儲存的修改"
   },
   "status": {

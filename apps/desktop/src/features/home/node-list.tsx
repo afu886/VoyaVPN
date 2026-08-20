@@ -6,11 +6,12 @@ import { Input } from "@voya/ui/components/input";
 import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { dataTableRowHover, dataTableRowSelected } from "@/components/app-shell/data-table-surface";
 import { useI18n } from "@voya/i18n/use-i18n";
-import type { ProfileListItem_Serialize } from "@/ipc/bindings";
+import type { ProfileListEntry } from "@/ipc/bindings";
 import { formatDelay } from "@voya/utils/formatting";
 import { cn } from "@voya/ui/lib/utils";
 
 import { getProtocolLabel } from "@/features/profiles/profile-constants";
+import { profileAddress, profilePort } from "@/features/profiles/profile-display";
 
 /**
  * Always-visible node list for the Home screen. A controlled, IPC-free component:
@@ -33,7 +34,7 @@ export function NodeList({
   isPending: boolean;
   onActivate: (indexId: string) => void;
   onSelect: (indexId: string) => void;
-  profiles: ProfileListItem_Serialize[];
+  profiles: ProfileListEntry[];
   runningId: string | null;
   selectedId: string | null;
   switchingId: string | null;
@@ -43,7 +44,7 @@ export function NodeList({
 
   // Keep the imported order stable (no active-pin sort) so rows never jump
   // around in an always-visible list; only filter by remarks / address.
-  const filtered = useMemo<ProfileListItem_Serialize[]>(() => {
+  const filtered = useMemo<ProfileListEntry[]>(() => {
     const query = filterText.trim().toLowerCase();
     if (!query) {
       return profiles;
@@ -51,8 +52,8 @@ export function NodeList({
 
     return profiles.filter(
       (item) =>
-        item.profile.Remarks.toLowerCase().includes(query) ||
-        item.profile.Address.toLowerCase().includes(query),
+        item.profile.remarks.toLowerCase().includes(query) ||
+        profileAddress(item.profile).toLowerCase().includes(query),
     );
   }, [profiles, filterText]);
 
@@ -77,11 +78,11 @@ export function NodeList({
       <ScrollArea className="-mx-2 min-h-32 flex-1 px-2">
         <ul aria-label={t("home.selectNode")} className="flex flex-col gap-0.5" role="listbox">
           {filtered.map((item) => {
-            const indexId = item.profile.IndexId;
+            const indexId = item.profile.id;
             const selected = selectedId === indexId;
             const running = runningId === indexId;
             const switching = switchingId === indexId;
-            const delay = formatDelay(item.profileEx.Delay);
+            const delay = formatDelay(item.metrics.delayMs);
 
             return (
               <li key={indexId} role="presentation">
@@ -116,14 +117,14 @@ export function NodeList({
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">
-                        {item.profile.Remarks || t("panes.profiles.untitled")}
+                        {item.profile.remarks || t("panes.profiles.untitled")}
                       </span>
                       <Badge className="shrink-0" variant="outline">
-                        {getProtocolLabel(item.profile.ConfigType)}
+                        {getProtocolLabel(item.profile.protocol.kind)}
                       </Badge>
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {item.profile.Address}:{item.profile.Port}
+                      {profileAddress(item.profile)}:{profilePort(item.profile)}
                     </span>
                   </span>
 

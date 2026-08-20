@@ -73,7 +73,7 @@ describe("runtime event store", () => {
 
   it("stores speedtest result events without ending the running state", () => {
     const result: SpeedTestResult = {
-      action: 3,
+      action: "latency",
       delay: 42,
       indexId: "profile-a",
       ipInfo: "US",
@@ -252,7 +252,7 @@ describe("runtime event store", () => {
       downloadBytesPerSecond: 0,
       proxyDownloadBytesPerSecond: 0,
       proxyUploadBytesPerSecond: Number.NaN,
-      serverStat: { IndexId: "profile-a", TotalUp: 1 },
+      serverStat: { indexId: "profile-a", totalUp: 1 },
       uploadBytesPerSecond: 0,
     } as StatisticsSnapshot;
 

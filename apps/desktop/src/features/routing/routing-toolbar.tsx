@@ -3,10 +3,12 @@ import { Pencil, Play, Plus, Route, Trash2 } from "lucide-react";
 import { PageHeader, PageHeaderHeading } from "@/components/app-shell/page-section";
 import { Badge } from "@voya/ui/components/badge";
 import { Button } from "@voya/ui/components/button";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import type { RoutingScreenController } from "./use-routing-screen";
 
 export function RoutingToolbar({ controller }: { controller: RoutingScreenController }) {
+  const { t } = useI18n();
   const {
     activateSelectedRouting,
     deleteSelectedRouting,
@@ -18,12 +20,12 @@ export function RoutingToolbar({ controller }: { controller: RoutingScreenContro
   return (
     <PageHeader>
       <PageHeaderHeading icon={Route} title="Routing">
-        <Badge variant="outline">{routings.length.toLocaleString()} profiles</Badge>
+        <Badge variant="outline">{t("panes.routing.profileCount", { count: routings.length })}</Badge>
       </PageHeaderHeading>
 
       <Button className="ms-auto" onClick={() => setRoutingDialog({ mode: "create" })} size="sm" type="button">
         <Plus className="size-4" aria-hidden="true" />
-        Profile
+        {t("panes.routing.profile")}
       </Button>
       <Button
         disabled={!selectedRouting}
@@ -33,17 +35,17 @@ export function RoutingToolbar({ controller }: { controller: RoutingScreenContro
         variant="outline"
       >
         <Pencil className="size-4" aria-hidden="true" />
-        Edit
+        {t("actions.edit")}
       </Button>
       <Button
-        disabled={!selectedRouting || selectedRouting.IsActive}
+        disabled={!selectedRouting || selectedRouting.isActive}
         onClick={activateSelectedRouting}
         size="sm"
         type="button"
         variant="outline"
       >
         <Play className="size-4" aria-hidden="true" />
-        Activate
+        {t("actions.activate")}
       </Button>
       <Button
         disabled={!selectedRouting}
@@ -53,7 +55,7 @@ export function RoutingToolbar({ controller }: { controller: RoutingScreenContro
         variant="outline"
       >
         <Trash2 className="size-4" aria-hidden="true" />
-        Delete
+        {t("actions.delete")}
       </Button>
     </PageHeader>
   );

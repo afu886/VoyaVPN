@@ -74,17 +74,33 @@ pub(super) fn parse_positive_i32(value: &str) -> Option<i32> {
     value.parse::<i32>().ok().filter(|value| *value > 0)
 }
 
+pub(super) fn default_tls_settings() -> TlsSettings {
+    TlsSettings {
+        mode: TlsMode::Tls,
+        server_name: None,
+        alpn: Vec::new(),
+        reality_public_key: None,
+        reality_short_id: None,
+        reality_spider_x: None,
+        mldsa65_verify: None,
+        certificate_pem: None,
+        certificate_sha256: Vec::new(),
+        ech_config: Vec::new(),
+        final_mask: None,
+    }
+}
+
 pub(super) fn ensure_type(
     protocol: &'static str,
     item: &ProfileItem,
     expected: ConfigType,
 ) -> Result<(), ShareError> {
-    if item.config_type == expected {
+    if item.config_type() == expected {
         Ok(())
     } else {
         Err(ShareError::WrongConfigType {
             protocol,
-            actual: item.config_type,
+            actual: item.config_type(),
         })
     }
 }
@@ -93,17 +109,17 @@ pub(super) fn ensure_address_port(
     protocol: &'static str,
     item: &ProfileItem,
 ) -> Result<(), ShareError> {
-    ensure_nonempty(protocol, "address", &item.address)?;
-    if !valid_host(&item.address) {
+    ensure_nonempty(protocol, "address", item.address())?;
+    if !valid_host(item.address()) {
         return Err(ShareError::InvalidUri {
             protocol,
-            reason: format!("invalid host {}", item.address),
+            reason: format!("invalid host {}", item.address()),
         });
     }
-    if !(1..=65535).contains(&item.port) {
+    if !(1..=65535).contains(&item.port()) {
         return Err(ShareError::InvalidPort {
             protocol,
-            port: item.port.to_string(),
+            port: item.port().to_string(),
         });
     }
     Ok(())
@@ -175,38 +191,12 @@ pub(super) fn protocol_share(config_type: ConfigType) -> &'static str {
     }
 }
 
-pub(super) fn config_type_name(config_type: ConfigType) -> &'static str {
-    match config_type {
-        ConfigType::VMess => "vmess",
-        ConfigType::Custom => "custom",
-        ConfigType::Shadowsocks => "shadowsocks",
-        ConfigType::SOCKS => "socks",
-        ConfigType::VLESS => "vless",
-        ConfigType::Trojan => "trojan",
-        ConfigType::Hysteria2 => "hysteria2",
-        ConfigType::TUIC => "tuic",
-        ConfigType::WireGuard => "wireguard",
-        ConfigType::HTTP => "http",
-        ConfigType::Anytls => "anytls",
-        ConfigType::Naive => "naive",
-        ConfigType::PolicyGroup => "policygroup",
-        ConfigType::ProxyChain => "proxychain",
-    }
-}
-
 pub(super) fn item_network(item: &ProfileItem) -> &str {
-    if item.network.is_empty() || !NETWORKS.contains(&item.network.as_str()) {
+    if item.network().is_empty() || !NETWORKS.contains(&item.network()) {
         DEFAULT_NETWORK
     } else {
-        item.network.trim()
+        item.network().trim()
     }
-}
-
-pub(super) fn is_group_type(config_type: ConfigType) -> bool {
-    matches!(
-        config_type,
-        ConfigType::PolicyGroup | ConfigType::ProxyChain
-    )
 }
 
 pub(super) fn option_or(value: &Option<String>, default_value: &str) -> String {

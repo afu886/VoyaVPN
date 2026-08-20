@@ -1,8 +1,10 @@
+import type { RoutingRuleScope } from "@/ipc/bindings";
+
 export const RULE_TYPES = {
-  All: 0,
-  Routing: 1,
-  Dns: 2,
-} as const;
+  All: "all",
+  Routing: "routing",
+  Dns: "dns",
+} as const satisfies Record<string, RoutingRuleScope>;
 
 export const DOMAIN_STRATEGIES = ["AsIs", "IPIfNonMatch", "IPOnDemand"] as const;
 

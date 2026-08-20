@@ -3,14 +3,16 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
 use tokio::{
     runtime::Handle,
     sync::watch,
     task::JoinHandle,
     time::{self, MissedTickBehavior},
+};
+pub use voya_contracts::{
+    ProxyConnectionItem, ProxyConnectionsSnapshot, ProxyDelayTestResult, ProxyGroup,
+    ProxyGroupsSnapshot, ProxyMonitorState, ProxyMonitorStatus, ProxyNode, ProxyTrafficEvent,
 };
 use voya_core::{AppConfig, TrafficMode};
 use voya_net::clash::{
@@ -61,82 +63,6 @@ pub enum ProxyRuntimeError {
     MonitorRuntimeUnavailable,
     #[error("proxy runtime API state port is unavailable")]
     InvalidStatePort,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyGroupsSnapshot {
-    pub groups: Vec<ProxyGroup>,
-    pub traffic_mode: TrafficMode,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyGroup {
-    pub name: String,
-    pub proxy_type: String,
-    pub now: Option<String>,
-    pub nodes: Vec<ProxyNode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyNode {
-    pub name: String,
-    pub proxy_type: String,
-    pub delay: Option<i32>,
-    pub delay_label: String,
-    pub udp: bool,
-    pub active: bool,
-    pub testable: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyDelayTestResult {
-    pub name: String,
-    pub delay: Option<i32>,
-    pub message: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyTrafficEvent {
-    #[specta(type = f64)]
-    pub up: u64,
-    #[specta(type = f64)]
-    pub down: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyConnectionsSnapshot {
-    #[specta(type = f64)]
-    pub download_total: u64,
-    #[specta(type = f64)]
-    pub upload_total: u64,
-    pub connections: Vec<ProxyConnectionItem>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyConnectionItem {
-    pub id: Option<String>,
-    pub network: Option<String>,
-    pub connection_type: Option<String>,
-    pub host: String,
-    pub source: String,
-    pub destination: String,
-    #[specta(type = f64)]
-    pub upload: u64,
-    #[specta(type = f64)]
-    pub download: u64,
-    pub start: String,
-    pub chains: Vec<String>,
-    pub rule: Option<String>,
-    pub rule_payload: Option<String>,
-    pub process: Option<String>,
-    pub process_path: Option<String>,
 }
 
 pub trait ProxyRuntimeEventSink: Send + Sync {
@@ -382,55 +308,6 @@ impl ProxyMonitorController {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ProxyMonitorState {
-    Running,
-    Stopped,
-    Failed,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProxyMonitorStatus {
-    pub state: ProxyMonitorState,
-    pub running: bool,
-    pub stale: bool,
-    pub message: Option<String>,
-}
-
-impl ProxyMonitorStatus {
-    #[must_use]
-    pub fn running() -> Self {
-        Self {
-            state: ProxyMonitorState::Running,
-            running: true,
-            stale: false,
-            message: None,
-        }
-    }
-
-    #[must_use]
-    pub fn stopped() -> Self {
-        Self {
-            state: ProxyMonitorState::Stopped,
-            running: false,
-            stale: true,
-            message: None,
-        }
-    }
-
-    #[must_use]
-    pub fn failed(message: impl Into<String>) -> Self {
-        Self {
-            state: ProxyMonitorState::Failed,
-            running: false,
-            stale: true,
-            message: Some(message.into()),
-        }
-    }
-}
-
 struct ProxyMonitorHandle {
     endpoint: ClashApiEndpoint,
     shutdown: watch::Sender<bool>,
@@ -643,7 +520,16 @@ fn build_proxy_groups_snapshot(
 
     ProxyGroupsSnapshot {
         groups,
-        traffic_mode,
+        traffic_mode: contract_traffic_mode(traffic_mode),
+    }
+}
+
+const fn contract_traffic_mode(mode: TrafficMode) -> voya_contracts::TrafficMode {
+    match mode {
+        TrafficMode::Rule => voya_contracts::TrafficMode::Rule,
+        TrafficMode::Global => voya_contracts::TrafficMode::Global,
+        TrafficMode::Direct => voya_contracts::TrafficMode::Direct,
+        TrafficMode::Unchanged => voya_contracts::TrafficMode::Unchanged,
     }
 }
 

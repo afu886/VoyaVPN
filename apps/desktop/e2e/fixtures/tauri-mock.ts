@@ -6,39 +6,38 @@ export async function installTauriSmokeMock(page: Page) {
     type Profile = Record<string, unknown>;
     type ProfileRow = {
       profile: Profile;
-      profileEx: Record<string, unknown>;
-      serverStat: Record<string, unknown>;
+      metrics: Record<string, unknown>;
+      traffic: Record<string, unknown>;
       isActive: boolean;
     };
     type Routing = {
-      Id: string;
-      Remarks: string;
-      Url: string;
-      RuleSet: Rule[];
-      RuleNum: number;
-      Enabled: boolean;
-      Locked: boolean;
-      CustomIcon: string;
-      CustomRulesetPath4Singbox: string;
-      DomainStrategy: string;
-      DomainStrategy4Singbox: string;
-      Sort: number;
-      IsActive: boolean;
+      id: string;
+      remarks: string;
+      sourceUrl: string;
+      rules: Rule[];
+      enabled: boolean;
+      locked: boolean;
+      icon: string;
+      singboxRulesetPath: string;
+      domainStrategy: string;
+      singboxDomainStrategy: string;
+      sort: number;
+      isActive: boolean;
     };
     type Rule = {
-      Id: string;
-      Type?: string | null;
-      Port?: string | null;
-      Network?: string | null;
-      InboundTag?: string[] | null;
-      OutboundTag?: string | null;
-      Ip?: string[] | null;
-      Domain?: string[] | null;
-      Protocol?: string[] | null;
-      Process?: string[] | null;
-      Enabled: boolean;
-      Remarks?: string | null;
-      RuleType?: number | null;
+      id: string;
+      kind?: string | null;
+      port?: string | null;
+      network?: string | null;
+      inboundTags?: string[] | null;
+      outbound?: string | null;
+      ip?: string[] | null;
+      domain?: string[] | null;
+      protocol?: string[] | null;
+      process?: string[] | null;
+      enabled: boolean;
+      remarks?: string | null;
+      scope?: "all" | "routing" | "dns" | null;
     };
     type Callback = (event: { id: number; event: string; payload: unknown }) => void;
 
@@ -49,7 +48,6 @@ export async function installTauriSmokeMock(page: Page) {
     let nextRuleId = 1;
 
     const state = {
-      appConfig: makeAppConfig(),
       calls: [] as Array<{ command: string; args: CommandArgs }>,
       dns: makeDnsSettings(),
       profiles: [] as ProfileRow[],
@@ -58,7 +56,7 @@ export async function installTauriSmokeMock(page: Page) {
         activeProfileId: null as string | null,
         mainPid: null as number | null,
         prePid: null as number | null,
-        runningCoreType: null as number | null,
+        runningCoreType: null as string | null,
         state: "disconnected",
       },
       sources: {
@@ -66,14 +64,14 @@ export async function installTauriSmokeMock(page: Page) {
         routeRulesTemplateSourceUrl: null as string | null,
         srsSourceUrl: null as string | null,
       },
-      settingsBundle: makeSettingsBundle(),
+      settings: makeAppSettings(),
       sysProxy: {
-        effectiveMode: 0,
+        effectiveMode: "forcedClear",
         exceptions: "",
         pacAvailable: false,
         pacUrl: null as string | null,
         proxy: null as string | null,
-        requestedMode: 0,
+        requestedMode: "forcedClear",
       },
       tun: {
         allowEnableTun: true,
@@ -130,21 +128,21 @@ export async function installTauriSmokeMock(page: Page) {
         case "open_settings_window":
           return Promise.resolve(null);
         case "load_ui_preferences":
-          return Promise.resolve(uiPreferencesFromConfig());
-        case "load_settings_bundle":
-          return Promise.resolve(clone(state.settingsBundle));
-        case "save_settings_bundle":
-          state.settingsBundle = cloneRecord(args.bundle) as typeof state.settingsBundle;
-          return Promise.resolve(clone(state.settingsBundle));
+          return Promise.resolve(clone(state.settings.appearance));
+        case "load_app_settings":
+          return Promise.resolve(clone(state.settings));
+        case "save_app_settings":
+          state.settings = cloneRecord(args.settings) as typeof state.settings;
+          return Promise.resolve(clone(state.settings));
         case "runtime_status":
           return Promise.resolve(clone(state.runtime));
         case "connect_active_profile": {
           const active = state.profiles.find((row) => row.isActive) ?? state.profiles[0] ?? null;
           state.runtime = {
-            activeProfileId: active ? String(active.profile.IndexId) : null,
+            activeProfileId: active ? String(active.profile.id) : null,
             mainPid: 4242,
             prePid: null,
-            runningCoreType: 2,
+            runningCoreType: "singBox",
             state: "connected",
           };
           return Promise.resolve(clone(state.runtime));
@@ -170,8 +168,8 @@ export async function installTauriSmokeMock(page: Page) {
         case "set_system_proxy_mode":
           state.sysProxy = {
             ...state.sysProxy,
-            effectiveMode: Number(args.mode ?? 0),
-            requestedMode: Number(args.mode ?? 0),
+            effectiveMode: String(args.mode ?? "forcedClear"),
+            requestedMode: String(args.mode ?? "forcedClear"),
           };
           return Promise.resolve(clone(state.sysProxy));
         case "tun_status":
@@ -198,18 +196,18 @@ export async function installTauriSmokeMock(page: Page) {
         }
         case "delete_profiles": {
           const ids = readStringArray(args, "indexIds");
-          state.profiles = state.profiles.filter((row) => !ids.includes(String(row.profile.IndexId)));
+          state.profiles = state.profiles.filter((row) => !ids.includes(String(row.profile.id)));
           return Promise.resolve(ids.length);
         }
         case "copy_profiles": {
           const ids = readStringArray(args, "indexIds");
           const copies = state.profiles
-            .filter((row) => ids.includes(String(row.profile.IndexId)))
+            .filter((row) => ids.includes(String(row.profile.id)))
             .map((row) =>
               upsertProfile({
                 ...row.profile,
-                IndexId: undefined,
-                Remarks: `${String(row.profile.Remarks)} Copy`,
+                id: "",
+                remarks: `${String(row.profile.remarks)} Copy`,
               }),
             );
           return Promise.resolve(clone(copies));
@@ -218,52 +216,71 @@ export async function installTauriSmokeMock(page: Page) {
         case "sort_profiles":
           return Promise.resolve(clone(state.profiles));
         case "dedupe_profiles":
-          return Promise.resolve({ kept: state.profiles.length, removedIndexIds: [], total: state.profiles.length });
+          return Promise.resolve({ kept: state.profiles.length, removedProfileIds: [], total: state.profiles.length });
         case "list_group_child_candidates":
           return Promise.resolve(
             state.profiles.map((row) => ({
-              address: row.profile.Address,
-              configType: row.profile.ConfigType,
-              indexId: row.profile.IndexId,
-              isGroup: Number(row.profile.ConfigType) >= 101,
+              address: profileAddress(row.profile),
+              protocol: readRecord(row.profile, "protocol").kind,
+              profileId: row.profile.id,
+              isGroup: ["policyGroup", "proxyChain"].includes(String(readRecord(row.profile, "protocol").kind)),
               reason: null,
-              remarks: row.profile.Remarks,
+              remarks: row.profile.remarks,
               selectable: true,
-              subid: row.profile.Subid,
+              subscriptionId: row.profile.subscriptionId,
             })),
           );
         case "preview_group_profile":
           return Promise.resolve({
             singboxRoutes: [],
-            validation: { childIndexIds: [], errors: [], normalizedChildItems: "", valid: true, warnings: [] },
+            validation: { childProfileIds: [], errors: [], valid: true, warnings: [] },
           });
         case "list_subscriptions":
           return Promise.resolve([]);
         case "save_subscription":
-          return Promise.resolve({ Id: "sub-smoke", Remarks: "Smoke", Url: "", MoreUrl: "", Enabled: true, UserAgent: "", Sort: 0 });
+          return Promise.resolve({
+            additionalUrl: "",
+            converterTarget: null,
+            enabled: true,
+            filter: null,
+            id: "sub-smoke",
+            preSocksPort: null,
+            remarks: "Smoke",
+            sort: 0,
+            url: "",
+            userAgent: "",
+          });
         case "delete_subscriptions":
           return Promise.resolve(0);
         case "export_profile_share_links": {
           const indexIds = readStringArray(args, "indexIds");
           const links = indexIds.map((indexId) => {
-            const profile = state.profiles.find((item) => item.profile.IndexId === indexId)?.profile;
+            const profile = state.profiles.find((item) => item.profile.id === indexId)?.profile;
             if (!profile) {
               throw new Error(`missing profile ${indexId}`);
             }
 
-            return `vless://${encodeURIComponent(String(profile.Password))}@${String(profile.Address)}:${String(profile.Port)}#${encodeURIComponent(String(profile.Remarks))}`;
+            const protocol = readRecord(profile, "protocol");
+            const server = readRecord(protocol, "server");
+            return `vless://${encodeURIComponent(String(protocol.uuid ?? protocol.password ?? ""))}@${String(server.address)}:${String(server.port)}#${encodeURIComponent(String(profile.remarks))}`;
           });
 
           return Promise.resolve({ count: links.length, format: "shareLinks", text: links.join("\n") });
         }
         case "import_profiles_from_text": {
           const row = upsertProfile(importedProfile(String(args.text ?? "")));
-          return Promise.resolve({ imported: 1, importedIndexIds: [row.profile.IndexId], removedExisting: 0, skipped: 0, subid: args.subid ?? null });
+          return Promise.resolve({ imported: 1, importedProfileIds: [row.profile.id], removedExisting: 0, skipped: 0, subscriptionId: args.subscriptionId ?? null });
         }
         case "update_subscriptions":
           return Promise.resolve({ imported: 0, messages: [], removedExisting: 0, skipped: 0, updated: 0 });
         case "run_speedtest":
-          return Promise.resolve({ action: args.action, message: "smoke skipped real speedtest", requested: readStringArray(args, "indexIds").length, started: false });
+          return Promise.resolve({
+            action: readRecord(args, "request").kind,
+            cancelled: false,
+            completedCount: 0,
+            results: [],
+            selectedCount: 0,
+          });
         case "cancel_speedtest":
         case "speedtest_status":
           return Promise.resolve({ running: false });
@@ -274,34 +291,32 @@ export async function installTauriSmokeMock(page: Page) {
           return Promise.resolve(clone(routing));
         }
         case "set_active_routing": {
-          state.routings = state.routings.map((routing) => ({ ...routing, IsActive: routing.Id === args.id }));
-          return Promise.resolve(clone(state.routings.find((routing) => routing.Id === args.id) ?? state.routings[0]));
+          state.routings = state.routings.map((routing) => ({ ...routing, isActive: routing.id === args.id }));
+          return Promise.resolve(clone(state.routings.find((routing) => routing.id === args.id) ?? state.routings[0]));
         }
         case "delete_routings": {
           const ids = readStringArray(args, "ids");
-          state.routings = state.routings.filter((routing) => !ids.includes(routing.Id));
+          state.routings = state.routings.filter((routing) => !ids.includes(routing.id));
           return Promise.resolve(ids.length);
         }
         case "save_routing_rule": {
-          const routing = state.routings.find((item) => item.Id === args.routingId) ?? state.routings[0];
+          const routing = state.routings.find((item) => item.id === args.routingId) ?? state.routings[0];
           const rule = normalizeRule(readRecord(args, "rule"));
-          const existingIndex = routing.RuleSet.findIndex((item) => item.Id === rule.Id);
-          routing.RuleSet =
+          const existingIndex = routing.rules.findIndex((item) => item.id === rule.id);
+          routing.rules =
             existingIndex >= 0
-              ? routing.RuleSet.map((item) => (item.Id === rule.Id ? rule : item))
-              : [...routing.RuleSet, rule];
-          routing.RuleNum = routing.RuleSet.length;
+              ? routing.rules.map((item) => (item.id === rule.id ? rule : item))
+              : [...routing.rules, rule];
           return Promise.resolve(clone(routing));
         }
         case "delete_routing_rules": {
-          const routing = state.routings.find((item) => item.Id === args.routingId) ?? state.routings[0];
+          const routing = state.routings.find((item) => item.id === args.routingId) ?? state.routings[0];
           const ids = readStringArray(args, "ruleIds");
-          routing.RuleSet = routing.RuleSet.filter((rule) => !ids.includes(rule.Id));
-          routing.RuleNum = routing.RuleSet.length;
+          routing.rules = routing.rules.filter((rule) => !ids.includes(rule.id));
           return Promise.resolve(clone(routing));
         }
         case "move_routing_rule": {
-          const routing = state.routings.find((item) => item.Id === args.routingId) ?? state.routings[0];
+          const routing = state.routings.find((item) => item.id === args.routingId) ?? state.routings[0];
           return Promise.resolve(clone(routing));
         }
         case "import_config_template": {
@@ -323,20 +338,21 @@ export async function installTauriSmokeMock(page: Page) {
                     routeRulesTemplateSourceUrl: `https://rules.example.test/${selectionType}/template.json`,
                     srsSourceUrl: `https://rules.example.test/${selectionType}/{1}.srs`,
                   };
-          state.appConfig.ConstItem.GeoSourceUrl = state.sources.geoSourceUrl;
-          state.appConfig.ConstItem.RouteRulesTemplateSourceUrl = state.sources.routeRulesTemplateSourceUrl;
-          state.appConfig.ConstItem.SrsSourceUrl = state.sources.srsSourceUrl;
-          state.settingsBundle.sources = clone(state.sources);
+          state.settings.sources = {
+            ...state.settings.sources,
+            geo: state.sources.geoSourceUrl,
+            routingTemplate: state.sources.routeRulesTemplateSourceUrl,
+            singboxRuleset: state.sources.srsSourceUrl,
+          };
           state.routings = state.routings.map((routing, index) => ({
             ...routing,
-            IsActive: index === 0,
+            isActive: index === 0,
           }));
           return Promise.resolve({
-            activeRoutingId: state.routings[0]?.Id ?? null,
-            reusedExistingRouting: true,
-            routingIds: state.routings.map((routing) => routing.Id),
-            simpleDnsFetched: false,
+            inbounds: clone(state.settings.network.inbounds),
             sources: clone(state.sources),
+            systemProxy: clone(state.settings.network.systemProxy),
+            tun: clone(state.settings.network.tun),
           });
         }
         case "load_dns_settings":
@@ -357,7 +373,7 @@ export async function installTauriSmokeMock(page: Page) {
                 proxyType: "Selector",
               },
             ],
-            trafficMode: 0,
+            trafficMode: "rule",
           });
         case "proxy_test_delay":
           return Promise.resolve(readStringArray(args, "nodeNames").map((name) => ({ delay: 23, message: null, name })));
@@ -389,7 +405,8 @@ export async function installTauriSmokeMock(page: Page) {
         case "proxy_close_connection":
           return Promise.resolve({ connections: [], downloadTotal: 0, uploadTotal: 0 });
         case "proxy_set_traffic_mode":
-          return Promise.resolve(clone(state.appConfig));
+          state.settings.proxy.trafficMode = String(args.mode ?? "rule");
+          return Promise.resolve({ mode: state.settings.proxy.trafficMode });
         case "proxy_reload_config":
           return Promise.resolve(null);
         case "proxy_start_monitor":
@@ -442,26 +459,24 @@ export async function installTauriSmokeMock(page: Page) {
 
     function upsertProfile(input: Record<string, unknown>) {
       const profile = normalizeProfile(input);
-      const existingIndex = state.profiles.findIndex((row) => row.profile.IndexId === profile.IndexId);
+      const existingIndex = state.profiles.findIndex((row) => row.profile.id === profile.id);
       const existing = existingIndex >= 0 ? state.profiles[existingIndex] : null;
       const row = {
         isActive: existing?.isActive ?? state.profiles.length === 0,
         profile,
-        profileEx: {
-          Delay: existing?.profileEx.Delay ?? -1,
-          IndexId: profile.IndexId,
-          IpInfo: existing?.profileEx.IpInfo ?? null,
-          Message: existing?.profileEx.Message ?? null,
-          Sort: existing?.profileEx.Sort ?? state.profiles.length,
-          Speed: existing?.profileEx.Speed ?? null,
+        metrics: {
+          delayMs: existing?.metrics.delayMs ?? -1,
+          ipInfo: existing?.metrics.ipInfo ?? null,
+          message: existing?.metrics.message ?? null,
+          sort: existing?.metrics.sort ?? state.profiles.length,
+          speedBytesPerSecond: existing?.metrics.speedBytesPerSecond ?? null,
         },
-        serverStat: existing?.serverStat ?? {
-          DateNow: 20260601,
-          IndexId: profile.IndexId,
-          TodayDown: 0,
-          TodayUp: 0,
-          TotalDown: 0,
-          TotalUp: 0,
+        traffic: existing?.traffic ?? {
+          date: 20260601,
+          todayDownload: 0,
+          todayUpload: 0,
+          totalDownload: 0,
+          totalUpload: 0,
         },
       };
 
@@ -472,51 +487,35 @@ export async function installTauriSmokeMock(page: Page) {
       }
 
       if (row.isActive) {
-        setActiveProfile(String(row.profile.IndexId));
+        setActiveProfile(String(row.profile.id));
       }
 
       return row;
     }
 
     function setActiveProfile(indexId: string) {
-      state.profiles = state.profiles.map((row) => ({ ...row, isActive: row.profile.IndexId === indexId }));
-      const row = state.profiles.find((item) => item.profile.IndexId === indexId) ?? null;
-      state.appConfig.IndexId = row ? String(row.profile.IndexId) : "";
+      state.profiles = state.profiles.map((row) => ({ ...row, isActive: row.profile.id === indexId }));
+      const row = state.profiles.find((item) => item.profile.id === indexId) ?? null;
       return row;
     }
 
     function normalizeProfile(input: Record<string, unknown>): Profile {
-      const configType = Number(input.ConfigType ?? 5);
-      const id = String(input.IndexId ?? `profile-smoke-${nextProfileId++}`);
-
+      const id = String(input.id || `profile-smoke-${nextProfileId++}`);
+      const protocol = cloneRecord(input.protocol);
       return {
-        Address: String(input.Address ?? "smoke.example.test"),
-        Alpn: String(input.Alpn ?? ""),
-        Cert: String(input.Cert ?? ""),
-        CertSha: String(input.CertSha ?? ""),
-        ConfigType: configType,
-        ConfigVersion: Number(input.ConfigVersion ?? 4),
-        CoreType: input.CoreType ?? null,
-        DisplayLog: Boolean(input.DisplayLog ?? true),
-        EchConfigList: String(input.EchConfigList ?? ""),
-        Finalmask: String(input.Finalmask ?? ""),
-        IndexId: id,
-        IsSub: Boolean(input.IsSub ?? false),
-        Mldsa65Verify: String(input.Mldsa65Verify ?? ""),
-        Network: String(input.Network ?? "tcp"),
-        Password: String(input.Password ?? "00000000-0000-4000-8000-000000000001"),
-        Port: Number(input.Port ?? 443),
-        PreSocksPort: input.PreSocksPort ?? null,
-        ProtocolExtra: cloneRecord(input.ProtocolExtra),
-        PublicKey: String(input.PublicKey ?? ""),
-        Remarks: String(input.Remarks ?? "Smoke profile"),
-        ShortId: String(input.ShortId ?? ""),
-        Sni: String(input.Sni ?? ""),
-        SpiderX: String(input.SpiderX ?? ""),
-        StreamSecurity: String(input.StreamSecurity ?? ""),
-        Subid: String(input.Subid ?? ""),
-        TransportExtra: cloneRecord(input.TransportExtra),
-        Username: String(input.Username ?? ""),
+        displayLog: Boolean(input.displayLog ?? true),
+        id,
+        protocol: Object.keys(protocol).length > 0 ? protocol : {
+          kind: "vless",
+          server: { address: "smoke.example.test", port: 443 },
+          uuid: "00000000-0000-4000-8000-000000000001",
+          flow: null,
+          encryption: "none",
+        },
+        remarks: String(input.remarks ?? "Smoke profile"),
+        subscriptionId: nullableString(input.subscriptionId),
+        tls: input.tls && typeof input.tls === "object" ? clone(input.tls) : null,
+        transport: input.transport && typeof input.transport === "object" ? clone(input.transport) : null,
       };
     }
 
@@ -525,17 +524,22 @@ export async function installTauriSmokeMock(page: Page) {
       const addressMatch = text.match(/@([^:/?#]+)(?::(\d+))?/u);
 
       return normalizeProfile({
-        Address: addressMatch?.[1] ?? "imported.example.test",
-        ConfigType: 5,
-        Network: text.includes("type=ws") ? "ws" : "tcp",
-        Password: text.match(/^vless:\/\/([^@]+)/u)?.[1] ?? "00000000-0000-4000-8000-000000000002",
-        Port: Number(addressMatch?.[2] ?? 443),
-        Remarks: remark,
-        StreamSecurity: text.includes("security=tls") ? "tls" : "",
-        TransportExtra: {
-          Host: "cdn.example.test",
-          Path: "/ws",
+        remarks: remark,
+        protocol: {
+          encryption: "none",
+          flow: null,
+          kind: "vless",
+          server: { address: addressMatch?.[1] ?? "imported.example.test", port: Number(addressMatch?.[2] ?? 443) },
+          uuid: text.match(/^vless:\/\/([^@]+)/u)?.[1] ?? "00000000-0000-4000-8000-000000000002",
         },
+        tls: text.includes("security=tls") ? {
+          alpn: [], certificatePem: null, certificateSha256: [], echConfig: [], finalMask: null,
+          mldsa65Verify: null, mode: "tls", realityPublicKey: null, realityShortId: null,
+          realitySpiderX: null, serverName: null,
+        } : null,
+        transport: text.includes("type=ws")
+          ? { host: "cdn.example.test", kind: "websocket", path: "/ws" }
+          : { header: null, kind: "tcp" },
       });
     }
 
@@ -547,7 +551,7 @@ export async function installTauriSmokeMock(page: Page) {
 
       return clone(
         rows.filter((row) =>
-          [row.profile.Remarks, row.profile.Address, row.profile.Subid]
+          [row.profile.remarks, profileAddress(row.profile), row.profile.subscriptionId]
             .join(" ")
             .toLowerCase()
             .includes(needle),
@@ -555,24 +559,29 @@ export async function installTauriSmokeMock(page: Page) {
       );
     }
 
+    function profileAddress(profile: Profile) {
+      const protocol = readRecord(profile, "protocol");
+      const server = readRecord(protocol, "server");
+      return String(server.address ?? protocol.source ?? "");
+    }
+
     function upsertRouting(input: Record<string, unknown>) {
-      const id = String(input.Id ?? `routing-smoke-${nextRoutingId++}`);
-      const existingIndex = state.routings.findIndex((routing) => routing.Id === id);
+      const id = String(input.id ?? `routing-smoke-${nextRoutingId++}`);
+      const existingIndex = state.routings.findIndex((routing) => routing.id === id);
       const existing = existingIndex >= 0 ? state.routings[existingIndex] : null;
       const routing = {
-        CustomIcon: String(input.CustomIcon ?? existing?.CustomIcon ?? ""),
-        CustomRulesetPath4Singbox: String(input.CustomRulesetPath4Singbox ?? existing?.CustomRulesetPath4Singbox ?? ""),
-        DomainStrategy: String(input.DomainStrategy ?? existing?.DomainStrategy ?? "AsIs"),
-        DomainStrategy4Singbox: String(input.DomainStrategy4Singbox ?? existing?.DomainStrategy4Singbox ?? ""),
-        Enabled: Boolean(input.Enabled ?? existing?.Enabled ?? true),
-        Id: id,
-        IsActive: Boolean(input.IsActive ?? existing?.IsActive ?? state.routings.length === 0),
-        Locked: Boolean(input.Locked ?? existing?.Locked ?? false),
-        Remarks: String(input.Remarks ?? existing?.Remarks ?? "Smoke routing"),
-        RuleNum: existing?.RuleSet.length ?? 0,
-        RuleSet: existing?.RuleSet ?? [],
-        Sort: Number(input.Sort ?? existing?.Sort ?? state.routings.length),
-        Url: String(input.Url ?? existing?.Url ?? ""),
+        icon: String(input.icon ?? existing?.icon ?? ""),
+        singboxRulesetPath: String(input.singboxRulesetPath ?? existing?.singboxRulesetPath ?? ""),
+        domainStrategy: String(input.domainStrategy ?? existing?.domainStrategy ?? "AsIs"),
+        singboxDomainStrategy: String(input.singboxDomainStrategy ?? existing?.singboxDomainStrategy ?? ""),
+        enabled: Boolean(input.enabled ?? existing?.enabled ?? true),
+        id,
+        isActive: Boolean(existing?.isActive ?? state.routings.length === 0),
+        locked: Boolean(input.locked ?? existing?.locked ?? false),
+        remarks: String(input.remarks ?? existing?.remarks ?? "Smoke routing"),
+        rules: existing?.rules ?? [],
+        sort: Number(input.sort ?? existing?.sort ?? state.routings.length),
+        sourceUrl: String(input.sourceUrl ?? existing?.sourceUrl ?? ""),
       };
 
       if (existingIndex >= 0) {
@@ -586,223 +595,148 @@ export async function installTauriSmokeMock(page: Page) {
 
     function normalizeRule(input: Record<string, unknown>): Rule {
       return {
-        Domain: readNullableStringArray(input, "Domain"),
-        Enabled: Boolean(input.Enabled ?? true),
-        Id: String(input.Id ?? `rule-smoke-${nextRuleId++}`),
-        InboundTag: readNullableStringArray(input, "InboundTag"),
-        Ip: readNullableStringArray(input, "Ip"),
-        Network: nullableString(input.Network),
-        OutboundTag: nullableString(input.OutboundTag ?? "proxy"),
-        Port: nullableString(input.Port),
-        Process: readNullableStringArray(input, "Process"),
-        Protocol: readNullableStringArray(input, "Protocol"),
-        Remarks: nullableString(input.Remarks ?? "Smoke rule"),
-        RuleType: Number(input.RuleType ?? 1),
-        Type: nullableString(input.Type),
+        domain: readNullableStringArray(input, "domain"),
+        enabled: Boolean(input.enabled ?? true),
+        id: String(input.id ?? `rule-smoke-${nextRuleId++}`),
+        inboundTags: readNullableStringArray(input, "inboundTags"),
+        ip: readNullableStringArray(input, "ip"),
+        network: nullableString(input.network),
+        outbound: nullableString(input.outbound ?? "proxy"),
+        port: nullableString(input.port),
+        process: readNullableStringArray(input, "process"),
+        protocol: readNullableStringArray(input, "protocol"),
+        remarks: nullableString(input.remarks ?? "Smoke rule"),
+        scope: (input.scope ?? "routing") as Rule["scope"],
+        kind: nullableString(input.kind),
       };
     }
 
     function makeRouting(id: string, remarks: string, active: boolean): Routing {
       return {
-        CustomIcon: "",
-        CustomRulesetPath4Singbox: "",
-        DomainStrategy: "AsIs",
-        DomainStrategy4Singbox: "",
-        Enabled: true,
-        Id: id,
-        IsActive: active,
-        Locked: false,
-        Remarks: remarks,
-        RuleNum: 0,
-        RuleSet: [],
-        Sort: 0,
-        Url: "",
+        icon: "",
+        singboxRulesetPath: "",
+        domainStrategy: "AsIs",
+        singboxDomainStrategy: "",
+        enabled: true,
+        id,
+        isActive: active,
+        locked: false,
+        remarks,
+        rules: [],
+        sort: 0,
+        sourceUrl: "",
       };
     }
 
-    function makeAppConfig() {
+    function makeAppSettings() {
       return {
-        ProxyUIItem: {
-          NodeSorting: 0,
-          TrafficMode: 0,
+        schemaVersion: 1,
+        appearance: { language: "en", theme: "system" },
+        behavior: { autostart: false, realtimeSpeed: false, statistics: false },
+        core: {
+          bindInterface: null as string | null,
+          cacheFileEnabled: true,
+          defaultAllowInsecure: false,
+          defaultFingerprint: "chrome",
+          defaultUserAgent: "",
+          fragmentEnabled: false,
+          logEnabled: false,
+          logLevel: "warning",
+          muxEnabled: false,
+          sendThrough: null as string | null,
         },
-        ConstItem: {
-          GeoSourceUrl: null as string | null,
-          RouteRulesTemplateSourceUrl: null as string | null,
-          SrsSourceUrl: null as string | null,
-          SubConvertUrl: null as string | null,
-        },
-        CoreBasicItem: {
-          BindInterface: null as string | null,
-          DefAllowInsecure: false,
-          DefFingerprint: "",
-          DefUserAgent: "",
-          EnableCacheFile4Sbox: true,
-          EnableFragment: false,
-          LogEnabled: false,
-          Loglevel: "warning",
-          MuxEnabled: false,
-          SendThrough: null as string | null,
-        },
-        GUIItem: {
-          AutoRun: false,
-          DisplayRealTimeSpeed: false,
-          EnableStatistics: false,
-        },
-        GlobalHotkeys: [],
-        GrpcItem: {
-          HealthCheckTimeout: 20,
-          IdleTimeout: 60,
-          PermitWithoutStream: false,
-        },
-        HysteriaItem: {
-          DownMbps: 100,
-          HopInterval: 30,
-          UpMbps: 100,
-        },
-        Inbound: [{
-          AllowLANConn: false,
-          LocalPort: 10808,
-          NewPort4Lan: false,
-          Pass: "",
-          Protocol: "socks",
-          SecondLocalPortEnabled: false,
-          SniffingEnabled: true,
-          User: "",
-        }],
-        IndexId: "",
-        Mux4SboxItem: {
-          MaxConnections: 8,
-          Padding: null as boolean | null,
-          Protocol: "h2mux",
-        },
-        RoutingBasicItem: {
-          DomainStrategy: "AsIs",
-          DomainStrategy4Singbox: "",
-          RoutingIndexId: "",
-        },
-        SimpleDNSItem: {},
-        SpeedTestItem: {
-          IPAPIUrl: "",
-          MixedConcurrencyCount: 5,
-          SpeedPingTestUrl: "https://www.google.com/generate_204",
-          SpeedTestDelayInterval: null as number | null,
-          SpeedTestPageSize: null as number | null,
-          SpeedTestTimeout: 10,
-          SpeedTestUrl: "https://cachefly.cachefly.net/50mb.test",
-          UdpTestTarget: "ntp:pool.ntp.org",
-        },
-        SubIndexId: "",
-        SystemProxyItem: {
-          CustomSystemProxyPacPath: null,
-          CustomSystemProxyScriptPath: null,
-          NotProxyLocalAddress: true,
-          SysProxyType: 0,
-          SystemProxyAdvancedProtocol: "",
-          SystemProxyExceptions: "",
-        },
-        TunModeItem: {
-          AutoRoute: true,
-          EnableIPv6Address: false,
-          EnableTun: false,
-          IcmpRouting: "rule",
-          Mtu: 1500,
-          Stack: "",
-          StrictRoute: false,
-        },
-        UIItem: {
-          CurrentLanguage: "en",
-          CurrentTheme: "FollowSystem",
-        },
-      };
-    }
-
-    function uiPreferencesFromConfig() {
-      const currentTheme = String(state.appConfig.UIItem.CurrentTheme ?? "").toLowerCase();
-
-      return {
-        language: String(state.appConfig.UIItem.CurrentLanguage ?? "en"),
-        theme: currentTheme === "dark" ? "dark" : currentTheme === "light" ? "light" : "system",
-      };
-    }
-
-    function makeSettingsBundle() {
-      return {
-        autostartEnabled: false,
-        coreBasicItem: {
-          DefAllowInsecure: false,
-          DefFingerprint: "chrome",
-          DefUserAgent: "",
-          EnableCacheFile4Sbox: true,
-          EnableFragment: false,
-          LogEnabled: false,
-          Loglevel: "warning",
-          MuxEnabled: false,
-        },
-        hysteriaItem: { DownMbps: 100, HopInterval: 30, UpMbps: 100 },
-        mux4SboxItem: { MaxConnections: 4, Padding: false, Protocol: "h2mux" },
         network: {
+          inbounds: [{
+            lanConnectionsAllowed: false,
+            localPort: 10808,
+            password: "",
+            protocol: "socks",
+            secondaryPortEnabled: false,
+            separateLanPort: false,
+            sniffingEnabled: true,
+            username: "",
+          }],
           systemProxy: {
-            customSystemProxyPacPath: null,
-            customSystemProxyScriptPath: null,
-            notProxyLocalAddress: true,
-            systemProxyAdvancedProtocol: "",
-            systemProxyExceptions: "",
+            advancedProtocol: "",
+            bypassLocal: true,
+            customPacPath: null as string | null,
+            customScriptPath: null as string | null,
+            exceptions: "",
+            mode: "forcedClear",
           },
           tun: {
             autoRoute: true,
-            enableIpv6Address: false,
+            enabled: false,
             icmpRouting: "rule",
             mtu: 1500,
+            ipv6Enabled: false,
             stack: "system",
             strictRoute: false,
           },
         },
-        showWindowHotkey: {
-          Alt: true,
-          Control: true,
-          EGlobalHotkey: 0,
-          KeyCode: 86,
-          Shift: false,
+        routing: { domainStrategy: "AsIs", singboxDomainStrategy: "" },
+        dns: {
+          addCommonHosts: null,
+          blockBindingQuery: null,
+          bootstrap: null,
+          direct: null,
+          directExpectedIps: null,
+          directStrategy: null,
+          fakeIp: null,
+          globalFakeIp: null,
+          hosts: null,
+          parallelQuery: null,
+          proxyStrategy: null,
+          remote: null,
+          serveStale: null,
+          useSystemHosts: null,
         },
         sources: {
-          geoSourceUrl: null as string | null,
-          routeRulesTemplateSourceUrl: null as string | null,
-          srsSourceUrl: null as string | null,
+          geo: null as string | null,
+          routingTemplate: null as string | null,
+          singboxRuleset: null as string | null,
+          subscriptionConverter: null as string | null,
         },
-        speedTestItem: {
-          IPAPIUrl: "",
-          MixedConcurrencyCount: 5,
-          SpeedPingTestUrl: "https://www.google.com/generate_204",
-          SpeedTestDelayInterval: null,
-          SpeedTestPageSize: null,
-          SpeedTestTimeout: 10,
-          SpeedTestUrl: "https://cachefly.cachefly.net/50mb.test",
-          UdpTestTarget: "ntp:pool.ntp.org",
+        speedTest: {
+          delayIntervalMs: null as number | null,
+          downloadUrl: "https://cachefly.cachefly.net/50mb.test",
+          ipLookupUrl: "",
+          latencyUrl: "https://www.google.com/generate_204",
+          mixedConcurrency: 5,
+          pageSize: null as number | null,
+          timeoutSeconds: 10,
+          udpTarget: "ntp:pool.ntp.org",
         },
-        subConvertUrl: null,
-        uiPreferences: { language: "en", theme: "system" },
+        multiplexing: { maxConnections: 4, padding: false, protocol: "h2mux" },
+        grpc: {
+          healthCheckTimeoutSeconds: 20,
+          idleTimeoutSeconds: 60,
+          permitWithoutStream: false,
+        },
+        hysteria: { downloadMbps: 100, hopIntervalSeconds: 30, uploadMbps: 100 },
+        proxy: { nodeSorting: 0, trafficMode: "rule" },
+        shortcuts: {
+          showWindowShortcut: { alt: true, control: true, keyCode: 86, shift: false },
+        },
       };
     }
 
     function makeDnsSettings() {
       return {
-        simpleDnsItem: {
-          AddCommonHosts: true,
-          BlockBindingQuery: false,
-          BootstrapDNS: "1.1.1.1",
-          DirectDNS: "223.5.5.5",
-          DirectExpectedIPs: "",
-          FakeIP: false,
-          GlobalFakeIp: false,
-          Hosts: "",
-          ParallelQuery: false,
-          RemoteDNS: "https://1.1.1.1/dns-query",
-          ServeStale: false,
-          Strategy4Freedom: "AsIs",
-          Strategy4Proxy: "UseIP",
-          UseSystemHosts: true,
-        },
+        addCommonHosts: true,
+        blockBindingQuery: false,
+        bootstrap: "1.1.1.1",
+        direct: "223.5.5.5",
+        directExpectedIps: "",
+        fakeIp: false,
+        globalFakeIp: false,
+        hosts: "",
+        parallelQuery: false,
+        proxyStrategy: "UseIP",
+        remote: "https://1.1.1.1/dns-query",
+        serveStale: false,
+        directStrategy: "AsIs",
+        useSystemHosts: true,
       };
     }
 

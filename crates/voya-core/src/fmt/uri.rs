@@ -115,10 +115,14 @@ pub(super) fn parse_uri_with_schemes(
 
 pub(super) fn profile_from_uri(config_type: ConfigType, parsed: &ParsedUri) -> ProfileItem {
     ProfileItem {
-        config_type,
-        address: parsed.address.clone(),
-        port: parsed.port,
         remarks: parsed.remarks.clone(),
+        protocol: ProfileProtocol::empty(
+            config_type,
+            ServerEndpoint {
+                address: parsed.address.clone(),
+                port: parsed.port,
+            },
+        ),
         ..ProfileItem::default()
     }
 }
@@ -169,28 +173,44 @@ pub(super) fn to_uri_query(
     security_default: Option<&str>,
     query: &mut QueryPairs,
 ) {
-    let transport = &item.transport_extra;
-    if !item.stream_security.is_empty() {
-        query.push(("security".to_string(), item.stream_security.clone()));
+    if !item.stream_security().is_empty() {
+        query.push(("security".to_string(), item.stream_security().to_string()));
     } else if let Some(default_value) = security_default {
         query.push(("security".to_string(), default_value.to_string()));
     }
-    push_encoded_str(query, "sni", &item.sni);
-    push_encoded_str(query, "pbk", &item.public_key);
-    push_encoded_str(query, "sid", &item.short_id);
-    push_encoded_str(query, "spx", &item.spider_x);
-    push_encoded_str(query, "pqv", &item.mldsa65_verify);
-
-    if item.stream_security == STREAM_SECURITY_TLS {
-        push_encoded_str(query, "alpn", &item.alpn);
-    }
-    push_encoded_str(query, "ech", &item.ech_config_list);
-    push_encoded_str(query, "pcs", &item.cert_sha);
-    if !item.finalmask.is_empty() {
-        query.push((
-            "fm".to_string(),
-            url_encode(&compact_json_or_self(&item.finalmask)),
-        ));
+    if let Some(tls) = &item.tls {
+        push_encoded_str(query, "sni", tls.server_name.as_deref().unwrap_or_default());
+        push_encoded_str(
+            query,
+            "pbk",
+            tls.reality_public_key.as_deref().unwrap_or_default(),
+        );
+        push_encoded_str(
+            query,
+            "sid",
+            tls.reality_short_id.as_deref().unwrap_or_default(),
+        );
+        push_encoded_str(
+            query,
+            "spx",
+            tls.reality_spider_x.as_deref().unwrap_or_default(),
+        );
+        push_encoded_str(
+            query,
+            "pqv",
+            tls.mldsa65_verify.as_deref().unwrap_or_default(),
+        );
+        if tls.mode == TlsMode::Tls {
+            push_encoded_str(query, "alpn", &tls.alpn.join(","));
+        }
+        push_encoded_str(query, "ech", &tls.ech_config.join(","));
+        push_encoded_str(query, "pcs", &tls.certificate_sha256.join(","));
+        if let Some(final_mask) = nonempty_str(tls.final_mask.as_deref()) {
+            query.push((
+                "fm".to_string(),
+                url_encode(&compact_json_or_self(final_mask)),
+            ));
+        }
     }
 
     let network = item_network(item);
@@ -205,56 +225,85 @@ pub(super) fn to_uri_query(
 
     match network {
         "raw" => {
+            let (header, host, path) = match item.transport.as_ref() {
+                Some(ProfileTransport::Tcp { header, host, path }) => (header, host, path),
+                _ => return,
+            };
             query.push((
                 "headerType".to_string(),
-                nonempty_option(&transport.raw_header_type)
-                    .unwrap_or(NONE)
-                    .to_string(),
+                nonempty_option(header).unwrap_or(NONE).to_string(),
             ));
-            push_encoded_opt(query, "host", &transport.host);
-            push_encoded_opt(query, "path", &transport.path);
+            push_encoded_opt(query, "host", host);
+            push_encoded_opt(query, "path", path);
         }
         "kcp" => {
+            let (header, seed, mtu) = match item.transport.as_ref() {
+                Some(ProfileTransport::Kcp { header, seed, mtu }) => (header, seed, *mtu),
+                _ => return,
+            };
             query.push((
                 "headerType".to_string(),
-                nonempty_option(&transport.kcp_header_type)
-                    .unwrap_or(NONE)
-                    .to_string(),
+                nonempty_option(header).unwrap_or(NONE).to_string(),
             ));
-            push_encoded_opt(query, "seed", &transport.kcp_seed);
-            if let Some(mtu) = transport.kcp_mtu.filter(|value| *value > 0) {
+            push_encoded_opt(query, "seed", seed);
+            if let Some(mtu) = mtu.filter(|value| *value > 0) {
                 query.push(("mtu".to_string(), mtu.to_string()));
             }
         }
         "ws" | "httpupgrade" => {
-            push_encoded_opt(query, "host", &transport.host);
-            push_encoded_opt(query, "path", &transport.path);
+            let (host, path) = match item.transport.as_ref() {
+                Some(ProfileTransport::Websocket { host, path })
+                | Some(ProfileTransport::HttpUpgrade { host, path }) => (host, path),
+                _ => return,
+            };
+            push_encoded_opt(query, "host", host);
+            push_encoded_opt(query, "path", path);
         }
         "xhttp" => {
-            push_encoded_opt(query, "host", &transport.host);
-            push_encoded_opt(query, "path", &transport.path);
-            if let Some(mode) = nonempty_option(&transport.xhttp_mode) {
+            let (host, path, mode, extra) = match item.transport.as_ref() {
+                Some(ProfileTransport::Xhttp {
+                    host,
+                    path,
+                    mode,
+                    extra,
+                }) => (host, path, mode, extra),
+                _ => return,
+            };
+            push_encoded_opt(query, "host", host);
+            push_encoded_opt(query, "path", path);
+            if let Some(mode) = nonempty_option(mode) {
                 if XHTTP_MODES.contains(&mode) {
                     query.push(("mode".to_string(), url_encode(mode)));
                 }
             }
-            if let Some(extra) = nonempty_option(&transport.xhttp_extra) {
+            if let Some(extra) = nonempty_option(extra) {
                 query.push((
                     "extra".to_string(),
                     url_encode(&compact_json_or_self(extra)),
                 ));
             }
         }
-        "grpc" if nonempty_option(&transport.grpc_service_name).is_some() => {
+        "grpc" => {
+            let (authority, service_name, mode) = match item.transport.as_ref() {
+                Some(ProfileTransport::Grpc {
+                    authority,
+                    service_name,
+                    mode,
+                }) => (authority, service_name, mode),
+                _ => return,
+            };
+            if nonempty_option(service_name).is_none() {
+                return;
+            }
             query.push((
                 "authority".to_string(),
-                url_encode(transport.grpc_authority.as_deref().unwrap_or("")),
+                url_encode(authority.as_deref().unwrap_or("")),
             ));
             query.push((
                 "serviceName".to_string(),
-                url_encode(transport.grpc_service_name.as_deref().unwrap_or("")),
+                url_encode(service_name.as_deref().unwrap_or("")),
             ));
-            if let Some(mode) = nonempty_option(&transport.grpc_mode) {
+            if let Some(mode) = nonempty_option(mode) {
                 if mode == GRPC_GUN_MODE || mode == GRPC_MULTI_MODE {
                     query.push(("mode".to_string(), url_encode(mode)));
                 }
@@ -265,26 +314,65 @@ pub(super) fn to_uri_query(
 }
 
 pub(super) fn to_uri_query_lite(item: &ProfileItem, query: &mut QueryPairs) {
-    push_encoded_str(query, "sni", &item.sni);
-    push_encoded_str(query, "alpn", &item.alpn);
+    if let Some(tls) = &item.tls {
+        push_encoded_str(query, "sni", tls.server_name.as_deref().unwrap_or_default());
+        push_encoded_str(query, "alpn", &tls.alpn.join(","));
+    }
 }
 
 pub(super) fn resolve_uri_query(query: &Query, item: &mut ProfileItem) {
-    item.stream_security = query.value_or("security", "");
-    item.sni = query.value_or("sni", "");
-    item.alpn = query.decoded_or("alpn", "");
-    item.public_key = query.decoded_or("pbk", "");
-    item.short_id = query.decoded_or("sid", "");
-    item.spider_x = query.decoded_or("spx", "");
-    item.mldsa65_verify = query.decoded_or("pqv", "");
-    item.ech_config_list = query.decoded_or("ech", "");
-    item.cert_sha = query.decoded_or("pcs", "");
-
+    let security = query.value_or("security", "");
+    let sni = nonempty(query.value_or("sni", ""));
+    let alpn = split_csv(&query.decoded_or("alpn", ""));
+    let public_key = nonempty(query.decoded_or("pbk", ""));
+    let short_id = nonempty(query.decoded_or("sid", ""));
+    let spider_x = nonempty(query.decoded_or("spx", ""));
+    let mldsa65_verify = nonempty(query.decoded_or("pqv", ""));
+    let ech_config = split_csv(&query.decoded_or("ech", ""));
+    let certificate_sha256 = split_csv(&query.decoded_or("pcs", ""));
     let finalmask = query.decoded_or("fm", "");
-    item.finalmask = if finalmask.is_empty() {
-        String::new()
-    } else {
-        pretty_json_or_self(&finalmask)
+    let final_mask = (!finalmask.is_empty()).then(|| pretty_json_or_self(&finalmask));
+    let has_tls_fields = sni.is_some()
+        || !alpn.is_empty()
+        || public_key.is_some()
+        || short_id.is_some()
+        || spider_x.is_some()
+        || mldsa65_verify.is_some()
+        || !ech_config.is_empty()
+        || !certificate_sha256.is_empty()
+        || final_mask.is_some();
+    item.tls = match security.as_str() {
+        STREAM_SECURITY_TLS | "reality" => Some(TlsSettings {
+            mode: if security == "reality" {
+                TlsMode::Reality
+            } else {
+                TlsMode::Tls
+            },
+            server_name: sni,
+            alpn,
+            reality_public_key: public_key,
+            reality_short_id: short_id,
+            reality_spider_x: spider_x,
+            mldsa65_verify,
+            certificate_pem: None,
+            certificate_sha256,
+            ech_config,
+            final_mask,
+        }),
+        _ if has_tls_fields => Some(TlsSettings {
+            mode: TlsMode::Tls,
+            server_name: sni,
+            alpn,
+            reality_public_key: public_key,
+            reality_short_id: short_id,
+            reality_spider_x: spider_x,
+            mldsa65_verify,
+            certificate_pem: None,
+            certificate_sha256,
+            ech_config,
+            final_mask,
+        }),
+        _ => None,
     };
 
     let mut network = query.value_or("type", DEFAULT_NETWORK);
@@ -294,41 +382,43 @@ pub(super) fn resolve_uri_query(query: &Query, item: &mut ProfileItem) {
     if !NETWORKS.contains(&network.as_str()) {
         network = DEFAULT_NETWORK.to_string();
     }
-    item.network = network;
-
-    match item.network.as_str() {
-        "raw" => {
-            item.transport_extra.raw_header_type = Some(query.value_or("headerType", NONE));
-            item.transport_extra.host = Some(query.decoded_or("host", ""));
-            item.transport_extra.path = Some(query.decoded_or("path", ""));
-        }
-        "kcp" => {
-            item.transport_extra.kcp_header_type = Some(query.value_or("headerType", NONE));
-            item.transport_extra.kcp_seed = Some(query.decoded_or("seed", ""));
-            item.transport_extra.kcp_mtu = parse_positive_i32(&query.value_or("mtu", ""));
-        }
-        "ws" | "httpupgrade" => {
-            item.transport_extra.host = Some(query.decoded_or("host", ""));
-            item.transport_extra.path = Some(query.decoded_or("path", "/"));
-        }
+    item.transport = Some(match network.as_str() {
+        "raw" => ProfileTransport::Tcp {
+            header: nonempty(query.value_or("headerType", NONE)),
+            host: nonempty(query.decoded_or("host", "")),
+            path: nonempty(query.decoded_or("path", "")),
+        },
+        "kcp" => ProfileTransport::Kcp {
+            header: nonempty(query.value_or("headerType", NONE)),
+            seed: nonempty(query.decoded_or("seed", "")),
+            mtu: parse_positive_i32(&query.value_or("mtu", "")),
+        },
+        "ws" => ProfileTransport::Websocket {
+            host: nonempty(query.decoded_or("host", "")),
+            path: nonempty(query.decoded_or("path", "/")),
+        },
+        "httpupgrade" => ProfileTransport::HttpUpgrade {
+            host: nonempty(query.decoded_or("host", "")),
+            path: nonempty(query.decoded_or("path", "/")),
+        },
         "xhttp" => {
             let xhttp_extra = query.decoded_or("extra", "");
-            item.transport_extra.host = Some(query.decoded_or("host", ""));
-            item.transport_extra.path = Some(query.decoded_or("path", "/"));
-            item.transport_extra.xhttp_mode = Some(query.decoded_or("mode", ""));
-            item.transport_extra.xhttp_extra = Some(if xhttp_extra.is_empty() {
-                String::new()
-            } else {
-                pretty_json_or_self(&xhttp_extra)
-            });
+            ProfileTransport::Xhttp {
+                host: nonempty(query.decoded_or("host", "")),
+                path: nonempty(query.decoded_or("path", "/")),
+                mode: nonempty(query.decoded_or("mode", "")),
+                extra: (!xhttp_extra.is_empty()).then(|| pretty_json_or_self(&xhttp_extra)),
+            }
         }
-        "grpc" => {
-            item.transport_extra.grpc_authority = Some(query.decoded_or("authority", ""));
-            item.transport_extra.grpc_service_name = Some(query.decoded_or("serviceName", ""));
-            item.transport_extra.grpc_mode = Some(query.decoded_or("mode", GRPC_GUN_MODE));
-        }
-        _ => {
-            item.network = DEFAULT_NETWORK.to_string();
-        }
-    }
+        "grpc" => ProfileTransport::Grpc {
+            authority: nonempty(query.decoded_or("authority", "")),
+            service_name: nonempty(query.decoded_or("serviceName", "")),
+            mode: nonempty(query.decoded_or("mode", GRPC_GUN_MODE)),
+        },
+        _ => ProfileTransport::Tcp {
+            header: None,
+            host: None,
+            path: None,
+        },
+    });
 }

@@ -105,7 +105,7 @@ test("imports the default configuration template from the Settings sources card"
   let templateDialog = page.getByRole("dialog", { name: "Import configuration template" });
   await expect(templateDialog).toBeVisible();
 
-  const optionNames = ["Default", "Russia", "Iran", "Custom"];
+  const optionNames = ["Default", "Custom"];
   for (const optionName of optionNames) {
     await expect(templateDialog.getByRole("button", { name: new RegExp(`^${optionName}`) })).toHaveAttribute(
       "aria-pressed",

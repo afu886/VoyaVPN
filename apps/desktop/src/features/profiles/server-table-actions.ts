@@ -1,13 +1,13 @@
 import {
   exportProfileClientConfig,
-  exportProfileInnerLinks,
+  exportProfileVoyaBundle,
   exportProfileShareLinks,
   exportProfileShareLinksBase64,
 } from "@/ipc";
 import type { ExportProfilesResult, ImportProfilesResult } from "@/ipc/bindings";
 import type { TranslateFn } from "./server-table-columns";
 
-export type ProfileExportKind = "clientConfig" | "innerLinks" | "shareBase64" | "shareLinks";
+export type ProfileExportKind = "clientConfig" | "shareBase64" | "shareLinks" | "voyaBundle";
 
 export function profilesQueryKey(filter: string) {
   return ["profiles", { filter }] as const;
@@ -17,8 +17,8 @@ export function runProfileExport(kind: ProfileExportKind, indexIds: string[]): P
   switch (kind) {
     case "clientConfig":
       return exportProfileClientConfig(indexIds);
-    case "innerLinks":
-      return exportProfileInnerLinks(indexIds);
+    case "voyaBundle":
+      return exportProfileVoyaBundle(indexIds);
     case "shareBase64":
       return exportProfileShareLinksBase64(indexIds);
     case "shareLinks":
@@ -30,8 +30,8 @@ export function exportFileName(kind: ProfileExportKind) {
   switch (kind) {
     case "clientConfig":
       return "voyavpn-client-config.json";
-    case "innerLinks":
-      return "voyavpn-inner-links.txt";
+    case "voyaBundle":
+      return "voyavpn-profile-bundle.voya";
     case "shareBase64":
       return "voyavpn-share-links-base64.txt";
     case "shareLinks":
@@ -42,7 +42,9 @@ export function exportFileName(kind: ProfileExportKind) {
 export function exportFileFilter(kind: ProfileExportKind) {
   return kind === "clientConfig"
     ? { extensions: ["json"], name: "JSON" }
-    : { extensions: ["txt"], name: "Text" };
+    : kind === "voyaBundle"
+      ? { extensions: ["voya"], name: "Voya profile bundle" }
+      : { extensions: ["txt"], name: "Text" };
 }
 
 export function formatImportOperationMessage(result: ImportProfilesResult, t: TranslateFn) {

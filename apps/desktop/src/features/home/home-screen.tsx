@@ -166,7 +166,7 @@ function useHomeRuntime(t: Translation) {
   const busy = inProgress || pendingAction !== null || switchingId !== null;
 
   const activeProfile = profilesQuery.data?.find((item) => item.isActive) ?? null;
-  const activeProfileId = activeProfile?.profile.IndexId ?? null;
+  const activeProfileId = activeProfile?.profile.id ?? null;
   // The green "live" dot follows the node that is actually running, which differs
   // from the persisted-active node only while disconnected.
   const runningId = connected ? (coreState?.activeProfileId ?? null) : null;

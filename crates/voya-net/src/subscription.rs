@@ -9,132 +9,7 @@ use crate::{
 pub const DEFAULT_SUB_CONVERT_URL: &str = "https://sub.xeton.dev/sub?url={0}";
 pub const DEFAULT_SUB_CONVERT_CONFIG: &str =
     "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini";
-pub const RUSSIA_GEO_SOURCE_URL: &str =
-    "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/{0}.dat";
-pub const IRAN_GEO_SOURCE_URL: &str =
-    "https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/{0}.dat";
-pub const RUSSIA_SRS_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box/rule-set-{0}/{1}.srs";
-pub const IRAN_SRS_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/chocolate4u/Iran-sing-box-rules/rule-set/{1}.srs";
-pub const RUSSIA_ROUTING_RULES_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-custom-routing-list/main/v2rayN/template.json";
-pub const IRAN_ROUTING_RULES_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/main/v2rayN/template.json";
-pub const RUSSIA_DNS_TEMPLATE_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-custom-routing-list/main/v2rayN/";
-pub const IRAN_DNS_TEMPLATE_SOURCE_URL: &str =
-    "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/main/v2rayN/";
-
 const SUBSCRIPTION_RESPONSE_LIMIT_BYTES: usize = DEFAULT_TEXT_RESPONSE_LIMIT_BYTES;
-const PRESET_DNS_TEMPLATE_RESPONSE_LIMIT_BYTES: usize = 1024 * 1024;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegionalPreset {
-    Russia,
-    Iran,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegionalPresetSources {
-    pub geo_source_url: String,
-    pub srs_source_url: String,
-    pub route_rules_template_source_url: String,
-    pub dns_template_source_url: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegionalPresetCatalog {
-    pub russia: RegionalPresetSources,
-    pub iran: RegionalPresetSources,
-}
-
-impl Default for RegionalPresetCatalog {
-    fn default() -> Self {
-        Self {
-            russia: RegionalPresetSources {
-                geo_source_url: RUSSIA_GEO_SOURCE_URL.to_string(),
-                srs_source_url: RUSSIA_SRS_SOURCE_URL.to_string(),
-                route_rules_template_source_url: RUSSIA_ROUTING_RULES_SOURCE_URL.to_string(),
-                dns_template_source_url: RUSSIA_DNS_TEMPLATE_SOURCE_URL.to_string(),
-            },
-            iran: RegionalPresetSources {
-                geo_source_url: IRAN_GEO_SOURCE_URL.to_string(),
-                srs_source_url: IRAN_SRS_SOURCE_URL.to_string(),
-                route_rules_template_source_url: IRAN_ROUTING_RULES_SOURCE_URL.to_string(),
-                dns_template_source_url: IRAN_DNS_TEMPLATE_SOURCE_URL.to_string(),
-            },
-        }
-    }
-}
-
-impl RegionalPresetCatalog {
-    #[must_use]
-    pub fn sources(&self, preset: RegionalPreset) -> &RegionalPresetSources {
-        match preset {
-            RegionalPreset::Russia => &self.russia,
-            RegionalPreset::Iran => &self.iran,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PresetDnsTemplateFetchOptions {
-    pub prefer_proxy: bool,
-    pub proxy_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct PresetDnsTemplateClient {
-    download: DownloadClient,
-}
-
-impl PresetDnsTemplateClient {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            download: DownloadClient::new(),
-        }
-    }
-
-    pub async fn fetch(
-        &self,
-        source_url: &str,
-        options: &PresetDnsTemplateFetchOptions,
-    ) -> Option<String> {
-        let source_url = source_url.trim();
-        if source_url.is_empty() {
-            return None;
-        }
-
-        let simple_url = join_url_path(source_url, "simple_dns.json");
-        self.fetch_optional(&simple_url, options).await
-    }
-
-    pub async fn fetch_optional(
-        &self,
-        url: &str,
-        options: &PresetDnsTemplateFetchOptions,
-    ) -> Option<String> {
-        match self
-            .download
-            .download_text(DownloadRequest {
-                url: url.to_string(),
-                user_agent: None,
-                prefer_proxy: options.prefer_proxy,
-                proxy_url: options.proxy_url.clone(),
-                response_body_limit: Some(PRESET_DNS_TEMPLATE_RESPONSE_LIMIT_BYTES),
-            })
-            .await
-        {
-            Ok(response) => Some(response.body),
-            Err(error) => {
-                tracing::warn!(?error, %url, "preset DNS template fetch failed");
-                None
-            }
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubscriptionFetchSource {
@@ -393,14 +268,6 @@ fn nonempty(value: String) -> Option<String> {
     }
 }
 
-fn join_url_path(base: &str, file_name: &str) -> String {
-    if base.ends_with('/') {
-        format!("{base}{file_name}")
-    } else {
-        format!("{base}/{file_name}")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Arc};
@@ -409,7 +276,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::{test_support::spawn_http_fixture, USER_AGENT_PREFIX};
+    use crate::test_support::spawn_http_fixture;
 
     #[test]
     fn subscription_url_guard_rejects_loopback_and_link_local() {
@@ -569,48 +436,5 @@ mod tests {
             query.get("config").map(AsRef::as_ref),
             Some(DEFAULT_SUB_CONVERT_CONFIG)
         );
-    }
-
-    #[tokio::test]
-    async fn preset_dns_template_client_fetches_regional_templates() {
-        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
-        let base = spawn_http_fixture(
-            HashMap::from([(
-                "/preset/simple_dns.json".to_string(),
-                r#"{"DirectDNS":"1.1.1.1"}"#.to_string(),
-            )]),
-            1,
-            Arc::clone(&seen_user_agents),
-        )
-        .await;
-
-        let templates = PresetDnsTemplateClient::new()
-            .fetch(
-                &format!("{base}/preset"),
-                &PresetDnsTemplateFetchOptions::default(),
-            )
-            .await;
-
-        assert_eq!(templates.as_deref(), Some(r#"{"DirectDNS":"1.1.1.1"}"#));
-        assert_eq!(
-            seen_user_agents.lock().await.as_slice(),
-            [USER_AGENT_PREFIX]
-        );
-    }
-
-    #[tokio::test]
-    async fn preset_dns_template_client_returns_none_for_missing_templates() {
-        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
-        let base = spawn_http_fixture(HashMap::new(), 1, Arc::clone(&seen_user_agents)).await;
-
-        let templates = PresetDnsTemplateClient::new()
-            .fetch(
-                &format!("{base}/missing/"),
-                &PresetDnsTemplateFetchOptions::default(),
-            )
-            .await;
-
-        assert_eq!(templates, None);
-        assert_eq!(seen_user_agents.lock().await.len(), 1);
     }
 }

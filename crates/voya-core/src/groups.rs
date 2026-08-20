@@ -3,24 +3,23 @@ use std::collections::{BTreeMap, BTreeSet};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use specta::Type;
 
 use crate::{ConfigType, ProfileItem};
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupChildCandidate {
     pub index_id: String,
     pub remarks: String,
     pub address: String,
     pub config_type: ConfigType,
-    pub subid: String,
+    pub subscription_id: Option<String>,
     pub is_group: bool,
     pub selectable: bool,
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GroupValidationResult {
     pub valid: bool,
@@ -30,7 +29,7 @@ pub struct GroupValidationResult {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupPreviewRoute {
     pub tag: String,
@@ -41,7 +40,7 @@ pub struct GroupPreviewRoute {
     pub outbounds: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GroupPreview {
     pub validation: GroupValidationResult,
@@ -86,7 +85,7 @@ pub fn list_group_child_candidates(
         .filter(|profile| {
             filter.is_empty()
                 || profile.remarks.to_ascii_lowercase().contains(&filter)
-                || profile.address.to_ascii_lowercase().contains(&filter)
+                || profile.address().to_ascii_lowercase().contains(&filter)
                 || profile.index_id.to_ascii_lowercase().contains(&filter)
         })
         .map(|profile| {
@@ -94,10 +93,10 @@ pub fn list_group_child_candidates(
             GroupChildCandidate {
                 index_id: profile.index_id.clone(),
                 remarks: profile.remarks.clone(),
-                address: profile.address.clone(),
-                config_type: profile.config_type,
-                subid: profile.subid.clone(),
-                is_group: profile.config_type.is_group_type(),
+                address: profile.address().to_string(),
+                config_type: profile.config_type(),
+                subscription_id: profile.subscription_id.clone(),
+                is_group: profile.config_type().is_group_type(),
                 selectable: !is_self,
                 reason: is_self.then(|| "current group cannot be its own child".to_string()),
             }
@@ -115,7 +114,7 @@ pub fn validate_group_profile(
         ..GroupValidationResult::default()
     };
 
-    if !profile.config_type.is_group_type() {
+    if !profile.config_type().is_group_type() {
         result
             .errors
             .push("profile is not a policy group or proxy chain".to_string());
@@ -133,10 +132,10 @@ pub fn validate_group_profile(
     if child_index_ids.is_empty() {
         result.errors.push(format!(
             "{} has no valid child profiles",
-            group_kind_label(profile.config_type)
+            group_kind_label(profile.config_type())
         ));
     }
-    if profile.config_type == ConfigType::ProxyChain && child_index_ids.len() == 1 {
+    if profile.config_type() == ConfigType::ProxyChain && child_index_ids.len() == 1 {
         result.warnings.push(
             "proxy chain has one hop; two or more hops are needed to chain traffic".to_string(),
         );
@@ -186,8 +185,8 @@ fn effective_child_ids(
     let mut child_index_ids = Vec::new();
     let mut seen = BTreeSet::new();
 
-    for child_id in parse_profile_id_list(profile.protocol_extra.child_items.as_deref()) {
-        if !map.contains_key(&child_id) {
+    for child_id in profile.protocol.child_profile_ids() {
+        if !map.contains_key(child_id) {
             if report_missing {
                 result
                     .errors
@@ -195,25 +194,23 @@ fn effective_child_ids(
             }
             continue;
         }
-        push_unique_child(&mut child_index_ids, &mut seen, &child_id, result);
+        push_unique_child(&mut child_index_ids, &mut seen, child_id, result);
     }
 
-    if let Some(subid) = profile
-        .protocol_extra
-        .sub_child_items
-        .as_deref()
-        .and_then(nonempty)
+    if let crate::ProfileProtocol::PolicyGroup {
+        source_subscription_id: Some(subscription_id),
+        filter,
+        ..
+    } = &profile.protocol
     {
-        let filter = profile
-            .protocol_extra
-            .filter
+        let filter = filter
             .as_deref()
             .and_then(nonempty)
             .and_then(|value| Regex::new(value).ok());
 
         for child in map.values().filter(|candidate| {
-            candidate.subid == subid
-                && !candidate.config_type.is_complex_type()
+            candidate.subscription_id.as_deref() == Some(subscription_id)
+                && !candidate.config_type().is_complex_type()
                 && filter
                     .as_ref()
                     .is_none_or(|filter| filter.is_match(&candidate.remarks))
@@ -262,7 +259,7 @@ fn detect_cycle(
     let Some(profile) = map.get(index_id) else {
         return;
     };
-    if !profile.config_type.is_group_type() {
+    if !profile.config_type().is_group_type() {
         return;
     }
 
@@ -360,7 +357,8 @@ mod tests {
 
     use crate::{
         generate_singbox_config_value, AppConfig, CoreConfigContextBuilder, CoreGenEnv,
-        CoreGenPlatform, InboundProtocol, MultipleLoad, ProtocolExtraItem, RoutingItem, SubItem,
+        CoreGenPlatform, InboundProtocol, MultipleLoad, ProfileProtocol, ProfileTransport,
+        RoutingItem, ServerEndpoint, SubItem,
     };
 
     use super::*;
@@ -480,16 +478,21 @@ mod tests {
     fn vless_profile(index_id: &str, remarks: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VLESS,
             remarks: remarks.to_string(),
-            address: format!("{index_id}.example.test"),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            network: "tcp".to_string(),
-            protocol_extra: ProtocolExtraItem {
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: format!("{index_id}.example.test"),
+                    port: 443,
+                },
+                uuid: "00000000-0000-0000-0000-000000000000".to_string(),
                 flow: Some(String::new()),
-                ..ProtocolExtraItem::default()
+                encryption: Some("none".to_string()),
             },
+            transport: Some(ProfileTransport::Tcp {
+                header: None,
+                host: None,
+                path: None,
+            }),
             ..ProfileItem::default()
         }
     }
@@ -497,14 +500,12 @@ mod tests {
     fn policy_group(index_id: &str, remarks: &str, child_items: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::PolicyGroup,
             remarks: remarks.to_string(),
-            address: "group".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                child_items: Some(child_items.to_string()),
-                group_type: Some("PolicyGroup".to_string()),
-                multiple_load: Some(MultipleLoad::LeastPing),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::PolicyGroup {
+                child_profile_ids: parse_profile_id_list(Some(child_items)),
+                source_subscription_id: None,
+                filter: None,
+                strategy: MultipleLoad::LeastPing,
             },
             ..ProfileItem::default()
         }
@@ -513,13 +514,9 @@ mod tests {
     fn proxy_chain(index_id: &str, remarks: &str, child_items: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::ProxyChain,
             remarks: remarks.to_string(),
-            address: "chain".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                child_items: Some(child_items.to_string()),
-                group_type: Some("ProxyChain".to_string()),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::ProxyChain {
+                child_profile_ids: parse_profile_id_list(Some(child_items)),
             },
             ..ProfileItem::default()
         }
@@ -556,15 +553,15 @@ mod tests {
                 .collect()
         }
 
-        fn get_profile_items_by_subid(&self, subid: &str) -> Vec<ProfileItem> {
+        fn get_profile_items_by_subscription_id(&self, subscription_id: &str) -> Vec<ProfileItem> {
             self.profiles
                 .iter()
-                .filter(|profile| profile.subid == subid)
+                .filter(|profile| profile.subscription_id.as_deref() == Some(subscription_id))
                 .cloned()
                 .collect()
         }
 
-        fn get_sub_item(&self, _subid: &str) -> Option<SubItem> {
+        fn get_subscription(&self, _subscription_id: &str) -> Option<SubItem> {
             None
         }
 
@@ -575,12 +572,8 @@ mod tests {
         fn get_local_port(&self, protocol: InboundProtocol) -> i32 {
             match protocol {
                 InboundProtocol::socks => crate::DEFAULT_LOCAL_PORT,
-                _ => crate::DEFAULT_LOCAL_PORT + protocol.as_i32(),
+                _ => crate::DEFAULT_LOCAL_PORT + protocol.port_offset(),
             }
-        }
-
-        fn next_virtual_chain_id(&self, node: &ProfileItem, child_index_ids: &[String]) -> String {
-            format!("inner-{}-{}", node.index_id, child_index_ids.join("-"))
         }
     }
 }

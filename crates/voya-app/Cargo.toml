@@ -11,25 +11,18 @@ base64 = "0.22"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 futures-util = "0.3"
 regex = "1.12"
-reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "socks"] }
-rustls = "0.23"
-rustls-native-certs = "0.8"
 serde.workspace = true
 serde_json.workspace = true
-sha2 = "0.10"
-specta.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["io-util", "net", "sync", "time"] }
-tokio-rustls = "0.26"
-tokio-tungstenite = { version = "0.28", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 tracing.workspace = true
 uuid = { version = "1.23", features = ["v4"] }
 voya-core.workspace = true
+voya-contracts.workspace = true
 voya-db.workspace = true
 voya-net.workspace = true
 voya-platform.workspace = true
 voya-udptest.workspace = true
-webpki-roots = "1.0"
 
 [dev-dependencies]
 voya-net = { workspace = true, features = ["test-utils"] }

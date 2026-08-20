@@ -1,4 +1,4 @@
-use crate::{AppConfig, ConfigType, InboundProtocol, ProtocolExtraItem, DEFAULT_LOCAL_PORT};
+use crate::{AppConfig, ConfigType, InboundProtocol, ProfileProtocol, DEFAULT_LOCAL_PORT};
 
 pub(crate) const DEFAULT_SECURITY: &str = "auto";
 pub(crate) const DEFAULT_NETWORK: &str = "raw";
@@ -65,12 +65,22 @@ pub(crate) fn parse_pem_chain(pem_chain: &str) -> Vec<String> {
     certs
 }
 
-pub(crate) fn wireguard_public_key(protocol_extra: &ProtocolExtraItem) -> Option<String> {
-    nonempty_str(protocol_extra.wg_public_key.as_deref()).map(str::to_string)
+pub(crate) fn wireguard_public_key(protocol: &ProfileProtocol) -> Option<String> {
+    let ProfileProtocol::WireGuard {
+        peer_public_key, ..
+    } = protocol
+    else {
+        return None;
+    };
+    nonempty_str(peer_public_key.as_deref()).map(str::to_string)
 }
 
-pub(crate) fn wireguard_allowed_ips(protocol_extra: &ProtocolExtraItem) -> Vec<String> {
-    split_list(protocol_extra.wg_allowed_ips.as_deref().unwrap_or_default())
+pub(crate) fn wireguard_allowed_ips(protocol: &ProfileProtocol) -> Vec<String> {
+    let allowed_ips = match protocol {
+        ProfileProtocol::WireGuard { allowed_ips, .. } => allowed_ips.as_deref(),
+        _ => None,
+    };
+    split_list(allowed_ips.unwrap_or_default())
         .filter(|items| !items.is_empty())
         .unwrap_or_else(|| {
             WIREGUARD_DEFAULT_ALLOWED_IPS
@@ -106,10 +116,6 @@ pub(crate) fn split_list(value: &str) -> Option<Vec<String>> {
             .map(str::to_string)
             .collect(),
     )
-}
-
-pub(crate) fn parse_i32(value: Option<&str>) -> Option<i32> {
-    value.and_then(|value| value.trim().parse::<i32>().ok())
 }
 
 pub(crate) fn nonempty_str(value: Option<&str>) -> Option<&str> {
@@ -152,5 +158,5 @@ pub(crate) fn inbound_port(app_config: &AppConfig, protocol: InboundProtocol) ->
         .map(|item| item.local_port)
         .or_else(|| app_config.inbound.first().map(|item| item.local_port))
         .unwrap_or(DEFAULT_LOCAL_PORT)
-        + protocol.as_i32()
+        + protocol.port_offset()
 }

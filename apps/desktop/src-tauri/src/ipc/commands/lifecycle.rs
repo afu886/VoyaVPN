@@ -313,23 +313,6 @@ where
     }
 }
 
-pub(super) fn saved_config_requires_runtime_restart(
-    original: &AppConfig,
-    updated: &AppConfig,
-) -> bool {
-    original.index_id != updated.index_id
-        || original.sub_index_id != updated.sub_index_id
-        || original.core_basic_item != updated.core_basic_item
-        || original.tun_mode_item != updated.tun_mode_item
-        || original.grpc_item != updated.grpc_item
-        || original.routing_basic_item != updated.routing_basic_item
-        || original.mux4_sbox_item != updated.mux4_sbox_item
-        || original.hysteria_item != updated.hysteria_item
-        || original.proxy_ui_item != updated.proxy_ui_item
-        || original.inbound != updated.inbound
-        || original.simple_dns_item != updated.simple_dns_item
-}
-
 pub(super) fn emit_settings_bundle_invalidation<R>(
     app: &tauri::AppHandle<R>,
     reason: &str,

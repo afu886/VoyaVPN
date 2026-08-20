@@ -1,22 +1,13 @@
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
+pub use voya_contracts::DnsValidationIssue;
 use voya_core::{SimpleDnsItem, DEFAULT_BOOTSTRAP_DNS, DEFAULT_DIRECT_DNS, DEFAULT_REMOTE_DNS};
 use voya_db::Database;
 
 pub type Result<T> = std::result::Result<T, DnsManagerError>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DnsSettings {
     pub simple_dns_item: SimpleDnsItem,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DnsValidationIssue {
-    pub field: String,
-    pub message: String,
 }
 
 #[derive(Debug, Error)]

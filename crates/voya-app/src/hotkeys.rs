@@ -1,38 +1,25 @@
 use std::sync::Arc;
 
-use serde::Serialize;
-use specta::Type;
 use thiserror::Error;
-use voya_core::{AppConfig, GlobalHotkey, KeyEventItem};
+use voya_core::{AppConfig, KeyEventItem};
 use voya_platform::hotkeys::{
-    all_hotkey_actions, hotkey_registrations, normalize_key_event_items, HotkeyError,
+    normalize_show_window_shortcut, show_window_hotkey_registration, HotkeyError,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GlobalHotkeyBinding {
-    pub action: GlobalHotkey,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShowWindowShortcutBinding {
     pub accelerator: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GlobalHotkeyAction {
-    pub action: GlobalHotkey,
-    pub label: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyStatus {
-    pub actions: Vec<GlobalHotkeyAction>,
-    pub settings: Vec<KeyEventItem>,
-    pub registered: Vec<GlobalHotkeyBinding>,
+    pub show_window_shortcut: Option<KeyEventItem>,
+    pub registered: Vec<ShowWindowShortcutBinding>,
 }
 
 pub trait HotkeyRegistrar: Send + Sync {
     fn unregister_all(&self) -> Result<(), HotkeyManagerError>;
-    fn register(&self, bindings: &[GlobalHotkeyBinding]) -> Result<(), HotkeyManagerError>;
+    fn register(&self, bindings: &[ShowWindowShortcutBinding]) -> Result<(), HotkeyManagerError>;
 }
 
 #[derive(Clone)]
@@ -47,7 +34,7 @@ impl HotkeyManager {
     }
 
     pub fn status(&self, config: &AppConfig) -> Result<HotkeyStatus, HotkeyManagerError> {
-        status_from_settings(&config.global_hotkeys)
+        status_from_settings(config.show_window_shortcut.as_ref())
     }
 
     pub fn register_from_config(
@@ -64,26 +51,11 @@ impl HotkeyManager {
     pub fn save_settings(
         &self,
         config: &mut AppConfig,
-        settings: Vec<KeyEventItem>,
+        shortcut: Option<KeyEventItem>,
     ) -> Result<HotkeyStatus, HotkeyManagerError> {
-        config.global_hotkeys = normalize_key_event_items(&settings);
+        config.show_window_shortcut = shortcut;
         self.register_from_config(config)
     }
-
-    pub fn trigger_action(
-        &self,
-        action: GlobalHotkey,
-        sink: &dyn HotkeyActionSink,
-    ) -> Result<(), HotkeyManagerError> {
-        if !all_hotkey_actions().contains(&action) {
-            return Err(HotkeyManagerError::UnsupportedAction(action.as_i32()));
-        }
-        sink.handle(action)
-    }
-}
-
-pub trait HotkeyActionSink {
-    fn handle(&self, action: GlobalHotkey) -> Result<(), HotkeyManagerError>;
 }
 
 #[derive(Debug, Error)]
@@ -92,8 +64,6 @@ pub enum HotkeyManagerError {
     Platform(#[from] HotkeyError),
     #[error("global hotkey registration failed: {0}")]
     Register(String),
-    #[error("unsupported global hotkey action discriminant {0}")]
-    UnsupportedAction(i32),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -104,40 +74,26 @@ impl HotkeyRegistrar for NoopHotkeyRegistrar {
         Ok(())
     }
 
-    fn register(&self, _bindings: &[GlobalHotkeyBinding]) -> Result<(), HotkeyManagerError> {
+    fn register(&self, _bindings: &[ShowWindowShortcutBinding]) -> Result<(), HotkeyManagerError> {
         Ok(())
     }
 }
 
-fn status_from_settings(settings: &[KeyEventItem]) -> Result<HotkeyStatus, HotkeyManagerError> {
-    let normalized = normalize_key_event_items(settings);
-    let registered = hotkey_registrations(&normalized)?
-        .into_iter()
-        .map(|registration| GlobalHotkeyBinding {
-            action: registration.action,
+fn status_from_settings(
+    shortcut: Option<&KeyEventItem>,
+) -> Result<HotkeyStatus, HotkeyManagerError> {
+    let normalized = normalize_show_window_shortcut(shortcut);
+    let registered = show_window_hotkey_registration(shortcut)?
+        .map(|registration| ShowWindowShortcutBinding {
             accelerator: registration.accelerator,
         })
+        .into_iter()
         .collect();
 
     Ok(HotkeyStatus {
-        actions: all_hotkey_actions()
-            .iter()
-            .copied()
-            .map(|action| GlobalHotkeyAction {
-                action,
-                label: action_label(action).to_string(),
-            })
-            .collect(),
-        settings: normalized,
+        show_window_shortcut: shortcut.map(|_| normalized),
         registered,
     })
-}
-
-const fn action_label(action: GlobalHotkey) -> &'static str {
-    match action {
-        GlobalHotkey::ShowForm => "Show window",
-        _ => "Retired action",
-    }
 }
 
 #[cfg(test)]
@@ -148,7 +104,7 @@ mod hotkey_app_tests {
 
     #[derive(Default)]
     struct FakeHotkeyRegistrar {
-        registered: Mutex<Vec<Vec<GlobalHotkeyBinding>>>,
+        registered: Mutex<Vec<Vec<ShowWindowShortcutBinding>>>,
         unregisters: Mutex<u32>,
     }
 
@@ -158,22 +114,14 @@ mod hotkey_app_tests {
             Ok(())
         }
 
-        fn register(&self, bindings: &[GlobalHotkeyBinding]) -> Result<(), HotkeyManagerError> {
+        fn register(
+            &self,
+            bindings: &[ShowWindowShortcutBinding],
+        ) -> Result<(), HotkeyManagerError> {
             self.registered
                 .lock()
                 .expect("registered")
                 .push(bindings.to_vec());
-            Ok(())
-        }
-    }
-
-    struct FakeActionSink {
-        actions: Mutex<Vec<GlobalHotkey>>,
-    }
-
-    impl HotkeyActionSink for FakeActionSink {
-        fn handle(&self, action: GlobalHotkey) -> Result<(), HotkeyManagerError> {
-            self.actions.lock().expect("actions").push(action);
             Ok(())
         }
     }
@@ -184,56 +132,25 @@ mod hotkey_app_tests {
         let manager = HotkeyManager::new(registrar.clone());
         let mut config = AppConfig::default();
 
-        let status = manager
+        manager
             .save_settings(
                 &mut config,
-                vec![
-                    KeyEventItem {
-                        global_hotkey: GlobalHotkey::ShowForm,
-                        control: true,
-                        alt: true,
-                        shift: false,
-                        key_code: Some(86),
-                    },
-                    KeyEventItem {
-                        global_hotkey: GlobalHotkey::SystemProxyPac,
-                        control: true,
-                        alt: true,
-                        shift: true,
-                        key_code: Some(80),
-                    },
-                ],
+                Some(KeyEventItem {
+                    control: true,
+                    alt: true,
+                    shift: false,
+                    key_code: Some(86),
+                }),
             )
             .expect("save hotkeys");
 
-        assert_eq!(status.actions.len(), 1);
-        assert_eq!(config.global_hotkeys.len(), 1);
+        assert!(config.show_window_shortcut.is_some());
         assert_eq!(
             registrar.registered.lock().expect("registered")[0],
-            vec![GlobalHotkeyBinding {
-                action: GlobalHotkey::ShowForm,
+            vec![ShowWindowShortcutBinding {
                 accelerator: "Ctrl+Alt+KeyV".to_string(),
             },]
         );
         assert_eq!(*registrar.unregisters.lock().expect("unregisters"), 1);
-    }
-
-    #[test]
-    fn hotkey_manager_dispatches_show_window_action() {
-        let manager = HotkeyManager::new(Arc::new(NoopHotkeyRegistrar));
-        let sink = FakeActionSink {
-            actions: Mutex::new(Vec::new()),
-        };
-
-        for action in all_hotkey_actions() {
-            manager
-                .trigger_action(*action, &sink)
-                .expect("trigger action");
-        }
-
-        assert_eq!(
-            sink.actions.lock().expect("actions").as_slice(),
-            all_hotkey_actions()
-        );
     }
 }

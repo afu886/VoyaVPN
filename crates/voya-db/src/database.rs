@@ -9,8 +9,8 @@ use sqlx::{
 };
 
 use crate::{
-    DbError, ProfileExRepository, ProfileRepository, Result, RoutingRepository,
-    ServerStatRepository, SubscriptionRepository,
+    AppStateRepository, DbError, ProfileExRepository, ProfileRepository, Result, RoutingRepository,
+    ServerStatRepository, SettingsRepository, SubscriptionRepository,
 };
 
 pub const DATABASE_NAME: &str = "voyavpn.sqlite";
@@ -41,6 +41,7 @@ impl Database {
             .max_connections(5)
             .connect_with(options)
             .await?;
+        validate_existing_schema(&pool, path).await?;
         MIGRATOR.run(&pool).await?;
 
         Ok(Self {
@@ -98,9 +99,62 @@ impl Database {
         RoutingRepository::new(&self.pool)
     }
 
+    #[must_use]
+    pub fn settings(&self) -> SettingsRepository<'_> {
+        SettingsRepository::new(&self.pool)
+    }
+
+    #[must_use]
+    pub fn app_state(&self) -> AppStateRepository<'_> {
+        AppStateRepository::new(&self.pool)
+    }
+
     pub async fn close(&self) {
         self.pool.close().await;
     }
+}
+
+async fn validate_existing_schema(pool: &SqlitePool, path: &Path) -> Result<()> {
+    let user_table_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    )
+    .fetch_one(pool)
+    .await?;
+    if user_table_count == 0 {
+        return Ok(());
+    }
+
+    let has_metadata: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_metadata')",
+    )
+    .fetch_one(pool)
+    .await?;
+    let found = if has_metadata == 0 {
+        None
+    } else {
+        sqlx::query_scalar::<_, i64>("SELECT version FROM schema_metadata WHERE id = 1")
+            .fetch_optional(pool)
+            .await?
+    };
+    if found != Some(1) {
+        return Err(DbError::UnsupportedDatabaseSchema {
+            path: path.to_path_buf(),
+            found,
+            expected: 1,
+            manual_reset_command: manual_database_reset_command(path),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn manual_database_reset_command(path: &Path) -> String {
+    format!("Remove-Item -LiteralPath '{}'", path.display())
+}
+
+#[cfg(not(windows))]
+fn manual_database_reset_command(path: &Path) -> String {
+    format!("rm -- '{}'", path.display())
 }
 
 #[cfg(test)]

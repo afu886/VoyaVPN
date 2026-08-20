@@ -2,10 +2,14 @@ mod profile;
 mod profile_ex;
 mod routing;
 mod server_stat;
+mod settings;
+mod state;
 mod subscription;
 
 pub use profile::ProfileRepository;
 pub use profile_ex::ProfileExRepository;
 pub use routing::RoutingRepository;
 pub use server_stat::ServerStatRepository;
+pub use settings::SettingsRepository;
+pub use state::{AppStateRecord, AppStateRepository};
 pub use subscription::SubscriptionRepository;

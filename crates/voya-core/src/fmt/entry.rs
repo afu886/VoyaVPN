@@ -39,7 +39,7 @@ pub fn parse_share_link(input: &str) -> Result<ProfileItem, ShareError> {
 }
 
 pub fn export_share_link(item: &ProfileItem) -> Result<String, ShareError> {
-    match item.config_type {
+    match item.config_type() {
         ConfigType::VMess => VmessFmt.export(item),
         ConfigType::Shadowsocks => ShadowsocksFmt.export(item),
         ConfigType::SOCKS => SocksFmt.export(item),
@@ -73,11 +73,11 @@ pub fn export_share_link_with_options(
     options: &ShareLinkOptions,
 ) -> Result<String, ShareError> {
     let link = export_share_link(item)?;
-    if item.config_type == ConfigType::VMess {
+    if item.config_type() == ConfigType::VMess {
         return inject_vmess_global_options(&link, item, options);
     }
 
-    if !share_link_has_tls_options(item) && item.config_type != ConfigType::Hysteria2 {
+    if !share_link_has_tls_options(item) && item.config_type() != ConfigType::Hysteria2 {
         return Ok(link);
     }
 
@@ -93,7 +93,7 @@ pub fn export_share_link_with_options(
         if !options.fingerprint.trim().is_empty() {
             query.append_pair("fp", options.fingerprint.trim());
         }
-        if item.config_type == ConfigType::Hysteria2 {
+        if item.config_type() == ConfigType::Hysteria2 {
             if options.hysteria_up_mbps > 0 {
                 query.append_pair("upmbps", &options.hysteria_up_mbps.to_string());
             }
@@ -110,9 +110,9 @@ pub fn export_share_link_with_options(
 
 fn share_link_has_tls_options(item: &ProfileItem) -> bool {
     matches!(
-        item.config_type,
+        item.config_type(),
         ConfigType::Hysteria2 | ConfigType::TUIC | ConfigType::Anytls | ConfigType::Naive
-    ) || matches!(item.stream_security.as_str(), "tls" | "reality")
+    ) || matches!(item.stream_security(), "tls" | "reality")
 }
 
 fn inject_vmess_global_options(
@@ -206,116 +206,199 @@ pub fn parse_full_custom_config(
     Err(ShareError::InvalidFullConfig)
 }
 
-pub fn export_inner_share_links(items: &[ProfileItem]) -> Result<String, ShareError> {
-    let mut id_map = BTreeMap::<String, String>::new();
-    for item in items
-        .iter()
-        .filter(|item| item.config_type != ConfigType::Custom)
-    {
-        if !item.index_id.is_empty() {
-            let export_id = format!("inner-export-{}", id_map.len() + 1);
-            id_map.entry(item.index_id.clone()).or_insert(export_id);
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VoyaProfileBundleV1 {
+    schema_version: u32,
+    profiles: Vec<VoyaBundleProfile>,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum VoyaBundleProfile {
+    Node {
+        reference: String,
+        share_uri: String,
+    },
+    PolicyGroup {
+        reference: String,
+        name: String,
+        child_refs: Vec<String>,
+        include_current_subscription: bool,
+        strategy: Option<String>,
+        filter: Option<String>,
+    },
+    ProxyChain {
+        reference: String,
+        name: String,
+        child_refs: Vec<String>,
+        include_current_subscription: bool,
+    },
+}
+
+impl VoyaBundleProfile {
+    fn reference(&self) -> &str {
+        match self {
+            Self::Node { reference, .. }
+            | Self::PolicyGroup { reference, .. }
+            | Self::ProxyChain { reference, .. } => reference,
         }
     }
 
-    let mut lines = Vec::new();
-    for item in items
-        .iter()
-        .filter(|item| item.config_type != ConfigType::Custom)
-    {
-        let mut clone = item.clone();
-        if let Some(mapped) = id_map.get(&clone.index_id) {
-            clone.index_id.clone_from(mapped);
-        }
-        if is_group_type(clone.config_type) {
-            if nonempty_option(&clone.protocol_extra.sub_child_items).is_some() {
-                clone.protocol_extra.sub_child_items = Some("self".to_string());
-            }
-            if let Some(children) = nonempty_option(&clone.protocol_extra.child_items) {
-                let mapped_children = split_csv(children)
-                    .into_iter()
-                    .filter_map(|child| id_map.get(&child).cloned())
-                    .collect::<Vec<_>>();
-                clone.protocol_extra.child_items = if mapped_children.is_empty() {
-                    None
-                } else {
-                    Some(mapped_children.join(","))
-                };
+    fn child_refs(&self) -> &[String] {
+        match self {
+            Self::Node { .. } => &[],
+            Self::PolicyGroup { child_refs, .. } | Self::ProxyChain { child_refs, .. } => {
+                child_refs
             }
         }
-        lines.push(export_inner_single(&clone)?);
-    }
-
-    if lines.is_empty() {
-        Err(ShareError::InvalidInner {
-            reason: "no exportable profiles".to_string(),
-        })
-    } else {
-        Ok(format!("{}\n", lines.join("\n")))
     }
 }
 
-pub fn parse_inner_share_links(input: &str, subid: &str) -> Result<Vec<ProfileItem>, ShareError> {
-    let mut parsed = Vec::<ProfileItem>::new();
-    let mut id_map = BTreeMap::<String, String>::new();
-
-    for line in input.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        if !starts_with_ci(line, INNER_URI_PROTOCOL) {
-            continue;
-        }
-        let mut item = parse_inner_single(line)?;
-        if item.config_type == ConfigType::Custom {
-            continue;
-        }
-        let new_id = format!("inner-import-{}", parsed.len() + 1);
-        if !item.index_id.is_empty() {
-            id_map.insert(item.index_id.clone(), new_id.clone());
-        }
-        item.index_id = new_id;
-        parsed.push(item);
+pub fn export_voya_profile_bundle(items: &[ProfileItem]) -> Result<String, ShareError> {
+    let exportable = items
+        .iter()
+        .filter(|item| item.config_type() != ConfigType::Custom)
+        .collect::<Vec<_>>();
+    if exportable.is_empty() {
+        return Err(invalid_voya_bundle("no exportable profiles"));
     }
 
-    let mut result = Vec::new();
-    for mut item in parsed {
-        if is_group_type(item.config_type) {
-            if item.protocol_extra.sub_child_items.as_deref() == Some("self") {
-                item.protocol_extra.sub_child_items = Some(subid.to_string());
-            } else {
-                item.protocol_extra.sub_child_items = None;
-            }
-
-            item.protocol_extra.child_items =
-                item.protocol_extra
-                    .child_items
-                    .as_deref()
-                    .and_then(|children| {
-                        let mapped = split_csv(children)
-                            .into_iter()
-                            .filter_map(|id| id_map.get(&id).cloned())
-                            .collect::<Vec<_>>();
-                        if mapped.is_empty() {
-                            None
-                        } else {
-                            Some(mapped.join(","))
-                        }
-                    });
-
-            if item.protocol_extra.sub_child_items.is_none()
-                && item.protocol_extra.child_items.is_none()
-            {
-                continue;
-            }
-        }
-        result.push(item);
+    let references = exportable
+        .iter()
+        .enumerate()
+        .map(|(index, item)| (item.index_id.as_str(), format!("p{}", index + 1)))
+        .collect::<BTreeMap<_, _>>();
+    let mut profiles = Vec::with_capacity(exportable.len());
+    for item in exportable {
+        let reference = references
+            .get(item.index_id.as_str())
+            .cloned()
+            .ok_or_else(|| invalid_voya_bundle("profile id is required"))?;
+        let child_refs = item
+            .protocol
+            .child_profile_ids()
+            .iter()
+            .filter_map(|id| references.get(id.as_str()).cloned())
+            .collect::<Vec<_>>();
+        let profile = match &item.protocol {
+            ProfileProtocol::PolicyGroup {
+                source_subscription_id,
+                filter,
+                strategy,
+                ..
+            } => VoyaBundleProfile::PolicyGroup {
+                reference,
+                name: item.remarks.clone(),
+                child_refs,
+                include_current_subscription: source_subscription_id.is_some(),
+                strategy: Some(multiple_load_name(*strategy)),
+                filter: filter.clone(),
+            },
+            ProfileProtocol::ProxyChain { .. } => VoyaBundleProfile::ProxyChain {
+                reference,
+                name: item.remarks.clone(),
+                child_refs,
+                include_current_subscription: false,
+            },
+            _ => VoyaBundleProfile::Node {
+                reference,
+                share_uri: export_share_link(item)?,
+            },
+        };
+        profiles.push(profile);
     }
 
-    if result.is_empty() {
-        Err(ShareError::InvalidInner {
-            reason: "no valid profiles".to_string(),
+    let json = serde_json::to_string(&VoyaProfileBundleV1 {
+        schema_version: 1,
+        profiles,
+    })
+    .map_err(|error| invalid_voya_bundle(error.to_string()))?;
+    let payload = base64_encode(&json, true)
+        .replace('+', "-")
+        .replace('/', "_");
+    Ok(format!("{VOYA_PROFILE_BUNDLE_PREFIX}{payload}"))
+}
+
+pub fn parse_voya_profile_bundle(
+    input: &str,
+    subscription_id: &str,
+) -> Result<Vec<ProfileItem>, ShareError> {
+    let input = input.trim();
+    let payload = input
+        .strip_prefix(VOYA_PROFILE_BUNDLE_PREFIX)
+        .ok_or_else(|| invalid_voya_bundle("invalid URI"))?;
+    if payload.is_empty() || payload.contains(['\r', '\n', '/']) {
+        return Err(invalid_voya_bundle("invalid payload"));
+    }
+    let decoded = base64_decode(payload, "voya-profile-bundle")
+        .map_err(|_| invalid_voya_bundle("invalid base64 payload"))?;
+    let bundle: VoyaProfileBundleV1 =
+        serde_json::from_str(&decoded).map_err(|error| invalid_voya_bundle(error.to_string()))?;
+    if bundle.schema_version != 1 {
+        return Err(invalid_voya_bundle(format!(
+            "unsupported schema version {}",
+            bundle.schema_version
+        )));
+    }
+    validate_voya_bundle(&bundle.profiles)?;
+
+    let id_map = bundle
+        .profiles
+        .iter()
+        .enumerate()
+        .map(|(index, profile)| {
+            (
+                profile.reference().to_string(),
+                format!("voya-import-{}", index + 1),
+            )
         })
-    } else {
-        Ok(result)
+        .collect::<BTreeMap<_, _>>();
+    let mut profiles = Vec::with_capacity(bundle.profiles.len());
+    for entry in bundle.profiles {
+        let index_id = id_map
+            .get(entry.reference())
+            .cloned()
+            .ok_or_else(|| invalid_voya_bundle("profile reference was not resolved"))?;
+        let mut profile = match entry {
+            VoyaBundleProfile::Node { share_uri, .. } => parse_share_link(&share_uri)?,
+            VoyaBundleProfile::PolicyGroup {
+                name,
+                child_refs,
+                include_current_subscription,
+                strategy,
+                filter,
+                ..
+            } => bundle_group_profile(
+                ConfigType::PolicyGroup,
+                name,
+                child_refs,
+                include_current_subscription,
+                strategy.as_deref().map(parse_multiple_load).transpose()?,
+                filter,
+                subscription_id,
+                &id_map,
+            )?,
+            VoyaBundleProfile::ProxyChain {
+                name,
+                child_refs,
+                include_current_subscription,
+                ..
+            } => bundle_group_profile(
+                ConfigType::ProxyChain,
+                name,
+                child_refs,
+                include_current_subscription,
+                None,
+                None,
+                subscription_id,
+                &id_map,
+            )?,
+        };
+        profile.index_id = index_id;
+        profiles.push(profile);
     }
+    Ok(profiles)
 }
 
 fn parse_singbox_custom(
@@ -355,152 +438,163 @@ fn custom_import(
         extension: extension.to_string(),
         contents: contents.to_string(),
         profile: ProfileItem {
-            config_type: ConfigType::Custom,
-            address: String::new(),
             remarks: remarks.to_string(),
+            protocol: ProfileProtocol::Custom {
+                source: String::new(),
+                filter: None,
+            },
             ..ProfileItem::default()
         },
     }
 }
 
-fn export_inner_single(item: &ProfileItem) -> Result<String, ShareError> {
-    let mut value = serde_json::to_value(item).map_err(|error| ShareError::InvalidInner {
-        reason: error.to_string(),
-    })?;
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| ShareError::InvalidInner {
-            reason: "profile must serialize to object".to_string(),
-        })?;
-    if let Some(protocol_extra) = object.remove("ProtocolExtra") {
-        object.insert("ProtoExtraObj".to_string(), protocol_extra);
+fn validate_voya_bundle(profiles: &[VoyaBundleProfile]) -> Result<(), ShareError> {
+    if profiles.is_empty() {
+        return Err(invalid_voya_bundle("bundle contains no profiles"));
     }
-    if let Some(transport_extra) = object.remove("TransportExtra") {
-        object.insert("TransportExtraObj".to_string(), transport_extra);
-    }
-    object.remove("Subid");
-    object.remove("IsSub");
-    remove_empty_json(&mut value);
-    let json = serde_json::to_string(&value).map_err(|error| ShareError::InvalidInner {
-        reason: error.to_string(),
-    })?;
-    let encoded = base64_encode(&json, false)
-        .replace('+', "-")
-        .replace('/', "_")
-        .replace('=', "");
-    Ok(format!(
-        "{}{}/{}",
-        INNER_URI_PROTOCOL,
-        config_type_name(item.config_type),
-        encoded
-    ))
-}
-
-fn parse_inner_single(input: &str) -> Result<ProfileItem, ShareError> {
-    let parsed = Url::parse(input).map_err(|error| ShareError::InvalidInner {
-        reason: error.to_string(),
-    })?;
-    if !parsed.scheme().eq_ignore_ascii_case("v2rayn") {
-        return Err(ShareError::InvalidInner {
-            reason: "invalid scheme".to_string(),
-        });
-    }
-    let segment = parsed
-        .path_segments()
-        .and_then(|mut segments| segments.next_back())
-        .ok_or_else(|| ShareError::InvalidInner {
-            reason: "missing payload".to_string(),
-        })?;
-    let decoded = base64_decode(segment, "inner").map_err(|error| ShareError::InvalidInner {
-        reason: error.to_string(),
-    })?;
-    let mut value: Value =
-        serde_json::from_str(&decoded).map_err(|error| ShareError::InvalidInner {
-            reason: error.to_string(),
-        })?;
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| ShareError::InvalidInner {
-            reason: "profile JSON must be an object".to_string(),
-        })?;
-    if let Some(protocol_extra) = object.remove("ProtoExtraObj") {
-        object.insert("ProtocolExtra".to_string(), protocol_extra);
-    } else if let Some(protocol_extra) = object.remove("ProtoExtra") {
-        if let Some(protocol_extra) = decode_json_string_value(protocol_extra)? {
-            object.insert("ProtocolExtra".to_string(), protocol_extra);
+    let mut references = BTreeSet::new();
+    for profile in profiles {
+        let reference = profile.reference().trim();
+        if reference.is_empty() {
+            return Err(invalid_voya_bundle("profile reference is required"));
+        }
+        if !references.insert(reference) {
+            return Err(invalid_voya_bundle(format!(
+                "duplicate profile reference {reference}"
+            )));
         }
     }
-    if let Some(transport_extra) = object.remove("TransportExtraObj") {
-        object.insert("TransportExtra".to_string(), transport_extra);
-    } else if let Some(transport_extra) = object.remove("TransportExtra") {
-        if let Some(transport_extra) = decode_json_string_value(transport_extra)? {
-            object.insert("TransportExtra".to_string(), transport_extra);
-        }
-    }
-    let item: ProfileItem =
-        serde_json::from_value(value).map_err(|error| ShareError::InvalidInner {
-            reason: error.to_string(),
-        })?;
-    if item.config_version != 4 {
-        return Err(ShareError::InvalidInner {
-            reason: "unsupported config version".to_string(),
-        });
-    }
-    if item.protocol_extra.multiple_load.is_some_and(|load| {
-        !matches!(
-            load,
-            MultipleLoad::LeastPing
-                | MultipleLoad::Fallback
-                | MultipleLoad::Random
-                | MultipleLoad::RoundRobin
-                | MultipleLoad::LeastLoad
-        )
-    }) {
-        return Err(ShareError::InvalidInner {
-            reason: "unsupported multiple load".to_string(),
-        });
-    }
-    Ok(item)
-}
-
-fn decode_json_string_value(value: Value) -> Result<Option<Value>, ShareError> {
-    match value {
-        Value::String(text) if !text.is_empty() => {
-            serde_json::from_str(&text)
-                .map(Some)
-                .map_err(|error| ShareError::InvalidInner {
-                    reason: error.to_string(),
-                })
-        }
-        Value::Object(_) => Ok(Some(value)),
-        _ => Ok(None),
-    }
-}
-
-fn remove_empty_json(value: &mut Value) {
-    match value {
-        Value::Object(object) => {
-            for child in object.values_mut() {
-                remove_empty_json(child);
+    for profile in profiles {
+        for child in profile.child_refs() {
+            if !references.contains(child.trim()) {
+                return Err(invalid_voya_bundle(format!(
+                    "unresolved child reference {child}"
+                )));
             }
-            object.retain(|_, child| !is_empty_json(child));
         }
-        Value::Array(array) => {
-            for child in array.iter_mut() {
-                remove_empty_json(child);
-            }
-            array.retain(|child| !is_empty_json(child));
+    }
+
+    let by_reference = profiles
+        .iter()
+        .map(|profile| (profile.reference(), profile))
+        .collect::<BTreeMap<_, _>>();
+    for profile in profiles {
+        let mut visiting = BTreeSet::new();
+        let mut visited = BTreeSet::new();
+        validate_voya_bundle_branch(
+            profile.reference(),
+            &by_reference,
+            &mut visiting,
+            &mut visited,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_voya_bundle_branch<'a>(
+    reference: &'a str,
+    profiles: &BTreeMap<&'a str, &'a VoyaBundleProfile>,
+    visiting: &mut BTreeSet<&'a str>,
+    visited: &mut BTreeSet<&'a str>,
+) -> Result<(), ShareError> {
+    if visited.contains(reference) {
+        return Ok(());
+    }
+    if !visiting.insert(reference) {
+        return Err(invalid_voya_bundle(format!(
+            "profile reference cycle includes {reference}"
+        )));
+    }
+    let profile = profiles
+        .get(reference)
+        .ok_or_else(|| invalid_voya_bundle(format!("unresolved profile {reference}")))?;
+    for child in profile.child_refs() {
+        validate_voya_bundle_branch(child, profiles, visiting, visited)?;
+    }
+    visiting.remove(reference);
+    visited.insert(reference);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bundle_group_profile(
+    config_type: ConfigType,
+    name: String,
+    child_refs: Vec<String>,
+    include_current_subscription: bool,
+    strategy: Option<MultipleLoad>,
+    filter: Option<String>,
+    subscription_id: &str,
+    id_map: &BTreeMap<String, String>,
+) -> Result<ProfileItem, ShareError> {
+    if include_current_subscription && subscription_id.trim().is_empty() {
+        return Err(invalid_voya_bundle(
+            "current subscription group requires a subscription import target",
+        ));
+    }
+    let child_items = child_refs
+        .iter()
+        .map(|reference| {
+            id_map.get(reference).cloned().ok_or_else(|| {
+                invalid_voya_bundle(format!("unresolved child reference {reference}"))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if child_items.is_empty() && !include_current_subscription {
+        return Err(invalid_voya_bundle("group has no children"));
+    }
+
+    let protocol = match config_type {
+        ConfigType::PolicyGroup => ProfileProtocol::PolicyGroup {
+            child_profile_ids: child_items,
+            source_subscription_id: include_current_subscription
+                .then(|| subscription_id.trim().to_string()),
+            strategy: strategy.unwrap_or(MultipleLoad::LeastPing),
+            filter: filter.and_then(nonempty),
+        },
+        ConfigType::ProxyChain if include_current_subscription => {
+            return Err(invalid_voya_bundle(
+                "proxy chains cannot include an entire subscription",
+            ));
         }
-        _ => {}
+        ConfigType::ProxyChain => ProfileProtocol::ProxyChain {
+            child_profile_ids: child_items,
+        },
+        _ => return Err(invalid_voya_bundle("bundle group has an invalid kind")),
+    };
+    Ok(ProfileItem {
+        remarks: name.trim().to_string(),
+        protocol,
+        ..ProfileItem::default()
+    })
+}
+
+fn multiple_load_name(value: MultipleLoad) -> String {
+    match value {
+        MultipleLoad::LeastPing => "leastPing",
+        MultipleLoad::Fallback => "fallback",
+        MultipleLoad::Random => "random",
+        MultipleLoad::RoundRobin => "roundRobin",
+        MultipleLoad::LeastLoad => "leastLoad",
+    }
+    .to_string()
+}
+
+fn parse_multiple_load(value: &str) -> Result<MultipleLoad, ShareError> {
+    match value {
+        "leastPing" => Ok(MultipleLoad::LeastPing),
+        "fallback" => Ok(MultipleLoad::Fallback),
+        "random" => Ok(MultipleLoad::Random),
+        "roundRobin" => Ok(MultipleLoad::RoundRobin),
+        "leastLoad" => Ok(MultipleLoad::LeastLoad),
+        _ => Err(invalid_voya_bundle(format!(
+            "unsupported policy group strategy {value}"
+        ))),
     }
 }
 
-fn is_empty_json(value: &Value) -> bool {
-    match value {
-        Value::Null => true,
-        Value::String(text) => text.is_empty(),
-        Value::Array(items) => items.is_empty(),
-        Value::Object(object) => object.is_empty(),
-        _ => false,
+fn invalid_voya_bundle(reason: impl Into<String>) -> ShareError {
+    ShareError::InvalidVoyaBundle {
+        reason: reason.into(),
     }
 }

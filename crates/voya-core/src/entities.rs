@@ -1,145 +1,436 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
 
 use crate::{ConfigType, MultipleLoad, RuleType};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct ProtocolExtraItem {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uot: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub congestion_control: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub alter_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vmess_security: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flow: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vless_encryption: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ss_method: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_public_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_preshared_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_interface_address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_allowed_ips: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_reserved: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wg_mtu: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub salamander_pass: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ports: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub insecure_concurrency: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub naive_quic: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub child_items: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sub_child_items: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub multiple_load: Option<MultipleLoad>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct TransportExtraItem {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_header_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub xhttp_mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub xhttp_extra: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grpc_authority: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grpc_service_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grpc_mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kcp_header_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kcp_seed: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kcp_mtu: Option<i32>,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct ProfileItem {
-    pub index_id: String,
-    pub config_type: ConfigType,
-    pub config_version: i32,
-    pub subid: String,
-    pub is_sub: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pre_socks_port: Option<i32>,
-    pub display_log: bool,
-    pub remarks: String,
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ServerEndpoint {
     pub address: String,
     pub port: i32,
-    pub password: String,
-    pub username: String,
-    pub network: String,
-    pub stream_security: String,
-    pub sni: String,
-    pub alpn: String,
-    pub public_key: String,
-    pub short_id: String,
-    pub spider_x: String,
-    pub mldsa65_verify: String,
-    pub cert: String,
-    pub cert_sha: String,
-    pub ech_config_list: String,
-    pub finalmask: String,
-    pub protocol_extra: ProtocolExtraItem,
-    pub transport_extra: TransportExtraItem,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum ProfileProtocol {
+    Vmess {
+        server: ServerEndpoint,
+        uuid: String,
+        cipher: Option<String>,
+    },
+    Custom {
+        source: String,
+        filter: Option<String>,
+    },
+    Shadowsocks {
+        server: ServerEndpoint,
+        password: String,
+        method: String,
+        udp_over_tcp: bool,
+    },
+    Socks {
+        server: ServerEndpoint,
+        username: String,
+        password: String,
+    },
+    Vless {
+        server: ServerEndpoint,
+        uuid: String,
+        flow: Option<String>,
+        encryption: Option<String>,
+    },
+    Trojan {
+        server: ServerEndpoint,
+        password: String,
+    },
+    Hysteria2 {
+        server: ServerEndpoint,
+        password: String,
+        port_hops: Option<String>,
+        obfuscation_password: Option<String>,
+    },
+    Tuic {
+        server: ServerEndpoint,
+        uuid: String,
+        password: String,
+        congestion_control: Option<String>,
+    },
+    WireGuard {
+        server: ServerEndpoint,
+        private_key: String,
+        peer_public_key: Option<String>,
+        preshared_key: Option<String>,
+        interface_address: Option<String>,
+        allowed_ips: Option<String>,
+        reserved: Option<String>,
+        mtu: Option<i32>,
+    },
+    Http {
+        server: ServerEndpoint,
+        username: String,
+        password: String,
+    },
+    Anytls {
+        server: ServerEndpoint,
+        password: String,
+    },
+    Naive {
+        server: ServerEndpoint,
+        username: String,
+        password: String,
+        quic: bool,
+        congestion_control: Option<String>,
+        insecure_concurrency: Option<i32>,
+        udp_over_tcp: bool,
+    },
+    PolicyGroup {
+        child_profile_ids: Vec<String>,
+        source_subscription_id: Option<String>,
+        filter: Option<String>,
+        strategy: MultipleLoad,
+    },
+    ProxyChain {
+        child_profile_ids: Vec<String>,
+    },
+}
+
+impl Default for ProfileProtocol {
+    fn default() -> Self {
+        Self::Vmess {
+            server: ServerEndpoint::default(),
+            uuid: String::new(),
+            cipher: None,
+        }
+    }
+}
+
+impl ProfileProtocol {
+    #[must_use]
+    pub fn empty(config_type: ConfigType, server: ServerEndpoint) -> Self {
+        match config_type {
+            ConfigType::VMess => Self::Vmess {
+                server,
+                uuid: String::new(),
+                cipher: None,
+            },
+            ConfigType::Custom => Self::Custom {
+                source: String::new(),
+                filter: None,
+            },
+            ConfigType::Shadowsocks => Self::Shadowsocks {
+                server,
+                password: String::new(),
+                method: String::new(),
+                udp_over_tcp: false,
+            },
+            ConfigType::SOCKS => Self::Socks {
+                server,
+                username: String::new(),
+                password: String::new(),
+            },
+            ConfigType::VLESS => Self::Vless {
+                server,
+                uuid: String::new(),
+                flow: None,
+                encryption: None,
+            },
+            ConfigType::Trojan => Self::Trojan {
+                server,
+                password: String::new(),
+            },
+            ConfigType::Hysteria2 => Self::Hysteria2 {
+                server,
+                password: String::new(),
+                port_hops: None,
+                obfuscation_password: None,
+            },
+            ConfigType::TUIC => Self::Tuic {
+                server,
+                uuid: String::new(),
+                password: String::new(),
+                congestion_control: None,
+            },
+            ConfigType::WireGuard => Self::WireGuard {
+                server,
+                private_key: String::new(),
+                peer_public_key: None,
+                preshared_key: None,
+                interface_address: None,
+                allowed_ips: None,
+                reserved: None,
+                mtu: None,
+            },
+            ConfigType::HTTP => Self::Http {
+                server,
+                username: String::new(),
+                password: String::new(),
+            },
+            ConfigType::Anytls => Self::Anytls {
+                server,
+                password: String::new(),
+            },
+            ConfigType::Naive => Self::Naive {
+                server,
+                username: String::new(),
+                password: String::new(),
+                quic: false,
+                congestion_control: None,
+                insecure_concurrency: None,
+                udp_over_tcp: false,
+            },
+            ConfigType::PolicyGroup => Self::PolicyGroup {
+                child_profile_ids: Vec::new(),
+                source_subscription_id: None,
+                filter: None,
+                strategy: MultipleLoad::LeastPing,
+            },
+            ConfigType::ProxyChain => Self::ProxyChain {
+                child_profile_ids: Vec::new(),
+            },
+        }
+    }
+
+    #[must_use]
+    pub const fn config_type(&self) -> ConfigType {
+        match self {
+            Self::Vmess { .. } => ConfigType::VMess,
+            Self::Custom { .. } => ConfigType::Custom,
+            Self::Shadowsocks { .. } => ConfigType::Shadowsocks,
+            Self::Socks { .. } => ConfigType::SOCKS,
+            Self::Vless { .. } => ConfigType::VLESS,
+            Self::Trojan { .. } => ConfigType::Trojan,
+            Self::Hysteria2 { .. } => ConfigType::Hysteria2,
+            Self::Tuic { .. } => ConfigType::TUIC,
+            Self::WireGuard { .. } => ConfigType::WireGuard,
+            Self::Http { .. } => ConfigType::HTTP,
+            Self::Anytls { .. } => ConfigType::Anytls,
+            Self::Naive { .. } => ConfigType::Naive,
+            Self::PolicyGroup { .. } => ConfigType::PolicyGroup,
+            Self::ProxyChain { .. } => ConfigType::ProxyChain,
+        }
+    }
+
+    #[must_use]
+    pub const fn server(&self) -> Option<&ServerEndpoint> {
+        match self {
+            Self::Vmess { server, .. }
+            | Self::Shadowsocks { server, .. }
+            | Self::Socks { server, .. }
+            | Self::Vless { server, .. }
+            | Self::Trojan { server, .. }
+            | Self::Hysteria2 { server, .. }
+            | Self::Tuic { server, .. }
+            | Self::WireGuard { server, .. }
+            | Self::Http { server, .. }
+            | Self::Anytls { server, .. }
+            | Self::Naive { server, .. } => Some(server),
+            Self::Custom { .. } | Self::PolicyGroup { .. } | Self::ProxyChain { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn searchable_address(&self) -> &str {
+        match self {
+            Self::Custom { source, .. } => source,
+            _ => self.server().map_or("", |server| server.address.as_str()),
+        }
+    }
+
+    #[must_use]
+    pub fn password(&self) -> &str {
+        match self {
+            Self::Vmess { uuid, .. } | Self::Vless { uuid, .. } => uuid,
+            Self::Shadowsocks { password, .. }
+            | Self::Socks { password, .. }
+            | Self::Trojan { password, .. }
+            | Self::Hysteria2 { password, .. }
+            | Self::Tuic { password, .. }
+            | Self::Http { password, .. }
+            | Self::Anytls { password, .. }
+            | Self::Naive { password, .. } => password,
+            Self::WireGuard { private_key, .. } => private_key,
+            Self::Custom { .. } | Self::PolicyGroup { .. } | Self::ProxyChain { .. } => "",
+        }
+    }
+
+    #[must_use]
+    pub fn username(&self) -> &str {
+        match self {
+            Self::Socks { username, .. }
+            | Self::Http { username, .. }
+            | Self::Naive { username, .. } => username,
+            Self::Tuic { uuid, .. } => uuid,
+            _ => "",
+        }
+    }
+
+    #[must_use]
+    pub fn child_profile_ids(&self) -> &[String] {
+        match self {
+            Self::PolicyGroup {
+                child_profile_ids, ..
+            }
+            | Self::ProxyChain { child_profile_ids } => child_profile_ids,
+            _ => &[],
+        }
+    }
+
+    pub fn replace_child_profile_ids(&mut self, profile_ids: Vec<String>) {
+        match self {
+            Self::PolicyGroup {
+                child_profile_ids, ..
+            }
+            | Self::ProxyChain { child_profile_ids } => *child_profile_ids = profile_ids,
+            _ => {}
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum ProfileTransport {
+    Tcp {
+        header: Option<String>,
+        host: Option<String>,
+        path: Option<String>,
+    },
+    Kcp {
+        header: Option<String>,
+        seed: Option<String>,
+        mtu: Option<i32>,
+    },
+    Websocket {
+        host: Option<String>,
+        path: Option<String>,
+    },
+    HttpUpgrade {
+        host: Option<String>,
+        path: Option<String>,
+    },
+    Xhttp {
+        host: Option<String>,
+        path: Option<String>,
+        mode: Option<String>,
+        extra: Option<String>,
+    },
+    Http2 {
+        host: Option<String>,
+        path: Option<String>,
+    },
+    Grpc {
+        authority: Option<String>,
+        service_name: Option<String>,
+        mode: Option<String>,
+    },
+    Quic {
+        host: Option<String>,
+        path: Option<String>,
+    },
+}
+
+impl ProfileTransport {
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            // sing-box calls its plain TCP transport `raw`; keep that canonical
+            // domain value even though the public tagged-union variant is `tcp`.
+            Self::Tcp { .. } => "raw",
+            Self::Kcp { .. } => "kcp",
+            Self::Websocket { .. } => "ws",
+            Self::HttpUpgrade { .. } => "httpupgrade",
+            Self::Xhttp { .. } => "xhttp",
+            Self::Http2 { .. } => "h2",
+            Self::Grpc { .. } => "grpc",
+            Self::Quic { .. } => "quic",
+        }
+    }
+
+    #[must_use]
+    pub fn host(&self) -> Option<&str> {
+        match self {
+            Self::Tcp { host, .. }
+            | Self::Websocket { host, .. }
+            | Self::HttpUpgrade { host, .. }
+            | Self::Xhttp { host, .. }
+            | Self::Http2 { host, .. }
+            | Self::Quic { host, .. } => host.as_deref(),
+            Self::Kcp { .. } => None,
+            Self::Grpc { authority, .. } => authority.as_deref(),
+        }
+    }
+
+    #[must_use]
+    pub fn path(&self) -> Option<&str> {
+        match self {
+            Self::Tcp { path, .. } => path.as_deref(),
+            Self::Kcp { seed, .. } => seed.as_deref(),
+            Self::Websocket { path, .. }
+            | Self::HttpUpgrade { path, .. }
+            | Self::Xhttp { path, .. }
+            | Self::Http2 { path, .. }
+            | Self::Quic { path, .. } => path.as_deref(),
+            Self::Grpc { service_name, .. } => service_name.as_deref(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TlsMode {
+    Tls,
+    Reality,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TlsSettings {
+    pub mode: TlsMode,
+    pub server_name: Option<String>,
+    pub alpn: Vec<String>,
+    pub reality_public_key: Option<String>,
+    pub reality_short_id: Option<String>,
+    pub reality_spider_x: Option<String>,
+    pub mldsa65_verify: Option<String>,
+    pub certificate_pem: Option<String>,
+    pub certificate_sha256: Vec<String>,
+    pub ech_config: Vec<String>,
+    pub final_mask: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProfileItem {
+    pub index_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription_id: Option<String>,
+    pub display_log: bool,
+    pub remarks: String,
+    pub protocol: ProfileProtocol,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProfileTransport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsSettings>,
 }
 
 impl Default for ProfileItem {
     fn default() -> Self {
         Self {
             index_id: String::new(),
-            config_type: ConfigType::VMess,
-            config_version: 4,
-            subid: String::new(),
-            is_sub: true,
-            pre_socks_port: None,
+            subscription_id: None,
             display_log: true,
             remarks: String::new(),
-            address: String::new(),
-            port: 0,
-            password: String::new(),
-            username: String::new(),
-            network: String::new(),
-            stream_security: String::new(),
-            sni: String::new(),
-            alpn: String::new(),
-            public_key: String::new(),
-            short_id: String::new(),
-            spider_x: String::new(),
-            mldsa65_verify: String::new(),
-            cert: String::new(),
-            cert_sha: String::new(),
-            ech_config_list: String::new(),
-            finalmask: String::new(),
-            protocol_extra: ProtocolExtraItem::default(),
-            transport_extra: TransportExtraItem::default(),
+            protocol: ProfileProtocol::default(),
+            transport: None,
+            tls: None,
         }
     }
 }
@@ -147,12 +438,49 @@ impl Default for ProfileItem {
 impl ProfileItem {
     #[must_use]
     pub fn is_complex(&self) -> bool {
-        self.config_type.is_complex_type()
+        self.config_type().is_complex_type()
+    }
+
+    #[must_use]
+    pub const fn config_type(&self) -> ConfigType {
+        self.protocol.config_type()
+    }
+
+    #[must_use]
+    pub fn address(&self) -> &str {
+        self.protocol.searchable_address()
+    }
+
+    #[must_use]
+    pub fn port(&self) -> i32 {
+        self.protocol.server().map_or(0, |server| server.port)
+    }
+
+    #[must_use]
+    pub fn network(&self) -> &str {
+        self.transport.as_ref().map_or("", ProfileTransport::name)
+    }
+
+    #[must_use]
+    pub fn stream_security(&self) -> &str {
+        self.tls.as_ref().map_or("", |tls| match tls.mode {
+            TlsMode::Tls => "tls",
+            TlsMode::Reality => "reality",
+        })
+    }
+
+    #[must_use]
+    pub fn password(&self) -> &str {
+        self.protocol.password()
+    }
+
+    #[must_use]
+    pub fn username(&self) -> &str {
+        self.protocol.username()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubItem {
     pub id: String,
     pub remarks: String,
@@ -161,15 +489,8 @@ pub struct SubItem {
     pub enabled: bool,
     pub user_agent: String,
     pub sort: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub convert_target: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub next_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub pre_socks_port: Option<i32>,
 }
 
@@ -185,14 +506,12 @@ impl Default for SubItem {
             sort: 0,
             filter: None,
             convert_target: None,
-            prev_profile: None,
-            next_profile: None,
             pre_socks_port: None,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ImportProfilesResult {
     pub imported: u32,
@@ -205,13 +524,13 @@ pub struct ImportProfilesResult {
     pub removed_existing: u32,
     pub removed_duplicates: u32,
     pub discarded_node_overrides: u32,
-    pub subid: Option<String>,
+    pub subscription_id: Option<String>,
     pub imported_index_ids: Vec<String>,
     pub updated_index_ids: Vec<String>,
     pub messages: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SubscriptionUpdateResult {
     pub updated: u32,
@@ -221,34 +540,21 @@ pub struct SubscriptionUpdateResult {
     pub messages: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct RoutingItem {
-    #[serde(alias = "id")]
     pub id: String,
-    #[serde(alias = "remarks")]
     pub remarks: String,
-    #[serde(alias = "url")]
     pub url: String,
-    #[serde(alias = "ruleSet")]
     pub rule_set: Vec<RulesItem>,
-    #[serde(alias = "ruleNum")]
-    pub rule_num: i32,
-    #[serde(alias = "enabled")]
     pub enabled: bool,
-    #[serde(alias = "locked")]
     pub locked: bool,
-    #[serde(alias = "customIcon")]
     pub custom_icon: String,
-    #[serde(alias = "customRulesetPath4Singbox")]
     pub custom_ruleset_path4_singbox: String,
-    #[serde(alias = "domainStrategy")]
     pub domain_strategy: String,
-    #[serde(alias = "domainStrategy4Singbox")]
     pub domain_strategy4_singbox: String,
-    #[serde(alias = "sort")]
     pub sort: i32,
-    #[serde(alias = "isActive")]
+    #[serde(default, skip_deserializing)]
     pub is_active: bool,
 }
 
@@ -259,7 +565,6 @@ impl Default for RoutingItem {
             remarks: String::new(),
             url: String::new(),
             rule_set: Vec::new(),
-            rule_num: 0,
             enabled: true,
             locked: false,
             custom_icon: String::new(),
@@ -272,38 +577,32 @@ impl Default for RoutingItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct RulesItem {
-    #[serde(alias = "id")]
     pub id: String,
-    #[serde(alias = "type", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<String>,
-    #[serde(alias = "port", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<String>,
-    #[serde(alias = "network", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<String>,
-    #[serde(alias = "inboundTag", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub inbound_tag: Option<Vec<String>>,
-    #[serde(
-        alias = "outboundTag",
-        alias = "outboundtag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub outbound_tag: Option<String>,
-    #[serde(alias = "ip", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ip: Option<Vec<String>>,
-    #[serde(alias = "domain", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<Vec<String>>,
-    #[serde(alias = "protocol", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Vec<String>>,
-    #[serde(alias = "process", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub process: Option<Vec<String>>,
-    #[serde(alias = "enabled")]
     pub enabled: bool,
-    #[serde(alias = "remarks", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub remarks: Option<String>,
-    #[serde(alias = "ruleType", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_type: Option<RuleType>,
 }
 
@@ -327,8 +626,8 @@ impl Default for RulesItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ProfileExItem {
     pub index_id: String,
     pub delay: i32,
@@ -353,7 +652,7 @@ impl Default for ProfileExItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProfileSortKey {
     #[default]
@@ -367,10 +666,10 @@ pub enum ProfileSortKey {
     Delay,
     Speed,
     IpInfo,
-    Subid,
+    SubscriptionId,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileListItem {
     pub profile: ProfileItem,
@@ -379,7 +678,7 @@ pub struct ProfileListItem {
     pub is_active: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileDedupeResult {
     pub total: u32,
@@ -389,104 +688,20 @@ pub struct ProfileDedupeResult {
 
 #[must_use]
 pub fn profile_items_match(left: &ProfileItem, right: &ProfileItem, compare_remarks: bool) -> bool {
-    left.config_type == right.config_type
-        && text_equal(Some(&left.address), Some(&right.address))
-        && left.port == right.port
-        && text_equal(Some(&left.password), Some(&right.password))
-        && text_equal(Some(&left.username), Some(&right.username))
-        && text_equal(
-            left.protocol_extra.vless_encryption.as_ref(),
-            right.protocol_extra.vless_encryption.as_ref(),
-        )
-        && text_equal(
-            left.protocol_extra.ss_method.as_ref(),
-            right.protocol_extra.ss_method.as_ref(),
-        )
-        && text_equal(
-            left.protocol_extra.vmess_security.as_ref(),
-            right.protocol_extra.vmess_security.as_ref(),
-        )
-        && text_equal(Some(&left.network), Some(&right.network))
-        && text_equal(
-            left.transport_extra.raw_header_type.as_ref(),
-            right.transport_extra.raw_header_type.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.host.as_ref(),
-            right.transport_extra.host.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.path.as_ref(),
-            right.transport_extra.path.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.xhttp_mode.as_ref(),
-            right.transport_extra.xhttp_mode.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.xhttp_extra.as_ref(),
-            right.transport_extra.xhttp_extra.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.grpc_authority.as_ref(),
-            right.transport_extra.grpc_authority.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.grpc_service_name.as_ref(),
-            right.transport_extra.grpc_service_name.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.grpc_mode.as_ref(),
-            right.transport_extra.grpc_mode.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.kcp_header_type.as_ref(),
-            right.transport_extra.kcp_header_type.as_ref(),
-        )
-        && text_equal(
-            left.transport_extra.kcp_seed.as_ref(),
-            right.transport_extra.kcp_seed.as_ref(),
-        )
-        && (left.config_type == ConfigType::Trojan
-            || text_equal(Some(&left.stream_security), Some(&right.stream_security)))
-        && text_equal(
-            left.protocol_extra.flow.as_ref(),
-            right.protocol_extra.flow.as_ref(),
-        )
-        && text_equal(
-            left.protocol_extra.salamander_pass.as_ref(),
-            right.protocol_extra.salamander_pass.as_ref(),
-        )
-        && text_equal(Some(&left.sni), Some(&right.sni))
-        && text_equal(Some(&left.alpn), Some(&right.alpn))
-        && text_equal(Some(&left.public_key), Some(&right.public_key))
-        && text_equal(Some(&left.short_id), Some(&right.short_id))
-        && text_equal(Some(&left.finalmask), Some(&right.finalmask))
+    left.protocol == right.protocol
+        && left.transport == right.transport
+        && left.tls == right.tls
         && (!compare_remarks || left.remarks == right.remarks)
 }
 
-fn text_equal(left: Option<&String>, right: Option<&String>) -> bool {
-    match (left, right) {
-        (Some(left), Some(right)) => left == right || (left.is_empty() && right.is_empty()),
-        (Some(left), None) => left.is_empty(),
-        (None, Some(right)) => right.is_empty(),
-        (None, None) => true,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, Type)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ServerStatItem {
     pub index_id: String,
-    #[specta(type = f64)]
     pub total_up: i64,
-    #[specta(type = f64)]
     pub total_down: i64,
-    #[specta(type = f64)]
     pub today_up: i64,
-    #[specta(type = f64)]
     pub today_down: i64,
-    #[specta(type = f64)]
     pub date_now: i64,
 }
 
@@ -502,78 +717,73 @@ mod tests {
             .as_object()
             .expect("default profile item JSON should be an object");
 
-        for obsolete in [
-            "HeaderType",
-            "RequestHost",
-            "Path",
-            "Extra",
-            "Ports",
-            "AlterId",
-            "Flow",
-            "Id",
-            "Security",
-        ] {
+        for obsolete in ["protocolExtra", "transportExtra", "AlterId", "HeaderType"] {
             assert!(
                 !object.contains_key(obsolete),
                 "{obsolete} should be absent"
             );
         }
 
-        assert!(object.contains_key("ProtocolExtra"));
-        assert!(object.contains_key("TransportExtra"));
-        assert!(object.contains_key("Mldsa65Verify"));
-        assert!(object.contains_key("Cert"));
-        assert!(object.contains_key("CertSha"));
-        assert!(object.contains_key("EchConfigList"));
-        assert!(object.contains_key("Finalmask"));
-        assert!(object.contains_key("SpiderX"));
+        assert!(object.contains_key("protocol"));
+        assert!(!object.contains_key("transport"));
+        assert!(!object.contains_key("tls"));
     }
 
     #[test]
-    fn protocol_extra_serializes_to_compact_pascal_case_blob() {
-        let extra = ProtocolExtraItem {
-            ss_method: Some("2022-blake3-aes-256-gcm".to_string()),
-            multiple_load: Some(MultipleLoad::LeastLoad),
-            ..ProtocolExtraItem::default()
+    fn profile_protocol_serializes_tagged_string_enums() {
+        let protocol = ProfileProtocol::PolicyGroup {
+            child_profile_ids: vec!["node-a".to_string()],
+            source_subscription_id: None,
+            filter: None,
+            strategy: MultipleLoad::LeastLoad,
         };
 
         assert_eq!(
-            serde_json::to_string(&extra).expect("protocol extra should serialize to compact JSON"),
-            r#"{"SsMethod":"2022-blake3-aes-256-gcm","MultipleLoad":4}"#
+            serde_json::to_string(&protocol)
+                .expect("profile protocol should serialize to compact JSON"),
+            r#"{"kind":"policyGroup","childProfileIds":["node-a"],"sourceSubscriptionId":null,"filter":null,"strategy":"leastLoad"}"#
         );
     }
 
     #[test]
-    fn routing_rule_accepts_lowercase_outboundtag_from_regional_templates() {
-        let rule = serde_json::from_str::<RulesItem>(
+    fn routing_rule_rejects_legacy_lowercase_outboundtag() {
+        let result = serde_json::from_str::<RulesItem>(
             r#"{"outboundtag":"direct","enabled":true,"remarks":"regional"}"#,
-        )
-        .expect("regional routing rule should deserialize");
+        );
 
-        assert_eq!(rule.outbound_tag.as_deref(), Some("direct"));
+        assert!(result.is_err());
     }
 
     #[test]
-    fn profile_items_match_uses_v2rayn_dedupe_fields() {
+    fn profile_items_match_uses_canonical_protocol_fields() {
         let base = ProfileItem {
-            config_type: ConfigType::VLESS,
             remarks: "one".to_string(),
-            address: "example.com".to_string(),
-            port: 443,
-            password: "uuid".to_string(),
-            network: "ws".to_string(),
-            stream_security: "tls".to_string(),
-            sni: "example.com".to_string(),
-            protocol_extra: ProtocolExtraItem {
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: "example.com".to_string(),
+                    port: 443,
+                },
+                uuid: "uuid".to_string(),
                 flow: Some("xtls-rprx-vision".to_string()),
-                vless_encryption: Some("none".to_string()),
-                ..ProtocolExtraItem::default()
+                encryption: Some("none".to_string()),
             },
-            transport_extra: TransportExtraItem {
+            transport: Some(ProfileTransport::Websocket {
                 host: Some("example.com".to_string()),
                 path: Some("/ws".to_string()),
-                ..TransportExtraItem::default()
-            },
+            }),
+            tls: Some(TlsSettings {
+                mode: TlsMode::Tls,
+                server_name: Some("example.com".to_string()),
+                alpn: Vec::new(),
+                reality_public_key: None,
+                reality_short_id: None,
+                reality_spider_x: None,
+                mldsa65_verify: None,
+                certificate_pem: None,
+                certificate_sha256: Vec::new(),
+                ech_config: Vec::new(),
+                final_mask: None,
+            }),
             ..ProfileItem::default()
         };
         let mut duplicate = base.clone();
@@ -583,7 +793,10 @@ mod tests {
         assert!(profile_items_match(&base, &duplicate, false));
         assert!(!profile_items_match(&base, &duplicate, true));
 
-        duplicate.transport_extra.path = Some("/other".to_string());
+        duplicate.transport = Some(ProfileTransport::Websocket {
+            host: Some("example.com".to_string()),
+            path: Some("/other".to_string()),
+        });
         assert!(!profile_items_match(&base, &duplicate, false));
     }
 }

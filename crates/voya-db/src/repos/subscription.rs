@@ -22,8 +22,8 @@ impl<'pool> SubscriptionRepository<'pool> {
             r#"
             INSERT INTO subscriptions (
                 id, remarks, url, more_url, enabled, user_agent, sort, filter,
-                convert_target, prev_profile, next_profile, pre_socks_port
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                convert_target, pre_socks_port
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 remarks = excluded.remarks,
                 url = excluded.url,
@@ -33,8 +33,6 @@ impl<'pool> SubscriptionRepository<'pool> {
                 sort = excluded.sort,
                 filter = excluded.filter,
                 convert_target = excluded.convert_target,
-                prev_profile = excluded.prev_profile,
-                next_profile = excluded.next_profile,
                 pre_socks_port = excluded.pre_socks_port
             "#,
         )
@@ -47,8 +45,6 @@ impl<'pool> SubscriptionRepository<'pool> {
         .bind(item.sort)
         .bind(&item.filter)
         .bind(&item.convert_target)
-        .bind(&item.prev_profile)
-        .bind(&item.next_profile)
         .bind(item.pre_socks_port)
         .execute(self.pool)
         .await?;
@@ -111,8 +107,6 @@ fn row_to_subscription(row: SqliteRow) -> Result<SubItem> {
         sort: row.try_get("sort")?,
         filter: row.try_get("filter")?,
         convert_target: row.try_get("convert_target")?,
-        prev_profile: row.try_get("prev_profile")?,
-        next_profile: row.try_get("next_profile")?,
         pre_socks_port: row.try_get("pre_socks_port")?,
     })
 }

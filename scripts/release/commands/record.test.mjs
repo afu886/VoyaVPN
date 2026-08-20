@@ -81,9 +81,10 @@ async function buildFixtureRecord(workDir) {
   });
 
   const commands = [
-    "pnpm run verify:ci",
+    "pnpm run verify:local",
     "pnpm run build",
-    "pnpm run check:frontend:smoke",
+    "pnpm run check:frontend:smoke:mock",
+    "pnpm run check:desktop:smoke",
     "pnpm release -- readiness --mode dry-run",
     "pnpm release -- updater-config",
     "pnpm release -- readiness --mode stable",

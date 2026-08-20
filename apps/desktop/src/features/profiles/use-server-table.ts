@@ -17,10 +17,10 @@ import {
 } from "@/ipc";
 import type {
   ImportProfilesResult,
-  ProfileItem_Deserialize,
-  ProfileListItem_Serialize,
+  Profile,
+  ProfileListEntry,
   ProfileSortKey,
-  SpeedActionType,
+  SpeedTestKind,
 } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { getErrorMessage } from "@voya/utils/error";
@@ -44,7 +44,7 @@ import { applyLiveUpdates } from "./server-table-live-updates";
 
 type DialogState =
   | { mode: "create"; profile?: null }
-  | { mode: "edit"; profile: ProfileListItem_Serialize }
+  | { mode: "edit"; profile: ProfileListEntry }
   | null;
 
 export function useServerTable() {
@@ -78,7 +78,7 @@ export function useServerTable() {
     [profilesQuery.data, serverStatsByProfileId, speedtestResultsByProfileId],
   );
 
-  const tableColumns = useMemo<ColumnDef<ProfileListItem_Serialize>[]>(
+  const tableColumns = useMemo<ColumnDef<ProfileListEntry>[]>(
     () =>
       serverColumns.map((column) => ({
         id: column.id,
@@ -94,7 +94,7 @@ export function useServerTable() {
     columns: tableColumns,
     data: profiles,
     getCoreRowModel: getCoreRowModel(),
-    getRowId: (row) => row.profile.IndexId,
+    getRowId: (row) => row.profile.id,
     onColumnVisibilityChange: setColumnVisibility,
     state: { columnVisibility },
   });
@@ -123,10 +123,10 @@ export function useServerTable() {
           key: row.id,
           start: index * 38,
         }));
-  const selected = profiles.filter((item) => selectedIds.has(item.profile.IndexId));
+  const selected = profiles.filter((item) => selectedIds.has(item.profile.id));
   const primarySelection = selected[0] ?? null;
-  const allVisibleSelected = profiles.length > 0 && profiles.every((item) => selectedIds.has(item.profile.IndexId));
-  const someVisibleSelected = profiles.some((item) => selectedIds.has(item.profile.IndexId));
+  const allVisibleSelected = profiles.length > 0 && profiles.every((item) => selectedIds.has(item.profile.id));
+  const someVisibleSelected = profiles.some((item) => selectedIds.has(item.profile.id));
   const allVisibleCheckboxState: boolean | "indeterminate" = allVisibleSelected
     ? true
     : someVisibleSelected
@@ -179,7 +179,7 @@ export function useServerTable() {
   }
 
   function toggleAllVisible(selected: boolean) {
-    setSelectedIds(selected ? new Set(profiles.map((item) => item.profile.IndexId)) : new Set());
+    setSelectedIds(selected ? new Set(profiles.map((item) => item.profile.id)) : new Set());
   }
 
   async function handleSort(sortKey: ProfileSortKey) {
@@ -188,8 +188,8 @@ export function useServerTable() {
     await runOperation(() => sortProfiles(null, sortKey, ascending));
   }
 
-  async function handleSave(profile: ProfileItem_Deserialize) {
-    const save = profile.ConfigType === CONFIG_TYPES.PolicyGroup || profile.ConfigType === CONFIG_TYPES.ProxyChain
+  async function handleSave(profile: Profile) {
+    const save = profile.protocol.kind === CONFIG_TYPES.PolicyGroup || profile.protocol.kind === CONFIG_TYPES.ProxyChain
       ? saveGroupProfile
       : saveProfile;
     await runOperation(() => save(profile));
@@ -212,7 +212,7 @@ export function useServerTable() {
         throw new Error(t("panes.profiles.import.clipboardEmpty"));
       }
 
-      const result = await importProfilesFromText(text, null, false);
+      const result = await importProfilesFromText(text, null);
       await handleDialogImport(result);
     } catch (error) {
       setOperationError(getErrorMessage(error));
@@ -224,7 +224,7 @@ export function useServerTable() {
   async function handleDialogImport(result: ImportProfilesResult) {
     setOperationError(null);
     setOperationMessage(formatImportOperationMessage(result, t));
-    const importedIndexIds = result.importedIndexIds ?? [];
+    const importedIndexIds = result.importedProfileIds;
     if (importedIndexIds.length > 0) {
       setFilterText("");
       setSelectedIds(new Set(importedIndexIds));
@@ -236,7 +236,7 @@ export function useServerTable() {
     await queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
   }
 
-  const selectedIdsArray = selected.map((item) => item.profile.IndexId);
+  const selectedIdsArray = selected.map((item) => item.profile.id);
 
   async function handleExport(kind: ProfileExportKind, indexIds = selectedIdsArray, showQr = false, saveFile = false) {
     setOperationError(null);
@@ -275,11 +275,16 @@ export function useServerTable() {
     }
   }
 
-  async function handleSpeedtest(action: SpeedActionType, indexIds = selectedIdsArray) {
+  async function handleSpeedtest(kind: SpeedTestKind, targetAll = false) {
     setColumnVisibility((current) => ({ ...current, delay: true, speed: true }));
     setSpeedtestRunning(true);
     try {
-      await runOperation(() => runSpeedtest(action, indexIds));
+      await runOperation(() => runSpeedtest({
+        kind,
+        target: targetAll
+          ? { scope: "all" }
+          : { scope: "profiles", profileIds: selectedIdsArray },
+      }));
     } finally {
       setSpeedtestRunning(false);
     }

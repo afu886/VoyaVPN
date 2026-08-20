@@ -4,6 +4,7 @@ import type {
   RuntimeStatusResponse,
   SysProxyChanged,
   SysProxyMode,
+  SysProxyType,
   SystemProxyStatusResponse,
   TunChanged,
   TunStatus,
@@ -25,13 +26,13 @@ export function statusToCoreState(status: RuntimeStatusResponse): CoreStateEvent
   };
 }
 
-/** Maps the string `SysProxyMode` to the numeric `SysProxyType` the backend expects. */
+/** Maps the UI mode to the stable string contract accepted by the backend. */
 export const SYS_PROXY_TYPE = {
-  forcedClear: 0,
-  forcedChange: 1,
-  unchanged: 2,
-  pac: 3,
-} as const satisfies Record<SysProxyMode, number>;
+  forcedClear: "forcedClear",
+  forcedChange: "forcedChange",
+  unchanged: "unchanged",
+  pac: "pac",
+} as const satisfies Record<SysProxyMode, SysProxyType>;
 
 // The selector offers exactly three modes — off / smart / global — in this
 // order. `unchanged` is intentionally not surfaced (the backend enum still
@@ -39,26 +40,12 @@ export const SYS_PROXY_TYPE = {
 // without PAC support).
 export const PROXY_MODE_OPTIONS: SysProxyMode[] = ["forcedClear", "pac", "forcedChange"];
 
-function sysProxyTypeToMode(mode: number): SysProxyMode {
-  switch (mode) {
-    case SYS_PROXY_TYPE.forcedChange:
-      return "forcedChange";
-    case SYS_PROXY_TYPE.unchanged:
-      return "unchanged";
-    case SYS_PROXY_TYPE.pac:
-      return "pac";
-    case SYS_PROXY_TYPE.forcedClear:
-    default:
-      return "forcedClear";
-  }
-}
-
 export function statusToSysProxyChanged(status: SystemProxyStatusResponse): SysProxyChanged {
   return {
-    effectiveMode: sysProxyTypeToMode(status.effectiveMode),
+    effectiveMode: status.effectiveMode,
     pacAvailable: status.pacAvailable,
     proxy: status.proxy,
-    requestedMode: sysProxyTypeToMode(status.requestedMode),
+    requestedMode: status.requestedMode,
   };
 }
 

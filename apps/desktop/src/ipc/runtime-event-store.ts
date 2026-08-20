@@ -94,12 +94,12 @@ const proxyConnectionsSnapshotSchema: z.ZodType<ProxyConnectionsSnapshot> = z.ob
 });
 
 const serverStatItemSchema: z.ZodType<ServerStatItem> = z.object({
-  DateNow: nullableNonnegativeFiniteNumberSchema.optional(),
-  IndexId: payloadStringSchema.optional(),
-  TodayDown: nullableNonnegativeFiniteNumberSchema.optional(),
-  TodayUp: nullableNonnegativeFiniteNumberSchema.optional(),
-  TotalDown: nullableNonnegativeFiniteNumberSchema.optional(),
-  TotalUp: nullableNonnegativeFiniteNumberSchema.optional(),
+  dateNow: nullableNonnegativeFiniteNumberSchema,
+  indexId: payloadStringSchema,
+  todayDown: nullableNonnegativeFiniteNumberSchema,
+  todayUp: nullableNonnegativeFiniteNumberSchema,
+  totalDown: nullableNonnegativeFiniteNumberSchema,
+  totalUp: nullableNonnegativeFiniteNumberSchema,
 });
 
 const statisticsSnapshotSchema: z.ZodType<StatisticsSnapshot> = z.object({
@@ -169,7 +169,7 @@ export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
           }
 
           const nextEvent: StatisticsEvent = { kind: "statistics", payload };
-          if (!payload.serverStat?.IndexId) {
+          if (!payload.serverStat?.indexId) {
             return { lastTransientEvent: nextEvent, statistics: payload };
           }
 
@@ -177,7 +177,7 @@ export const useRuntimeEventStore = create<RuntimeEventState>((set) => ({
             lastTransientEvent: nextEvent,
             serverStatsByProfileId: {
               ...state.serverStatsByProfileId,
-              [payload.serverStat.IndexId]: payload.serverStat,
+              [payload.serverStat.indexId]: payload.serverStat,
             },
             statistics: payload,
           };

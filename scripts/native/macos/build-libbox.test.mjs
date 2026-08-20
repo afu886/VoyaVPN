@@ -36,7 +36,6 @@ describe("Libbox macOS staging", () => {
     stageLibbox({
       outputXCFramework: xcframework,
       destinationFramework: destination,
-      legacyXCFramework: join(root, "legacy.xcframework"),
       captureCommand: () => ({ status: 0, stdout: "arm64 x86_64", stderr: "" }),
     });
 
@@ -49,7 +48,6 @@ describe("Libbox macOS staging", () => {
     expect(() => stageLibbox({
       outputXCFramework: xcframework,
       destinationFramework: join(root, "Libbox.framework"),
-      legacyXCFramework: join(root, "legacy.xcframework"),
       captureCommand: () => ({ status: 0, stdout: "arm64", stderr: "" }),
     })).toThrow(/missing x86_64/);
   });

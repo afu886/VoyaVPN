@@ -6,6 +6,7 @@
 pub mod autostart;
 pub mod coreinfo;
 pub mod elevation;
+pub mod filesystem;
 pub mod hotkeys;
 pub mod paths;
 pub mod privilege;

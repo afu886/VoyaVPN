@@ -1,0 +1,18 @@
+[package]
+name = "voya-contracts"
+description = "Versioned VoyaVPN persistence and IPC contracts"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true
+specta.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

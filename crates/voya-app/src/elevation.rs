@@ -10,6 +10,7 @@ use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
 use voya_platform::{
     coreinfo::TargetOs,
+    filesystem,
     privilege::{
         self, build_install_plan, build_uninstall_spawn, classify_elevation_outcome,
         current_username, elevate_launcher_path, ElevationOutcome, ElevationState, PrivilegeError,
@@ -81,7 +82,7 @@ impl ElevationManager {
 
         self.stage_install_sources(&plan)?;
         let output = self.runner.run_oneshot(plan.command.clone())?;
-        let _ = std::fs::remove_dir_all(&work_dir);
+        let _ = filesystem::remove_dir_all_if_exists(&work_dir);
 
         match classify_elevation_outcome(output.status_code, &output.stderr) {
             ElevationOutcome::Granted => {
@@ -101,8 +102,9 @@ impl ElevationManager {
     /// Best-effort: failures are logged, never returned, so app exit is never
     /// blocked.
     pub fn revoke(&self) {
-        let launcher_present =
-            elevate_launcher_path(self.target_os).is_some_and(|launcher| launcher.exists());
+        let launcher_present = elevate_launcher_path(self.target_os)
+            .and_then(|launcher| filesystem::file_exists(&launcher).ok())
+            .unwrap_or(false);
         if !launcher_present && !self.state.is_granted() {
             return;
         }
@@ -124,43 +126,16 @@ impl ElevationManager {
         &self,
         plan: &privilege::ElevationInstallPlan,
     ) -> Result<(), ElevationError> {
-        std::fs::create_dir_all(&plan.work_dir)?;
-        restrict_dir_permissions(&plan.work_dir)?;
-        write_private_file(&plan.src_launcher_path, &plan.launcher_contents)?;
-        write_private_file(&plan.src_sudoers_path, &plan.sudoers_contents)?;
-        write_private_file(&plan.install_script_path, &plan.install_script_contents)?;
-        Ok(())
+        filesystem::stage_private_files(
+            &plan.work_dir,
+            &[
+                (&plan.src_launcher_path, &plan.launcher_contents),
+                (&plan.src_sudoers_path, &plan.sudoers_contents),
+                (&plan.install_script_path, &plan.install_script_contents),
+            ],
+        )
+        .map_err(Into::into)
     }
-}
-
-fn write_private_file(path: &std::path::Path, contents: &str) -> Result<(), ElevationError> {
-    std::fs::write(path, contents)?;
-    set_private_file_permissions(path)?;
-    Ok(())
-}
-
-#[cfg(unix)]
-fn restrict_dir_permissions(path: &std::path::Path) -> Result<(), ElevationError> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn restrict_dir_permissions(_path: &std::path::Path) -> Result<(), ElevationError> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn set_private_file_permissions(path: &std::path::Path) -> Result<(), ElevationError> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn set_private_file_permissions(_path: &std::path::Path) -> Result<(), ElevationError> {
-    Ok(())
 }
 
 fn install_failure_message(stderr: &str) -> String {

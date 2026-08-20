@@ -9,9 +9,9 @@
 
 ## 全量 gate
 
-命令: `pnpm run verify:ci`
+命令: `pnpm run verify:local`
 
-结果: 通过。`scripts/quality/verify-ci.mjs` 顺序执行的 gate 全部绿色，最终输出 `CI baseline checks passed.`
+结果: 通过。`scripts/quality/verify-local.mjs` 顺序执行的本地 gate 全部绿色，最终输出 `Local verification passed.`
 
 | Gate | 命令 | 结果摘要 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@
 | Frontend tests | `pnpm run check:frontend:test` | 通过；`pnpm test --run` 摘要为 27 个测试文件、159 个测试通过。 |
 | Frontend lint | `pnpm run check:frontend:lint` | 通过；`eslint .` 无报错。 |
 | Generated binding drift | `pnpm run check:bindings` | 通过；输出 `Generated IPC bindings are up to date.` |
-| i18n locale drift | `pnpm run check:i18n` | 通过；本机缺少 `../v2rayN` ResX 资源时使用已提交的引用快照检查。 |
+| i18n locale drift | `pnpm run check:i18n` | 通过；仅校验 Voya 直接维护的语言 key 对齐、生产使用和用户可见硬编码文本。 |
 
 ## Vitest 收集核对
 
@@ -81,12 +81,13 @@ scripts/release/commands/verify-staging.test.mjs
 
 - `pnpm dev`: 验证 Tauri 窗口启动，debug 构建自动重导 bindings 后确认 `apps/desktop/src/ipc/bindings.ts` 无漂移。
 - `pnpm tauri:build --debug`: 开包检查 `THIRD_PARTY_NOTICES.md` 与 `core-seeds`。
-- `pnpm check:frontend:smoke`: Playwright + `tauri-driver` 冒烟。
+- `pnpm check:frontend:smoke:mock`: Playwright 浏览器与 Tauri IPC mock 冒烟。
+- `pnpm check:desktop:smoke`: Linux `tauri-driver` 真实桌面启动、IPC、设置保存、节点导入与失败路径冒烟。
 - `release.yml` dry-run: 手动触发 `channel=beta`、`dry_run=true` 验证发布链路。
 
 ## 终验结论
 
-- `pnpm run verify:ci` 已通过。
+- `pnpm run verify:local` 已通过。
 - 旧路径残留扫描零命中，无待修复项。
 - `git log --follow` 抽查确认迁移文件历史可追踪。
 - `VERIFICATION.md` 已落库，作为 `monorepo-restructure` 迁移完成证据。

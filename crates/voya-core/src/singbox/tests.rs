@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::*;
-use crate::{golden, CoreGenPlatform, CoreType, RoutingItem};
+use crate::{golden, CoreGenPlatform, CoreType, RoutingItem, ServerEndpoint, TlsSettings};
 
 #[test]
 fn singbox_outbound_vless_ws_tls_mux_matches_golden() {
@@ -13,25 +13,25 @@ fn singbox_outbound_vless_ws_tls_mux_matches_golden() {
 
     let node = ProfileItem {
         index_id: "n-vless".to_string(),
-        config_type: ConfigType::VLESS,
         remarks: "vless-ws".to_string(),
-        address: "server.example".to_string(),
-        port: 443,
-        password: "00000000-0000-0000-0000-000000000011".to_string(),
-        network: "ws".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "tls.example".to_string(),
-        alpn: "h2,http/1.1".to_string(),
-        ech_config_list: "ech.example+https://dns.example/dns-query".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            vless_encryption: Some("none".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::Vless {
+            server: endpoint("server.example", 443),
+            uuid: "00000000-0000-0000-0000-000000000011".to_string(),
+            flow: None,
+            encryption: Some("none".to_string()),
         },
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Websocket {
             host: Some("cdn.example".to_string()),
             path: Some("/ws?ed=2048".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: Some(TlsSettings {
+            alpn: vec!["h2".to_string(), "http/1.1".to_string()],
+            ech_config: vec![
+                "ech.example".to_string(),
+                "https://dns.example/dns-query".to_string(),
+            ],
+            ..tls_settings(TlsMode::Tls, Some("tls.example"))
+        }),
         ..ProfileItem::default()
     };
 
@@ -103,10 +103,13 @@ fn singbox_pinned_cert_and_reality_force_insecure_false() {
     let mut config = AppConfig::default();
     config.core_basic_item.def_allow_insecure = true;
 
-    let pinned_node = ProfileItem {
-        cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----".to_string(),
-        ..base_remote_node()
-    };
+    let mut pinned_node = base_remote_node();
+    pinned_node.tls = Some(TlsSettings {
+        certificate_pem: Some(
+            "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----".to_string(),
+        ),
+        ..tls_settings(TlsMode::Tls, Some("server.example"))
+    });
     let context = test_context(config.clone(), pinned_node.clone());
     let tls = build_outbound(&context, &pinned_node)
         .tls
@@ -115,9 +118,11 @@ fn singbox_pinned_cert_and_reality_force_insecure_false() {
     assert!(tls.certificate.is_some());
 
     let reality_node = ProfileItem {
-        stream_security: STREAM_SECURITY_REALITY.to_string(),
-        public_key: "reality-public-key".to_string(),
-        short_id: "reality-short-id".to_string(),
+        tls: Some(TlsSettings {
+            reality_public_key: Some("reality-public-key".to_string()),
+            reality_short_id: Some("reality-short-id".to_string()),
+            ..tls_settings(TlsMode::Reality, Some("server.example"))
+        }),
         ..base_remote_node()
     };
     let context = test_context(config, reality_node.clone());
@@ -131,13 +136,11 @@ fn singbox_pinned_cert_and_reality_force_insecure_false() {
 #[test]
 fn singbox_transport_hosts_use_first_authority() {
     let node = ProfileItem {
-        network: "ws".to_string(),
-        sni: String::new(),
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Websocket {
             host: Some("one.example, two.example".to_string()),
             path: Some("/ws".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: Some(tls_settings(TlsMode::Tls, None)),
         ..base_remote_node()
     };
     let context = test_context(AppConfig::default(), node.clone());
@@ -159,13 +162,11 @@ fn singbox_transport_hosts_use_first_authority() {
     );
 
     let node = ProfileItem {
-        network: "httpupgrade".to_string(),
-        sni: String::new(),
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::HttpUpgrade {
             host: Some("upgrade.example, backup.example".to_string()),
             path: Some("/up".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: Some(tls_settings(TlsMode::Tls, None)),
         ..base_remote_node()
     };
     let context = test_context(AppConfig::default(), node.clone());
@@ -186,15 +187,16 @@ fn singbox_transport_hosts_use_first_authority() {
     );
 
     let node = ProfileItem {
-        config_type: ConfigType::Trojan,
-        password: "secret".to_string(),
-        network: "grpc".to_string(),
-        sni: String::new(),
-        transport_extra: TransportExtraItem {
-            grpc_authority: Some("grpc-one.example, grpc-two.example".to_string()),
-            grpc_service_name: Some("svc".to_string()),
-            ..TransportExtraItem::default()
+        protocol: ProfileProtocol::Trojan {
+            server: endpoint("server.example", 443),
+            password: "secret".to_string(),
         },
+        transport: Some(ProfileTransport::Grpc {
+            authority: Some("grpc-one.example, grpc-two.example".to_string()),
+            service_name: Some("svc".to_string()),
+            mode: None,
+        }),
+        tls: Some(tls_settings(TlsMode::Tls, None)),
         ..base_remote_node()
     };
     let context = test_context(AppConfig::default(), node.clone());
@@ -208,19 +210,17 @@ fn singbox_transport_hosts_use_first_authority() {
     );
 
     let node = ProfileItem {
-        config_type: ConfigType::Shadowsocks,
-        password: "secret".to_string(),
-        network: "ws".to_string(),
-        stream_security: String::new(),
-        protocol_extra: ProtocolExtraItem {
-            ss_method: Some("aes-128-gcm".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::Shadowsocks {
+            server: endpoint("server.example", 443),
+            password: "secret".to_string(),
+            method: "aes-128-gcm".to_string(),
+            udp_over_tcp: false,
         },
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Websocket {
             host: Some("plugin-one.example, plugin-two.example".to_string()),
             path: Some("/plugin".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: None,
         ..base_remote_node()
     };
     let context = test_context(AppConfig::default(), node.clone());
@@ -241,7 +241,11 @@ fn singbox_invalid_ports_are_rejected_or_skipped() {
     assert_ne!(fallback.server_port, Some(70000));
 
     let node = ProfileItem {
-        port: 70000,
+        protocol: ProfileProtocol::Vmess {
+            server: endpoint("server.example", 70_000),
+            uuid: String::new(),
+            cipher: None,
+        },
         ..base_remote_node()
     };
     let error = generate_singbox_config(&test_context(AppConfig::default(), node))
@@ -270,12 +274,9 @@ fn singbox_outbound_proxy_chain_detour_matches_golden() {
     let n2 = socks_node("n2", "node-2");
     let chain = ProfileItem {
         index_id: "chain".to_string(),
-        config_type: ConfigType::ProxyChain,
         remarks: "chain".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("n1,n2".to_string()),
-            group_type: Some("ProxyChain".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::ProxyChain {
+            child_profile_ids: vec!["n1".to_string(), "n2".to_string()],
         },
         ..ProfileItem::default()
     };
@@ -302,12 +303,10 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "vmess",
             ProfileItem {
                 index_id: "vmess".to_string(),
-                config_type: ConfigType::VMess,
-                password: "00000000-0000-0000-0000-000000000021".to_string(),
-                protocol_extra: ProtocolExtraItem {
-                    alter_id: Some("0".to_string()),
-                    vmess_security: Some(DEFAULT_SECURITY.to_string()),
-                    ..ProtocolExtraItem::default()
+                protocol: ProfileProtocol::Vmess {
+                    server: endpoint("server.example", 443),
+                    uuid: "00000000-0000-0000-0000-000000000021".to_string(),
+                    cipher: Some(DEFAULT_SECURITY.to_string()),
                 },
                 ..base_remote_node()
             },
@@ -316,11 +315,11 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "shadowsocks",
             ProfileItem {
                 index_id: "ss".to_string(),
-                config_type: ConfigType::Shadowsocks,
-                password: "secret".to_string(),
-                protocol_extra: ProtocolExtraItem {
-                    ss_method: Some("2022-blake3-aes-128-gcm".to_string()),
-                    ..ProtocolExtraItem::default()
+                protocol: ProfileProtocol::Shadowsocks {
+                    server: endpoint("server.example", 443),
+                    password: "secret".to_string(),
+                    method: "2022-blake3-aes-128-gcm".to_string(),
+                    udp_over_tcp: false,
                 },
                 ..base_remote_node()
             },
@@ -330,9 +329,11 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "http",
             ProfileItem {
                 index_id: "http".to_string(),
-                config_type: ConfigType::HTTP,
-                username: "user".to_string(),
-                password: "pass".to_string(),
+                protocol: ProfileProtocol::Http {
+                    server: endpoint("server.example", 443),
+                    username: "user".to_string(),
+                    password: "pass".to_string(),
+                },
                 ..base_remote_node()
             },
         ),
@@ -340,11 +341,11 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "vless",
             ProfileItem {
                 index_id: "vless".to_string(),
-                config_type: ConfigType::VLESS,
-                password: "00000000-0000-0000-0000-000000000022".to_string(),
-                protocol_extra: ProtocolExtraItem {
-                    vless_encryption: Some("none".to_string()),
-                    ..ProtocolExtraItem::default()
+                protocol: ProfileProtocol::Vless {
+                    server: endpoint("server.example", 443),
+                    uuid: "00000000-0000-0000-0000-000000000022".to_string(),
+                    flow: None,
+                    encryption: Some("none".to_string()),
                 },
                 ..base_remote_node()
             },
@@ -353,8 +354,10 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "trojan",
             ProfileItem {
                 index_id: "trojan".to_string(),
-                config_type: ConfigType::Trojan,
-                password: "secret".to_string(),
+                protocol: ProfileProtocol::Trojan {
+                    server: endpoint("server.example", 443),
+                    password: "secret".to_string(),
+                },
                 ..base_remote_node()
             },
         ),
@@ -362,12 +365,11 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "hysteria2",
             ProfileItem {
                 index_id: "hy2".to_string(),
-                config_type: ConfigType::Hysteria2,
-                password: "secret".to_string(),
-                protocol_extra: ProtocolExtraItem {
-                    salamander_pass: Some("obfs".to_string()),
-                    ports: Some("443,8443-8445".to_string()),
-                    ..ProtocolExtraItem::default()
+                protocol: ProfileProtocol::Hysteria2 {
+                    server: endpoint("server.example", 443),
+                    password: "secret".to_string(),
+                    port_hops: Some("443,8443-8445".to_string()),
+                    obfuscation_password: Some("obfs".to_string()),
                 },
                 ..base_remote_node()
             },
@@ -376,12 +378,11 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "tuic",
             ProfileItem {
                 index_id: "tuic".to_string(),
-                config_type: ConfigType::TUIC,
-                username: "00000000-0000-0000-0000-000000000023".to_string(),
-                password: "secret".to_string(),
-                protocol_extra: ProtocolExtraItem {
+                protocol: ProfileProtocol::Tuic {
+                    server: endpoint("server.example", 443),
+                    uuid: "00000000-0000-0000-0000-000000000023".to_string(),
+                    password: "secret".to_string(),
                     congestion_control: Some("bbr".to_string()),
-                    ..ProtocolExtraItem::default()
                 },
                 ..base_remote_node()
             },
@@ -390,8 +391,10 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "anytls",
             ProfileItem {
                 index_id: "anytls".to_string(),
-                config_type: ConfigType::Anytls,
-                password: "secret".to_string(),
+                protocol: ProfileProtocol::Anytls {
+                    server: endpoint("server.example", 443),
+                    password: "secret".to_string(),
+                },
                 ..base_remote_node()
             },
         ),
@@ -399,14 +402,14 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
             "naive",
             ProfileItem {
                 index_id: "naive".to_string(),
-                config_type: ConfigType::Naive,
-                username: "user".to_string(),
-                password: "pass".to_string(),
-                protocol_extra: ProtocolExtraItem {
-                    naive_quic: Some(true),
+                protocol: ProfileProtocol::Naive {
+                    server: endpoint("server.example", 443),
+                    username: "user".to_string(),
+                    password: "pass".to_string(),
+                    quic: true,
                     congestion_control: Some("bbr".to_string()),
                     insecure_concurrency: Some(2),
-                    ..ProtocolExtraItem::default()
+                    udp_over_tcp: false,
                 },
                 ..base_remote_node()
             },
@@ -430,13 +433,18 @@ fn singbox_outbound_live_protocol_matrix_serializes_without_nulls() {
 
     let wireguard = ProfileItem {
         index_id: "wg".to_string(),
-        config_type: ConfigType::WireGuard,
-        password: "private-key".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            wg_public_key: Some("public-key".to_string()),
-            wg_interface_address: Some("172.16.0.2/32,fd00::2/128".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::WireGuard {
+            server: endpoint("server.example", 443),
+            private_key: "private-key".to_string(),
+            peer_public_key: Some("public-key".to_string()),
+            preshared_key: None,
+            interface_address: Some("172.16.0.2/32,fd00::2/128".to_string()),
+            allowed_ips: None,
+            reserved: None,
+            mtu: None,
         },
+        transport: None,
+        tls: None,
         ..base_remote_node()
     };
     let generated = generate_singbox_config(&test_context(AppConfig::default(), wireguard))
@@ -455,13 +463,12 @@ fn singbox_selector_policy_group_order_dedupe_and_urltest_match_golden() {
     let n2 = socks_node("n2", "node-2");
     let group = ProfileItem {
         index_id: "group".to_string(),
-        config_type: ConfigType::PolicyGroup,
         remarks: "fallback".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("n1,n1,n2".to_string()),
-            group_type: Some("PolicyGroup".to_string()),
-            multiple_load: Some(MultipleLoad::Fallback),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::PolicyGroup {
+            child_profile_ids: vec!["n1".to_string(), "n1".to_string(), "n2".to_string()],
+            source_subscription_id: None,
+            filter: None,
+            strategy: MultipleLoad::Fallback,
         },
         ..ProfileItem::default()
     };
@@ -625,13 +632,18 @@ fn singbox_negative_ip_rules_use_and_and_skip_negative_only_rules() {
 fn singbox_wireguard_uses_allowed_ips_and_rejects_empty_public_key() {
     let wireguard = ProfileItem {
         index_id: "wg".to_string(),
-        config_type: ConfigType::WireGuard,
-        password: "private-key".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            wg_public_key: Some("public-key".to_string()),
-            wg_allowed_ips: Some("10.0.0.0/8,192.168.0.0/16".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::WireGuard {
+            server: endpoint("server.example", 443),
+            private_key: "private-key".to_string(),
+            peer_public_key: Some("public-key".to_string()),
+            preshared_key: None,
+            interface_address: None,
+            allowed_ips: Some("10.0.0.0/8,192.168.0.0/16".to_string()),
+            reserved: None,
+            mtu: None,
         },
+        transport: None,
+        tls: None,
         ..base_remote_node()
     };
     let generated = generate_singbox_config(&test_context(AppConfig::default(), wireguard))
@@ -643,8 +655,18 @@ fn singbox_wireguard_uses_allowed_ips_and_rejects_empty_public_key() {
 
     let missing_public_key = ProfileItem {
         index_id: "wg-missing-key".to_string(),
-        config_type: ConfigType::WireGuard,
-        password: "private-key".to_string(),
+        protocol: ProfileProtocol::WireGuard {
+            server: endpoint("server.example", 443),
+            private_key: "private-key".to_string(),
+            peer_public_key: None,
+            preshared_key: None,
+            interface_address: None,
+            allowed_ips: None,
+            reserved: None,
+            mtu: None,
+        },
+        transport: None,
+        tls: None,
         ..base_remote_node()
     };
     let error = generate_singbox_config(&test_context(AppConfig::default(), missing_public_key))
@@ -852,13 +874,12 @@ fn singbox_speedtest_config_adds_mixed_inbound_proxy_and_route_per_entry() {
 fn singbox_speedtest_config_routes_policy_group_and_proxy_chain_entries() {
     let group = ProfileItem {
         index_id: "group".to_string(),
-        config_type: ConfigType::PolicyGroup,
         remarks: "group".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("g1,g2".to_string()),
-            group_type: Some("PolicyGroup".to_string()),
-            multiple_load: Some(MultipleLoad::Fallback),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::PolicyGroup {
+            child_profile_ids: vec!["g1".to_string(), "g2".to_string()],
+            source_subscription_id: None,
+            filter: None,
+            strategy: MultipleLoad::Fallback,
         },
         ..ProfileItem::default()
     };
@@ -872,12 +893,9 @@ fn singbox_speedtest_config_routes_policy_group_and_proxy_chain_entries() {
 
     let chain = ProfileItem {
         index_id: "chain".to_string(),
-        config_type: ConfigType::ProxyChain,
         remarks: "chain".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            child_items: Some("c1,c2".to_string()),
-            group_type: Some("ProxyChain".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::ProxyChain {
+            child_profile_ids: vec!["c1".to_string(), "c2".to_string()],
         },
         ..ProfileItem::default()
     };
@@ -994,11 +1012,13 @@ fn test_context(app_config: AppConfig, node: ProfileItem) -> CoreConfigContext {
 fn base_remote_node() -> ProfileItem {
     ProfileItem {
         remarks: "remote".to_string(),
-        address: "server.example".to_string(),
-        port: 443,
-        network: DEFAULT_NETWORK.to_string(),
-        stream_security: "tls".to_string(),
-        sni: "server.example".to_string(),
+        protocol: ProfileProtocol::Vmess {
+            server: endpoint("server.example", 443),
+            uuid: String::new(),
+            cipher: None,
+        },
+        transport: Some(raw_transport()),
+        tls: Some(tls_settings(TlsMode::Tls, Some("server.example"))),
         ..ProfileItem::default()
     }
 }
@@ -1006,14 +1026,45 @@ fn base_remote_node() -> ProfileItem {
 fn socks_node(index_id: &str, remarks: &str) -> ProfileItem {
     ProfileItem {
         index_id: index_id.to_string(),
-        config_type: ConfigType::SOCKS,
         remarks: remarks.to_string(),
-        address: LOOPBACK.to_string(),
-        port: 1080,
-        username: "user".to_string(),
-        password: "pass".to_string(),
-        network: DEFAULT_NETWORK.to_string(),
+        protocol: ProfileProtocol::Socks {
+            server: endpoint(LOOPBACK, 1080),
+            username: "user".to_string(),
+            password: "pass".to_string(),
+        },
+        transport: Some(raw_transport()),
         ..ProfileItem::default()
+    }
+}
+
+fn endpoint(address: &str, port: i32) -> ServerEndpoint {
+    ServerEndpoint {
+        address: address.to_string(),
+        port,
+    }
+}
+
+fn raw_transport() -> ProfileTransport {
+    ProfileTransport::Tcp {
+        header: None,
+        host: None,
+        path: None,
+    }
+}
+
+fn tls_settings(mode: TlsMode, server_name: Option<&str>) -> TlsSettings {
+    TlsSettings {
+        mode,
+        server_name: server_name.map(str::to_string),
+        alpn: Vec::new(),
+        reality_public_key: None,
+        reality_short_id: None,
+        reality_spider_x: None,
+        mldsa65_verify: None,
+        certificate_pem: None,
+        certificate_sha256: Vec::new(),
+        ech_config: Vec::new(),
+        final_mask: None,
     }
 }
 

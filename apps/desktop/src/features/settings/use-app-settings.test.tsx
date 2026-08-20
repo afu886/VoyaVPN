@@ -3,16 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SettingsBundle_Serialize, UiPreferences } from "@/ipc/bindings";
+import type { AppearanceSettings } from "@/ipc/bindings";
 
-import { useSettingsBundle } from "./use-settings-bundle";
+import { makeAppSettings } from "./app-settings.test-fixture";
+import { useAppSettings } from "./use-app-settings";
 
 const ipcMocks = vi.hoisted(() => ({
-  loadSettingsBundle: vi.fn(),
-  saveSettingsBundle: vi.fn(),
+  loadAppSettings: vi.fn(),
+  saveAppSettings: vi.fn(),
 }));
 const preferenceMocks = vi.hoisted(() => ({
-  applyUiPreferences: vi.fn((preferences: UiPreferences) => {
+  applyUiPreferences: vi.fn((preferences: AppearanceSettings) => {
     void preferences;
     return Promise.resolve();
   }),
@@ -24,13 +25,13 @@ vi.mock("@/features/settings/ui-preferences", () => ({
   UI_PREFERENCES_QUERY_KEY: ["ui-preferences"],
 }));
 
-describe("useSettingsBundle", () => {
+describe("useAppSettings", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
     window.localStorage.clear();
-    ipcMocks.loadSettingsBundle.mockResolvedValue(makeBundle());
-    ipcMocks.saveSettingsBundle.mockImplementation(async (bundle) => bundle);
+    ipcMocks.loadAppSettings.mockResolvedValue(makeAppSettings());
+    ipcMocks.saveAppSettings.mockImplementation(async (settings) => settings);
   });
 
   afterEach(cleanup);
@@ -44,11 +45,11 @@ describe("useSettingsBundle", () => {
     expect(screen.getByTestId("state")).toHaveTextContent("dirty");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledTimes(1));
-    expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledWith(
+    await waitFor(() => expect(ipcMocks.saveAppSettings).toHaveBeenCalledTimes(1));
+    expect(ipcMocks.saveAppSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        subConvertUrl: "https://convert.example.test",
-        coreBasicItem: expect.objectContaining({ Loglevel: "debug" }),
+        sources: expect.objectContaining({ subscriptionConverter: "https://convert.example.test" }),
+        core: expect.objectContaining({ logLevel: "debug" }),
       }),
     );
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("clean"));
@@ -84,11 +85,11 @@ describe("useSettingsBundle", () => {
 
   it("reloads the authoritative snapshot after a failed save", async () => {
     const user = userEvent.setup();
-    const authoritative = makeBundle({ subConvertUrl: "https://authoritative.example.test" });
-    ipcMocks.loadSettingsBundle
-      .mockResolvedValueOnce(makeBundle())
+    const authoritative = makeAppSettings({ subscriptionConverter: "https://authoritative.example.test" });
+    ipcMocks.loadAppSettings
+      .mockResolvedValueOnce(makeAppSettings())
       .mockResolvedValueOnce(authoritative);
-    ipcMocks.saveSettingsBundle.mockRejectedValue(new Error("save failed"));
+    ipcMocks.saveAppSettings.mockRejectedValue(new Error("save failed"));
     renderProbe();
     await screen.findByText("clean");
 
@@ -101,23 +102,65 @@ describe("useSettingsBundle", () => {
     );
     expect(screen.getByTestId("state")).toHaveTextContent("clean");
   });
+
+  it("reports reload and appearance-preview failures", async () => {
+    const user = userEvent.setup();
+    ipcMocks.loadAppSettings
+      .mockResolvedValueOnce(makeAppSettings())
+      .mockRejectedValueOnce(new Error("reload failed"));
+    preferenceMocks.applyUiPreferences.mockRejectedValueOnce(new Error("preview failed"));
+    renderProbe();
+    await screen.findByText("clean");
+
+    await user.click(screen.getByRole("button", { name: "Preview dark" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("preview failed");
+    await user.click(screen.getByRole("button", { name: "Reload" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("reload failed");
+  });
+
+  it("keeps the original save error when recovery loading also fails", async () => {
+    const user = userEvent.setup();
+    ipcMocks.loadAppSettings
+      .mockResolvedValueOnce(makeAppSettings())
+      .mockRejectedValueOnce(new Error("recovery unavailable"));
+    ipcMocks.saveAppSettings.mockRejectedValueOnce(new Error("save rejected"));
+    renderProbe();
+    await screen.findByText("clean");
+
+    await user.click(screen.getByRole("button", { name: "Edit two sections" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("save rejected");
+  });
+
+  it("returns safely when save and discard run before the initial snapshot", async () => {
+    const user = userEvent.setup();
+    ipcMocks.loadAppSettings.mockReturnValue(new Promise(() => {}));
+    renderBareProbe();
+
+    await user.click(screen.getByRole("button", { name: "Early save" }));
+    await user.click(screen.getByRole("button", { name: "Early discard" }));
+    expect(ipcMocks.saveAppSettings).not.toHaveBeenCalled();
+  });
 });
 
 function Probe() {
-  const controller = useSettingsBundle();
-  if (!controller.bundle) return <div>loading</div>;
+  const controller = useAppSettings();
+  if (!controller.settings) return <div>loading</div>;
   return (
     <div>
       <div data-testid="state">{controller.dirty ? "dirty" : "clean"}</div>
-      <div data-testid="theme">{controller.bundle.uiPreferences.theme}</div>
-      <div data-testid="converter">{controller.bundle.subConvertUrl ?? "none"}</div>
+      <div data-testid="theme">{controller.settings.appearance.theme}</div>
+      <div data-testid="converter">{controller.settings.sources.subscriptionConverter ?? "none"}</div>
       {controller.error ? <div role="alert">{controller.error}</div> : null}
       <button
         onClick={() =>
-          controller.update((bundle) => ({
-            ...bundle,
-            subConvertUrl: "https://convert.example.test",
-            coreBasicItem: { ...bundle.coreBasicItem, Loglevel: "debug" },
+          controller.update((settings) => ({
+            ...settings,
+            sources: {
+              ...settings.sources,
+              subscriptionConverter: "https://convert.example.test",
+            },
+            core: { ...settings.core, logLevel: "debug" },
           }))
         }
         type="button"
@@ -126,7 +169,7 @@ function Probe() {
       </button>
       <button
         onClick={() =>
-          controller.setUiPreferences({ ...controller.bundle!.uiPreferences, theme: "dark" })
+          controller.setAppearance({ ...controller.settings!.appearance, theme: "dark" })
         }
         type="button"
       >
@@ -134,7 +177,27 @@ function Probe() {
       </button>
       <button onClick={() => void controller.discard()} type="button">Discard</button>
       <button onClick={() => void controller.save()} type="button">Save</button>
+      <button onClick={() => void controller.reload()} type="button">Reload</button>
     </div>
+  );
+}
+
+function BareProbe() {
+  const controller = useAppSettings();
+  return (
+    <div>
+      <button onClick={() => void controller.save()} type="button">Early save</button>
+      <button onClick={() => void controller.discard()} type="button">Early discard</button>
+    </div>
+  );
+}
+
+function renderBareProbe() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <BareProbe />
+    </QueryClientProvider>,
   );
 }
 
@@ -145,66 +208,4 @@ function renderProbe() {
       <Probe />
     </QueryClientProvider>,
   );
-}
-
-function makeBundle(
-  overrides: Partial<SettingsBundle_Serialize> = {},
-): SettingsBundle_Serialize {
-  return {
-    uiPreferences: { language: "en", theme: "system" },
-    autostartEnabled: false,
-    showWindowHotkey: {
-      EGlobalHotkey: 0,
-      Alt: true,
-      Control: true,
-      Shift: false,
-      KeyCode: 86,
-    },
-    sources: {
-      geoSourceUrl: null,
-      routeRulesTemplateSourceUrl: null,
-      srsSourceUrl: null,
-    },
-    subConvertUrl: null,
-    coreBasicItem: {
-      LogEnabled: false,
-      Loglevel: "warning",
-      MuxEnabled: false,
-      DefAllowInsecure: false,
-      DefFingerprint: "chrome",
-      DefUserAgent: "",
-      EnableFragment: false,
-      EnableCacheFile4Sbox: true,
-    },
-    mux4SboxItem: { Protocol: "h2mux", MaxConnections: 4, Padding: false },
-    hysteriaItem: { UpMbps: 100, DownMbps: 100, HopInterval: 30 },
-    network: {
-      tun: {
-        autoRoute: true,
-        strictRoute: true,
-        stack: "system",
-        mtu: 9000,
-        enableIpv6Address: false,
-        icmpRouting: "",
-      },
-      systemProxy: {
-        systemProxyExceptions: "",
-        notProxyLocalAddress: true,
-        systemProxyAdvancedProtocol: "",
-        customSystemProxyPacPath: null,
-        customSystemProxyScriptPath: null,
-      },
-    },
-    speedTestItem: {
-      SpeedTestTimeout: 10,
-      SpeedTestUrl: "https://speed.example.test",
-      SpeedPingTestUrl: "https://ping.example.test",
-      MixedConcurrencyCount: 4,
-      IPAPIUrl: "https://ip.example.test",
-      UdpTestTarget: "1.1.1.1:53",
-      SpeedTestPageSize: 10,
-      SpeedTestDelayInterval: 1,
-    },
-    ...overrides,
-  };
 }

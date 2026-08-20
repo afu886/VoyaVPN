@@ -167,7 +167,7 @@ impl<'db> GroupManager<'db> {
 }
 
 fn ensure_group_profile(profile: &ProfileItem) -> Result<()> {
-    if profile.config_type.is_group_type() {
+    if profile.config_type().is_group_type() {
         Ok(())
     } else {
         Err(GroupManagerError::NotGroupProfile)
@@ -189,7 +189,7 @@ struct GroupPreviewSource<'a> {
 
 #[cfg(test)]
 mod tests {
-    use voya_core::{ConfigType, ProtocolExtraItem};
+    use voya_core::{MultipleLoad, ProfileProtocol, ProfileTransport, ServerEndpoint};
     use voya_db::Database;
 
     use super::*;
@@ -274,12 +274,21 @@ mod tests {
     fn sample_leaf(index_id: &str, remarks: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VLESS,
             remarks: remarks.to_string(),
-            address: format!("{index_id}.example.test"),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            network: "tcp".to_string(),
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: format!("{index_id}.example.test"),
+                    port: 443,
+                },
+                uuid: "00000000-0000-0000-0000-000000000000".to_string(),
+                flow: None,
+                encryption: Some("none".to_string()),
+            },
+            transport: Some(ProfileTransport::Tcp {
+                header: None,
+                host: None,
+                path: None,
+            }),
             ..ProfileItem::default()
         }
     }
@@ -287,13 +296,12 @@ mod tests {
     fn sample_group(index_id: &str, remarks: &str, child_items: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::PolicyGroup,
             remarks: remarks.to_string(),
-            address: "group".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                child_items: Some(child_items.to_string()),
-                group_type: Some("PolicyGroup".to_string()),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::PolicyGroup {
+                child_profile_ids: child_items.split(',').map(str::to_string).collect(),
+                source_subscription_id: None,
+                filter: None,
+                strategy: MultipleLoad::LeastPing,
             },
             ..ProfileItem::default()
         }

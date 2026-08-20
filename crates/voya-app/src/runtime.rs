@@ -1,5 +1,5 @@
 use std::{
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -16,6 +16,7 @@ use voya_platform::{
         discover_packaged_seed_executable, get_core_info, CoreInfo, CoreInfoError, CoreLaunch,
         CoreSeedCopyOutcome, TargetOs,
     },
+    filesystem,
     paths::{AppPaths, PathError},
     tun::{tun_backend, TunBackend},
 };
@@ -139,7 +140,7 @@ impl<'runtime> RuntimeManager<'runtime> {
         match self.supervisor.start(request).await {
             Ok(snapshot) => Ok(snapshot),
             Err(error) => {
-                let _ = fs::remove_file(main_config_path);
+                let _ = filesystem::remove_file_if_exists(&main_config_path);
                 let _ = cleanup_config_file(&self.paths, PRE_CONFIG_FILE_NAME);
                 Err(error.into())
             }
@@ -253,15 +254,11 @@ fn write_runtime_config(
 ) -> Result<PathBuf, RuntimeError> {
     let json = generate_singbox_config_json(context)?;
     let path = paths.bin_config_file(file_name);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| RuntimeError::CreateConfigDir {
-            path: parent.to_path_buf(),
+    filesystem::write_file_with_parent(&path, json).map_err(|source| {
+        RuntimeError::WriteConfig {
+            path: path.clone(),
             source,
-        })?;
-    }
-    fs::write(&path, json).map_err(|source| RuntimeError::WriteConfig {
-        path: path.clone(),
-        source,
+        }
     })?;
 
     Ok(path)
@@ -276,11 +273,8 @@ fn cleanup_runtime_state(paths: &AppPaths) -> Result<(), RuntimeError> {
 
 fn cleanup_config_file(paths: &AppPaths, file_name: &str) -> Result<(), RuntimeError> {
     let path = paths.bin_config_file(file_name);
-    match fs::remove_file(&path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(RuntimeError::RemoveConfig { path, source }),
-    }
+    filesystem::remove_file_if_exists(&path)
+        .map_err(|source| RuntimeError::RemoveConfig { path, source })
 }
 
 #[derive(Debug, Error)]
@@ -345,6 +339,7 @@ const fn core_gen_platform(target_os: TargetOs) -> CoreGenPlatform {
 #[cfg(test)]
 mod tests {
     use std::{
+        fs,
         sync::{
             atomic::{AtomicU64, Ordering},
             Arc,
@@ -352,7 +347,10 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use voya_core::{ConfigType, CoreType, ProfileItem, RoutingItem, RuleType, RulesItem};
+    use voya_core::{
+        CoreType, ProfileItem, ProfileProtocol, ProfileTransport, RoutingItem, RuleType, RulesItem,
+        ServerEndpoint,
+    };
     use voya_db::Database;
     use voya_platform::{
         coreinfo::{core_type_dir_name, executable_name_for_current_os},
@@ -414,16 +412,7 @@ mod tests {
             index_id: "active".to_string(),
             ..AppConfig::default()
         };
-        let profile = ProfileItem {
-            index_id: "active".to_string(),
-            config_type: ConfigType::VLESS,
-            remarks: "Runtime".to_string(),
-            address: "example.test".to_string(),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            network: "tcp".to_string(),
-            ..ProfileItem::default()
-        };
+        let profile = active_singbox_profile("active");
         database
             .profiles()
             .upsert(&profile)
@@ -661,20 +650,10 @@ mod tests {
             index_id: "active".to_string(),
             ..AppConfig::default()
         };
-        let profile = ProfileItem {
-            index_id: "active".to_string(),
-            config_type: ConfigType::VLESS,
-            remarks: "Runtime".to_string(),
-            address: "example.test".to_string(),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            network: "tcp".to_string(),
-            ..ProfileItem::default()
-        };
+        let profile = active_singbox_profile("active");
         let routing = RoutingItem {
             id: "routing-active".to_string(),
             remarks: "Active routing".to_string(),
-            is_active: true,
             rule_set: vec![RulesItem {
                 id: "rule-direct".to_string(),
                 outbound_tag: Some(voya_core::DIRECT_TAG.to_string()),
@@ -756,12 +735,21 @@ mod tests {
     fn active_singbox_profile(index_id: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VLESS,
             remarks: "Runtime".to_string(),
-            address: "example.test".to_string(),
-            port: 443,
-            password: "00000000-0000-0000-0000-000000000000".to_string(),
-            network: "tcp".to_string(),
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: "example.test".to_string(),
+                    port: 443,
+                },
+                uuid: "00000000-0000-0000-0000-000000000000".to_string(),
+                flow: None,
+                encryption: Some("none".to_string()),
+            },
+            transport: Some(ProfileTransport::Tcp {
+                header: None,
+                host: None,
+                path: None,
+            }),
             ..ProfileItem::default()
         }
     }

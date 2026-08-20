@@ -47,8 +47,7 @@ tauri-specta.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
 voya-app.workspace = true
-voya-core.workspace = true
-voya-db.workspace = true
+voya-contracts.workspace = true
 voya-platform.workspace = true
 
 [target.'cfg(windows)'.dependencies]

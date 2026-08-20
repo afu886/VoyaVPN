@@ -18,7 +18,7 @@ use voya_app::{
         ProxyConnectionsSnapshot, ProxyMonitorController, ProxyRuntimeEventSink, ProxyTrafficEvent,
     },
     redaction::redact_url_userinfo,
-    runtime::RuntimeManager,
+    services::{AppConfig, AppServices},
     speedtest::SpeedtestManager,
     statistics::{
         SharedAppConfigSource, StatisticsEventSink, StatisticsManager,
@@ -27,10 +27,9 @@ use voya_app::{
     supervisor::{CoreSupervisor, NativeTunExitEvent, SupervisorDeps, SupervisorEventSink},
     sysproxy::SystemProxyManager,
 };
-use voya_core::AppConfig;
-use voya_db::{AppConfigStore, Database, DATABASE_NAME};
 use voya_platform::{
     coreinfo::{copy_seed_core_assets, TargetOs},
+    filesystem::reject_incompatible_config,
     paths::{core_seed_resources_dir, AppPaths},
     process::{ProcessLogSink, ProcessOutputStream, ProcessRole, StdProcessRunner},
     sysproxy::{platform_pac_manager, SystemProxyService},
@@ -42,10 +41,8 @@ const TRAY_SHOW: &str = "tray-show";
 const TRAY_HIDE: &str = "tray-hide";
 const TRAY_QUIT: &str = "tray-quit";
 pub(crate) struct AppState {
-    database: Database,
-    config_store: AppConfigStore,
+    services: AppServices,
     config: Arc<RwLock<AppConfig>>,
-    runtime_paths: AppPaths,
     core_seed_resource_dir: Option<PathBuf>,
     elevation_manager: ElevationManager,
     supervisor: CoreSupervisor,
@@ -57,12 +54,8 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) fn database(&self) -> &Database {
-        &self.database
-    }
-
-    pub(crate) fn config_store(&self) -> &AppConfigStore {
-        &self.config_store
+    pub(crate) fn services(&self) -> &AppServices {
+        &self.services
     }
 
     pub(crate) fn config(&self) -> &RwLock<AppConfig> {
@@ -70,7 +63,7 @@ impl AppState {
     }
 
     pub(crate) fn runtime_paths(&self) -> &AppPaths {
-        &self.runtime_paths
+        self.services.runtime_paths()
     }
 
     pub(crate) fn core_seed_resource_dir(&self) -> Option<&Path> {
@@ -137,14 +130,18 @@ pub fn run() {
         })
         .setup(move |app| {
             let app_config_dir = app.path().app_config_dir()?;
+            reject_incompatible_config(&app_config_dir.join("guiNConfig.json"), 1)?;
             let runtime_paths = AppPaths::new(&app_config_dir);
             runtime_paths.ensure_dirs()?;
+            let services = tauri::async_runtime::block_on(AppServices::connect(
+                &app_config_dir.join("voyavpn.sqlite"),
+                runtime_paths.clone(),
+            ))?;
+            let config = tauri::async_runtime::block_on(services.load_config())?;
             let system_proxy_manager = SystemProxyManager::new(
                 SystemProxyService::new(Arc::new(StdProcessRunner::new()), platform_pac_manager()),
                 runtime_paths.clone(),
             );
-            let config_store = AppConfigStore::new(app_config_dir.join("guiNConfig.json"));
-            let config = config_store.load()?;
             let skip_persisted_proxy_apply = match system_proxy_manager
                 .restore_dirty_proxy_if_needed(&config)
             {
@@ -163,12 +160,7 @@ pub fn run() {
                 }
             };
             let shared_config = Arc::new(RwLock::new(config.clone()));
-            let database = tauri::async_runtime::block_on(Database::connect(
-                app_config_dir.join(DATABASE_NAME),
-            ))?;
-            tauri::async_runtime::block_on(
-                voya_app::profiles::ProfileExManager::new(&database).init(),
-            )?;
+            tauri::async_runtime::block_on(services.initialize_profile_metrics())?;
             let core_seed_resource_dir = Some(core_seed_resources_dir(app.path().resource_dir()?));
             match (TargetOs::current(), core_seed_resource_dir.as_ref()) {
                 (TargetOs::Macos, _) => {
@@ -208,8 +200,7 @@ pub fn run() {
                     app: app.handle().clone(),
                 })),
             );
-            let statistics_manager = StatisticsManager::spawn(
-                database.clone(),
+            let statistics_manager = services.spawn_statistics(
                 supervisor.clone(),
                 Arc::new(SharedAppConfigSource::new(Arc::clone(&shared_config))),
                 Arc::new(TauriStatisticsEventSink {
@@ -225,20 +216,15 @@ pub fn run() {
                 tracing::warn!("skipped persisted system proxy apply after dirty marker recovery");
             }
             if let Err(error) =
-                ipc::commands::register_global_hotkeys_for_config(app.handle(), &config)
+                ipc::commands::register_show_window_shortcut_for_config(app.handle(), &config)
             {
                 tracing::warn!(?error, "failed to register persisted global hotkeys");
             }
-            let speedtest_manager = SpeedtestManager::new(
-                runtime_paths.clone(),
-                core_seed_resource_dir.clone(),
-                Arc::new(speedtest_runner),
-            );
+            let speedtest_manager = services
+                .speedtest_manager(core_seed_resource_dir.clone(), Arc::new(speedtest_runner));
             app.manage(AppState {
-                database,
-                config_store,
+                services,
                 config: shared_config,
-                runtime_paths,
                 core_seed_resource_dir,
                 elevation_manager,
                 supervisor,
@@ -385,7 +371,9 @@ impl StatisticsEventSink for TauriStatisticsEventSink {
                 direct_download_bytes_per_second: snapshot.direct_download_bytes_per_second,
                 upload_bytes_per_second: snapshot.upload_bytes_per_second,
                 download_bytes_per_second: snapshot.download_bytes_per_second,
-                server_stat: snapshot.server_stat,
+                server_stat: snapshot
+                    .server_stat
+                    .map(voya_app::contract_map::server_stat_to_contract),
             });
 
         if let Err(error) = event.emit(&self.app) {
@@ -466,11 +454,7 @@ fn disconnect_runtime_for_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
-    let runtime = RuntimeManager::new(
-        state.database(),
-        state.runtime_paths().clone(),
-        state.supervisor(),
-    );
+    let runtime = state.services().runtime(state.supervisor());
     if let Err(error) = tauri::async_runtime::block_on(runtime.disconnect()) {
         tracing::warn!(?error, "failed to disconnect runtime on exit");
     }

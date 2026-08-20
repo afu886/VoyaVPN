@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const steps = [
+  ["Architecture boundaries", "pnpm", ["run", "check:architecture"]],
   ["Rust formatting", "pnpm", ["run", "check:rust:fmt"]],
   ["Rust Clippy", "pnpm", ["run", "check:rust:clippy"]],
   ["Rust dependency usage", "pnpm", ["run", "check:rust:deps"]],
@@ -9,7 +10,7 @@ const steps = [
   ["Frontend tests and coverage", "pnpm", ["run", "check:frontend:coverage"]],
   ["Frontend lint", "pnpm", ["run", "check:frontend:lint"]],
   ["Frontend production bundle", "pnpm", ["run", "check:frontend:bundle"]],
-  ["Frontend smoke tests", "pnpm", ["run", "check:frontend:smoke"]],
+  ["Frontend mock smoke tests", "pnpm", ["run", "check:frontend:smoke:mock"]],
   ["Dead code and dependency usage", "pnpm", ["run", "check:dead-code"]],
   ["sing-box config acceptance", "pnpm", ["run", "check:sing-box"]],
   ["Generated binding drift", "pnpm", ["run", "check:bindings"]],
@@ -31,7 +32,7 @@ for (const [name, command, args] of steps) {
   }
 }
 
-console.log("\nCI parity checks passed.");
+console.log("\nLocal verification checks passed.");
 
 function executable(command, args) {
   if (command === "pnpm" && process.env.npm_execpath) {

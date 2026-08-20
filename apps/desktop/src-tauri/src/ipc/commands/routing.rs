@@ -4,10 +4,13 @@ use super::{lifecycle::*, support::*, *};
 #[specta::specta]
 pub async fn list_routings(
     state: tauri::State<'_, AppState>,
-) -> Result<Vec<RoutingItem>, AppError> {
-    RoutingManager::new(state.database())
+) -> Result<Vec<RoutingContract>, AppError> {
+    state
+        .services()
+        .routings()
         .list_routings()
         .await
+        .map(|items| items.into_iter().map(routing_to_contract).collect())
         .map_err(routing_error)
 }
 
@@ -16,16 +19,18 @@ pub async fn list_routings(
 pub async fn save_routing<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    item: RoutingItem,
-) -> Result<RoutingItem, AppError> {
+    item: RoutingContract,
+) -> Result<RoutingContract, AppError> {
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let saved = RoutingManager::new(state.database())
-        .save_routing(&mut config, item)
+    let saved = state
+        .services()
+        .routings()
+        .save_routing(&mut config, routing_from_contract(item))
         .await
         .map_err(routing_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_routing_invalidation(
         &app,
         "routing-saved",
@@ -34,7 +39,7 @@ pub async fn save_routing<R: tauri::Runtime>(
     )?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
-    Ok(saved)
+    Ok(routing_to_contract(saved))
 }
 
 #[tauri::command]
@@ -47,12 +52,14 @@ pub async fn delete_routings<R: tauri::Runtime>(
     validate_ipc_text_list(&ids, "routing id", IPC_ID_MAX_CHARS, AppError::Routing)?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let deleted = RoutingManager::new(state.database())
+    let deleted = state
+        .services()
+        .routings()
         .delete_routings(&mut config, &ids)
         .await
         .map_err(routing_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_routing_invalidation(&app, "routings-deleted", ids, original != config)?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
@@ -65,20 +72,22 @@ pub async fn set_active_routing<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
     id: String,
-) -> Result<RoutingItem, AppError> {
+) -> Result<RoutingContract, AppError> {
     validate_required_ipc_text(&id, "routing id", IPC_ID_MAX_CHARS, AppError::Routing)?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let active = RoutingManager::new(state.database())
+    let active = state
+        .services()
+        .routings()
         .set_active_routing(&mut config, &id)
         .await
         .map_err(routing_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_routing_invalidation(&app, "active-routing-changed", [id], true)?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
-    Ok(active)
+    Ok(routing_to_contract(active))
 }
 
 #[tauri::command]
@@ -87,8 +96,8 @@ pub async fn save_routing_rule<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
     routing_id: String,
-    rule: RulesItem,
-) -> Result<RoutingItem, AppError> {
+    rule: RoutingRuleContract,
+) -> Result<RoutingContract, AppError> {
     validate_required_ipc_text(
         &routing_id,
         "routing id",
@@ -96,15 +105,17 @@ pub async fn save_routing_rule<R: tauri::Runtime>(
         AppError::Routing,
     )?;
     let config = current_config(&state)?;
-    let saved = RoutingManager::new(state.database())
-        .save_rule(&routing_id, rule)
+    let saved = state
+        .services()
+        .routings()
+        .save_rule(&routing_id, rule_from_contract(rule))
         .await
         .map_err(routing_error)?;
 
     emit_routing_invalidation(&app, "routing-rule-saved", [routing_id], false)?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
-    Ok(saved)
+    Ok(routing_to_contract(saved))
 }
 
 #[tauri::command]
@@ -114,7 +125,7 @@ pub async fn delete_routing_rules<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     routing_id: String,
     rule_ids: Vec<String>,
-) -> Result<RoutingItem, AppError> {
+) -> Result<RoutingContract, AppError> {
     validate_required_ipc_text(
         &routing_id,
         "routing id",
@@ -128,7 +139,9 @@ pub async fn delete_routing_rules<R: tauri::Runtime>(
         AppError::Routing,
     )?;
     let config = current_config(&state)?;
-    let saved = RoutingManager::new(state.database())
+    let saved = state
+        .services()
+        .routings()
         .delete_rules(&routing_id, &rule_ids)
         .await
         .map_err(routing_error)?;
@@ -136,7 +149,7 @@ pub async fn delete_routing_rules<R: tauri::Runtime>(
     emit_routing_invalidation(&app, "routing-rules-deleted", [routing_id], false)?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
-    Ok(saved)
+    Ok(routing_to_contract(saved))
 }
 
 #[tauri::command]
@@ -146,9 +159,9 @@ pub async fn move_routing_rule<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     routing_id: String,
     rule_id: String,
-    action: MoveAction,
+    action: ContractMoveAction,
     position: Option<i32>,
-) -> Result<RoutingItem, AppError> {
+) -> Result<RoutingContract, AppError> {
     validate_required_ipc_text(
         &routing_id,
         "routing id",
@@ -162,13 +175,20 @@ pub async fn move_routing_rule<R: tauri::Runtime>(
         AppError::Routing,
     )?;
     let config = current_config(&state)?;
-    let saved = RoutingManager::new(state.database())
-        .move_rule(&routing_id, &rule_id, action, position)
+    let saved = state
+        .services()
+        .routings()
+        .move_rule(
+            &routing_id,
+            &rule_id,
+            move_action_from_contract(action),
+            position,
+        )
         .await
         .map_err(routing_error)?;
 
     emit_routing_invalidation(&app, "routing-rule-moved", [routing_id], false)?;
     restart_if_connected_after_routing_change(&app, &state, &config).await?;
 
-    Ok(saved)
+    Ok(routing_to_contract(saved))
 }

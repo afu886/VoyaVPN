@@ -9,7 +9,7 @@ import {
   type Locale,
 } from "@voya/i18n";
 import { loadUiPreferences } from "@/ipc";
-import type { UiPreferences } from "@/ipc/bindings";
+import type { AppearanceSettings } from "@/ipc/bindings";
 import {
   isThemeMode,
   type ThemeMode,
@@ -18,7 +18,7 @@ import {
 
 export const UI_PREFERENCES_QUERY_KEY = ["ui-preferences"] as const;
 
-type NormalizedUiPreferences = UiPreferences & {
+type NormalizedUiPreferences = AppearanceSettings & {
   language: Locale;
   theme: ThemeMode;
 };
@@ -31,14 +31,14 @@ export function useUiPreferencesQuery() {
   });
 }
 
-function normalizeUiPreferences(preferences: UiPreferences): NormalizedUiPreferences {
+function normalizeUiPreferences(preferences: AppearanceSettings): NormalizedUiPreferences {
   return {
     language: isLocale(preferences.language) ? preferences.language : getInitialLocale(),
     theme: isThemeMode(preferences.theme) ? preferences.theme : "system",
   };
 }
 
-export async function applyUiPreferences(preferences: UiPreferences) {
+export async function applyUiPreferences(preferences: AppearanceSettings) {
   const normalized = normalizeUiPreferences(preferences);
   usePreferencesStore.getState().setThemeMode(normalized.theme);
 

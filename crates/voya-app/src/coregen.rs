@@ -75,24 +75,25 @@ impl CoreGenEnv for SnapshotCoreGenEnv {
             .collect()
     }
 
-    fn get_profile_items_by_subid(&self, subid: &str) -> Vec<ProfileItem> {
+    fn get_profile_items_by_subscription_id(&self, subscription_id: &str) -> Vec<ProfileItem> {
         self.profiles
             .iter()
-            .filter(|profile| profile.subid == subid)
+            .filter(|profile| profile.subscription_id.as_deref() == Some(subscription_id))
             .cloned()
             .collect()
     }
 
-    fn get_sub_item(&self, subid: &str) -> Option<SubItem> {
-        self.subs.iter().find(|sub| sub.id == subid).cloned()
+    fn get_subscription(&self, subscription_id: &str) -> Option<SubItem> {
+        self.subs
+            .iter()
+            .find(|sub| sub.id == subscription_id)
+            .cloned()
     }
 
     fn get_default_routing(&self, config: &AppConfig) -> Option<RoutingItem> {
         self.routings
             .iter()
-            .find(|routing| {
-                routing.is_active || routing.id == config.routing_basic_item.routing_index_id
-            })
+            .find(|routing| routing.id == config.routing_basic_item.routing_index_id)
             .or_else(|| self.routings.first())
             .cloned()
     }
@@ -100,15 +101,11 @@ impl CoreGenEnv for SnapshotCoreGenEnv {
     fn get_local_port(&self, protocol: InboundProtocol) -> i32 {
         match protocol {
             InboundProtocol::socks => self.local_socks_port,
-            _ => self.local_socks_port + protocol.as_i32(),
+            _ => self.local_socks_port + protocol.port_offset(),
         }
     }
 
     fn get_singbox_ruleset_paths(&self) -> BTreeMap<String, String> {
         self.singbox_ruleset_paths.clone()
-    }
-
-    fn next_virtual_chain_id(&self, node: &ProfileItem, child_index_ids: &[String]) -> String {
-        format!("inner-{}-{}", node.index_id, child_index_ids.join("-"))
     }
 }

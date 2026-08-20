@@ -24,7 +24,7 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@voya/ui/components/menubar";
-import type { SpeedActionType } from "@/ipc/bindings";
+import type { SpeedTestKind } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 
 import { SPEED_ACTIONS } from "./profile-constants";
@@ -44,7 +44,7 @@ export function SpeedtestSplitButton({
 }: {
   disabled: boolean;
   onCancel: () => Promise<void>;
-  onRun: (action: SpeedActionType) => Promise<void>;
+  onRun: (kind: SpeedTestKind, targetAll?: boolean) => Promise<void>;
   running: boolean;
 }) {
   const { t } = useI18n();
@@ -54,7 +54,7 @@ export function SpeedtestSplitButton({
       <Button
         className="rounded-e-none"
         disabled={disabled || running}
-        onClick={() => void onRun(SPEED_ACTIONS.FastRealping)}
+        onClick={() => void onRun(SPEED_ACTIONS.Latency, true)}
         size="sm"
         title={t("panes.profiles.speedtest.buttonTitle", { label: t("panes.profiles.speedtest.fast") })}
         type="button"
@@ -80,35 +80,35 @@ export function SpeedtestSplitButton({
           </MenubarTrigger>
           <MenubarContent align="start">
             <SpeedMenuItem
-              action={SPEED_ACTIONS.Tcping}
+              action={SPEED_ACTIONS.TcpConnect}
               disabled={running}
               icon={Activity}
               label={t("panes.profiles.speedtest.tcp")}
               onRun={onRun}
             />
             <SpeedMenuItem
-              action={SPEED_ACTIONS.Realping}
+              action={SPEED_ACTIONS.Latency}
               disabled={running}
               icon={Clock}
               label={t("panes.profiles.speedtest.real")}
               onRun={onRun}
             />
             <SpeedMenuItem
-              action={SPEED_ACTIONS.UdpTest}
+              action={SPEED_ACTIONS.Udp}
               disabled={running}
               icon={Radio}
               label={t("panes.profiles.speedtest.udp")}
               onRun={onRun}
             />
             <SpeedMenuItem
-              action={SPEED_ACTIONS.Speedtest}
+              action={SPEED_ACTIONS.Download}
               disabled={running}
               icon={Gauge}
               label={t("panes.profiles.speedtest.speed")}
               onRun={onRun}
             />
             <SpeedMenuItem
-              action={SPEED_ACTIONS.Mixedtest}
+              action={SPEED_ACTIONS.Mixed}
               disabled={running}
               icon={Wifi}
               label={t("panes.profiles.speedtest.mixed")}
@@ -151,9 +151,9 @@ export function ExportMenuItems({
         <Share2 className="size-4" aria-hidden="true" />
         {t("panes.profiles.export.shareBase64")}
       </MenubarItem>
-      <MenubarItem onSelect={() => onExport("innerLinks")}>
+      <MenubarItem onSelect={() => onExport("voyaBundle")}>
         <Link className="size-4" aria-hidden="true" />
-        {t("panes.profiles.export.innerLinks")}
+        {t("panes.profiles.export.voyaBundle")}
       </MenubarItem>
       <MenubarItem onSelect={() => onExport("clientConfig")}>
         <FileJson2 className="size-4" aria-hidden="true" />
@@ -183,11 +183,11 @@ function SpeedMenuItem({
   label,
   onRun,
 }: {
-  action: SpeedActionType;
+  action: SpeedTestKind;
   disabled: boolean;
   icon: LucideIcon;
   label: string;
-  onRun: (action: SpeedActionType) => Promise<void>;
+  onRun: (kind: SpeedTestKind) => Promise<void>;
 }) {
   return (
     <MenubarItem disabled={disabled} onSelect={() => void onRun(action)}>

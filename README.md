@@ -11,7 +11,7 @@ TypeScript, Tailwind v4, and shadcn/ui foundations.
 - `apps/web`: `@voya/web`, placeholder for a future web management surface.
 - `apps/mobile`: `@voya/mobile`, placeholder for a future bare React Native app.
 - `packages/ui`: source-only shadcn/ui primitives, design tokens, CSS, fonts, and `cn()`.
-- `packages/i18n`: source-only i18next setup and locale JSON imported from v2rayN `.resx`.
+- `packages/i18n`: source-only i18next setup and Voya-maintained locale JSON.
 - `packages/utils`: source-only shared formatting, redaction, mounted-ref, and error helpers.
 - `crates/voya-core`: pure domain logic and golden-tested sing-box config generation.
 - `crates/voya-db`: SQLite repositories and migrations.
@@ -87,7 +87,7 @@ pnpm tauri:build
 Run the complete local CI parity suite:
 
 ```sh
-pnpm run verify:ci
+pnpm run verify:local
 ```
 
 Run the final gate checks individually:
@@ -121,7 +121,7 @@ Linux CI installs Tauri build prerequisites before compiling the Rust workspace.
 Run the credential-free release workflow equivalent locally:
 
 ```sh
-pnpm run verify:ci
+pnpm run verify:local
 pnpm tauri:build --debug
 pnpm release -- artifacts --input target/debug/bundle --output dist/release/local --target local-debug --channel beta --allow-empty
 pnpm release -- updater --input dist/release --out dist/updater/latest.json --target darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-aarch64,windows-x86_64 --placeholder-signatures

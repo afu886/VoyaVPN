@@ -19,35 +19,30 @@ impl<'pool> RoutingRepository<'pool> {
 
     pub async fn upsert(&self, item: &RoutingItem) -> Result<()> {
         let rule_set = blob::rules_to_text(&item.rule_set)?;
-        let rule_num = i32::try_from(item.rule_set.len()).unwrap_or(i32::MAX);
-
         sqlx::query(
             r#"
             INSERT INTO routing_items (
-                id, remarks, url, rule_set, rule_num, enabled, locked,
+                id, remarks, url, rule_set, enabled, locked,
                 custom_icon, custom_ruleset_path4_singbox, domain_strategy,
-                domain_strategy4_singbox, sort, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                domain_strategy4_singbox, sort
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 remarks = excluded.remarks,
                 url = excluded.url,
                 rule_set = excluded.rule_set,
-                rule_num = excluded.rule_num,
                 enabled = excluded.enabled,
                 locked = excluded.locked,
                 custom_icon = excluded.custom_icon,
                 custom_ruleset_path4_singbox = excluded.custom_ruleset_path4_singbox,
                 domain_strategy = excluded.domain_strategy,
                 domain_strategy4_singbox = excluded.domain_strategy4_singbox,
-                sort = excluded.sort,
-                is_active = excluded.is_active
+                sort = excluded.sort
             "#,
         )
         .bind(&item.id)
         .bind(&item.remarks)
         .bind(&item.url)
         .bind(rule_set)
-        .bind(rule_num)
         .bind(item.enabled)
         .bind(item.locked)
         .bind(&item.custom_icon)
@@ -55,7 +50,6 @@ impl<'pool> RoutingRepository<'pool> {
         .bind(&item.domain_strategy)
         .bind(&item.domain_strategy4_singbox)
         .bind(item.sort)
-        .bind(item.is_active)
         .execute(self.pool)
         .await?;
 
@@ -63,7 +57,9 @@ impl<'pool> RoutingRepository<'pool> {
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<RoutingItem>> {
-        let row = sqlx::query("SELECT * FROM routing_items WHERE id = ?")
+        let row = sqlx::query(
+            "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s WHERE r.id = ?",
+        )
             .bind(id)
             .fetch_optional(self.pool)
             .await?;
@@ -72,7 +68,9 @@ impl<'pool> RoutingRepository<'pool> {
     }
 
     pub async fn list(&self) -> Result<Vec<RoutingItem>> {
-        let rows = sqlx::query("SELECT * FROM routing_items ORDER BY sort, id")
+        let rows = sqlx::query(
+            "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s ORDER BY r.sort, r.id",
+        )
             .fetch_all(self.pool)
             .await?;
 
@@ -81,7 +79,7 @@ impl<'pool> RoutingRepository<'pool> {
 
     pub async fn active(&self) -> Result<Option<RoutingItem>> {
         let row = sqlx::query(
-            "SELECT * FROM routing_items WHERE is_active = 1 ORDER BY sort, id LIMIT 1",
+            "SELECT r.*, 1 AS is_active FROM routing_items r JOIN app_state s ON s.active_routing_id = r.id ORDER BY r.sort, r.id LIMIT 1",
         )
         .fetch_optional(self.pool)
         .await?;
@@ -90,7 +88,9 @@ impl<'pool> RoutingRepository<'pool> {
     }
 
     pub async fn first(&self) -> Result<Option<RoutingItem>> {
-        let row = sqlx::query("SELECT * FROM routing_items ORDER BY sort, id LIMIT 1")
+        let row = sqlx::query(
+            "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s ORDER BY r.sort, r.id LIMIT 1",
+        )
             .fetch_optional(self.pool)
             .await?;
 
@@ -120,10 +120,7 @@ impl<'pool> RoutingRepository<'pool> {
             return Ok(false);
         }
 
-        sqlx::query("UPDATE routing_items SET is_active = 0")
-            .execute(self.pool)
-            .await?;
-        let result = sqlx::query("UPDATE routing_items SET is_active = 1 WHERE id = ?")
+        let result = sqlx::query("UPDATE app_state SET active_routing_id = ? WHERE id = 1")
             .bind(id)
             .execute(self.pool)
             .await?;
@@ -164,7 +161,6 @@ fn row_to_routing(row: SqliteRow) -> Result<RoutingItem> {
         id: row.try_get("id")?,
         remarks: row.try_get("remarks")?,
         url: row.try_get("url")?,
-        rule_num: i32::try_from(rules.len()).unwrap_or(i32::MAX),
         rule_set: rules,
         enabled: row.try_get("enabled")?,
         locked: row.try_get("locked")?,

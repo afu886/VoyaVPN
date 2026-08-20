@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
+pub use voya_contracts::{ConfigSourceSettings, ResourceUpdateFile};
 use voya_core::{AppConfig, RoutingItem};
 use voya_db::{Database, DbError};
 use voya_net::ruleset::{
@@ -24,22 +23,6 @@ pub enum UpdateManagerError {
         label: &'static str,
         reason: &'static str,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ResourceUpdateFile {
-    pub name: String,
-    pub bytes: u32,
-    pub used_proxy: bool,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ConfigSourceSettings {
-    pub geo_source_url: Option<String>,
-    pub srs_source_url: Option<String>,
-    pub route_rules_template_source_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,23 +101,32 @@ pub fn validate_optional_source_url(label: &'static str, value: Option<&str>) ->
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(());
     };
-    let parsed = reqwest::Url::parse(value).map_err(|_| UpdateManagerError::InvalidSourceUrl {
+    voya_net::validate_absolute_http_url(value).map_err(|error| invalid_source_url(label, error))
+}
+
+pub fn validate_optional_https_source_url(label: &'static str, value: Option<&str>) -> Result<()> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    voya_net::validate_absolute_https_url(value).map_err(|error| invalid_source_url(label, error))
+}
+
+const fn invalid_source_url(
+    label: &'static str,
+    error: voya_net::UrlValidationError,
+) -> UpdateManagerError {
+    UpdateManagerError::InvalidSourceUrl {
         label,
-        reason: "expected an absolute HTTP or HTTPS URL",
-    })?;
-    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-        return Err(UpdateManagerError::InvalidSourceUrl {
-            label,
-            reason: "expected an absolute HTTP or HTTPS URL",
-        });
+        reason: match error {
+            voya_net::UrlValidationError::InvalidHttpUrl => {
+                "expected an absolute HTTP or HTTPS URL"
+            }
+            voya_net::UrlValidationError::InvalidHttpsUrl => "expected an absolute HTTPS URL",
+            voya_net::UrlValidationError::EmbeddedCredentials => {
+                "embedded credentials are not allowed"
+            }
+        },
     }
-    if !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err(UpdateManagerError::InvalidSourceUrl {
-            label,
-            reason: "embedded credentials are not allowed",
-        });
-    }
-    Ok(())
 }
 
 #[must_use]
@@ -214,6 +206,17 @@ mod tests {
         assert!(validate_optional_source_url(
             "source URL",
             Some("https://user:secret@example.com/rules")
+        )
+        .is_err());
+
+        validate_optional_https_source_url(
+            "routing template source URL",
+            Some("https://example.com/routing.json"),
+        )
+        .expect("HTTPS routing source should be valid");
+        assert!(validate_optional_https_source_url(
+            "routing template source URL",
+            Some("http://example.com/routing.json")
         )
         .is_err());
     }

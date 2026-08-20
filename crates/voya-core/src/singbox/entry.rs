@@ -104,8 +104,8 @@ fn speedtest_proxy_tag(port: i32) -> String {
 }
 
 fn validate_active_wireguard(context: &CoreConfigContext) -> Result<(), SingboxConfigError> {
-    if context.node.config_type == ConfigType::WireGuard
-        && wireguard_public_key(&context.node.protocol_extra).is_none()
+    if context.node.config_type() == ConfigType::WireGuard
+        && wireguard_public_key(&context.node.protocol).is_none()
     {
         return Err(SingboxConfigError::MissingWireGuardPublicKey {
             remarks: context.node.remarks.clone(),
@@ -122,28 +122,23 @@ fn validate_proxy_ports(context: &CoreConfigContext) -> Result<(), SingboxConfig
         if !node.index_id.is_empty() && !seen.insert(node.index_id.clone()) {
             continue;
         }
-        if node.config_type == ConfigType::Custom {
+        if node.config_type() == ConfigType::Custom {
             continue;
         }
-        if node.config_type.is_group_type() {
-            if let Some(child_ids) = split_list(
-                node.protocol_extra
-                    .child_items
-                    .as_deref()
-                    .unwrap_or_default(),
-            ) {
-                pending.extend(
-                    child_ids
-                        .into_iter()
-                        .filter_map(|node_id| context.all_proxies_map.get(&node_id).cloned()),
-                );
-            }
+        if node.config_type().is_group_type() {
+            pending.extend(
+                node.protocol
+                    .child_profile_ids()
+                    .iter()
+                    .filter_map(|node_id| context.all_proxies_map.get(node_id).cloned()),
+            );
             continue;
         }
-        if !(1..=65535).contains(&node.port) {
+        if !(1..=65535).contains(&node.port()) {
+            let port = node.port();
             return Err(SingboxConfigError::InvalidNodePort {
                 remarks: node.remarks,
-                port: node.port,
+                port,
             });
         }
     }

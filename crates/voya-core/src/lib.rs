@@ -34,13 +34,20 @@ mod tests {
         let context = CoreConfigContext {
             node: ProfileItem {
                 index_id: "node".to_string(),
-                config_type: ConfigType::SOCKS,
                 remarks: "Node".to_string(),
-                address: "127.0.0.1".to_string(),
-                port: 1080,
-                username: "user".to_string(),
-                password: "pass".to_string(),
-                network: "tcp".to_string(),
+                protocol: ProfileProtocol::Socks {
+                    server: ServerEndpoint {
+                        address: "127.0.0.1".to_string(),
+                        port: 1080,
+                    },
+                    username: "user".to_string(),
+                    password: "pass".to_string(),
+                },
+                transport: Some(ProfileTransport::Tcp {
+                    header: None,
+                    host: None,
+                    path: None,
+                }),
                 ..ProfileItem::default()
             },
             run_core_type: CoreType::sing_box,

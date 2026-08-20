@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   CoreStateEvent,
-  ProfileItem_Deserialize,
-  ProfileListItem_Serialize,
+  ProfileListEntry,
   RuntimeStatusResponse,
   SysProxyChanged,
   SystemProxyStatusResponse,
@@ -14,8 +13,8 @@ import type {
   TunStatus,
 } from "@/ipc/bindings";
 import { useToastStore } from "@/stores/toast-store";
+import { makeProfileFixture } from "@/test/profile-fixture";
 
-import { CONFIG_TYPES } from "@/features/profiles/profile-constants";
 import { HomeScreen } from "./home-screen";
 
 type RuntimeState = {
@@ -70,17 +69,17 @@ const connectedStatus: RuntimeStatusResponse = {
   activeProfileId: "node-tokyo",
   mainPid: 4242,
   prePid: null,
-  runningCoreType: 24,
+  runningCoreType: "singBox",
   state: "connected",
 };
 
 const sysProxyStatus: SystemProxyStatusResponse = {
-  effectiveMode: 0,
+  effectiveMode: "forcedClear",
   exceptions: "",
   pacAvailable: false,
   pacUrl: null,
   proxy: null,
-  requestedMode: 0,
+  requestedMode: "forcedClear",
 };
 
 const tunStatusResponse: TunStatus = {
@@ -139,7 +138,7 @@ const connectedCoreState: CoreStateEvent = {
   activeProfileId: "node-tokyo",
   mainPid: 4242,
   prePid: null,
-  runningCoreType: 24,
+  runningCoreType: "singBox",
   state: "connected",
 };
 
@@ -179,7 +178,7 @@ describe("HomeScreen", () => {
   it("lights up the protected state and marks the running node in the list", async () => {
     runtimeMock.state.coreState = connectedCoreState;
     ipcMock.listProfiles.mockResolvedValue([
-      makeActiveProfile({ IndexId: "node-tokyo", Remarks: "Tokyo Edge" }),
+      makeActiveProfile({ id: "node-tokyo", remarks: "Tokyo Edge" }),
     ]);
 
     renderHome();
@@ -197,8 +196,8 @@ describe("HomeScreen", () => {
 
   it("selects a node locally on single click without touching the backend", async () => {
     ipcMock.listProfiles.mockResolvedValue([
-      makeActiveProfile({ IndexId: "osaka", Remarks: "Osaka Edge" }),
-      makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" }),
+      makeActiveProfile({ id: "osaka", remarks: "Osaka Edge" }),
+      makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" }),
     ]);
 
     const user = userEvent.setup();
@@ -214,7 +213,7 @@ describe("HomeScreen", () => {
   });
 
   it("switches and connects on double click while disconnected", async () => {
-    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" })]);
+    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" })]);
 
     const user = userEvent.setup();
     renderHome();
@@ -231,10 +230,10 @@ describe("HomeScreen", () => {
       activeProfileId: "node-old",
       mainPid: 1,
       prePid: null,
-      runningCoreType: 24,
+      runningCoreType: "singBox",
       state: "connected",
     };
-    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" })]);
+    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" })]);
 
     const user = userEvent.setup();
     renderHome();
@@ -247,7 +246,7 @@ describe("HomeScreen", () => {
   });
 
   it("activates the focused node on Enter", async () => {
-    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" })]);
+    ipcMock.listProfiles.mockResolvedValue([makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" })]);
 
     const user = userEvent.setup();
     renderHome();
@@ -273,8 +272,8 @@ describe("HomeScreen", () => {
 
   it("connects to the locally selected node, switching the active profile first", async () => {
     ipcMock.listProfiles.mockResolvedValue([
-      makeActiveProfile({ IndexId: "osaka", Remarks: "Osaka Edge" }),
-      makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" }),
+      makeActiveProfile({ id: "osaka", remarks: "Osaka Edge" }),
+      makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" }),
     ]);
 
     const user = userEvent.setup();
@@ -293,7 +292,7 @@ describe("HomeScreen", () => {
 
   it("connects directly when the selection already matches the active node", async () => {
     ipcMock.listProfiles.mockResolvedValue([
-      makeActiveProfile({ IndexId: "osaka", Remarks: "Osaka Edge" }),
+      makeActiveProfile({ id: "osaka", remarks: "Osaka Edge" }),
     ]);
 
     const user = userEvent.setup();
@@ -308,8 +307,8 @@ describe("HomeScreen", () => {
 
   it("filters the node list by remarks", async () => {
     ipcMock.listProfiles.mockResolvedValue([
-      makeProfile(1, { IndexId: "tokyo", Remarks: "Tokyo Edge" }),
-      makeProfile(2, { IndexId: "osaka", Remarks: "Osaka Edge" }),
+      makeProfile(1, { id: "tokyo", remarks: "Tokyo Edge" }),
+      makeProfile(2, { id: "osaka", remarks: "Osaka Edge" }),
     ]);
 
     const user = userEvent.setup();
@@ -338,7 +337,7 @@ describe("HomeScreen", () => {
       activeProfileId: "node-tokyo",
       mainPid: 4242,
       prePid: null,
-      runningCoreType: 24,
+      runningCoreType: "singBox",
       state: "connected",
     });
     expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
@@ -358,10 +357,10 @@ describe("HomeScreen", () => {
     expect(screen.getByRole("button", { name: "Global" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Global" }));
-    expect(ipcMock.setSystemProxyMode).toHaveBeenCalledWith(1);
+    expect(ipcMock.setSystemProxyMode).toHaveBeenCalledWith("forcedChange");
 
     await user.click(screen.getByRole("button", { name: "Smart" }));
-    expect(ipcMock.setSystemProxyMode).toHaveBeenCalledWith(3);
+    expect(ipcMock.setSystemProxyMode).toHaveBeenCalledWith("pac");
   });
 
   it("requests system authorization on demand before switching TUN on", async () => {
@@ -456,58 +455,10 @@ describe("HomeScreen", () => {
   });
 });
 
-function makeActiveProfile(overrides: ProfileItem_Deserialize = {}): ProfileListItem_Serialize {
+function makeActiveProfile(overrides: Parameters<typeof makeProfileFixture>[1] = {}): ProfileListEntry {
   return { ...makeProfile(0, overrides), isActive: true };
 }
 
-function makeProfile(index: number, overrides: ProfileItem_Deserialize = {}): ProfileListItem_Serialize {
-  const indexId = overrides.IndexId ?? `profile-${index}`;
-
-  return {
-    isActive: false,
-    profile: {
-      Address: `node-${index}.example.test`,
-      Alpn: "",
-      Cert: "",
-      CertSha: "",
-      ConfigType: CONFIG_TYPES.VMess,
-      ConfigVersion: 4,
-      DisplayLog: true,
-      EchConfigList: "",
-      Finalmask: "",
-      IndexId: indexId,
-      IsSub: false,
-      Mldsa65Verify: "",
-      Network: "tcp",
-      Password: `uuid-${index}`,
-      Port: 443,
-      ProtocolExtra: {},
-      PublicKey: "",
-      Remarks: `Server ${index}`,
-      ShortId: "",
-      Sni: "",
-      SpiderX: "",
-      StreamSecurity: "",
-      Subid: "",
-      TransportExtra: {},
-      Username: "",
-      ...overrides,
-    },
-    profileEx: {
-      Delay: 0,
-      IndexId: indexId,
-      IpInfo: null,
-      Message: null,
-      Sort: index * 10,
-      Speed: null,
-    },
-    serverStat: {
-      DateNow: 1,
-      IndexId: indexId,
-      TodayDown: 0,
-      TodayUp: 0,
-      TotalDown: 0,
-      TotalUp: 0,
-    },
-  };
+function makeProfile(index: number, overrides: Parameters<typeof makeProfileFixture>[1] = {}): ProfileListEntry {
+  return makeProfileFixture(index, overrides, false);
 }

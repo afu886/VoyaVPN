@@ -6,7 +6,7 @@ pub async fn list_group_child_candidates(
     state: tauri::State<'_, AppState>,
     current_index_id: Option<String>,
     filter: Option<String>,
-) -> Result<Vec<GroupChildCandidate>, AppError> {
+) -> Result<Vec<GroupChildContract>, AppError> {
     validate_present_ipc_text(
         current_index_id.as_deref(),
         "profile index id",
@@ -19,9 +19,12 @@ pub async fn list_group_child_candidates(
         IPC_FILTER_MAX_CHARS,
         AppError::Group,
     )?;
-    GroupManager::new(state.database())
+    state
+        .services()
+        .groups()
         .list_child_candidates(current_index_id.as_deref(), filter.as_deref())
         .await
+        .map(|items| items.into_iter().map(group_child_to_contract).collect())
         .map_err(group_error)
 }
 
@@ -29,13 +32,16 @@ pub async fn list_group_child_candidates(
 #[specta::specta]
 pub async fn preview_group_profile(
     state: tauri::State<'_, AppState>,
-    profile: ProfileItem,
-) -> Result<GroupPreview, AppError> {
+    profile: ProfileContract,
+) -> Result<GroupPreviewContract, AppError> {
     let config = current_config(&state)?;
 
-    GroupManager::new(state.database())
-        .preview_group_profile(&config, &profile)
+    state
+        .services()
+        .groups()
+        .preview_group_profile(&config, &profile_from_contract(profile))
         .await
+        .map(group_preview_to_contract)
         .map_err(group_error)
 }
 
@@ -44,16 +50,18 @@ pub async fn preview_group_profile(
 pub async fn save_group_profile<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    profile: ProfileItem,
-) -> Result<ProfileListItem, AppError> {
+    profile: ProfileContract,
+) -> Result<ProfileListEntry, AppError> {
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let result = GroupManager::new(state.database())
-        .save_group_profile(&mut config, profile)
+    let result = state
+        .services()
+        .groups()
+        .save_group_profile(&mut config, profile_from_contract(profile))
         .await
         .map_err(group_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(
         &app,
         "group-profile-saved",
@@ -61,5 +69,5 @@ pub async fn save_group_profile<R: tauri::Runtime>(
         original.index_id != config.index_id,
     )?;
 
-    Ok(result)
+    Ok(profile_list_to_contract(result))
 }

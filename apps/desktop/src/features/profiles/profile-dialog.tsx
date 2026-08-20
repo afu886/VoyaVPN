@@ -12,7 +12,7 @@ import {
   ScrollableDialogContent,
 } from "@voya/ui/components/dialog";
 import { useI18n } from "@voya/i18n/use-i18n";
-import type { ProfileListItem_Serialize } from "@/ipc/bindings";
+import type { ProfileListEntry } from "@/ipc/bindings";
 
 import { CONFIG_TYPES, PROFILE_PROTOCOLS, type ProfileProtocol } from "./profile-constants";
 import {
@@ -38,11 +38,11 @@ type ProfileDialogProps = {
   onOpenChange: (open: boolean) => void;
   onSubmit: (profile: ReturnType<typeof prepareProfileForSave>) => Promise<void>;
   open: boolean;
-  profile?: ProfileListItem_Serialize | null;
+  profile?: ProfileListEntry | null;
 };
 
 export function ProfileDialog({ mode, onOpenChange, onSubmit, open, profile }: ProfileDialogProps) {
-  const formKey = `${mode}:${profile?.profile.IndexId ?? "new"}:${open ? "open" : "closed"}`;
+  const formKey = `${mode}:${profile?.profile.id ?? "new"}:${open ? "open" : "closed"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,8 +76,8 @@ function ProfileDialogForm({
     register,
     setValue,
   } = form;
-  const configType = Number(useWatch({ control: form.control, name: "ConfigType" })) as ProfileProtocol;
-  const security = useWatch({ control: form.control, name: "StreamSecurity" }) ?? "";
+  const configType = useWatch({ control: form.control, name: "configType" }) as ProfileProtocol;
+  const security = useWatch({ control: form.control, name: "streamSecurity" }) ?? "";
 
   const submit = handleSubmit(async (values) => {
     await onSubmit(prepareProfileForSave(values));
@@ -102,34 +102,32 @@ function ProfileDialogForm({
               <SelectField
                 control={form.control}
                 label={t("panes.profiles.fields.protocol")}
-                name="ConfigType"
+                name="configType"
                 onValueChange={(value) => {
-                  const next = Number(value) as ProfileProtocol;
+                  const next = value as ProfileProtocol;
 
-                  if (next === CONFIG_TYPES.PolicyGroup && !getValues("Address")) {
-                    setValue("Address", "group");
+                  if (next === CONFIG_TYPES.PolicyGroup && !getValues("address")) {
+                    setValue("address", "group");
                   }
-                  if (next === CONFIG_TYPES.ProxyChain && !getValues("Address")) {
-                    setValue("Address", "chain");
+                  if (next === CONFIG_TYPES.ProxyChain && !getValues("address")) {
+                    setValue("address", "chain");
                   }
                 }}
                 options={PROFILE_PROTOCOLS}
-                parseValue={(value) => Number(value)}
               />
 
-              <TextField error={errors.Remarks?.message} label={t("panes.profiles.fields.remarks")} {...register("Remarks")} />
+              <TextField error={errors.remarks?.message} label={t("panes.profiles.fields.remarks")} {...register("remarks")} />
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[1fr_7rem_12rem]">
-              <TextField error={errors.Address?.message} label={addressLabel(configType, t)} {...register("Address")} />
+            <div className="grid gap-3 lg:grid-cols-[1fr_7rem]">
+              <TextField error={errors.address?.message} label={addressLabel(configType, t)} {...register("address")} />
               <TextField
-                error={errors.Port?.message}
+                error={errors.port?.message}
                 inputMode="numeric"
                 label={t("panes.profiles.fields.port")}
                 type="number"
-                {...register("Port", { valueAsNumber: true })}
+                {...register("port", { valueAsNumber: true })}
               />
-              <TextField label={t("panes.profiles.fields.group")} {...register("Subid")} />
             </div>
           </Panel>
 

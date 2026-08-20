@@ -5,9 +5,9 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	loadUiPreferences: () => typedError<UiPreferences, AppError>(__TAURI_INVOKE("load_ui_preferences")),
-	loadSettingsBundle: () => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("load_settings_bundle")),
-	saveSettingsBundle: (bundle: SettingsBundle_Deserialize) => typedError<SettingsBundle_Serialize, AppError>(__TAURI_INVOKE("save_settings_bundle", { bundle })),
+	loadUiPreferences: () => typedError<AppearanceSettings, AppError>(__TAURI_INVOKE("load_ui_preferences")),
+	loadAppSettings: () => typedError<AppSettingsV1, AppError>(__TAURI_INVOKE("load_app_settings")),
+	saveAppSettings: (settings: AppSettingsV1) => typedError<AppSettingsV1, AppError>(__TAURI_INVOKE("save_app_settings", { settings })),
 	generateQrCode: (content: string) => typedError<QrCodeImage, AppError>(__TAURI_INVOKE("generate_qr_code", { content })),
 	scanScreenQr: () => typedError<QrScanResult, AppError>(__TAURI_INVOKE("scan_screen_qr")),
 	fetchCertificate: (request: CertificateFetchRequest) => typedError<CertificateFetchResult, AppError>(__TAURI_INVOKE("fetch_certificate", { request })),
@@ -26,46 +26,46 @@ export const commands = {
 	tunStatus: () => typedError<TunStatus, AppError>(__TAURI_INVOKE("tun_status")),
 	tunProviderDiagnostics: () => typedError<TunProviderDiagnostics, AppError>(__TAURI_INVOKE("tun_provider_diagnostics")),
 	setTunEnabled: (enabled: boolean) => typedError<TunStatus, AppError>(__TAURI_INVOKE("set_tun_enabled", { enabled })),
-	loadDnsSettings: () => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("load_dns_settings")),
-	saveDnsSettings: (settings: DnsSettings_Deserialize) => typedError<DnsSettings_Serialize, AppError>(__TAURI_INVOKE("save_dns_settings", { settings })),
-	listProfiles: (subid: string | null, filter: string | null) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("list_profiles", { subid, filter })),
-	saveProfile: (profile: ProfileItem_Deserialize) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("save_profile", { profile })),
+	loadDnsSettings: () => typedError<DnsSettings, AppError>(__TAURI_INVOKE("load_dns_settings")),
+	saveDnsSettings: (settings: DnsSettings) => typedError<DnsSettings, AppError>(__TAURI_INVOKE("save_dns_settings", { settings })),
+	listProfiles: (subscriptionId: string | null, filter: string | null) => typedError<ProfileListEntry[], AppError>(__TAURI_INVOKE("list_profiles", { subscriptionId, filter })),
+	saveProfile: (profile: Profile) => typedError<ProfileListEntry, AppError>(__TAURI_INVOKE("save_profile", { profile })),
 	deleteProfiles: (indexIds: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_profiles", { indexIds })),
-	copyProfiles: (indexIds: string[]) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("copy_profiles", { indexIds })),
+	copyProfiles: (indexIds: string[]) => typedError<ProfileListEntry[], AppError>(__TAURI_INVOKE("copy_profiles", { indexIds })),
 	exportProfileShareLinks: (indexIds: string[]) => typedError<ExportProfilesResult, AppError>(__TAURI_INVOKE("export_profile_share_links", { indexIds })),
 	exportProfileShareLinksBase64: (indexIds: string[]) => typedError<ExportProfilesResult, AppError>(__TAURI_INVOKE("export_profile_share_links_base64", { indexIds })),
-	exportProfileInnerLinks: (indexIds: string[]) => typedError<ExportProfilesResult, AppError>(__TAURI_INVOKE("export_profile_inner_links", { indexIds })),
+	exportProfileVoyaBundle: (indexIds: string[]) => typedError<ExportProfilesResult, AppError>(__TAURI_INVOKE("export_profile_voya_bundle", { indexIds })),
 	exportProfileClientConfig: (indexIds: string[]) => typedError<ExportProfilesResult, AppError>(__TAURI_INVOKE("export_profile_client_config", { indexIds })),
-	setActiveProfile: (indexId: string) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("set_active_profile", { indexId })),
-	moveProfile: (subid: string | null, indexId: string, action: MoveAction, position: number | null) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("move_profile", { subid, indexId, action, position })),
-	sortProfiles: (subid: string | null, sortKey: ProfileSortKey, ascending: boolean) => typedError<ProfileListItem_Serialize[], AppError>(__TAURI_INVOKE("sort_profiles", { subid, sortKey, ascending })),
-	dedupeProfiles: (subid: string | null, keepOlder: boolean | null) => typedError<ProfileDedupeResult, AppError>(__TAURI_INVOKE("dedupe_profiles", { subid, keepOlder })),
+	setActiveProfile: (indexId: string) => typedError<ProfileListEntry, AppError>(__TAURI_INVOKE("set_active_profile", { indexId })),
+	moveProfile: (subscriptionId: string | null, indexId: string, action: MoveAction, position: number | null) => typedError<ProfileListEntry[], AppError>(__TAURI_INVOKE("move_profile", { subscriptionId, indexId, action, position })),
+	sortProfiles: (subscriptionId: string | null, sortKey: ProfileSortKey, ascending: boolean) => typedError<ProfileListEntry[], AppError>(__TAURI_INVOKE("sort_profiles", { subscriptionId, sortKey, ascending })),
+	dedupeProfiles: (subscriptionId: string | null, keepOlder: boolean | null) => typedError<ProfileDedupeResult, AppError>(__TAURI_INVOKE("dedupe_profiles", { subscriptionId, keepOlder })),
 	listGroupChildCandidates: (currentIndexId: string | null, filter: string | null) => typedError<GroupChildCandidate[], AppError>(__TAURI_INVOKE("list_group_child_candidates", { currentIndexId, filter })),
-	previewGroupProfile: (profile: ProfileItem_Deserialize) => typedError<GroupPreview, AppError>(__TAURI_INVOKE("preview_group_profile", { profile })),
-	saveGroupProfile: (profile: ProfileItem_Deserialize) => typedError<ProfileListItem_Serialize, AppError>(__TAURI_INVOKE("save_group_profile", { profile })),
-	listSubscriptions: () => typedError<SubItem_Serialize[], AppError>(__TAURI_INVOKE("list_subscriptions")),
-	saveSubscription: (item: SubItem_Deserialize) => typedError<SubItem_Serialize, AppError>(__TAURI_INVOKE("save_subscription", { item })),
+	previewGroupProfile: (profile: Profile) => typedError<GroupPreview, AppError>(__TAURI_INVOKE("preview_group_profile", { profile })),
+	saveGroupProfile: (profile: Profile) => typedError<ProfileListEntry, AppError>(__TAURI_INVOKE("save_group_profile", { profile })),
+	listSubscriptions: () => typedError<Subscription[], AppError>(__TAURI_INVOKE("list_subscriptions")),
+	saveSubscription: (item: Subscription) => typedError<Subscription, AppError>(__TAURI_INVOKE("save_subscription", { item })),
 	deleteSubscriptions: (ids: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_subscriptions", { ids })),
-	importProfilesFromText: (text: string, subid: string | null, isSub: boolean) => typedError<ImportProfilesResult, AppError>(__TAURI_INVOKE("import_profiles_from_text", { text, subid, isSub })),
-	updateSubscriptions: (subid: string | null, preferProxy: boolean, proxyUrl: string | null) => typedError<SubscriptionUpdateResult, AppError>(__TAURI_INVOKE("update_subscriptions", { subid, preferProxy, proxyUrl })),
-	listRoutings: () => typedError<RoutingItem_Serialize[], AppError>(__TAURI_INVOKE("list_routings")),
-	saveRouting: (item: RoutingItem_Deserialize) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("save_routing", { item })),
+	importProfilesFromText: (text: string, subscriptionId: string | null) => typedError<ImportProfilesResult, AppError>(__TAURI_INVOKE("import_profiles_from_text", { text, subscriptionId })),
+	updateSubscriptions: (subscriptionId: string | null, preferProxy: boolean, proxyUrl: string | null) => typedError<SubscriptionUpdateResult, AppError>(__TAURI_INVOKE("update_subscriptions", { subscriptionId, preferProxy, proxyUrl })),
+	listRoutings: () => typedError<Routing_Serialize[], AppError>(__TAURI_INVOKE("list_routings")),
+	saveRouting: (item: Routing_Deserialize) => typedError<Routing_Serialize, AppError>(__TAURI_INVOKE("save_routing", { item })),
 	deleteRoutings: (ids: string[]) => typedError<number, AppError>(__TAURI_INVOKE("delete_routings", { ids })),
-	setActiveRouting: (id: string) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("set_active_routing", { id })),
-	saveRoutingRule: (routingId: string, rule: RulesItem_Deserialize) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("save_routing_rule", { routingId, rule })),
-	deleteRoutingRules: (routingId: string, ruleIds: string[]) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("delete_routing_rules", { routingId, ruleIds })),
-	moveRoutingRule: (routingId: string, ruleId: string, action: MoveAction, position: number | null) => typedError<RoutingItem_Serialize, AppError>(__TAURI_INVOKE("move_routing_rule", { routingId, ruleId, action, position })),
+	setActiveRouting: (id: string) => typedError<Routing_Serialize, AppError>(__TAURI_INVOKE("set_active_routing", { id })),
+	saveRoutingRule: (routingId: string, rule: RoutingRule) => typedError<Routing_Serialize, AppError>(__TAURI_INVOKE("save_routing_rule", { routingId, rule })),
+	deleteRoutingRules: (routingId: string, ruleIds: string[]) => typedError<Routing_Serialize, AppError>(__TAURI_INVOKE("delete_routing_rules", { routingId, ruleIds })),
+	moveRoutingRule: (routingId: string, ruleId: string, action: MoveAction, position: number | null) => typedError<Routing_Serialize, AppError>(__TAURI_INVOKE("move_routing_rule", { routingId, ruleId, action, position })),
 	importConfigTemplate: (selection: ConfigTemplateSelection, preferProxy: boolean, proxyUrl: string | null) => typedError<ConfigTemplateImportResult, AppError>(__TAURI_INVOKE("import_config_template", { selection, preferProxy, proxyUrl })),
 	proxyListGroups: () => typedError<ProxyGroupsSnapshot, AppError>(__TAURI_INVOKE("proxy_list_groups")),
 	proxyTestDelay: (nodeNames: string[]) => typedError<ProxyDelayTestResult[], AppError>(__TAURI_INVOKE("proxy_test_delay", { nodeNames })),
 	proxySelectNode: (groupName: string, nodeName: string) => typedError<ProxyGroupsSnapshot, AppError>(__TAURI_INVOKE("proxy_select_node", { groupName, nodeName })),
 	proxyListConnections: () => typedError<ProxyConnectionsSnapshot, AppError>(__TAURI_INVOKE("proxy_list_connections")),
 	proxyCloseConnection: (connectionId: string | null) => typedError<ProxyConnectionsSnapshot, AppError>(__TAURI_INVOKE("proxy_close_connection", { connectionId })),
-	proxySetTrafficMode: (mode: TrafficMode) => typedError<AppConfig_Serialize, AppError>(__TAURI_INVOKE("proxy_set_traffic_mode", { mode })),
+	proxySetTrafficMode: (mode: TrafficMode) => typedError<TrafficModeResponse, AppError>(__TAURI_INVOKE("proxy_set_traffic_mode", { mode })),
 	proxyReloadConfig: (path: string | null) => typedError<null, AppError>(__TAURI_INVOKE("proxy_reload_config", { path })),
 	proxyStartMonitor: () => typedError<ProxyMonitorStatus, AppError>(__TAURI_INVOKE("proxy_start_monitor")),
 	proxyStopMonitor: () => typedError<ProxyMonitorStatus, AppError>(__TAURI_INVOKE("proxy_stop_monitor")),
-	runSpeedtest: (action: SpeedActionType, indexIds: string[]) => typedError<SpeedtestRunResult, AppError>(__TAURI_INVOKE("run_speedtest", { action, indexIds })),
+	runSpeedtest: (request: SpeedTestRequest) => typedError<SpeedtestRunResult, AppError>(__TAURI_INVOKE("run_speedtest", { request })),
 	cancelSpeedtest: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("cancel_speedtest")),
 	speedtestStatus: () => typedError<SpeedtestStatus, AppError>(__TAURI_INVOKE("speedtest_status")),
 	appUpdateStatus: () => typedError<AppUpdaterStatus, AppError>(__TAURI_INVOKE("app_update_status")),
@@ -110,46 +110,21 @@ export const events = {
 };
 
 /* Types */
-export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
-
-export type AppConfig_Deserialize = {
-	IndexId: string,
-	SubIndexId: string,
-	CoreBasicItem: CoreBasicItem_Deserialize,
-	TunModeItem: TunModeItem,
-	GrpcItem: GrpcItem_Deserialize,
-	RoutingBasicItem: RoutingBasicItem,
-	GUIItem: GuiItem,
-	UIItem: UiItem_Deserialize,
-	ConstItem: ConstItem_Deserialize,
-	SpeedTestItem: SpeedTestItem_Deserialize,
-	Mux4SboxItem: Mux4SboxItem_Deserialize,
-	HysteriaItem: HysteriaItem,
-	ProxyUIItem: ProxyUiItem,
-	SystemProxyItem: SystemProxyItem_Deserialize,
-	Inbound: InItem[],
-	GlobalHotkeys: KeyEventItem_Deserialize[],
-	SimpleDNSItem: SimpleDnsItem_Deserialize,
-};
-
-export type AppConfig_Serialize = {
-	IndexId: string,
-	SubIndexId: string,
-	CoreBasicItem: CoreBasicItem_Serialize,
-	TunModeItem: TunModeItem,
-	GrpcItem: GrpcItem_Serialize,
-	RoutingBasicItem: RoutingBasicItem,
-	GUIItem: GuiItem,
-	UIItem: UiItem_Serialize,
-	ConstItem: ConstItem_Serialize,
-	SpeedTestItem: SpeedTestItem_Serialize,
-	Mux4SboxItem: Mux4SboxItem_Serialize,
-	HysteriaItem: HysteriaItem,
-	ProxyUIItem: ProxyUiItem,
-	SystemProxyItem: SystemProxyItem_Serialize,
-	Inbound: InItem[],
-	GlobalHotkeys: KeyEventItem_Serialize[],
-	SimpleDNSItem: SimpleDnsItem_Serialize,
+export type AppDnsSettings = {
+	useSystemHosts: boolean | null,
+	addCommonHosts: boolean | null,
+	fakeIp: boolean | null,
+	globalFakeIp: boolean | null,
+	blockBindingQuery: boolean | null,
+	direct: string | null,
+	remote: string | null,
+	bootstrap: string | null,
+	directStrategy: string | null,
+	proxyStrategy: string | null,
+	serveStale: boolean | null,
+	parallelQuery: boolean | null,
+	hosts: string | null,
+	directExpectedIps: string | null,
 };
 
 export type AppError = { kind: "eventEmit"; message: string } | { kind: "autostart"; message: string } | { kind: "configSave"; message: string } | { kind: "certificate"; message: string } | { kind: "proxyRuntime"; message: string } | { kind: "database"; message: string } | { kind: "dns"; message: DnsCommandError } | { kind: "group"; message: string } | { kind: "hotkey"; message: string } | { kind: "preset"; message: string } | { kind: "profile"; message: string } | { kind: "qr"; message: string } | { kind: "export"; message: string } | { kind: "missingCore"; message: MissingCoreError } | { kind: "runtime"; message: string } | { kind: "routing"; message: string } | { kind: "speedtest"; message: string } | { kind: "sudo"; message: string } | { kind: "subscription"; message: string } | { kind: "sysProxy"; message: string } | { kind: "state"; message: string } | { kind: "tun"; message: string } | { kind: "update"; message: string };
@@ -164,12 +139,34 @@ export type AppNotice = {
 
 export type AppNoticeLevel = "info" | "warning" | "error";
 
+export type AppSettingsV1 = {
+	schemaVersion: number,
+	appearance: AppearanceSettings,
+	behavior: BehaviorSettings,
+	core: CoreSettings,
+	network: NetworkSettings,
+	routing: RoutingSettings,
+	dns: AppDnsSettings,
+	sources: SourceSettings,
+	speedTest: SpeedTestSettings,
+	multiplexing: MultiplexingSettings,
+	grpc: GrpcSettings,
+	hysteria: HysteriaSettings,
+	proxy: ProxySettings,
+	shortcuts: ShortcutSettings,
+};
+
 export type AppUpdaterState = "ready" | "unconfigured" | "unsupported" | "error";
 
 export type AppUpdaterStatus = {
 	currentVersion: string,
 	state: AppUpdaterState,
 	message: string | null,
+};
+
+export type AppearanceSettings = {
+	language: string,
+	theme: ThemeMode,
 };
 
 export type AutostartPlatform = "windows" | "linux" | "macos" | "other";
@@ -180,6 +177,12 @@ export type AutostartStatus = {
 	artifactKind: string | null,
 	artifactPath: string | null,
 	artifactName: string | null,
+};
+
+export type BehaviorSettings = {
+	autostart: boolean,
+	statistics: boolean,
+	realtimeSpeed: boolean,
 };
 
 export type CertificateFetchRequest = {
@@ -208,56 +211,9 @@ export type ConfigTemplateImportResult = {
 	routingIds: string[],
 	activeRoutingId: string | null,
 	reusedExistingRouting: boolean,
-	simpleDnsFetched: boolean,
 };
 
-export type ConfigTemplateSelection = { type: "default" } | { type: "russia" } | { type: "iran" } | { type: "custom"; sources: ConfigSourceSettings };
-
-export type ConfigType = number;
-
-export type ConstItem = ConstItem_Serialize | ConstItem_Deserialize;
-
-export type ConstItem_Deserialize = {
-	SubConvertUrl: string | null,
-	GeoSourceUrl: string | null,
-	SrsSourceUrl: string | null,
-	RouteRulesTemplateSourceUrl: string | null,
-};
-
-export type ConstItem_Serialize = {
-	SubConvertUrl?: string | null,
-	GeoSourceUrl?: string | null,
-	SrsSourceUrl?: string | null,
-	RouteRulesTemplateSourceUrl?: string | null,
-};
-
-export type CoreBasicItem = CoreBasicItem_Serialize | CoreBasicItem_Deserialize;
-
-export type CoreBasicItem_Deserialize = {
-	LogEnabled: boolean,
-	Loglevel: string,
-	MuxEnabled: boolean,
-	DefAllowInsecure: boolean,
-	DefFingerprint: string,
-	DefUserAgent: string,
-	SendThrough: string | null,
-	BindInterface: string | null,
-	EnableFragment: boolean,
-	EnableCacheFile4Sbox: boolean,
-};
-
-export type CoreBasicItem_Serialize = {
-	LogEnabled: boolean,
-	Loglevel: string,
-	MuxEnabled: boolean,
-	DefAllowInsecure: boolean,
-	DefFingerprint: string,
-	DefUserAgent: string,
-	SendThrough?: string | null,
-	BindInterface?: string | null,
-	EnableFragment: boolean,
-	EnableCacheFile4Sbox: boolean,
-};
+export type ConfigTemplateSelection = { type: "default" } | { type: "custom"; sources: ConfigSourceSettings };
 
 export type CoreSeedInstallResult = {
 	coreType: CoreType,
@@ -266,6 +222,19 @@ export type CoreSeedInstallResult = {
 };
 
 export type CoreSeedInstallStatus = "installed" | "alreadyInstalled" | "seedMissing";
+
+export type CoreSettings = {
+	logEnabled: boolean,
+	logLevel: string,
+	muxEnabled: boolean,
+	defaultAllowInsecure: boolean,
+	defaultFingerprint: string,
+	defaultUserAgent: string,
+	sendThrough: string | null,
+	bindInterface: string | null,
+	fragmentEnabled: boolean,
+	cacheFileEnabled: boolean,
+};
 
 export type CoreState = "disconnected" | "connecting" | "connected" | "disconnecting";
 
@@ -277,21 +246,28 @@ export type CoreStateEvent = {
 	runningCoreType: CoreType | null,
 };
 
-export type CoreType = number;
+export type CoreType = "singBox";
 
 export type DnsCommandError = {
 	message: string,
 	issues: DnsValidationIssue[],
 };
 
-export type DnsSettings = DnsSettings_Serialize | DnsSettings_Deserialize;
-
-export type DnsSettings_Deserialize = {
-	simpleDnsItem: SimpleDnsItem_Deserialize,
-};
-
-export type DnsSettings_Serialize = {
-	simpleDnsItem: SimpleDnsItem_Serialize,
+export type DnsSettings = {
+	useSystemHosts: boolean | null,
+	addCommonHosts: boolean | null,
+	fakeIp: boolean | null,
+	globalFakeIp: boolean | null,
+	blockBindingQuery: boolean | null,
+	direct: string | null,
+	remote: string | null,
+	bootstrap: string | null,
+	directStrategy: string | null,
+	proxyStrategy: string | null,
+	serveStale: boolean | null,
+	parallelQuery: boolean | null,
+	hosts: string | null,
+	directExpectedIps: string | null,
 };
 
 export type DnsValidationIssue = {
@@ -299,7 +275,7 @@ export type DnsValidationIssue = {
 	message: string,
 };
 
-export type ExportProfilesFormat = "shareLinks" | "shareLinksBase64" | "innerLinks" | "clientConfig";
+export type ExportProfilesFormat = "shareLinks" | "shareLinksBase64" | "voyaBundle" | "clientConfig";
 
 export type ExportProfilesRequest = {
 	indexIds: string[],
@@ -312,32 +288,20 @@ export type ExportProfilesResult = {
 	format: ExportProfilesFormat,
 };
 
-export type GlobalHotkey = number;
-
-export type GlobalHotkeyAction = {
-	action: GlobalHotkey,
-	label: string,
-};
-
-export type GlobalHotkeyBinding = {
-	action: GlobalHotkey,
-	accelerator: string,
-};
-
 export type GroupChildCandidate = {
-	indexId: string,
+	profileId: string,
 	remarks: string,
 	address: string,
-	configType: ConfigType,
-	subid: string,
+	protocol: ProfileKind,
+	subscriptionId: string | null,
 	isGroup: boolean,
 	selectable: boolean,
 	reason: string | null,
 };
 
 export type GroupPreview = {
-	validation?: GroupValidationResult,
-	singboxRoutes?: GroupPreviewRoute[],
+	validation: GroupValidation,
+	singboxRoutes: GroupPreviewRoute[],
 };
 
 export type GroupPreviewRoute = {
@@ -349,103 +313,58 @@ export type GroupPreviewRoute = {
 	outbounds: string[],
 };
 
-export type GroupValidationResult = {
-	valid?: boolean,
-	normalizedChildItems?: string,
-	childIndexIds?: string[],
-	errors?: string[],
-	warnings?: string[],
+export type GroupValidation = {
+	valid: boolean,
+	childProfileIds: string[],
+	errors: string[],
+	warnings: string[],
 };
 
-export type GrpcItem = GrpcItem_Serialize | GrpcItem_Deserialize;
-
-export type GrpcItem_Deserialize = {
-	IdleTimeout: number | null,
-	HealthCheckTimeout: number | null,
-	PermitWithoutStream: boolean | null,
+export type GrpcSettings = {
+	idleTimeoutSeconds: number | null,
+	healthCheckTimeoutSeconds: number | null,
+	permitWithoutStream: boolean | null,
 };
 
-export type GrpcItem_Serialize = {
-	IdleTimeout?: number | null,
-	HealthCheckTimeout?: number | null,
-	PermitWithoutStream?: boolean | null,
-};
-
-export type GuiItem = {
-	AutoRun: boolean,
-	EnableStatistics: boolean,
-	DisplayRealTimeSpeed: boolean,
-};
-
-export type HotkeyStatus = HotkeyStatus_Serialize | HotkeyStatus_Deserialize;
-
-export type HotkeyStatus_Deserialize = {
-	actions: GlobalHotkeyAction[],
-	settings: KeyEventItem_Deserialize[],
-	registered: GlobalHotkeyBinding[],
-};
-
-export type HotkeyStatus_Serialize = {
-	actions: GlobalHotkeyAction[],
-	settings: KeyEventItem_Serialize[],
-	registered: GlobalHotkeyBinding[],
-};
-
-export type HysteriaItem = {
-	UpMbps: number,
-	DownMbps: number,
-	HopInterval: number,
+export type HysteriaSettings = {
+	uploadMbps: number,
+	downloadMbps: number,
+	hopIntervalSeconds: number,
 };
 
 export type ImportProfilesResult = {
-	imported?: number,
-	updated?: number,
-	skipped?: number,
-	parsed?: number,
-	filtered?: number,
-	deduped?: number,
-	failed?: number,
-	removedExisting?: number,
-	removedDuplicates?: number,
-	discardedNodeOverrides?: number,
-	subid?: string | null,
-	importedIndexIds?: string[],
-	updatedIndexIds?: string[],
-	messages?: string[],
+	imported: number,
+	updated: number,
+	skipped: number,
+	parsed: number,
+	filtered: number,
+	deduped: number,
+	failed: number,
+	removedExisting: number,
+	removedDuplicates: number,
+	discardedNodeOverrides: number,
+	subscriptionId: string | null,
+	importedProfileIds: string[],
+	updatedProfileIds: string[],
+	messages: string[],
 };
 
-export type InItem = {
-	LocalPort: number,
-	Protocol: string,
-	SniffingEnabled: boolean,
-	AllowLANConn: boolean,
-	NewPort4Lan: boolean,
-	User: string,
-	Pass: string,
-	SecondLocalPortEnabled: boolean,
+export type InboundSettings = {
+	localPort: number,
+	protocol: string,
+	sniffingEnabled: boolean,
+	lanConnectionsAllowed: boolean,
+	separateLanPort: boolean,
+	username: string,
+	password: string,
+	secondaryPortEnabled: boolean,
 };
 
 export type InvalidateEvent = {
 	keys: QueryInvalidation[],
 };
 
-export type KeyEventItem = KeyEventItem_Serialize | KeyEventItem_Deserialize;
-
-export type KeyEventItem_Deserialize = {
-	EGlobalHotkey: GlobalHotkey,
-	Alt: boolean,
-	Control: boolean,
-	Shift: boolean,
-	KeyCode: number | null,
-};
-
-export type KeyEventItem_Serialize = {
-	EGlobalHotkey: GlobalHotkey,
-	Alt: boolean,
-	Control: boolean,
-	Shift: boolean,
-	KeyCode?: number | null,
-};
+export type LoadStrategy = "leastPing" | "fallback" | "random" | "roundRobin" | "leastLoad";
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -463,184 +382,66 @@ export type MissingCoreError = {
 	downloadUrl: string,
 };
 
-export type MoveAction = number;
+export type MoveAction = "top" | "up" | "down" | "bottom" | "position";
 
-export type MultipleLoad = number;
-
-export type Mux4SboxItem = Mux4SboxItem_Serialize | Mux4SboxItem_Deserialize;
-
-export type Mux4SboxItem_Deserialize = {
-	Protocol: string,
-	MaxConnections: number,
-	Padding: boolean | null,
-};
-
-export type Mux4SboxItem_Serialize = {
-	Protocol: string,
-	MaxConnections: number,
-	Padding?: boolean | null,
+export type MultiplexingSettings = {
+	protocol: string,
+	maxConnections: number,
+	padding: boolean | null,
 };
 
 export type NetworkSettings = {
-	tun: TunAdvancedSettings,
-	systemProxy: SystemProxyAdvancedSettings,
+	tun: TunSettings,
+	systemProxy: SystemProxySettings,
+	inbounds: InboundSettings[],
+};
+
+export type Profile = {
+	id: string,
+	subscriptionId: string | null,
+	displayLog: boolean,
+	remarks: string,
+	protocol: ProfileProtocol,
+	transport: ProfileTransport | null,
+	tls: TlsSettings | null,
 };
 
 export type ProfileDedupeResult = {
 	total: number,
 	kept: number,
-	removedIndexIds: string[],
+	removedProfileIds: string[],
 };
 
-export type ProfileExItem = ProfileExItem_Serialize | ProfileExItem_Deserialize;
+export type ProfileKind = "vmess" | "custom" | "shadowsocks" | "socks" | "vless" | "trojan" | "hysteria2" | "tuic" | "wireGuard" | "http" | "anytls" | "naive" | "policyGroup" | "proxyChain";
 
-export type ProfileExItem_Deserialize = {
-	IndexId?: string,
-	Delay?: number,
-	Speed?: number | null,
-	Sort?: number,
-	Message?: string | null,
-	IpInfo?: string | null,
-};
-
-export type ProfileExItem_Serialize = {
-	IndexId: string,
-	Delay: number,
-	Speed: number | null,
-	Sort: number,
-	Message?: string | null,
-	IpInfo?: string | null,
-};
-
-export type ProfileItem = ProfileItem_Serialize | ProfileItem_Deserialize;
-
-export type ProfileItem_Deserialize = {
-	IndexId?: string,
-	ConfigType?: ConfigType,
-	ConfigVersion?: number,
-	Subid?: string,
-	IsSub?: boolean,
-	PreSocksPort?: number | null,
-	DisplayLog?: boolean,
-	Remarks?: string,
-	Address?: string,
-	Port?: number,
-	Password?: string,
-	Username?: string,
-	Network?: string,
-	StreamSecurity?: string,
-	Sni?: string,
-	Alpn?: string,
-	PublicKey?: string,
-	ShortId?: string,
-	SpiderX?: string,
-	Mldsa65Verify?: string,
-	Cert?: string,
-	CertSha?: string,
-	EchConfigList?: string,
-	Finalmask?: string,
-	ProtocolExtra?: ProtocolExtraItem_Deserialize,
-	TransportExtra?: TransportExtraItem_Deserialize,
-};
-
-export type ProfileItem_Serialize = {
-	IndexId: string,
-	ConfigType: ConfigType,
-	ConfigVersion: number,
-	Subid: string,
-	IsSub: boolean,
-	PreSocksPort?: number | null,
-	DisplayLog: boolean,
-	Remarks: string,
-	Address: string,
-	Port: number,
-	Password: string,
-	Username: string,
-	Network: string,
-	StreamSecurity: string,
-	Sni: string,
-	Alpn: string,
-	PublicKey: string,
-	ShortId: string,
-	SpiderX: string,
-	Mldsa65Verify: string,
-	Cert: string,
-	CertSha: string,
-	EchConfigList: string,
-	Finalmask: string,
-	ProtocolExtra: ProtocolExtraItem_Serialize,
-	TransportExtra: TransportExtraItem_Serialize,
-};
-
-export type ProfileListItem = ProfileListItem_Serialize | ProfileListItem_Deserialize;
-
-export type ProfileListItem_Deserialize = {
-	profile: ProfileItem_Deserialize,
-	profileEx: ProfileExItem_Deserialize,
-	serverStat: ServerStatItem,
+export type ProfileListEntry = {
+	profile: Profile,
+	metrics: ProfileMetrics,
+	traffic: ProfileTraffic,
 	isActive: boolean,
 };
 
-export type ProfileListItem_Serialize = {
-	profile: ProfileItem_Serialize,
-	profileEx: ProfileExItem_Serialize,
-	serverStat: ServerStatItem,
-	isActive: boolean,
+export type ProfileMetrics = {
+	delayMs: number,
+	speedBytesPerSecond: number | null,
+	sort: number,
+	message: string | null,
+	ipInfo: string | null,
 };
 
-export type ProfileSortKey = "sort" | "configType" | "remarks" | "address" | "port" | "network" | "streamSecurity" | "delay" | "speed" | "ipInfo" | "subid";
+export type ProfileProtocol = { kind: "vmess"; server: ServerEndpoint; uuid: string; cipher: string | null } | { kind: "custom"; source: string; filter: string | null } | { kind: "shadowsocks"; server: ServerEndpoint; password: string; method: string; udpOverTcp: boolean } | { kind: "socks"; server: ServerEndpoint; username: string; password: string } | { kind: "vless"; server: ServerEndpoint; uuid: string; flow: string | null; encryption: string | null } | { kind: "trojan"; server: ServerEndpoint; password: string } | { kind: "hysteria2"; server: ServerEndpoint; password: string; portHops: string | null; obfuscationPassword: string | null } | { kind: "tuic"; server: ServerEndpoint; uuid: string; password: string; congestionControl: string | null } | { kind: "wireGuard"; server: ServerEndpoint; privateKey: string; peerPublicKey: string | null; presharedKey: string | null; interfaceAddress: string | null; allowedIps: string | null; reserved: string | null; mtu: number | null } | { kind: "http"; server: ServerEndpoint; username: string; password: string } | { kind: "anytls"; server: ServerEndpoint; password: string } | { kind: "naive"; server: ServerEndpoint; username: string; password: string; quic: boolean; congestionControl: string | null; insecureConcurrency: number | null; udpOverTcp: boolean } | { kind: "policyGroup"; childProfileIds: string[]; sourceSubscriptionId: string | null; filter: string | null; strategy: LoadStrategy } | { kind: "proxyChain"; childProfileIds: string[] };
 
-export type ProtocolExtraItem = ProtocolExtraItem_Serialize | ProtocolExtraItem_Deserialize;
+export type ProfileSortKey = "sort" | "protocol" | "remarks" | "address" | "port" | "transport" | "tls" | "delay" | "speed" | "ipInfo" | "subscriptionId";
 
-export type ProtocolExtraItem_Deserialize = {
-	Uot?: boolean | null,
-	CongestionControl?: string | null,
-	AlterId?: string | null,
-	VmessSecurity?: string | null,
-	Flow?: string | null,
-	VlessEncryption?: string | null,
-	SsMethod?: string | null,
-	WgPublicKey?: string | null,
-	WgPresharedKey?: string | null,
-	WgInterfaceAddress?: string | null,
-	WgAllowedIps?: string | null,
-	WgReserved?: string | null,
-	WgMtu?: number | null,
-	SalamanderPass?: string | null,
-	Ports?: string | null,
-	InsecureConcurrency?: number | null,
-	NaiveQuic?: boolean | null,
-	GroupType?: string | null,
-	ChildItems?: string | null,
-	SubChildItems?: string | null,
-	Filter?: string | null,
-	MultipleLoad?: MultipleLoad | null,
+export type ProfileTraffic = {
+	totalUpload: number | null,
+	totalDownload: number | null,
+	todayUpload: number | null,
+	todayDownload: number | null,
+	date: number | null,
 };
 
-export type ProtocolExtraItem_Serialize = {
-	Uot?: boolean | null,
-	CongestionControl?: string | null,
-	AlterId?: string | null,
-	VmessSecurity?: string | null,
-	Flow?: string | null,
-	VlessEncryption?: string | null,
-	SsMethod?: string | null,
-	WgPublicKey?: string | null,
-	WgPresharedKey?: string | null,
-	WgInterfaceAddress?: string | null,
-	WgAllowedIps?: string | null,
-	WgReserved?: string | null,
-	WgMtu?: number | null,
-	SalamanderPass?: string | null,
-	Ports?: string | null,
-	InsecureConcurrency?: number | null,
-	NaiveQuic?: boolean | null,
-	GroupType?: string | null,
-	ChildItems?: string | null,
-	SubChildItems?: string | null,
-	Filter?: string | null,
-	MultipleLoad?: MultipleLoad | null,
-};
+export type ProfileTransport = { kind: "tcp"; header: string | null; host: string | null; path: string | null } | { kind: "kcp"; header: string | null; seed: string | null; mtu: number | null } | { kind: "websocket"; host: string | null; path: string | null } | { kind: "httpUpgrade"; host: string | null; path: string | null } | { kind: "xhttp"; host: string | null; path: string | null; mode: string | null; extra: string | null } | { kind: "http2"; host: string | null; path: string | null } | { kind: "grpc"; authority: string | null; serviceName: string | null; mode: string | null } | { kind: "quic"; host: string | null; path: string | null };
 
 export type ProxyConnectionItem = {
 	id: string | null,
@@ -702,14 +503,14 @@ export type ProxyNode = {
 	testable: boolean,
 };
 
+export type ProxySettings = {
+	trafficMode: string,
+	nodeSorting: number,
+};
+
 export type ProxyTrafficEvent = {
 	up: number | null,
 	down: number | null,
-};
-
-export type ProxyUiItem = {
-	TrafficMode: TrafficMode,
-	NodeSorting: number,
 };
 
 export type QrCodeImage = {
@@ -737,158 +538,58 @@ export type ResourceUpdateFile = {
 	usedProxy: boolean,
 };
 
-export type RoutingBasicItem = {
-	DomainStrategy: string,
-	DomainStrategy4Singbox: string,
-	RoutingIndexId: string,
+export type Routing = Routing_Serialize | Routing_Deserialize;
+
+export type RoutingRule = {
+	id: string,
+	kind: string | null,
+	port: string | null,
+	network: string | null,
+	inboundTags: string[] | null,
+	outbound: string | null,
+	ip: string[] | null,
+	domain: string[] | null,
+	protocol: string[] | null,
+	process: string[] | null,
+	enabled: boolean,
+	remarks: string | null,
+	scope: RoutingRuleScope | null,
 };
 
-export type RoutingItem = RoutingItem_Serialize | RoutingItem_Deserialize;
+export type RoutingRuleScope = "all" | "routing" | "dns";
 
-export type RoutingItem_Deserialize = {
-	Id?: string,
-} | {
-	id?: string,
-} & {
-	Remarks?: string,
-} | {
-	remarks?: string,
-} & {
-	Url?: string,
-} | {
-	url?: string,
-} & {
-	RuleSet?: RulesItem_Deserialize[],
-} | {
-	ruleSet?: RulesItem_Deserialize[],
-} & {
-	RuleNum?: number,
-} | {
-	ruleNum?: number,
-} & {
-	Enabled?: boolean,
-} | {
-	enabled?: boolean,
-} & {
-	Locked?: boolean,
-} | {
-	locked?: boolean,
-} & {
-	CustomIcon?: string,
-} | {
-	customIcon?: string,
-} & {
-	CustomRulesetPath4Singbox?: string,
-} | {
-	customRulesetPath4Singbox?: string,
-} & {
-	DomainStrategy?: string,
-} | {
-	domainStrategy?: string,
-} & {
-	DomainStrategy4Singbox?: string,
-} | {
-	domainStrategy4Singbox?: string,
-} & {
-	Sort?: number,
-} | {
-	sort?: number,
-} & {
-	IsActive?: boolean,
-} | {
-	isActive?: boolean,
+export type RoutingSettings = {
+	domainStrategy: string,
+	singboxDomainStrategy: string,
 };
 
-export type RoutingItem_Serialize = {
-	Id: string,
-	Remarks: string,
-	Url: string,
-	RuleSet: RulesItem_Serialize[],
-	RuleNum: number,
-	Enabled: boolean,
-	Locked: boolean,
-	CustomIcon: string,
-	CustomRulesetPath4Singbox: string,
-	DomainStrategy: string,
-	DomainStrategy4Singbox: string,
-	Sort: number,
-	IsActive: boolean,
+export type Routing_Deserialize = {
+	id: string,
+	remarks: string,
+	sourceUrl: string,
+	rules: RoutingRule[],
+	enabled: boolean,
+	locked: boolean,
+	icon: string,
+	singboxRulesetPath: string,
+	domainStrategy: string,
+	singboxDomainStrategy: string,
+	sort: number,
 };
 
-export type RuleType = number;
-
-export type RulesItem = RulesItem_Serialize | RulesItem_Deserialize;
-
-export type RulesItem_Deserialize = {
-	Id?: string,
-} | {
-	id?: string,
-} & {
-	Type?: string | null,
-} | {
-	type?: string | null,
-} & {
-	Port?: string | null,
-} | {
-	port?: string | null,
-} & {
-	Network?: string | null,
-} | {
-	network?: string | null,
-} & {
-	InboundTag?: string[] | null,
-} | {
-	inboundTag?: string[] | null,
-} & {
-	OutboundTag?: string | null,
-} | {
-	outboundTag?: string | null,
-} | {
-	outboundtag?: string | null,
-} & {
-	Ip?: string[] | null,
-} | {
-	ip?: string[] | null,
-} & {
-	Domain?: string[] | null,
-} | {
-	domain?: string[] | null,
-} & {
-	Protocol?: string[] | null,
-} | {
-	protocol?: string[] | null,
-} & {
-	Process?: string[] | null,
-} | {
-	process?: string[] | null,
-} & {
-	Enabled?: boolean,
-} | {
-	enabled?: boolean,
-} & {
-	Remarks?: string | null,
-} | {
-	remarks?: string | null,
-} & {
-	RuleType?: RuleType | null,
-} | {
-	ruleType?: RuleType | null,
-};
-
-export type RulesItem_Serialize = {
-	Id: string,
-	Type?: string | null,
-	Port?: string | null,
-	Network?: string | null,
-	InboundTag?: string[] | null,
-	OutboundTag?: string | null,
-	Ip?: string[] | null,
-	Domain?: string[] | null,
-	Protocol?: string[] | null,
-	Process?: string[] | null,
-	Enabled: boolean,
-	Remarks?: string | null,
-	RuleType?: RuleType | null,
+export type Routing_Serialize = {
+	id: string,
+	remarks: string,
+	sourceUrl: string,
+	rules: RoutingRule[],
+	enabled: boolean,
+	locked: boolean,
+	icon: string,
+	singboxRulesetPath: string,
+	domainStrategy: string,
+	singboxDomainStrategy: string,
+	sort: number,
+	isActive: boolean,
 };
 
 export type RuntimeConnectionState = "disconnected" | "connected";
@@ -901,109 +602,49 @@ export type RuntimeStatusResponse = {
 	runningCoreType: CoreType | null,
 };
 
+export type ServerEndpoint = {
+	address: string,
+	port: number,
+};
+
 export type ServerStatItem = {
-	IndexId?: string,
-	TotalUp?: number | null,
-	TotalDown?: number | null,
-	TodayUp?: number | null,
-	TodayDown?: number | null,
-	DateNow?: number | null,
-};
-
-export type SettingsBundle = SettingsBundle_Serialize | SettingsBundle_Deserialize;
-
-export type SettingsBundle_Deserialize = {
-	uiPreferences: UiPreferences,
-	autostartEnabled: boolean,
-	showWindowHotkey: KeyEventItem_Deserialize,
-	sources: ConfigSourceSettings,
-	subConvertUrl: string | null,
-	coreBasicItem: CoreBasicItem_Deserialize,
-	mux4SboxItem: Mux4SboxItem_Deserialize,
-	hysteriaItem: HysteriaItem,
-	network: NetworkSettings,
-	speedTestItem: SpeedTestItem_Deserialize,
-};
-
-export type SettingsBundle_Serialize = {
-	uiPreferences: UiPreferences,
-	autostartEnabled: boolean,
-	showWindowHotkey: KeyEventItem_Serialize,
-	sources: ConfigSourceSettings,
-	subConvertUrl: string | null,
-	coreBasicItem: CoreBasicItem_Serialize,
-	mux4SboxItem: Mux4SboxItem_Serialize,
-	hysteriaItem: HysteriaItem,
-	network: NetworkSettings,
-	speedTestItem: SpeedTestItem_Serialize,
+	indexId: string,
+	totalUp: number | null,
+	totalDown: number | null,
+	todayUp: number | null,
+	todayDown: number | null,
+	dateNow: number | null,
 };
 
 export type ShellTabTarget = "profiles" | "proxyGroups" | "proxyConnections" | "logs";
 
-export type SimpleDnsItem = SimpleDnsItem_Serialize | SimpleDnsItem_Deserialize;
-
-export type SimpleDnsItem_Deserialize = {
-	UseSystemHosts: boolean | null,
-	AddCommonHosts: boolean | null,
-	FakeIP: boolean | null,
-	GlobalFakeIp: boolean | null,
-	BlockBindingQuery: boolean | null,
-	DirectDNS: string | null,
-	RemoteDNS: string | null,
-	BootstrapDNS: string | null,
-	Strategy4Freedom: string | null,
-	Strategy4Proxy: string | null,
-	ServeStale: boolean | null,
-	ParallelQuery: boolean | null,
-	Hosts: string | null,
-	DirectExpectedIPs: string | null,
+export type ShortcutChord = {
+	alt: boolean,
+	control: boolean,
+	shift: boolean,
+	keyCode: number,
 };
 
-export type SimpleDnsItem_Serialize = {
-	UseSystemHosts?: boolean | null,
-	AddCommonHosts?: boolean | null,
-	FakeIP?: boolean | null,
-	GlobalFakeIp?: boolean | null,
-	BlockBindingQuery?: boolean | null,
-	DirectDNS?: string | null,
-	RemoteDNS?: string | null,
-	BootstrapDNS?: string | null,
-	Strategy4Freedom?: string | null,
-	Strategy4Proxy?: string | null,
-	ServeStale?: boolean | null,
-	ParallelQuery?: boolean | null,
-	Hosts?: string | null,
-	DirectExpectedIPs?: string | null,
+export type ShortcutSettings = {
+	showWindowShortcut: ShortcutChord | null,
 };
 
-export type SpeedActionType = number;
-
-export type SpeedTestItem = SpeedTestItem_Serialize | SpeedTestItem_Deserialize;
-
-export type SpeedTestItem_Deserialize = {
-	SpeedTestTimeout: number,
-	SpeedTestUrl: string,
-	SpeedPingTestUrl: string,
-	MixedConcurrencyCount: number,
-	IPAPIUrl: string,
-	UdpTestTarget: string,
-	SpeedTestPageSize: number | null,
-	SpeedTestDelayInterval: number | null,
+export type SourceSettings = {
+	subscriptionConverter: string | null,
+	geo: string | null,
+	singboxRuleset: string | null,
+	routingTemplate: string | null,
 };
 
-export type SpeedTestItem_Serialize = {
-	SpeedTestTimeout: number,
-	SpeedTestUrl: string,
-	SpeedPingTestUrl: string,
-	MixedConcurrencyCount: number,
-	IPAPIUrl: string,
-	UdpTestTarget: string,
-	SpeedTestPageSize?: number | null,
-	SpeedTestDelayInterval?: number | null,
+export type SpeedTestKind = "tcpConnect" | "latency" | "udp" | "download" | "mixed";
+
+export type SpeedTestRequest = {
+	kind: SpeedTestKind,
+	target: SpeedTestTarget,
 };
 
 export type SpeedTestResult = {
-	action: SpeedActionType,
+	action: SpeedTestKind,
 	indexId: string,
 	delay: number | null,
 	speed: number | null,
@@ -1011,8 +652,21 @@ export type SpeedTestResult = {
 	ipInfo: string | null,
 };
 
+export type SpeedTestSettings = {
+	timeoutSeconds: number,
+	downloadUrl: string,
+	latencyUrl: string,
+	mixedConcurrency: number,
+	ipLookupUrl: string,
+	udpTarget: string,
+	pageSize: number | null,
+	delayIntervalMs: number | null,
+};
+
+export type SpeedTestTarget = { scope: "all" } | { scope: "profiles"; profileIds: string[] };
+
 export type SpeedtestRunResult = {
-	action: SpeedActionType,
+	action: SpeedTestKind,
 	cancelled: boolean,
 	selectedCount: number,
 	completedCount: number,
@@ -1034,44 +688,25 @@ export type StatisticsSnapshot = {
 	serverStat: ServerStatItem | null,
 };
 
-export type SubItem = SubItem_Serialize | SubItem_Deserialize;
-
-export type SubItem_Deserialize = {
-	Id?: string,
-	Remarks?: string,
-	Url?: string,
-	MoreUrl?: string,
-	Enabled?: boolean,
-	UserAgent?: string,
-	Sort?: number,
-	Filter?: string | null,
-	ConvertTarget?: string | null,
-	PrevProfile?: string | null,
-	NextProfile?: string | null,
-	PreSocksPort?: number | null,
-};
-
-export type SubItem_Serialize = {
-	Id: string,
-	Remarks: string,
-	Url: string,
-	MoreUrl: string,
-	Enabled: boolean,
-	UserAgent: string,
-	Sort: number,
-	Filter?: string | null,
-	ConvertTarget?: string | null,
-	PrevProfile?: string | null,
-	NextProfile?: string | null,
-	PreSocksPort?: number | null,
+export type Subscription = {
+	id: string,
+	remarks: string,
+	url: string,
+	additionalUrl: string,
+	enabled: boolean,
+	userAgent: string,
+	sort: number,
+	filter: string | null,
+	converterTarget: string | null,
+	preSocksPort: number | null,
 };
 
 export type SubscriptionUpdateResult = {
-	updated?: number,
-	skipped?: number,
-	imported?: number,
-	removedExisting?: number,
-	messages?: string[],
+	updated: number,
+	skipped: number,
+	imported: number,
+	removedExisting: number,
+	messages: string[],
 };
 
 export type SysProxyChanged = {
@@ -1083,34 +718,15 @@ export type SysProxyChanged = {
 
 export type SysProxyMode = "unchanged" | "forcedChange" | "forcedClear" | "pac";
 
-export type SysProxyType = number;
+export type SysProxyType = "forcedClear" | "forcedChange" | "unchanged" | "pac";
 
-export type SystemProxyAdvancedSettings = {
-	systemProxyExceptions: string,
-	notProxyLocalAddress: boolean,
-	systemProxyAdvancedProtocol: string,
-	customSystemProxyPacPath: string | null,
-	customSystemProxyScriptPath: string | null,
-};
-
-export type SystemProxyItem = SystemProxyItem_Serialize | SystemProxyItem_Deserialize;
-
-export type SystemProxyItem_Deserialize = {
-	SysProxyType: SysProxyType,
-	SystemProxyExceptions: string,
-	NotProxyLocalAddress: boolean,
-	SystemProxyAdvancedProtocol: string,
-	CustomSystemProxyPacPath: string | null,
-	CustomSystemProxyScriptPath: string | null,
-};
-
-export type SystemProxyItem_Serialize = {
-	SysProxyType: SysProxyType,
-	SystemProxyExceptions: string,
-	NotProxyLocalAddress: boolean,
-	SystemProxyAdvancedProtocol: string,
-	CustomSystemProxyPacPath?: string | null,
-	CustomSystemProxyScriptPath?: string | null,
+export type SystemProxySettings = {
+	mode: string,
+	exceptions: string,
+	bypassLocal: boolean,
+	advancedProtocol: string,
+	customPacPath: string | null,
+	customScriptPath: string | null,
 };
 
 export type SystemProxyStatusResponse = {
@@ -1122,55 +738,33 @@ export type SystemProxyStatusResponse = {
 	pacUrl: string | null,
 };
 
-/**
- *  Title-bar layout selected per platform. Windows uses a fully self-drawn
- *  borderless bar (minimize/maximize/close + drag region); every other platform
- *  keeps its native window frame and draws no custom title bar (`None`).
- */
+export type ThemeMode = "system" | "light" | "dark";
+
 export type TitleBarLayout = "windows" | "none";
 
-export type TrafficMode = number;
+export type TlsMode = "tls" | "reality";
+
+export type TlsSettings = {
+	mode: TlsMode,
+	serverName: string | null,
+	alpn: string[],
+	realityPublicKey: string | null,
+	realityShortId: string | null,
+	realitySpiderX: string | null,
+	mldsa65Verify: string | null,
+	certificatePem: string | null,
+	certificateSha256: string[],
+	echConfig: string[],
+	finalMask: string | null,
+};
+
+export type TrafficMode = "rule" | "global" | "direct" | "unchanged";
+
+export type TrafficModeResponse = {
+	mode: TrafficMode,
+};
 
 export type TransientStreamEvent = { kind: "logLine"; payload: LogLineEvent } | { kind: "coreState"; payload: CoreStateEvent } | { kind: "statistics"; payload: StatisticsSnapshot } | { kind: "sysProxyChanged"; payload: SysProxyChanged } | { kind: "tunChanged"; payload: TunChanged } | { kind: "proxyMonitorStatus"; payload: ProxyMonitorStatus } | { kind: "proxyTraffic"; payload: ProxyTrafficEvent } | { kind: "proxyConnections"; payload: ProxyConnectionsSnapshot } | { kind: "speedtestResult"; payload: SpeedTestResult };
-
-export type TransportExtraItem = TransportExtraItem_Serialize | TransportExtraItem_Deserialize;
-
-export type TransportExtraItem_Deserialize = {
-	RawHeaderType?: string | null,
-	Host?: string | null,
-	Path?: string | null,
-	XhttpMode?: string | null,
-	XhttpExtra?: string | null,
-	GrpcAuthority?: string | null,
-	GrpcServiceName?: string | null,
-	GrpcMode?: string | null,
-	KcpHeaderType?: string | null,
-	KcpSeed?: string | null,
-	KcpMtu?: number | null,
-};
-
-export type TransportExtraItem_Serialize = {
-	RawHeaderType?: string | null,
-	Host?: string | null,
-	Path?: string | null,
-	XhttpMode?: string | null,
-	XhttpExtra?: string | null,
-	GrpcAuthority?: string | null,
-	GrpcServiceName?: string | null,
-	GrpcMode?: string | null,
-	KcpHeaderType?: string | null,
-	KcpSeed?: string | null,
-	KcpMtu?: number | null,
-};
-
-export type TunAdvancedSettings = {
-	autoRoute: boolean,
-	strictRoute: boolean,
-	stack: string,
-	mtu: number,
-	enableIpv6Address: boolean,
-	icmpRouting: string,
-};
 
 export type TunBackend = "process" | "macosPacketTunnel" | "windowsService" | "unsupported";
 
@@ -1180,16 +774,6 @@ export type TunChanged = {
 	providerState: TunProviderState,
 	nativeComponentReady: boolean,
 	lastProviderError: string | null,
-};
-
-export type TunModeItem = {
-	EnableTun: boolean,
-	AutoRoute: boolean,
-	StrictRoute: boolean,
-	Stack: string,
-	Mtu: number,
-	EnableIPv6Address: boolean,
-	IcmpRouting: string,
 };
 
 export type TunPlatform = "windows" | "linux" | "macos" | "other";
@@ -1224,6 +808,16 @@ export type TunProviderDiagnostics = {
 
 export type TunProviderState = "notApplicable" | "missingComponent" | "permissionRequired" | "stopped" | "starting" | "running" | "error";
 
+export type TunSettings = {
+	enabled: boolean,
+	autoRoute: boolean,
+	strictRoute: boolean,
+	stack: string,
+	mtu: number,
+	ipv6Enabled: boolean,
+	icmpRouting: string,
+};
+
 export type TunStatus = {
 	enabled: boolean,
 	backend: TunBackend,
@@ -1241,25 +835,6 @@ export type TunStatus = {
 	restoreOnDisconnect: boolean,
 	preflight: TunPreflight,
 };
-
-export type UiItem = UiItem_Serialize | UiItem_Deserialize;
-
-export type UiItem_Deserialize = {
-	CurrentTheme: string | null,
-	CurrentLanguage: string,
-};
-
-export type UiItem_Serialize = {
-	CurrentTheme?: string | null,
-	CurrentLanguage: string,
-};
-
-export type UiPreferences = {
-	language: string,
-	theme: UiThemeMode,
-};
-
-export type UiThemeMode = "system" | "light" | "dark";
 
 export type WindowChromeConfig = {
 	titleBarLayout: TitleBarLayout,

@@ -1,7 +1,7 @@
 import type { CoreType } from "@/ipc/bindings";
 
 const CORE_TYPES = {
-  singBox: 24,
+  singBox: "singBox",
 } as const satisfies Record<string, CoreType>;
 
 export function formatCoreType(coreType: CoreType | null | undefined): string {

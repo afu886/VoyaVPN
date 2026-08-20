@@ -1,6 +1,5 @@
 import { commands } from "@/ipc/bindings";
 import type {
-  AppConfig_Serialize,
   AppError,
   AppUpdaterStatus,
   CertificateFetchRequest,
@@ -9,8 +8,7 @@ import type {
   ProxyDelayTestResult,
   ProxyMonitorStatus,
   ProxyGroupsSnapshot,
-  DnsSettings_Deserialize,
-  DnsSettings_Serialize,
+  DnsSettings,
   ExportProfilesResult,
   GroupChildCandidate,
   GroupPreview,
@@ -19,32 +17,31 @@ import type {
   ConfigTemplateImportResult,
   ConfigTemplateSelection,
   ProfileDedupeResult,
-  ProfileItem_Deserialize,
-  ProfileListItem_Serialize,
+  Profile,
+  ProfileListEntry,
   ProfileSortKey,
   QrCodeImage,
   QrScanResult,
-  RoutingItem_Deserialize,
-  RoutingItem_Serialize,
+  Routing_Deserialize,
+  Routing_Serialize,
   TrafficMode,
-  RulesItem_Deserialize,
+  TrafficModeResponse,
+  RoutingRule,
   RuntimeStatusResponse,
   CoreSeedInstallResult,
   CoreType,
   ResourceUpdateFile,
-  SpeedActionType,
+  SpeedTestRequest,
   SpeedtestRunResult,
   SpeedtestStatus,
-  SubItem_Deserialize,
-  SubItem_Serialize,
+  Subscription,
   SubscriptionUpdateResult,
   SysProxyType,
   SystemProxyStatusResponse,
   TunProviderDiagnostics,
   TunStatus,
-  UiPreferences,
-  SettingsBundle_Deserialize,
-  SettingsBundle_Serialize,
+  AppearanceSettings,
+  AppSettingsV1,
   WindowChromeConfig,
 } from "@/ipc/bindings";
 
@@ -60,18 +57,16 @@ export class IpcCommandError extends Error {
   }
 }
 
-export async function loadUiPreferences(): Promise<UiPreferences> {
+export async function loadUiPreferences(): Promise<AppearanceSettings> {
   return unwrapCommandResult(await commands.loadUiPreferences());
 }
 
-export async function loadSettingsBundle(): Promise<SettingsBundle_Serialize> {
-  return unwrapCommandResult(await commands.loadSettingsBundle());
+export async function loadAppSettings(): Promise<AppSettingsV1> {
+  return unwrapCommandResult(await commands.loadAppSettings());
 }
 
-export async function saveSettingsBundle(
-  bundle: SettingsBundle_Deserialize,
-): Promise<SettingsBundle_Serialize> {
-  return unwrapCommandResult(await commands.saveSettingsBundle(bundle));
+export async function saveAppSettings(settings: AppSettingsV1): Promise<AppSettingsV1> {
+  return unwrapCommandResult(await commands.saveAppSettings(settings));
 }
 
 export async function openSettingsWindow(): Promise<void> {
@@ -136,24 +131,24 @@ export async function tunRequestElevation(): Promise<TunStatus> {
   return unwrapCommandResult(await commands.tunRequestElevation());
 }
 
-export async function loadDnsSettings(): Promise<DnsSettings_Serialize> {
+export async function loadDnsSettings(): Promise<DnsSettings> {
   return unwrapCommandResult(await commands.loadDnsSettings());
 }
 
-export async function saveDnsSettings(settings: DnsSettings_Deserialize): Promise<DnsSettings_Serialize> {
+export async function saveDnsSettings(settings: DnsSettings): Promise<DnsSettings> {
   return unwrapCommandResult(await commands.saveDnsSettings(settings));
 }
 
 export async function listProfiles(
-  subid: string | null = null,
+  subscriptionId: string | null = null,
   filter: string | null = null,
-): Promise<ProfileListItem_Serialize[]> {
-  return unwrapCommandResult(await commands.listProfiles(subid, filter));
+): Promise<ProfileListEntry[]> {
+  return unwrapCommandResult(await commands.listProfiles(subscriptionId, filter));
 }
 
 export async function saveProfile(
-  profile: ProfileItem_Deserialize,
-): Promise<ProfileListItem_Serialize> {
+  profile: Profile,
+): Promise<ProfileListEntry> {
   return unwrapCommandResult(await commands.saveProfile(profile));
 }
 
@@ -164,13 +159,13 @@ export async function listGroupChildCandidates(
   return unwrapCommandResult(await commands.listGroupChildCandidates(currentIndexId, filter));
 }
 
-export async function previewGroupProfile(profile: ProfileItem_Deserialize): Promise<GroupPreview> {
+export async function previewGroupProfile(profile: Profile): Promise<GroupPreview> {
   return unwrapCommandResult(await commands.previewGroupProfile(profile));
 }
 
 export async function saveGroupProfile(
-  profile: ProfileItem_Deserialize,
-): Promise<ProfileListItem_Serialize> {
+  profile: Profile,
+): Promise<ProfileListEntry> {
   return unwrapCommandResult(await commands.saveGroupProfile(profile));
 }
 
@@ -178,7 +173,7 @@ export async function deleteProfiles(indexIds: string[]): Promise<number> {
   return unwrapCommandResult(await commands.deleteProfiles(indexIds));
 }
 
-export async function copyProfiles(indexIds: string[]): Promise<ProfileListItem_Serialize[]> {
+export async function copyProfiles(indexIds: string[]): Promise<ProfileListEntry[]> {
   return unwrapCommandResult(await commands.copyProfiles(indexIds));
 }
 
@@ -190,47 +185,47 @@ export async function exportProfileShareLinksBase64(indexIds: string[]): Promise
   return unwrapCommandResult(await commands.exportProfileShareLinksBase64(indexIds));
 }
 
-export async function exportProfileInnerLinks(indexIds: string[]): Promise<ExportProfilesResult> {
-  return unwrapCommandResult(await commands.exportProfileInnerLinks(indexIds));
+export async function exportProfileVoyaBundle(indexIds: string[]): Promise<ExportProfilesResult> {
+  return unwrapCommandResult(await commands.exportProfileVoyaBundle(indexIds));
 }
 
 export async function exportProfileClientConfig(indexIds: string[]): Promise<ExportProfilesResult> {
   return unwrapCommandResult(await commands.exportProfileClientConfig(indexIds));
 }
 
-export async function setActiveProfile(indexId: string): Promise<ProfileListItem_Serialize> {
+export async function setActiveProfile(indexId: string): Promise<ProfileListEntry> {
   return unwrapCommandResult(await commands.setActiveProfile(indexId));
 }
 
 export async function moveProfile(
-  subid: string | null,
+  subscriptionId: string | null,
   indexId: string,
   action: MoveAction,
   position: number | null = null,
-): Promise<ProfileListItem_Serialize[]> {
-  return unwrapCommandResult(await commands.moveProfile(subid, indexId, action, position));
+): Promise<ProfileListEntry[]> {
+  return unwrapCommandResult(await commands.moveProfile(subscriptionId, indexId, action, position));
 }
 
 export async function sortProfiles(
-  subid: string | null,
+  subscriptionId: string | null,
   sortKey: ProfileSortKey,
   ascending: boolean,
-): Promise<ProfileListItem_Serialize[]> {
-  return unwrapCommandResult(await commands.sortProfiles(subid, sortKey, ascending));
+): Promise<ProfileListEntry[]> {
+  return unwrapCommandResult(await commands.sortProfiles(subscriptionId, sortKey, ascending));
 }
 
 export async function dedupeProfiles(
-  subid: string | null = null,
+  subscriptionId: string | null = null,
   keepOlder: boolean | null = null,
 ): Promise<ProfileDedupeResult> {
-  return unwrapCommandResult(await commands.dedupeProfiles(subid, keepOlder));
+  return unwrapCommandResult(await commands.dedupeProfiles(subscriptionId, keepOlder));
 }
 
-export async function listSubscriptions(): Promise<SubItem_Serialize[]> {
+export async function listSubscriptions(): Promise<Subscription[]> {
   return unwrapCommandResult(await commands.listSubscriptions());
 }
 
-export async function saveSubscription(item: SubItem_Deserialize): Promise<SubItem_Serialize> {
+export async function saveSubscription(item: Subscription): Promise<Subscription> {
   return unwrapCommandResult(await commands.saveSubscription(item));
 }
 
@@ -240,25 +235,24 @@ export async function deleteSubscriptions(ids: string[]): Promise<number> {
 
 export async function importProfilesFromText(
   text: string,
-  subid: string | null = null,
-  isSub = false,
+  subscriptionId: string | null = null,
 ): Promise<ImportProfilesResult> {
-  return unwrapCommandResult(await commands.importProfilesFromText(text, subid, isSub));
+  return unwrapCommandResult(await commands.importProfilesFromText(text, subscriptionId));
 }
 
 export async function updateSubscriptions(
-  subid: string | null = null,
+  subscriptionId: string | null = null,
   preferProxy = true,
   proxyUrl: string | null = null,
 ): Promise<SubscriptionUpdateResult> {
-  return unwrapCommandResult(await commands.updateSubscriptions(subid, preferProxy, proxyUrl));
+  return unwrapCommandResult(await commands.updateSubscriptions(subscriptionId, preferProxy, proxyUrl));
 }
 
-export async function listRoutings(): Promise<RoutingItem_Serialize[]> {
+export async function listRoutings(): Promise<Routing_Serialize[]> {
   return unwrapCommandResult(await commands.listRoutings());
 }
 
-export async function saveRouting(item: RoutingItem_Deserialize): Promise<RoutingItem_Serialize> {
+export async function saveRouting(item: Routing_Deserialize): Promise<Routing_Serialize> {
   return unwrapCommandResult(await commands.saveRouting(item));
 }
 
@@ -266,21 +260,21 @@ export async function deleteRoutings(ids: string[]): Promise<number> {
   return unwrapCommandResult(await commands.deleteRoutings(ids));
 }
 
-export async function setActiveRouting(id: string): Promise<RoutingItem_Serialize> {
+export async function setActiveRouting(id: string): Promise<Routing_Serialize> {
   return unwrapCommandResult(await commands.setActiveRouting(id));
 }
 
 export async function saveRoutingRule(
   routingId: string,
-  rule: RulesItem_Deserialize,
-): Promise<RoutingItem_Serialize> {
+  rule: RoutingRule,
+): Promise<Routing_Serialize> {
   return unwrapCommandResult(await commands.saveRoutingRule(routingId, rule));
 }
 
 export async function deleteRoutingRules(
   routingId: string,
   ruleIds: string[],
-): Promise<RoutingItem_Serialize> {
+): Promise<Routing_Serialize> {
   return unwrapCommandResult(await commands.deleteRoutingRules(routingId, ruleIds));
 }
 
@@ -289,7 +283,7 @@ export async function moveRoutingRule(
   ruleId: string,
   action: MoveAction,
   position: number | null = null,
-): Promise<RoutingItem_Serialize> {
+): Promise<Routing_Serialize> {
   return unwrapCommandResult(await commands.moveRoutingRule(routingId, ruleId, action, position));
 }
 
@@ -328,7 +322,7 @@ export async function proxyCloseConnection(
   return unwrapCommandResult(await commands.proxyCloseConnection(connectionId));
 }
 
-export async function proxySetTrafficMode(mode: TrafficMode): Promise<AppConfig_Serialize> {
+export async function proxySetTrafficMode(mode: TrafficMode): Promise<TrafficModeResponse> {
   return unwrapCommandResult(await commands.proxySetTrafficMode(mode));
 }
 
@@ -344,11 +338,8 @@ export async function proxyStopMonitor(): Promise<ProxyMonitorStatus> {
   return unwrapCommandResult(await commands.proxyStopMonitor());
 }
 
-export async function runSpeedtest(
-  action: SpeedActionType,
-  indexIds: string[] = [],
-): Promise<SpeedtestRunResult> {
-  return unwrapCommandResult(await commands.runSpeedtest(action, indexIds));
+export async function runSpeedtest(request: SpeedTestRequest): Promise<SpeedtestRunResult> {
+  return unwrapCommandResult(await commands.runSpeedtest(request));
 }
 
 export async function cancelSpeedtest(): Promise<SpeedtestStatus> {

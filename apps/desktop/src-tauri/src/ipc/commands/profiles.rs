@@ -4,11 +4,11 @@ use super::{lifecycle::*, support::*, *};
 #[specta::specta]
 pub async fn list_profiles(
     state: tauri::State<'_, AppState>,
-    subid: Option<String>,
+    subscription_id: Option<String>,
     filter: Option<String>,
-) -> Result<Vec<ProfileListItem>, AppError> {
+) -> Result<Vec<ProfileListEntry>, AppError> {
     validate_present_ipc_text(
-        subid.as_deref(),
+        subscription_id.as_deref(),
         "subscription id",
         IPC_ID_MAX_CHARS,
         AppError::Profile,
@@ -21,9 +21,12 @@ pub async fn list_profiles(
     )?;
     let config = current_config(&state)?;
 
-    ProfileManager::new(state.database())
-        .list_profiles(&config, subid.as_deref(), filter.as_deref())
+    state
+        .services()
+        .profiles()
+        .list_profiles(&config, subscription_id.as_deref(), filter.as_deref())
         .await
+        .map(|items| items.into_iter().map(profile_list_to_contract).collect())
         .map_err(profile_error)
 }
 
@@ -32,16 +35,18 @@ pub async fn list_profiles(
 pub async fn save_profile<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    profile: ProfileItem,
-) -> Result<ProfileListItem, AppError> {
+    profile: ProfileContract,
+) -> Result<ProfileListEntry, AppError> {
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let result = ProfileManager::new(state.database())
-        .save_profile(&mut config, profile)
+    let result = state
+        .services()
+        .profiles()
+        .save_profile(&mut config, profile_from_contract(profile))
         .await
         .map_err(profile_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(
         &app,
         "profile-saved",
@@ -49,7 +54,7 @@ pub async fn save_profile<R: tauri::Runtime>(
         original.index_id != config.index_id,
     )?;
 
-    Ok(result)
+    Ok(profile_list_to_contract(result))
 }
 
 #[tauri::command]
@@ -67,12 +72,14 @@ pub async fn delete_profiles<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let deleted = ProfileManager::new(state.database())
+    let deleted = state
+        .services()
+        .profiles()
         .delete_profiles(&mut config, &index_ids)
         .await
         .map_err(profile_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(
         &app,
         "profiles-deleted",
@@ -89,7 +96,7 @@ pub async fn copy_profiles<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
     index_ids: Vec<String>,
-) -> Result<Vec<ProfileListItem>, AppError> {
+) -> Result<Vec<ProfileListEntry>, AppError> {
     validate_ipc_text_list(
         &index_ids,
         "profile index id",
@@ -98,12 +105,14 @@ pub async fn copy_profiles<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let copied = ProfileManager::new(state.database())
+    let copied = state
+        .services()
+        .profiles()
         .copy_profiles(&mut config, &index_ids)
         .await
         .map_err(profile_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(
         &app,
         "profiles-copied",
@@ -114,7 +123,7 @@ pub async fn copy_profiles<R: tauri::Runtime>(
         original.index_id != config.index_id,
     )?;
 
-    Ok(copied)
+    Ok(copied.into_iter().map(profile_list_to_contract).collect())
 }
 
 #[tauri::command]
@@ -137,11 +146,11 @@ pub async fn export_profile_share_links_base64(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn export_profile_inner_links(
+pub async fn export_profile_voya_bundle(
     state: tauri::State<'_, AppState>,
     index_ids: Vec<String>,
 ) -> Result<ExportProfilesResult, AppError> {
-    export_profiles_result(&state, index_ids, ExportProfilesFormat::InnerLinks).await
+    export_profiles_result(&state, index_ids, ExportProfilesFormat::VoyaBundle).await
 }
 
 #[tauri::command]
@@ -159,7 +168,7 @@ pub async fn set_active_profile<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
     index_id: String,
-) -> Result<ProfileListItem, AppError> {
+) -> Result<ProfileListEntry, AppError> {
     validate_required_ipc_text(
         &index_id,
         "profile index id",
@@ -168,15 +177,17 @@ pub async fn set_active_profile<R: tauri::Runtime>(
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let active = ProfileManager::new(state.database())
+    let active = state
+        .services()
+        .profiles()
         .set_active_profile(&mut config, &index_id)
         .await
         .map_err(profile_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(&app, "active-profile-changed", [index_id], true)?;
 
-    Ok(active)
+    Ok(profile_list_to_contract(active))
 }
 
 #[tauri::command]
@@ -184,13 +195,13 @@ pub async fn set_active_profile<R: tauri::Runtime>(
 pub async fn move_profile<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    subid: Option<String>,
+    subscription_id: Option<String>,
     index_id: String,
-    action: MoveAction,
+    action: ContractMoveAction,
     position: Option<i32>,
-) -> Result<Vec<ProfileListItem>, AppError> {
+) -> Result<Vec<ProfileListEntry>, AppError> {
     validate_present_ipc_text(
-        subid.as_deref(),
+        subscription_id.as_deref(),
         "subscription id",
         IPC_ID_MAX_CHARS,
         AppError::Profile,
@@ -202,14 +213,22 @@ pub async fn move_profile<R: tauri::Runtime>(
         AppError::Profile,
     )?;
     let config = current_config(&state)?;
-    let profiles = ProfileManager::new(state.database())
-        .move_profile(&config, subid.as_deref(), &index_id, action, position)
+    let profiles = state
+        .services()
+        .profiles()
+        .move_profile(
+            &config,
+            subscription_id.as_deref(),
+            &index_id,
+            move_action_from_contract(action),
+            position,
+        )
         .await
         .map_err(profile_error)?;
 
     emit_profile_invalidation(&app, "profile-moved", [index_id], false)?;
 
-    Ok(profiles)
+    Ok(profiles.into_iter().map(profile_list_to_contract).collect())
 }
 
 #[tauri::command]
@@ -217,19 +236,26 @@ pub async fn move_profile<R: tauri::Runtime>(
 pub async fn sort_profiles<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    subid: Option<String>,
-    sort_key: ProfileSortKey,
+    subscription_id: Option<String>,
+    sort_key: ProfileSortContract,
     ascending: bool,
-) -> Result<Vec<ProfileListItem>, AppError> {
+) -> Result<Vec<ProfileListEntry>, AppError> {
     validate_present_ipc_text(
-        subid.as_deref(),
+        subscription_id.as_deref(),
         "subscription id",
         IPC_ID_MAX_CHARS,
         AppError::Profile,
     )?;
     let config = current_config(&state)?;
-    let profiles = ProfileManager::new(state.database())
-        .sort_profiles(&config, subid.as_deref(), sort_key, ascending)
+    let profiles = state
+        .services()
+        .profiles()
+        .sort_profiles(
+            &config,
+            subscription_id.as_deref(),
+            profile_sort_key_from_contract(sort_key),
+            ascending,
+        )
         .await
         .map_err(profile_error)?;
 
@@ -243,7 +269,7 @@ pub async fn sort_profiles<R: tauri::Runtime>(
         false,
     )?;
 
-    Ok(profiles)
+    Ok(profiles.into_iter().map(profile_list_to_contract).collect())
 }
 
 #[tauri::command]
@@ -251,23 +277,29 @@ pub async fn sort_profiles<R: tauri::Runtime>(
 pub async fn dedupe_profiles<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    subid: Option<String>,
+    subscription_id: Option<String>,
     keep_older: Option<bool>,
-) -> Result<ProfileDedupeResult, AppError> {
+) -> Result<ProfileDedupeContract, AppError> {
     validate_present_ipc_text(
-        subid.as_deref(),
+        subscription_id.as_deref(),
         "subscription id",
         IPC_ID_MAX_CHARS,
         AppError::Profile,
     )?;
     let original = current_config(&state)?;
     let mut config = original.clone();
-    let result = ProfileManager::new(state.database())
-        .dedupe_profiles(&mut config, subid.as_deref(), keep_older.unwrap_or(false))
+    let result = state
+        .services()
+        .profiles()
+        .dedupe_profiles(
+            &mut config,
+            subscription_id.as_deref(),
+            keep_older.unwrap_or(false),
+        )
         .await
         .map_err(profile_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_profile_invalidation(
         &app,
         "profiles-deduped",
@@ -275,5 +307,5 @@ pub async fn dedupe_profiles<R: tauri::Runtime>(
         original.index_id != config.index_id,
     )?;
 
-    Ok(result)
+    Ok(profile_dedupe_to_contract(result))
 }

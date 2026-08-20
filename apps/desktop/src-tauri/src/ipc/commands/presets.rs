@@ -30,7 +30,9 @@ pub async fn import_config_template<R: tauri::Runtime>(
     let original = current_config(&state)?;
     let mut config = original.clone();
     let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
-    let result = PresetManager::new(state.database())
+    let result = state
+        .services()
+        .presets()
         .import_config_template(
             &mut config,
             selection,
@@ -42,7 +44,7 @@ pub async fn import_config_template<R: tauri::Runtime>(
         .await
         .map_err(preset_error)?;
 
-    persist_config_if_changed(&state, &original, &config)?;
+    persist_config_if_changed(&state, &original, &config).await?;
     emit_preset_invalidation(&app, "config-template-imported")?;
     restart_if_connected_after_config_change(&app, &state, &config, "Config template imported")
         .await?;

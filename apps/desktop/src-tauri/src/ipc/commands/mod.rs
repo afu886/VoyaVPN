@@ -1,7 +1,5 @@
 use std::collections::BTreeSet;
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
@@ -9,50 +7,62 @@ use tauri_specta::Event;
 use voya_app::autostart::{AutostartManager, AutostartManagerError};
 use voya_app::certificates::{
     calculate_certificate_sha256 as calculate_certificate_sha256_impl,
-    fetch_certificate as fetch_certificate_impl, CertificateError, CertificateFetchRequest,
-    CertificateFetchResult,
+    fetch_certificate as fetch_certificate_impl, CertificateError,
 };
-use voya_app::dns::{DnsManager, DnsManagerError, DnsSettings, DnsValidationIssue};
+use voya_app::contract_map::{
+    dns_from_contract, dns_to_contract, group_child_to_contract, group_preview_to_contract,
+    import_profiles_to_contract, move_action_from_contract, profile_dedupe_to_contract,
+    profile_from_contract, profile_list_to_contract, profile_sort_key_from_contract,
+    routing_from_contract, routing_to_contract, rule_from_contract, subscription_from_contract,
+    subscription_to_contract, subscription_update_to_contract,
+};
+use voya_app::dns::DnsManagerError;
 use voya_app::elevation::ElevationError;
-use voya_app::exports::{
-    ExportManager, ExportManagerError, ExportProfilesFormat, ExportProfilesRequest,
-    ExportProfilesResult,
-};
-use voya_app::groups::{GroupManager, GroupManagerError};
+use voya_app::exports::ExportManagerError;
+use voya_app::groups::GroupManagerError;
 use voya_app::hotkeys::{
-    GlobalHotkeyBinding, HotkeyManager, HotkeyManagerError, HotkeyRegistrar, HotkeyStatus,
+    HotkeyManager, HotkeyManagerError, HotkeyRegistrar, HotkeyStatus, ShowWindowShortcutBinding,
 };
 use voya_app::input_safety::{self, InputSafetyError};
-use voya_app::presets::{
-    ConfigTemplateImportOptions, ConfigTemplateImportResult, ConfigTemplateSelection,
-    PresetManager, PresetManagerError,
-};
-use voya_app::profiles::{ProfileManager, ProfileManagerError};
-use voya_app::proxy_runtime::{
-    ProxyConnectionsSnapshot, ProxyDelayTestResult, ProxyGroupsSnapshot, ProxyMonitorStatus,
-    ProxyRuntimeError, ProxyRuntimeManager,
-};
-use voya_app::qr::{QrCodeError, QrCodeImage, QrCodeManager, QrScanResult};
-use voya_app::routing::{RoutingManager, RoutingManagerError};
+use voya_app::presets::PresetManagerError;
+use voya_app::profiles::ProfileManagerError;
+use voya_app::proxy_runtime::{ProxyRuntimeError, ProxyRuntimeManager};
+use voya_app::qr::{QrCodeError, QrCodeManager};
+use voya_app::routing::RoutingManagerError;
 use voya_app::runtime::{RuntimeError, RuntimeManager};
+use voya_app::services::{AppConfig, CoreType, SysProxyType, TrafficMode};
 use voya_app::settings_save::{
-    apply_settings_side_effects, compensate_settings_side_effects, settings_runtime_action,
+    apply_settings_side_effects, compensate_settings_side_effects,
+    saved_config_requires_runtime_restart, settings_runtime_action, validate_app_settings,
     SettingsRuntimeAction, SettingsSideEffectAdapter,
 };
-use voya_app::speedtest::{
-    SpeedTestResult, SpeedtestError, SpeedtestManager, SpeedtestRunResult, SpeedtestStatus,
-};
-use voya_app::subscriptions::{SubscriptionManager, SubscriptionManagerError};
+use voya_app::speedtest::{SpeedtestError, SpeedtestManager};
+use voya_app::subscriptions::SubscriptionManagerError;
 use voya_app::supervisor::{SupervisorConnectionState, SupervisorSnapshot};
-use voya_app::sysproxy::SystemProxyManagerError;
-use voya_app::tun::{TunManager, TunManagerError, TunProviderDiagnostics, TunStatus};
-use voya_app::updates::{
-    ConfigSourceSettings, ResourceUpdateFile, UpdateManager, UpdateManagerError,
+use voya_app::sysproxy::{
+    runtime_proxy_url as app_runtime_proxy_url,
+    runtime_system_proxy_config as app_runtime_system_proxy_config,
+    should_disable_native_tun_system_proxy, SystemProxyManagerError,
 };
-use voya_core::{
-    AppConfig, CoreType, GlobalHotkey, GroupChildCandidate, GroupPreview, ImportProfilesResult,
-    KeyEventItem, MoveAction, ProfileDedupeResult, ProfileItem, ProfileListItem, ProfileSortKey,
-    RoutingItem, RulesItem, SubItem, SubscriptionUpdateResult, SysProxyType, TrafficMode,
+use voya_app::tun::{TunManager, TunManagerError};
+use voya_app::updates::{UpdateManager, UpdateManagerError};
+use voya_contracts::{
+    AppError, AppSettingsV1, AppUpdaterState, AppUpdaterStatus, AppearanceSettings,
+    CertificateFetchRequest, CertificateFetchResult, ConfigTemplateImportOptions,
+    ConfigTemplateImportResult, ConfigTemplateSelection, CoreSeedInstallResult,
+    CoreSeedInstallStatus, CoreType as ContractCoreType, DnsCommandError,
+    DnsSettings as DnsSettingsContract, ExportProfilesFormat, ExportProfilesRequest,
+    ExportProfilesResult, GroupChildCandidate as GroupChildContract,
+    GroupPreview as GroupPreviewContract, ImportProfilesResult as ImportProfilesContract,
+    MissingCoreError, MoveAction as ContractMoveAction, Profile as ProfileContract,
+    ProfileDedupeResult as ProfileDedupeContract, ProfileListEntry,
+    ProfileSortKey as ProfileSortContract, ProxyConnectionsSnapshot, ProxyDelayTestResult,
+    ProxyGroupsSnapshot, ProxyMonitorStatus, QrCodeImage, QrScanResult, ResourceUpdateFile,
+    Routing as RoutingContract, RoutingRule as RoutingRuleContract, RuntimeConnectionState,
+    RuntimeStatusResponse, SpeedTestResult, SpeedtestRunResult, SpeedtestStatus,
+    Subscription as SubscriptionContract, SubscriptionUpdateResult as SubscriptionUpdateContract,
+    SysProxyType as ContractSysProxyType, SystemProxyStatusResponse, TunProviderDiagnostics,
+    TunStatus,
 };
 use voya_platform::{
     coreinfo::{
@@ -60,7 +70,6 @@ use voya_platform::{
         CoreSeedCopyOutcome, CoreSeedCopyStatus, TargetOs,
     },
     sysproxy::SystemProxyStatus,
-    tun::{tun_backend, TunBackend as PlatformTunBackend},
 };
 
 use super::events::{
@@ -77,112 +86,6 @@ const IPC_PROXY_URL_MAX_CHARS: usize = 2048;
 const IPC_QR_CONTENT_MAX_CHARS: usize = 4096;
 const IPC_LIST_MAX_ITEMS: usize = 1024;
 const MISSING_CORE_SEARCH_DIR_LABEL: &str = "application core directory";
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(tag = "kind", content = "message", rename_all = "camelCase")]
-pub enum AppError {
-    EventEmit(String),
-    Autostart(String),
-    ConfigSave(String),
-    Certificate(String),
-    ProxyRuntime(String),
-    Database(String),
-    Dns(DnsCommandError),
-    Group(String),
-    Hotkey(String),
-    Preset(String),
-    Profile(String),
-    Qr(String),
-    Export(String),
-    MissingCore(MissingCoreError),
-    Runtime(String),
-    Routing(String),
-    Speedtest(String),
-    Sudo(String),
-    Subscription(String),
-    SysProxy(String),
-    State(String),
-    Tun(String),
-    Update(String),
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DnsCommandError {
-    pub message: String,
-    pub issues: Vec<DnsValidationIssue>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MissingCoreError {
-    pub message: String,
-    pub core_type: CoreType,
-    pub search_dir: String,
-    pub candidates: Vec<String>,
-    pub download_url: String,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum CoreSeedInstallStatus {
-    Installed,
-    AlreadyInstalled,
-    SeedMissing,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CoreSeedInstallResult {
-    pub core_type: CoreType,
-    pub status: CoreSeedInstallStatus,
-    pub installed_files: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum RuntimeConnectionState {
-    Disconnected,
-    Connected,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeStatusResponse {
-    pub state: RuntimeConnectionState,
-    pub active_profile_id: Option<String>,
-    pub main_pid: Option<u32>,
-    pub pre_pid: Option<u32>,
-    pub running_core_type: Option<CoreType>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AppUpdaterState {
-    Ready,
-    Unconfigured,
-    Unsupported,
-    Error,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AppUpdaterStatus {
-    pub current_version: String,
-    pub state: AppUpdaterState,
-    pub message: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SystemProxyStatusResponse {
-    pub requested_mode: SysProxyType,
-    pub effective_mode: SysProxyType,
-    pub pac_available: bool,
-    pub proxy: Option<String>,
-    pub exceptions: String,
-    pub pac_url: Option<String>,
-}
 
 mod app;
 mod dns;
@@ -214,7 +117,7 @@ pub use sysproxy::*;
 pub use tun::*;
 pub use updates::*;
 
-pub(crate) use app::register_global_hotkeys_for_config;
+pub(crate) use app::register_show_window_shortcut_for_config;
 pub(crate) use lifecycle::emit_current_tun_status;
 pub(crate) use support::{
     emit_core_state, emit_runtime_log, emit_statistics_zero,

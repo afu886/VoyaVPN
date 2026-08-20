@@ -1,11 +1,11 @@
 import type {
-  ProfileListItem_Serialize,
+  ProfileListEntry,
   ServerStatItem,
   SpeedTestResult,
 } from "@/ipc/bindings";
 
 export function applyLiveUpdates(
-  profiles: ProfileListItem_Serialize[],
+  profiles: ProfileListEntry[],
   liveStats: Record<string, ServerStatItem> = {},
   speedtestResults: Record<string, SpeedTestResult> = {},
 ) {
@@ -15,9 +15,18 @@ export function applyLiveUpdates(
 
   let changed = false;
   const nextProfiles = profiles.map((item) => {
-    const serverStat = liveStats[item.profile.IndexId];
-    const speedtestResult = speedtestResults[item.profile.IndexId];
-    const withStats = serverStat ? { ...item, serverStat } : item;
+    const serverStat = liveStats[item.profile.id];
+    const speedtestResult = speedtestResults[item.profile.id];
+    const withStats = serverStat ? {
+      ...item,
+      traffic: {
+        date: serverStat.dateNow ?? 0,
+        todayDownload: serverStat.todayDown ?? 0,
+        todayUpload: serverStat.todayUp ?? 0,
+        totalDownload: serverStat.totalDown ?? 0,
+        totalUpload: serverStat.totalUp ?? 0,
+      },
+    } : item;
 
     if (!speedtestResult) {
       changed ||= Boolean(serverStat);
@@ -27,12 +36,12 @@ export function applyLiveUpdates(
     changed = true;
     return {
       ...withStats,
-      profileEx: {
-        ...withStats.profileEx,
-        Delay: speedtestResult.delay ?? withStats.profileEx.Delay,
-        IpInfo: speedtestResult.ipInfo ?? withStats.profileEx.IpInfo,
-        Message: speedtestResult.message ?? withStats.profileEx.Message,
-        Speed: speedtestResult.speed ?? withStats.profileEx.Speed,
+      metrics: {
+        ...withStats.metrics,
+        delayMs: speedtestResult.delay ?? withStats.metrics.delayMs,
+        ipInfo: speedtestResult.ipInfo ?? withStats.metrics.ipInfo,
+        message: speedtestResult.message ?? withStats.metrics.message,
+        speedBytesPerSecond: speedtestResult.speed ?? withStats.metrics.speedBytesPerSecond,
       },
     };
   });

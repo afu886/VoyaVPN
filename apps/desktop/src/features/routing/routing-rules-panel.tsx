@@ -21,11 +21,14 @@ import {
 } from "@voya/ui/components/table";
 import { cn } from "@voya/ui/lib/utils";
 import { MOVE_ACTIONS } from "@/features/profiles/profile-constants";
+import type { RoutingRuleScope } from "@/ipc/bindings";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import { RULE_TYPES } from "./routing-constants";
 import type { RoutingScreenController } from "./use-routing-screen";
 
 export function RoutingRulesPanel({ controller }: { controller: RoutingScreenController }) {
+  const { t } = useI18n();
   const {
     deleteSelectedRule,
     moveSelectedRule,
@@ -39,17 +42,17 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
     <div className="flex min-h-0 flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold">{selectedRouting?.Remarks ?? "No routing profile"}</h3>
+          <h3 className="truncate text-sm font-semibold">{selectedRouting?.remarks ?? "No routing profile"}</h3>
           <p className="truncate text-xs text-muted-foreground">
             {selectedRouting
-              ? `${selectedRouting.RuleNum} rules · sing-box ${selectedRouting.DomainStrategy4Singbox || "default"}`
+              ? `${selectedRouting.rules.length} rules · sing-box ${selectedRouting.singboxDomainStrategy || "default"}`
               : ""}
           </p>
         </div>
         <div className="ms-auto flex items-center gap-2">
           <Button disabled={!selectedRouting} onClick={() => setRuleDialog({ mode: "create" })} size="sm" type="button">
             <Plus className="size-4" aria-hidden="true" />
-            Rule
+            {t("panes.routing.rule")}
           </Button>
           <Button
             disabled={!selectedRule}
@@ -59,7 +62,7 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
             variant="outline"
           >
             <Pencil className="size-4" aria-hidden="true" />
-            Edit
+            {t("actions.edit")}
           </Button>
           <Button
             disabled={!selectedRouting || !selectedRule}
@@ -87,13 +90,13 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
             variant="outline"
           >
             <Trash2 className="size-4" aria-hidden="true" />
-            Delete
+            {t("actions.delete")}
           </Button>
         </div>
       </div>
 
       <ScrollArea className="min-h-0 flex-1 bg-surface-sunken">
-        {(selectedRouting?.RuleSet ?? []).length > 0 ? (
+        {(selectedRouting?.rules ?? []).length > 0 ? (
           <Table className="min-w-[58rem]">
             <TableHeader className={cn("sticky top-0 z-10", dataTableHeader)}>
               <TableRow className="hover:bg-transparent">
@@ -101,51 +104,51 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
                   #
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Remarks
+                  {t("panes.routing.remarks")}
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Outbound
+                  {t("panes.routing.outbound")}
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Type
+                  {t("panes.routing.type")}
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Domain
+                  {t("panes.routing.domain")}
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
                   IP
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Port
+                  {t("panes.routing.port")}
                 </TableHead>
                 <TableHead className="px-3 text-muted-foreground" scope="col">
-                  Network
+                  {t("panes.routing.network")}
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(selectedRouting?.RuleSet ?? []).map((rule, index) => (
+              {(selectedRouting?.rules ?? []).map((rule, index) => (
                 <TableRow
                   className={cn(
                     "cursor-default",
-                    selectedRule?.Id === rule.Id
+                    selectedRule?.id === rule.id
                       ? dataTableRowSelected
                       : cn(index % 2 === 0 ? dataTableRowEven : dataTableRowOdd, dataTableRowHover),
-                    !rule.Enabled ? "opacity-55" : "",
+                    !rule.enabled ? "opacity-55" : "",
                   )}
-                  key={rule.Id}
-                  onClick={() => setSelectedRuleId(rule.Id)}
+                  key={rule.id}
+                  onClick={() => setSelectedRuleId(rule.id)}
                 >
                   <TableCell className="px-3 py-2 tabular-nums text-muted-foreground">{index + 1}</TableCell>
-                  <TableCell className="max-w-52 truncate px-3 py-2 font-medium">{rule.Remarks ?? ""}</TableCell>
-                  <TableCell className="px-3 py-2">{rule.OutboundTag ?? ""}</TableCell>
+                  <TableCell className="max-w-52 truncate px-3 py-2 font-medium">{rule.remarks ?? ""}</TableCell>
+                  <TableCell className="px-3 py-2">{rule.outbound ?? ""}</TableCell>
                   <TableCell className="px-3 py-2">
-                    <RuleTypeBadge ruleType={rule.RuleType} />
+                    <RuleTypeBadge scope={rule.scope} />
                   </TableCell>
-                  <TableCell className="max-w-72 truncate px-3 py-2">{formatList(rule.Domain)}</TableCell>
-                  <TableCell className="max-w-56 truncate px-3 py-2">{formatList(rule.Ip)}</TableCell>
-                  <TableCell className="px-3 py-2">{rule.Port ?? ""}</TableCell>
-                  <TableCell className="px-3 py-2">{rule.Network ?? ""}</TableCell>
+                  <TableCell className="max-w-72 truncate px-3 py-2">{formatList(rule.domain)}</TableCell>
+                  <TableCell className="max-w-56 truncate px-3 py-2">{formatList(rule.ip)}</TableCell>
+                  <TableCell className="px-3 py-2">{rule.port ?? ""}</TableCell>
+                  <TableCell className="px-3 py-2">{rule.network ?? ""}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -158,16 +161,16 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
   );
 }
 
-function RuleTypeBadge({ ruleType }: { ruleType: number | null | undefined }) {
+function RuleTypeBadge({ scope }: { scope: RoutingRuleScope | null | undefined }) {
   return (
     <Badge className="bg-background" variant="outline">
-      {formatRuleType(ruleType)}
+      {formatRuleType(scope)}
     </Badge>
   );
 }
 
-function formatRuleType(ruleType: number | null | undefined) {
-  switch (ruleType) {
+function formatRuleType(scope: RoutingRuleScope | null | undefined) {
+  switch (scope) {
     case RULE_TYPES.Routing:
       return "Routing";
     case RULE_TYPES.Dns:

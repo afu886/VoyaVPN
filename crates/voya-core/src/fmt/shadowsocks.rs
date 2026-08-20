@@ -9,30 +9,46 @@ impl ShareFmt for ShadowsocksFmt {
     }
 
     fn parse(&self, input: &str) -> Result<ProfileItem, ShareError> {
-        let mut item = parse_shadowsocks_sip002(input)?;
+        let item = parse_shadowsocks_sip002(input)?;
         ensure_address_port("ss", &item)?;
-        if nonempty_option(&item.protocol_extra.ss_method).is_none() {
+        let ProfileProtocol::Shadowsocks {
+            password, method, ..
+        } = &item.protocol
+        else {
+            return Err(ShareError::WrongConfigType {
+                protocol: "ss",
+                actual: item.config_type(),
+            });
+        };
+        if method.trim().is_empty() {
             return Err(ShareError::MissingField {
                 protocol: "ss",
                 field: "method",
             });
         }
-        ensure_nonempty("ss", "password", &item.password)?;
-        item.config_type = ConfigType::Shadowsocks;
+        ensure_nonempty("ss", "password", password)?;
         Ok(item)
     }
 
     fn export(&self, item: &ProfileItem) -> Result<String, ShareError> {
         ensure_type("ss", item, ConfigType::Shadowsocks)?;
         ensure_address_port("ss", item)?;
-        let method =
-            nonempty_option(&item.protocol_extra.ss_method).ok_or(ShareError::MissingField {
+        let ProfileProtocol::Shadowsocks {
+            password, method, ..
+        } = &item.protocol
+        else {
+            return Err(ShareError::WrongConfigType {
                 protocol: "ss",
-                field: "method",
-            })?;
-        ensure_nonempty("ss", "password", &item.password)?;
+                actual: item.config_type(),
+            });
+        };
+        let method = nonempty_str(Some(method)).ok_or(ShareError::MissingField {
+            protocol: "ss",
+            field: "method",
+        })?;
+        ensure_nonempty("ss", "password", password)?;
 
-        let user_info = base64_encode(&format!("{method}:{}", item.password), true);
+        let user_info = base64_encode(&format!("{method}:{password}"), true);
         let mut query = Vec::new();
         if let Some(plugin) = shadowsocks_plugin(item) {
             query.push(("plugin".to_string(), url_encode(&plugin)));
@@ -40,8 +56,8 @@ impl ShareFmt for ShadowsocksFmt {
 
         Ok(to_uri(
             ConfigType::Shadowsocks,
-            &item.address,
-            item.port,
+            item.address(),
+            item.port(),
             &user_info,
             &query,
             &item.remarks,
@@ -75,15 +91,19 @@ pub fn parse_ss_sip008(input: &str) -> Result<Vec<ProfileItem>, ShareError> {
             protocol: "ss-sip008",
             reason: "server entry must be an object".to_string(),
         })?;
-        let mut item = ProfileItem {
-            config_type: ConfigType::Shadowsocks,
+        let item = ProfileItem {
             remarks: string_field(object, "remarks"),
-            password: string_field(object, "password"),
-            address: string_field(object, "server"),
-            port: string_field(object, "server_port").parse().unwrap_or(0),
+            protocol: ProfileProtocol::Shadowsocks {
+                server: ServerEndpoint {
+                    address: string_field(object, "server"),
+                    port: string_field(object, "server_port").parse().unwrap_or(0),
+                },
+                password: string_field(object, "password"),
+                method: string_field(object, "method"),
+                udp_over_tcp: false,
+            },
             ..ProfileItem::default()
         };
-        item.protocol_extra.ss_method = nonempty(string_field(object, "method"));
         ensure_address_port("ss-sip008", &item)?;
         result.push(item);
     }
@@ -93,15 +113,14 @@ pub fn parse_ss_sip008(input: &str) -> Result<Vec<ProfileItem>, ShareError> {
 fn parse_shadowsocks_sip002(input: &str) -> Result<ProfileItem, ShareError> {
     let parsed = parse_uri(input, "ss")?;
     let mut item = profile_from_uri(ConfigType::Shadowsocks, &parsed);
-    if parsed.user_info.contains(':') {
+    let (method, password) = if parsed.user_info.contains(':') {
         let Some((method, password)) = parsed.user_info.split_once(':') else {
             return Err(ShareError::InvalidUri {
                 protocol: "ss",
                 reason: "invalid user info".to_string(),
             });
         };
-        item.protocol_extra.ss_method = Some(method.to_string());
-        item.password = url_decode(password);
+        (method.to_string(), url_decode(password))
     } else {
         let decoded = base64_decode(&parsed.user_info, "ss")?;
         let Some((method, password)) = decoded.split_once(':') else {
@@ -110,8 +129,16 @@ fn parse_shadowsocks_sip002(input: &str) -> Result<ProfileItem, ShareError> {
                 reason: "invalid encoded user info".to_string(),
             });
         };
-        item.protocol_extra.ss_method = Some(method.to_string());
-        item.password = password.to_string();
+        (method.to_string(), password.to_string())
+    };
+    if let ProfileProtocol::Shadowsocks {
+        method: item_method,
+        password: item_password,
+        ..
+    } = &mut item.protocol
+    {
+        *item_method = method;
+        *item_password = password;
     }
 
     if let Some(plugin) = parsed.query.value("plugin") {
@@ -146,9 +173,11 @@ fn parse_shadowsocks_plugin(plugin: &str, item: &mut ProfileItem) -> Result<(), 
         if obfs_mode.is_some_and(|part| part.contains("obfs=http"))
             && obfs_host.is_some_and(|host| !host.is_empty())
         {
-            item.network = DEFAULT_NETWORK.to_string();
-            item.transport_extra.raw_header_type = Some(RAW_HEADER_HTTP.to_string());
-            item.transport_extra.host = obfs_host.map(str::to_string);
+            item.transport = Some(ProfileTransport::Tcp {
+                header: Some(RAW_HEADER_HTTP.to_string()),
+                host: obfs_host.map(str::to_string),
+                path: None,
+            });
         }
     } else if plugin_name == "v2ray-plugin" {
         let mode = plugin_parts
@@ -156,34 +185,42 @@ fn parse_shadowsocks_plugin(plugin: &str, item: &mut ProfileItem) -> Result<(), 
             .find_map(|part| part.strip_prefix("mode="))
             .unwrap_or("websocket");
         if mode == "websocket" {
-            item.network = "ws".to_string();
-            if let Some(host) = plugin_parts
+            let mut host = None;
+            let mut path = None;
+            if let Some(parsed_host) = plugin_parts
                 .iter()
                 .find_map(|part| part.strip_prefix("host="))
             {
-                item.transport_extra.host = Some(host.to_string());
-                item.sni = host.to_string();
+                let parsed_host = parsed_host.to_string();
+                item.tls
+                    .get_or_insert_with(default_tls_settings)
+                    .server_name = Some(parsed_host.clone());
+                host = Some(parsed_host);
             }
-            if let Some(path) = plugin_parts
+            if let Some(parsed_path) = plugin_parts
                 .iter()
                 .find_map(|part| part.strip_prefix("path="))
             {
-                item.transport_extra.path = Some(
-                    path.replace("\\=", "=")
+                path = Some(
+                    parsed_path
+                        .replace("\\=", "=")
                         .replace("\\,", ",")
                         .replace("\\\\", "\\"),
                 );
             }
+            item.transport = Some(ProfileTransport::Websocket { host, path });
         }
         if plugin_parts.contains(&"tls") {
-            item.stream_security = STREAM_SECURITY_TLS.to_string();
+            let tls = item.tls.get_or_insert_with(default_tls_settings);
+            tls.mode = TlsMode::Tls;
             if let Some(cert) = plugin_parts
                 .iter()
                 .find_map(|part| part.strip_prefix("certRaw="))
             {
                 let cert = cert.replace("\\=", "=");
-                item.cert =
-                    format!("-----BEGIN CERTIFICATE-----\n{cert}\n-----END CERTIFICATE-----");
+                tls.certificate_pem = Some(format!(
+                    "-----BEGIN CERTIFICATE-----\n{cert}\n-----END CERTIFICATE-----"
+                ));
             }
         }
         if let Some(mux) = plugin_parts
@@ -203,27 +240,25 @@ fn parse_shadowsocks_plugin(plugin: &str, item: &mut ProfileItem) -> Result<(), 
 }
 
 fn shadowsocks_plugin(item: &ProfileItem) -> Option<String> {
-    let transport = &item.transport_extra;
     let mut plugin = String::new();
     let mut plugin_args = String::new();
 
-    if item.network == DEFAULT_NETWORK
-        && transport.raw_header_type.as_deref() == Some(RAW_HEADER_HTTP)
-    {
+    let is_http_obfs = matches!(
+        &item.transport,
+        Some(ProfileTransport::Tcp { header, .. })
+            if header.as_deref() == Some(RAW_HEADER_HTTP)
+    );
+    if is_http_obfs {
+        let Some(ProfileTransport::Tcp { host, .. }) = &item.transport else {
+            return None;
+        };
         plugin = "obfs-local".to_string();
-        plugin_args = format!(
-            "obfs=http;obfs-host={};",
-            transport.host.as_deref().unwrap_or("")
-        );
+        plugin_args = format!("obfs=http;obfs-host={};", host.as_deref().unwrap_or(""));
     } else {
-        if item.network == "ws" {
+        if let Some(ProfileTransport::Websocket { host, path }) = &item.transport {
             plugin_args.push_str("mode=websocket;");
-            plugin_args.push_str(&format!(
-                "host={};",
-                transport.host.as_deref().unwrap_or("")
-            ));
-            let path = transport
-                .path
+            plugin_args.push_str(&format!("host={};", host.as_deref().unwrap_or("")));
+            let path = path
                 .as_deref()
                 .unwrap_or("")
                 .replace('\\', "\\\\")
@@ -231,9 +266,14 @@ fn shadowsocks_plugin(item: &ProfileItem) -> Option<String> {
                 .replace(',', "\\,");
             plugin_args.push_str(&format!("path={path};"));
         }
-        if item.stream_security == STREAM_SECURITY_TLS {
+        if item.stream_security() == STREAM_SECURITY_TLS {
             plugin_args.push_str("tls;");
-            if let Some(cert_raw) = extract_first_pem_body(&item.cert) {
+            if let Some(cert_raw) = item
+                .tls
+                .as_ref()
+                .and_then(|tls| tls.certificate_pem.as_deref())
+                .and_then(extract_first_pem_body)
+            {
                 plugin_args.push_str(&format!("certRaw={};", cert_raw.replace('=', "\\=")));
             }
         }

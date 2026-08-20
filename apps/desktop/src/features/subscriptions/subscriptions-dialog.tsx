@@ -27,7 +27,7 @@ import {
   saveSubscription,
   updateSubscriptions,
 } from "@/ipc";
-import type { SubItem_Deserialize } from "@/ipc/bindings";
+import type { Subscription } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { redactOperationalError } from "@voya/utils/operational-redaction";
 import { cn } from "@voya/ui/lib/utils";
@@ -38,20 +38,24 @@ type SubscriptionsDialogProps = {
   open: boolean;
 };
 
-function createBlankSubscription(): SubItem_Deserialize {
+function createBlankSubscription(): Subscription {
   return {
-    Enabled: true,
-    Filter: null,
-    MoreUrl: "",
-    Remarks: "",
-    Url: "",
-    UserAgent: "",
+    additionalUrl: "",
+    converterTarget: null,
+    enabled: true,
+    filter: null,
+    id: "",
+    preSocksPort: null,
+    remarks: "",
+    sort: 0,
+    url: "",
+    userAgent: "",
   };
 }
 
 export function SubscriptionsDialog({ onChanged, onOpenChange, open }: SubscriptionsDialogProps) {
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<SubItem_Deserialize>(() => createBlankSubscription());
+  const [form, setForm] = useState<Subscription>(() => createBlankSubscription());
   const [message, setMessage] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const { t } = useI18n();
@@ -85,7 +89,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
   async function handleSave() {
     await run(async () => {
       const saved = await saveSubscription(form);
-      setSelectedId(saved.Id);
+      setSelectedId(saved.id);
       setForm(saved);
 
       return "Subscription saved";
@@ -119,15 +123,15 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Rss className="size-4" aria-hidden="true" />
-            Subscriptions
+            {t("panes.subscriptions.title")}
           </DialogTitle>
-          <DialogDescription className="sr-only">Manage subscription sources and run updates.</DialogDescription>
+          <DialogDescription className="sr-only">{t("panes.subscriptions.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 lg:grid-cols-[18rem_1fr]">
           <Card className="min-h-0 gap-0 rounded-xl bg-surface-raised p-0 shadow-raised">
             <CardHeader className="flex h-10 flex-row items-center justify-between border-b px-3 py-0">
-              <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">Sources</CardTitle>
+              <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">{t("panes.subscriptions.sources")}</CardTitle>
               <Button
                 aria-label="New subscription"
                 className="size-7"
@@ -158,20 +162,20 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
                       <button
                         className={cn(
                           "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 rounded-md px-2 py-2 text-start text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                          selectedId === item.Id ? "bg-accent text-accent-foreground" : null,
+                          selectedId === item.id ? "bg-accent text-accent-foreground" : null,
                         )}
-                        key={item.Id}
+                        key={item.id}
                         onClick={() => {
-                          setSelectedId(item.Id);
+                          setSelectedId(item.id);
                           setForm(item);
                         }}
                         type="button"
                       >
-                        <span className="truncate font-medium">{item.Remarks || "Untitled"}</span>
-                        <Badge className="self-start" variant={item.Enabled ? "secondary" : "outline"}>
-                          {item.Enabled ? "Enabled" : "Disabled"}
+                        <span className="truncate font-medium">{item.remarks || "Untitled"}</span>
+                        <Badge className="self-start" variant={item.enabled ? "secondary" : "outline"}>
+                          {item.enabled ? "Enabled" : "Disabled"}
                         </Badge>
-                        <span className="col-span-2 truncate text-xs text-muted-foreground">{item.Url}</span>
+                        <span className="col-span-2 truncate text-xs text-muted-foreground">{item.url}</span>
                       </button>
                     ))
                   )}
@@ -182,41 +186,41 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
 
           <Card className="min-h-0 gap-3 rounded-xl bg-surface-raised p-3 shadow-raised">
             <CardHeader className="p-0">
-              <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">Subscription details</CardTitle>
+              <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">{t("panes.subscriptions.details")}</CardTitle>
             </CardHeader>
             <CardContent className="grid content-start gap-3 p-0">
               <div className="grid gap-3 md:grid-cols-2">
                 <TextField
                   label="Remarks"
-                  onChange={(value) => setForm((current) => ({ ...current, Remarks: value }))}
-                  value={form.Remarks ?? ""}
+                  onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
+                  value={form.remarks}
                 />
                 <TextField
                   label="User agent"
-                  onChange={(value) => setForm((current) => ({ ...current, UserAgent: value }))}
-                  value={form.UserAgent ?? ""}
+                  onChange={(value) => setForm((current) => ({ ...current, userAgent: value }))}
+                  value={form.userAgent}
                 />
               </div>
               <TextField
                 label="URL"
-                onChange={(value) => setForm((current) => ({ ...current, Url: value }))}
-                value={form.Url ?? ""}
+                onChange={(value) => setForm((current) => ({ ...current, url: value }))}
+                value={form.url}
               />
               <TextField
                 label="More URL"
-                onChange={(value) => setForm((current) => ({ ...current, MoreUrl: value }))}
-                value={form.MoreUrl ?? ""}
+                onChange={(value) => setForm((current) => ({ ...current, additionalUrl: value }))}
+                value={form.additionalUrl}
               />
               <div className="grid gap-3 md:grid-cols-2">
                 <TextField
                   label="Filter"
-                  onChange={(value) => setForm((current) => ({ ...current, Filter: value || null }))}
-                  value={form.Filter ?? ""}
+                  onChange={(value) => setForm((current) => ({ ...current, filter: value || null }))}
+                  value={form.filter ?? ""}
                 />
                 <TextField
                   label="Convert target"
-                  onChange={(value) => setForm((current) => ({ ...current, ConvertTarget: value || null }))}
-                  value={form.ConvertTarget ?? ""}
+                  onChange={(value) => setForm((current) => ({ ...current, converterTarget: value || null }))}
+                  value={form.converterTarget ?? ""}
                 />
               </div>
               <div className="flex h-9 items-center rounded-md border bg-card px-3 shadow-xs">
@@ -225,30 +229,30 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
                   htmlFor="subscription-enabled"
                 >
                   <Checkbox
-                    checked={form.Enabled ?? true}
+                    checked={form.enabled}
                     id="subscription-enabled"
-                    onCheckedChange={(checked) => setForm((current) => ({ ...current, Enabled: checked === true }))}
+                    onCheckedChange={(checked) => setForm((current) => ({ ...current, enabled: checked === true }))}
                   />
-                  Enabled
+                  {t("panes.subscriptions.enabled")}
                 </Label>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => void handleSave()} type="button">
                   <Save className="size-4" aria-hidden="true" />
-                  Save
+                  {t("actions.save")}
                 </Button>
                 <Button disabled={!selectedId} onClick={() => void handleDelete()} type="button" variant="outline">
                   <Trash2 className="size-4" aria-hidden="true" />
-                  Delete
+                  {t("actions.delete")}
                 </Button>
                 <Button disabled={!selectedId} onClick={() => void handleUpdate(selectedId)} type="button" variant="outline">
                   <RefreshCw className="size-4" aria-hidden="true" />
-                  Update selected
+                  {t("panes.subscriptions.updateSelected")}
                 </Button>
                 <Button onClick={() => void handleUpdate(null)} type="button" variant="outline">
                   <RefreshCw className="size-4" aria-hidden="true" />
-                  Update all
+                  {t("panes.subscriptions.updateAll")}
                 </Button>
               </div>
 
@@ -268,7 +272,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            Close
+            {t("actions.close")}
           </Button>
         </DialogFooter>
       </ScrollableDialogContent>

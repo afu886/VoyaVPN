@@ -3,17 +3,17 @@ import { useI18n } from "@voya/i18n/use-i18n";
 
 import { CheckboxField, NumberField, TextField } from "./runtime-fields";
 import { SettingsCheckboxGroup, SettingsGroup, SettingsRow } from "./settings-form";
-import type { SettingsBundleController } from "./use-settings-bundle";
+import type { AppSettingsController } from "./use-app-settings";
 
-export function NetworkTab({ controller }: { controller: SettingsBundleController }) {
+export function NetworkTab({ controller }: { controller: AppSettingsController }) {
   const { t } = useI18n();
-  const { bundle, error, update, working } = controller;
+  const { settings, error, update, working } = controller;
 
-  if (!bundle) {
+  if (!settings) {
     return <p className="text-xs text-muted-foreground">{working ? t("options.loading") : error}</p>;
   }
 
-  const patchTun = (patch: Partial<typeof bundle.network.tun>) =>
+  const patchTun = (patch: Partial<typeof settings.network.tun>) =>
     update((current) => ({
       ...current,
       network: {
@@ -21,7 +21,7 @@ export function NetworkTab({ controller }: { controller: SettingsBundleControlle
         tun: { ...current.network.tun, ...patch },
       },
     }));
-  const patchSystemProxy = (patch: Partial<typeof bundle.network.systemProxy>) =>
+  const patchSystemProxy = (patch: Partial<typeof settings.network.systemProxy>) =>
     update((current) => ({
       ...current,
       network: {
@@ -33,26 +33,26 @@ export function NetworkTab({ controller }: { controller: SettingsBundleControlle
   return (
     <div className="grid gap-4">
       <SettingsGroup>
-        <SettingsCheckboxGroup id="rt-tun-group" label={t("resx.TbSettingsTunMode")}>
-          <CheckboxField checked={bundle.network.tun.autoRoute} label={t("resx.TbSettingsTunAutoRoute")} onChange={(autoRoute) => patchTun({ autoRoute })} />
-          <CheckboxField checked={bundle.network.tun.strictRoute} label={t("resx.TbSettingsTunStrictRoute")} onChange={(strictRoute) => patchTun({ strictRoute })} />
-          <CheckboxField checked={bundle.network.tun.enableIpv6Address} label={t("resx.TbSettingsEnableIPv6Address")} onChange={(enableIpv6Address) => patchTun({ enableIpv6Address })} />
+        <SettingsCheckboxGroup id="rt-tun-group" label={t("settings.network.tunMode")}>
+          <CheckboxField checked={settings.network.tun.autoRoute} label={t("settings.network.tunAutoRoute")} onChange={(autoRoute) => patchTun({ autoRoute })} />
+          <CheckboxField checked={settings.network.tun.strictRoute} label={t("settings.network.tunStrictRoute")} onChange={(strictRoute) => patchTun({ strictRoute })} />
+          <CheckboxField checked={settings.network.tun.ipv6Enabled} label={t("settings.network.enableIpv6Address")} onChange={(ipv6Enabled) => patchTun({ ipv6Enabled })} />
         </SettingsCheckboxGroup>
-        <TextField id="rt-tun-stack" label={t("resx.TbSettingsTunStack")} onChange={(stack) => patchTun({ stack })} value={bundle.network.tun.stack} />
-        <NumberField id="rt-tun-mtu" label={t("resx.TbMtu")} onChange={(mtu) => patchTun({ mtu: mtu ?? 1500 })} value={bundle.network.tun.mtu} />
-        <TextField id="rt-tun-icmp-routing" label={t("resx.TbIcmpRoutingPolicy")} onChange={(icmpRouting) => patchTun({ icmpRouting })} value={bundle.network.tun.icmpRouting} />
+        <TextField id="rt-tun-stack" label={t("settings.network.tunStack")} onChange={(stack) => patchTun({ stack })} value={settings.network.tun.stack} />
+        <NumberField id="rt-tun-mtu" label={t("settings.network.mtu")} onChange={(mtu) => patchTun({ mtu: mtu ?? 1500 })} value={settings.network.tun.mtu} />
+        <TextField id="rt-tun-icmp-routing" label={t("settings.network.icmpRoutingPolicy")} onChange={(icmpRouting) => patchTun({ icmpRouting })} value={settings.network.tun.icmpRouting} />
       </SettingsGroup>
 
       <Separator />
 
       <SettingsGroup>
         <SettingsRow>
-          <CheckboxField checked={bundle.network.systemProxy.notProxyLocalAddress} label={t("resx.TbSettingsNotProxyLocalAddress")} onChange={(notProxyLocalAddress) => patchSystemProxy({ notProxyLocalAddress })} />
+          <CheckboxField checked={settings.network.systemProxy.bypassLocal} label={t("settings.network.bypassLocalAddress")} onChange={(bypassLocal) => patchSystemProxy({ bypassLocal })} />
         </SettingsRow>
-        <TextField id="rt-sysproxy-exceptions" label={t("resx.TbSettingsException")} onChange={(systemProxyExceptions) => patchSystemProxy({ systemProxyExceptions })} value={bundle.network.systemProxy.systemProxyExceptions} />
-        <TextField id="rt-sysproxy-advanced-protocol" label={t("resx.TbSettingsAdvancedProtocol")} onChange={(systemProxyAdvancedProtocol) => patchSystemProxy({ systemProxyAdvancedProtocol })} value={bundle.network.systemProxy.systemProxyAdvancedProtocol} />
-        <TextField id="rt-sysproxy-pac-path" label={t("resx.TbSettingsCustomSystemProxyPacPath")} onChange={(value) => patchSystemProxy({ customSystemProxyPacPath: nullableText(value) })} value={bundle.network.systemProxy.customSystemProxyPacPath ?? ""} />
-        <TextField id="rt-sysproxy-script-path" label={t("resx.TbSettingsCustomSystemProxyScriptPath")} onChange={(value) => patchSystemProxy({ customSystemProxyScriptPath: nullableText(value) })} value={bundle.network.systemProxy.customSystemProxyScriptPath ?? ""} />
+        <TextField id="rt-sysproxy-exceptions" label={t("settings.network.systemProxyExceptions")} onChange={(exceptions) => patchSystemProxy({ exceptions })} value={settings.network.systemProxy.exceptions} />
+        <TextField id="rt-sysproxy-advanced-protocol" label={t("settings.network.systemProxyProtocol")} onChange={(advancedProtocol) => patchSystemProxy({ advancedProtocol })} value={settings.network.systemProxy.advancedProtocol} />
+        <TextField id="rt-sysproxy-pac-path" label={t("settings.network.customPacPath")} onChange={(value) => patchSystemProxy({ customPacPath: nullableText(value) })} value={settings.network.systemProxy.customPacPath ?? ""} />
+        <TextField id="rt-sysproxy-script-path" label={t("settings.network.customScriptPath")} onChange={(value) => patchSystemProxy({ customScriptPath: nullableText(value) })} value={settings.network.systemProxy.customScriptPath ?? ""} />
       </SettingsGroup>
     </div>
   );

@@ -5,16 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { changeLocale } from "@voya/i18n";
-import type { SettingsBundle_Serialize } from "@/ipc/bindings";
-
+import { makeAppSettings } from "./app-settings.test-fixture";
 import { SettingsSurface } from "./settings-dialog";
 import { SettingsWindow } from "./settings-window";
 
 const ipcMocks = vi.hoisted(() => ({
   appUpdateStatus: vi.fn(),
   getWindowChromeConfig: vi.fn(),
-  loadSettingsBundle: vi.fn(),
-  saveSettingsBundle: vi.fn(),
+  loadAppSettings: vi.fn(),
+  saveAppSettings: vi.fn(),
   updateGeoAssets: vi.fn(),
   updateSrsAssets: vi.fn(),
 }));
@@ -40,8 +39,8 @@ describe("unified settings surface", () => {
     await changeLocale("en");
     ipcMocks.getWindowChromeConfig.mockResolvedValue({ titleBarLayout: "none" });
     ipcMocks.appUpdateStatus.mockResolvedValue({ currentVersion: "0.1.0", message: null, state: "ready" });
-    ipcMocks.loadSettingsBundle.mockResolvedValue(makeBundle());
-    ipcMocks.saveSettingsBundle.mockImplementation(async (bundle) => bundle);
+    ipcMocks.loadAppSettings.mockResolvedValue(makeAppSettings());
+    ipcMocks.saveAppSettings.mockImplementation(async (settings) => settings);
     ipcMocks.updateGeoAssets.mockResolvedValue([]);
     ipcMocks.updateSrsAssets.mockResolvedValue([]);
     updaterMocks.check.mockResolvedValue(null);
@@ -69,7 +68,7 @@ describe("unified settings surface", () => {
 
     expect(screen.getByDisplayValue("agent-after-edit")).toBeInTheDocument();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
-    expect(ipcMocks.loadSettingsBundle).toHaveBeenCalledTimes(1);
+    expect(ipcMocks.loadAppSettings).toHaveBeenCalledTimes(1);
   });
 
   it("persists all edits through the single Save all action", async () => {
@@ -82,10 +81,10 @@ describe("unified settings surface", () => {
 
     await user.click(screen.getByRole("button", { name: "Save all" }));
 
-    await waitFor(() => expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledTimes(1));
-    expect(ipcMocks.saveSettingsBundle).toHaveBeenCalledWith(
+    await waitFor(() => expect(ipcMocks.saveAppSettings).toHaveBeenCalledTimes(1));
+    expect(ipcMocks.saveAppSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        coreBasicItem: expect.objectContaining({ DefUserAgent: "saved-agent" }),
+        core: expect.objectContaining({ defaultUserAgent: "saved-agent" }),
       }),
     );
   });
@@ -118,53 +117,4 @@ function renderWindow() {
 function renderWithQuery(children: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
-}
-
-function makeBundle(): SettingsBundle_Serialize {
-  return {
-    uiPreferences: { language: "en", theme: "system" },
-    autostartEnabled: false,
-    showWindowHotkey: { EGlobalHotkey: 0, Alt: true, Control: true, Shift: false, KeyCode: 86 },
-    sources: { geoSourceUrl: null, routeRulesTemplateSourceUrl: null, srsSourceUrl: null },
-    subConvertUrl: null,
-    coreBasicItem: {
-      LogEnabled: false,
-      Loglevel: "warning",
-      MuxEnabled: false,
-      DefAllowInsecure: false,
-      DefFingerprint: "chrome",
-      DefUserAgent: "agent-before-edit",
-      EnableFragment: false,
-      EnableCacheFile4Sbox: true,
-    },
-    mux4SboxItem: { Protocol: "h2mux", MaxConnections: 4, Padding: false },
-    hysteriaItem: { UpMbps: 100, DownMbps: 100, HopInterval: 30 },
-    network: {
-      tun: {
-        autoRoute: true,
-        strictRoute: true,
-        stack: "system",
-        mtu: 9000,
-        enableIpv6Address: false,
-        icmpRouting: "",
-      },
-      systemProxy: {
-        systemProxyExceptions: "",
-        notProxyLocalAddress: true,
-        systemProxyAdvancedProtocol: "",
-        customSystemProxyPacPath: null,
-        customSystemProxyScriptPath: null,
-      },
-    },
-    speedTestItem: {
-      SpeedTestTimeout: 10,
-      SpeedTestUrl: "https://speed.example.test",
-      SpeedPingTestUrl: "https://ping.example.test",
-      MixedConcurrencyCount: 4,
-      IPAPIUrl: "https://ip.example.test",
-      UdpTestTarget: "1.1.1.1:53",
-      SpeedTestPageSize: 10,
-      SpeedTestDelayInterval: 1,
-    },
-  };
 }

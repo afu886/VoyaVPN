@@ -35,9 +35,9 @@ import { cn } from "@voya/ui/lib/utils";
 import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-badge";
 
 const trafficModeOptions: Array<{ labelKey: TranslationKey; value: TrafficMode }> = [
-  { labelKey: "proxy.trafficModeRule", value: 0 },
-  { labelKey: "proxy.trafficModeGlobal", value: 1 },
-  { labelKey: "proxy.trafficModeDirect", value: 2 },
+  { labelKey: "proxy.trafficModeRule", value: "rule" },
+  { labelKey: "proxy.trafficModeGlobal", value: "global" },
+  { labelKey: "proxy.trafficModeDirect", value: "direct" },
 ];
 
 export function ProxyGroupsScreen() {

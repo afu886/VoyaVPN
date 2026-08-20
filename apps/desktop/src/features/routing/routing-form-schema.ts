@@ -4,41 +4,39 @@ import { getErrorMessage } from "@voya/utils/error";
 
 import { DOMAIN_STRATEGIES, RULE_TYPES, SINGBOX_DOMAIN_STRATEGIES } from "./routing-constants";
 
-const optionalNullableText = z.string().trim().nullable().optional();
-const optionalStringList = z.array(z.string().trim().min(1, "List items cannot be empty")).nullable().optional();
+const nullableText = z.string().trim().nullable();
+const nullableStringList = z.array(z.string().trim().min(1, "List items cannot be empty")).nullable();
 
 export const routingRuleSchema = z.object({
-  Id: z.string().trim().optional(),
-  Type: optionalNullableText,
-  Port: optionalNullableText.superRefine(validatePortExpression),
-  Network: optionalNullableText.superRefine(validateNetworkExpression),
-  InboundTag: optionalStringList,
-  OutboundTag: optionalNullableText,
-  Ip: optionalStringList,
-  Domain: optionalStringList,
-  Protocol: optionalStringList,
-  Process: optionalStringList,
-  Enabled: z.boolean().optional(),
-  Remarks: optionalNullableText,
-  RuleType: z.union([z.literal(RULE_TYPES.All), z.literal(RULE_TYPES.Routing), z.literal(RULE_TYPES.Dns)]).nullable().optional(),
+  id: z.string().trim().default(""),
+  kind: nullableText,
+  port: nullableText.superRefine(validatePortExpression),
+  network: nullableText.superRefine(validateNetworkExpression),
+  inboundTags: nullableStringList,
+  outbound: nullableText,
+  ip: nullableStringList,
+  domain: nullableStringList,
+  protocol: nullableStringList,
+  process: nullableStringList,
+  enabled: z.boolean().default(true),
+  remarks: nullableText,
+  scope: z.union([z.literal(RULE_TYPES.All), z.literal(RULE_TYPES.Routing), z.literal(RULE_TYPES.Dns)]).nullable(),
 });
 
 const optionalHttpsUrl = z.string().trim().superRefine(validateHttpsUrl);
 
 export const routingProfileSchema = z.object({
-  Id: z.string().trim().optional(),
-  CustomIcon: z.string().optional(),
-  CustomRulesetPath4Singbox: z.string().trim(),
-  DomainStrategy: z.enum(DOMAIN_STRATEGIES),
-  DomainStrategy4Singbox: z.enum(SINGBOX_DOMAIN_STRATEGIES),
-  Enabled: z.boolean(),
-  IsActive: z.boolean().optional(),
-  Locked: z.boolean().optional(),
-  Remarks: z.string().trim().max(256, "Remarks must be 256 characters or fewer"),
-  RuleNum: z.number().int().nonnegative().optional(),
-  RuleSet: z.array(routingRuleSchema),
-  Sort: z.number().int().optional(),
-  Url: optionalHttpsUrl,
+  id: z.string().trim().default(""),
+  icon: z.string().default(""),
+  singboxRulesetPath: z.string().trim(),
+  domainStrategy: z.enum(DOMAIN_STRATEGIES),
+  singboxDomainStrategy: z.enum(SINGBOX_DOMAIN_STRATEGIES),
+  enabled: z.boolean(),
+  locked: z.boolean().default(false),
+  remarks: z.string().trim().max(256, "remarks must be 256 characters or fewer"),
+  rules: z.array(routingRuleSchema),
+  sort: z.number().int().default(0),
+  sourceUrl: optionalHttpsUrl,
 });
 
 export type ErrorMap = Record<string, string>;
@@ -89,7 +87,7 @@ function validatePortExpression(value: string | null | undefined, context: z.Ref
     if (!match) {
       context.addIssue({
         code: "custom",
-        message: "Port must be a comma-separated list of ports or ranges",
+        message: "port must be a comma-separated list of ports or ranges",
       });
       return;
     }
@@ -99,7 +97,7 @@ function validatePortExpression(value: string | null | undefined, context: z.Ref
     if (start > 65535 || end > 65535 || start > end) {
       context.addIssue({
         code: "custom",
-        message: "Port values must be between 0 and 65535 and ranges must ascend",
+        message: "port values must be between 0 and 65535 and ranges must ascend",
       });
       return;
     }
@@ -118,6 +116,6 @@ function validateNetworkExpression(value: string | null | undefined, context: z.
     return normalized ? [normalized] : [];
   });
   if (values.length === 0 || values.some((item) => !allowed.has(item))) {
-    context.addIssue({ code: "custom", message: "Network must be tcp, udp, or tcp,udp" });
+    context.addIssue({ code: "custom", message: "network must be tcp, udp, or tcp,udp" });
   }
 }

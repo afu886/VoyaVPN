@@ -31,7 +31,7 @@ pnpm build               # Delegates to @voya/desktop build (tsc -b + vite build
 pnpm --filter @voya/desktop build  # Build only the desktop app
 pnpm tauri:build --debug # Unsigned debug Tauri packages (no signing creds needed)
 
-pnpm run verify:ci       # Full local CI-parity suite — run this before declaring work done
+pnpm run verify:local       # Full local verification suite — run this before declaring work done
 
 # Individual gates (mirror CI jobs):
 pnpm run check:rust:test # Workspace tests (see note below) + shell binary test target
@@ -44,7 +44,7 @@ pnpm run check:rust:clippy   # clippy --workspace --all-targets -D warnings
 pnpm run check:rust:deps     # cargo-machete 0.9.2; install it locally first
 pnpm run check:dead-code     # Knip workspace scan + strict production scan
 pnpm check:bindings      # Fail if generated IPC bindings drift (see IPC below)
-pnpm check:i18n          # Fail if locale files or overlays drift from production usage and v2rayN .resx source
+pnpm check:i18n          # Check locale key alignment, usage, dynamic keys, and visible hardcoded text
 ```
 
 Single Rust test: `cargo test -p voya-core <test_name>` (substitute the owning crate).
@@ -58,7 +58,7 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 ### Rust crates (`crates/`)
 
 - **voya-core** — Pure, OS-free, deterministic domain logic. Owns models/enums, share-link parsers, routing/DNS logic, and **sing-box config generation** (the generation-related modules are `crates/voya-core/src/config.rs`, `crates/voya-core/src/context.rs`, `crates/voya-core/src/singbox/`, and `crates/voya-core/src/groups.rs`; ADR 0003 refers to them as `coregen::`, while the file actually named `coregen.rs` is `crates/voya-app/src/coregen.rs`). Must contain **no** `#[cfg(target_os)]`, OS/Tauri/filesystem/network/process APIs. Clocks, randomness, ports, and platform facts are *injected*.
-- **voya-db** — Fresh sqlx SQLite schema, migrations, repositories. The **only** typed-blob persistence boundary (`ProtocolExtraItem`/`TransportExtraItem` serialize to TEXT only here).
+- **voya-db** — Fresh sqlx SQLite schema, migrations, repositories. It is the **only** typed persistence boundary: tagged `ProfileProtocol`, `ProfileTransport`, TLS settings, and routing rules serialize to SQLite `TEXT` only here.
 - **voya-platform** — All OS-specific code: `paths`, `process`, `elevation`, `tun`, `sysproxy`/PAC, `autostart`, `hotkeys`, `coreinfo`, `privilege`. Domain crates reach platform side effects through traits/adapters defined here.
 - **voya-net** — HTTP downloads, subscriptions, Clash REST/WebSocket, and ruleset/Geo asset acquisition.
 - **voya-udptest** — SOCKS5 UDP-associate channel and UDP test modes.
@@ -71,7 +71,7 @@ A Rust workspace of layered crates plus the Tauri desktop shell, React app, and 
 - **`apps/desktop/src/ipc/bindings.ts` is generated** from Rust `specta`/`tauri-specta` — never edit by hand, never hand-write DTOs mirroring backend types. It is regenerated automatically on every debug build (`run()` exports it). After changing any Rust command/event/DTO, run `pnpm generate:bindings` and commit; `pnpm check:bindings` (a CI gate) fails on drift.
 - `apps/desktop/src/features/<subsystem>/` — desktop feature UIs (profiles, subscriptions, routing, dns, proxy, groups, options, logs, qr, templates, updates, home).
 - `packages/ui/src/components/` — shared shadcn/ui primitives; `apps/desktop/src/components/app-shell/` — desktop shell. State via Zustand (`apps/desktop/src/stores/`) + TanStack Query.
-- `packages/i18n/src/locales/` — generated locale JSON imported from upstream v2rayN `.resx` files.
+- `packages/i18n/src/locales/` — Voya-maintained locale JSON; these files are the only translation source.
 
 ### IPC event model (three channels)
 
@@ -93,7 +93,7 @@ Config generation correctness is judged by the **generated sing-box JSON**, not 
 ## Cores and i18n
 
 - The sing-box core binary is **not redistributed by default** (GPL/AGPL). It is fetched on first run: `postinstall` runs `scripts/core/install-sing-box.mjs` (force re-fetch with `pnpm core:sing-box:install`).
-- Locale files (`packages/i18n/src/locales/*.json`) and overlays are **generated from production TypeScript usage and v2rayN `.resx` files**, not edited directly. Source dir defaults to `../v2rayN/v2rayN/ServiceLib/Resx` (override with `VOYAVPN_V2RAYN_RESX_DIR`). Run `pnpm generate:i18n` to regenerate; `pnpm check:i18n` is a CI gate. `de` is a Voya-managed English fallback (no upstream German resx).
+- Locale files (`packages/i18n/src/locales/*.json`) are maintained directly by Voya and are the sole language source. There are no ResX imports, overlays, or upstream snapshots. `pnpm check:i18n` checks locale alignment and production usage.
 
 ## macOS NetworkExtension hygiene
 
@@ -120,4 +120,4 @@ become the elected provider for `app.voyavpn.desktop.PacketTunnel`.
 - Clippy is strict: `unwrap_used`, `dbg_macro`, `todo`, and `all` are warnings, and CI runs clippy with `-D warnings` — avoid `.unwrap()`/`.expect()` outside tests and setup.
 - The ADRs indexed in `docs/adr/README.md` are the authoritative design record — consult them before changing crate boundaries or the IPC contract.
 - Commit messages in this repo are written in Chinese with `type:` prefixes (feat/fix/refactor/chore/docs); multiple changes are often combined in one message.
-- E2E smoke tests use Playwright + `tauri-driver` (`apps/desktop/e2e/`, `pnpm check:frontend:smoke`). Release tooling and runbooks live in `scripts/release/` and `docs/release/`.
+- Renderer smoke tests use Playwright with a Tauri IPC mock (`pnpm check:frontend:smoke:mock`); Linux CI separately runs the packaged shell through `tauri-driver` (`pnpm check:desktop:smoke`). Release tooling and runbooks live in `scripts/release/` and `docs/release/`.

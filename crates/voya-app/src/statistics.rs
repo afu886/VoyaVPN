@@ -3,19 +3,18 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use futures_util::StreamExt;
-use serde::Deserialize;
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
     time,
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message};
-use voya_core::{
-    AppConfig, CoreType, InboundProtocol, ServerStatItem, DEFAULT_LOCAL_PORT, LOOPBACK,
-};
+use voya_core::{AppConfig, CoreType, InboundProtocol, ServerStatItem, DEFAULT_LOCAL_PORT};
 use voya_db::{Database, DbError};
+use voya_net::clash::{
+    decode_traffic_message, ClashApiEndpoint, ClashWebSocketClient, ClashWebSocketEvent,
+    ClashWebSocketResource,
+};
 
 use crate::supervisor::{CoreSupervisor, SupervisorSnapshot};
 
@@ -248,15 +247,7 @@ pub async fn apply_statistics_sample(
 
 #[must_use]
 pub fn parse_singbox_traffic_sample(source: &str) -> Option<ServerSpeedSample> {
-    #[derive(Deserialize)]
-    struct TrafficItem {
-        #[serde(alias = "Up")]
-        up: u64,
-        #[serde(alias = "Down")]
-        down: u64,
-    }
-
-    let traffic = serde_json::from_str::<TrafficItem>(source).ok()?;
+    let traffic = decode_traffic_message(source)?;
 
     Some(ServerSpeedSample {
         proxy_up_bytes: i64::try_from(traffic.up).unwrap_or(i64::MAX),
@@ -386,9 +377,14 @@ async fn run_singbox_statistics_service(
             continue;
         };
 
-        let url = format!("ws://{LOOPBACK}:{state_port}/traffic");
-        match time::timeout(SINGBOX_WS_CONNECT_TIMEOUT, connect_async(&url)).await {
-            Ok(Ok((mut stream, _))) => loop {
+        let client = ClashWebSocketClient::new(ClashApiEndpoint::loopback(state_port));
+        match time::timeout(
+            SINGBOX_WS_CONNECT_TIMEOUT,
+            client.connect(ClashWebSocketResource::Traffic),
+        )
+        .await
+        {
+            Ok(Ok(mut session)) => loop {
                 match singbox_process_identity(&supervisor).await {
                     Some(current_identity) if current_identity == identity => {}
                     Some(_) | None => break,
@@ -400,25 +396,20 @@ async fn run_singbox_statistics_service(
                             return;
                         }
                     }
-                    message = time::timeout(COALESCE_INTERVAL, stream.next()) => {
+                    message = time::timeout(COALESCE_INTERVAL, session.next_event()) => {
                         match message {
-                            Ok(Some(Ok(Message::Text(text)))) => {
-                                if let Some(sample) = parse_singbox_traffic_sample(&text) {
-                                    reconnect_backoff.reset();
-                                    let _ = sample_tx.send(sample).await;
-                                }
+                            Ok(Ok(ClashWebSocketEvent::Traffic(traffic))) => {
+                                reconnect_backoff.reset();
+                                let sample = ServerSpeedSample {
+                                    proxy_up_bytes: i64::try_from(traffic.up).unwrap_or(i64::MAX),
+                                    proxy_down_bytes: i64::try_from(traffic.down).unwrap_or(i64::MAX),
+                                    direct_up_bytes: 0,
+                                    direct_down_bytes: 0,
+                                };
+                                let _ = sample_tx.send(sample).await;
                             }
-                            Ok(Some(Ok(Message::Binary(bytes)))) => {
-                                if let Ok(text) = String::from_utf8(bytes.to_vec()) {
-                                    if let Some(sample) = parse_singbox_traffic_sample(&text) {
-                                        reconnect_backoff.reset();
-                                        let _ = sample_tx.send(sample).await;
-                                    }
-                                }
-                            }
-                            Ok(Some(Ok(Message::Close(_)))) | Ok(None) => break,
-                            Ok(Some(Ok(_))) | Err(_) => {}
-                            Ok(Some(Err(error))) => {
+                            Ok(Ok(ClashWebSocketEvent::Connections(_))) | Err(_) => {}
+                            Ok(Err(error)) => {
                                 tracing::debug!(?error, "sing-box statistics websocket read failed");
                                 break;
                             }
@@ -590,7 +581,7 @@ fn inbound_port(app_config: &AppConfig, protocol: InboundProtocol) -> i32 {
         .map(|item| item.local_port)
         .or_else(|| app_config.inbound.first().map(|item| item.local_port))
         .unwrap_or(DEFAULT_LOCAL_PORT)
-        + protocol.as_i32()
+        + protocol.port_offset()
 }
 
 fn clamp_port(port: i32) -> u16 {
@@ -605,7 +596,7 @@ fn nonempty(value: String) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use crate::supervisor::SupervisorConnectionState;
-    use voya_core::{ConfigType, InItem, ProfileItem, TunModeItem};
+    use voya_core::{InItem, ProfileItem, ProfileProtocol, ServerEndpoint, TunModeItem};
 
     use super::*;
 
@@ -843,10 +834,15 @@ mod tests {
     fn sample_profile(index_id: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VMess,
             remarks: index_id.to_string(),
-            address: "example.test".to_string(),
-            port: 443,
+            protocol: ProfileProtocol::Vmess {
+                server: ServerEndpoint {
+                    address: "example.test".to_string(),
+                    port: 443,
+                },
+                uuid: String::new(),
+                cipher: None,
+            },
             ..ProfileItem::default()
         }
     }

@@ -1,33 +1,16 @@
 CREATE TABLE profile_items (
     index_id TEXT PRIMARY KEY NOT NULL,
-    config_type INTEGER NOT NULL,
-    config_version INTEGER NOT NULL DEFAULT 4,
-    subid TEXT NOT NULL DEFAULT '',
-    is_sub INTEGER NOT NULL DEFAULT 1 CHECK (is_sub IN (0, 1)),
-    pre_socks_port INTEGER,
+    config_type TEXT NOT NULL,
+    subscription_id TEXT,
     display_log INTEGER NOT NULL DEFAULT 1 CHECK (display_log IN (0, 1)),
     remarks TEXT NOT NULL DEFAULT '',
-    address TEXT NOT NULL DEFAULT '',
-    port INTEGER NOT NULL DEFAULT 0,
-    password TEXT NOT NULL DEFAULT '',
-    username TEXT NOT NULL DEFAULT '',
-    network TEXT NOT NULL DEFAULT '',
-    stream_security TEXT NOT NULL DEFAULT '',
-    sni TEXT NOT NULL DEFAULT '',
-    alpn TEXT NOT NULL DEFAULT '',
-    public_key TEXT NOT NULL DEFAULT '',
-    short_id TEXT NOT NULL DEFAULT '',
-    spider_x TEXT NOT NULL DEFAULT '',
-    mldsa65_verify TEXT NOT NULL DEFAULT '',
-    cert TEXT NOT NULL DEFAULT '',
-    cert_sha TEXT NOT NULL DEFAULT '',
-    ech_config_list TEXT NOT NULL DEFAULT '',
-    finalmask TEXT NOT NULL DEFAULT '',
-    protocol_extra TEXT NOT NULL DEFAULT '{}',
-    transport_extra TEXT NOT NULL DEFAULT '{}'
+    protocol TEXT NOT NULL,
+    transport TEXT,
+    tls TEXT,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_profile_items_subid ON profile_items (subid);
+CREATE INDEX idx_profile_items_subscription_id ON profile_items (subscription_id);
 CREATE INDEX idx_profile_items_config_type ON profile_items (config_type);
 
 CREATE TABLE profile_ex_items (
@@ -50,8 +33,6 @@ CREATE TABLE subscriptions (
     sort INTEGER NOT NULL DEFAULT 0,
     filter TEXT,
     convert_target TEXT,
-    prev_profile TEXT,
-    next_profile TEXT,
     pre_socks_port INTEGER
 );
 
@@ -62,18 +43,15 @@ CREATE TABLE routing_items (
     remarks TEXT NOT NULL DEFAULT '',
     url TEXT NOT NULL DEFAULT '',
     rule_set TEXT NOT NULL DEFAULT '[]',
-    rule_num INTEGER NOT NULL DEFAULT 0,
     enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
     locked INTEGER NOT NULL DEFAULT 0 CHECK (locked IN (0, 1)),
     custom_icon TEXT NOT NULL DEFAULT '',
     custom_ruleset_path4_singbox TEXT NOT NULL DEFAULT '',
     domain_strategy TEXT NOT NULL DEFAULT '',
     domain_strategy4_singbox TEXT NOT NULL DEFAULT '',
-    sort INTEGER NOT NULL DEFAULT 0,
-    is_active INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1))
+    sort INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_routing_items_active ON routing_items (is_active);
 CREATE INDEX idx_routing_items_sort ON routing_items (sort);
 
 CREATE TABLE server_stat_items (
@@ -84,4 +62,27 @@ CREATE TABLE server_stat_items (
     today_down INTEGER NOT NULL DEFAULT 0,
     date_now INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (index_id) REFERENCES profile_items(index_id) ON DELETE CASCADE
+);
+
+CREATE TABLE app_state (
+    id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+    active_profile_id TEXT,
+    active_routing_id TEXT,
+    FOREIGN KEY (active_profile_id) REFERENCES profile_items(index_id) ON DELETE SET NULL,
+    FOREIGN KEY (active_routing_id) REFERENCES routing_items(id) ON DELETE SET NULL
+);
+
+INSERT INTO app_state (id, active_profile_id, active_routing_id)
+VALUES (1, NULL, NULL);
+CREATE TABLE schema_metadata (
+    id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+    version INTEGER NOT NULL CHECK (version = 1)
+);
+
+INSERT INTO schema_metadata (id, version) VALUES (1, 1);
+
+CREATE TABLE app_settings (
+    id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+    schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+    payload TEXT NOT NULL
 );

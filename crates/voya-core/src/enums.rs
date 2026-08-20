@@ -1,119 +1,30 @@
-use std::{error::Error, fmt};
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use specta::Type;
-
-macro_rules! int_enum {
-    ($name:ident { $($variant:ident = $value:expr),+ $(,)? }) => {
-        impl $name {
-            #[must_use]
-            pub const fn as_i32(self) -> i32 {
-                self as i32
-            }
-
-            #[must_use]
-            pub const fn from_i32(value: i32) -> Option<Self> {
-                match value {
-                    $($value => Some(Self::$variant),)+
-                    _ => None,
-                }
-            }
-        }
-
-        impl From<$name> for i32 {
-            fn from(value: $name) -> Self {
-                value.as_i32()
-            }
-        }
-
-        impl TryFrom<i32> for $name {
-            type Error = EnumDiscriminantError;
-
-            fn try_from(value: i32) -> Result<Self, Self::Error> {
-                Self::from_i32(value).ok_or(EnumDiscriminantError {
-                    enum_name: stringify!($name),
-                    value,
-                })
-            }
-        }
-
-        impl Serialize for $name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                serializer.serialize_i32(self.as_i32())
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let value = i32::deserialize(deserializer)?;
-                Self::try_from(value).map_err(serde::de::Error::custom)
-            }
-        }
-    };
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EnumDiscriminantError {
-    pub enum_name: &'static str,
-    pub value: i32,
-}
-
-impl fmt::Display for EnumDiscriminantError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "unknown {} discriminant {}",
-            self.enum_name, self.value
-        )
-    }
-}
-
-impl Error for EnumDiscriminantError {}
+use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ConfigType {
     #[default]
-    VMess = 1,
-    Custom = 2,
-    Shadowsocks = 3,
-    SOCKS = 4,
-    VLESS = 5,
-    Trojan = 6,
-    Hysteria2 = 7,
-    TUIC = 8,
-    WireGuard = 9,
-    HTTP = 10,
-    Anytls = 11,
-    Naive = 12,
-    PolicyGroup = 101,
-    ProxyChain = 102,
+    #[serde(rename = "vmess")]
+    VMess,
+    Custom,
+    Shadowsocks,
+    #[serde(rename = "socks")]
+    SOCKS,
+    #[serde(rename = "vless")]
+    VLESS,
+    Trojan,
+    Hysteria2,
+    #[serde(rename = "tuic")]
+    TUIC,
+    WireGuard,
+    #[serde(rename = "http")]
+    HTTP,
+    Anytls,
+    Naive,
+    PolicyGroup,
+    ProxyChain,
 }
-
-int_enum!(ConfigType {
-    VMess = 1,
-    Custom = 2,
-    Shadowsocks = 3,
-    SOCKS = 4,
-    VLESS = 5,
-    Trojan = 6,
-    Hysteria2 = 7,
-    TUIC = 8,
-    WireGuard = 9,
-    HTTP = 10,
-    Anytls = 11,
-    Naive = 12,
-    PolicyGroup = 101,
-    ProxyChain = 102,
-});
 
 impl ConfigType {
     #[must_use]
@@ -125,215 +36,114 @@ impl ConfigType {
     pub const fn is_group_type(self) -> bool {
         matches!(self, Self::PolicyGroup | Self::ProxyChain)
     }
+
+    #[must_use]
+    pub const fn sort_rank(self) -> u8 {
+        match self {
+            Self::VMess => 0,
+            Self::Custom => 1,
+            Self::Shadowsocks => 2,
+            Self::SOCKS => 3,
+            Self::VLESS => 4,
+            Self::Trojan => 5,
+            Self::Hysteria2 => 6,
+            Self::TUIC => 7,
+            Self::WireGuard => 8,
+            Self::HTTP => 9,
+            Self::Anytls => 10,
+            Self::Naive => 11,
+            Self::PolicyGroup => 12,
+            Self::ProxyChain => 13,
+        }
+    }
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CoreType {
     #[default]
-    sing_box = 24,
+    #[serde(rename = "singBox")]
+    sing_box,
 }
-
-int_enum!(CoreType {
-    sing_box = 24,
-});
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
-pub enum GlobalHotkey {
-    ShowForm = 0,
-    SystemProxyClear = 1,
-    SystemProxySet = 2,
-    SystemProxyUnchanged = 3,
-    SystemProxyPac = 4,
-}
-
-int_enum!(GlobalHotkey {
-    ShowForm = 0,
-    SystemProxyClear = 1,
-    SystemProxySet = 2,
-    SystemProxyUnchanged = 3,
-    SystemProxyPac = 4,
-});
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InboundProtocol {
-    socks = 0,
-    socks2 = 1,
-    socks3 = 2,
-    pac = 3,
-    api = 4,
-    api2 = 5,
-    mixed = 6,
-    speedtest = 21,
+    socks,
+    socks2,
+    socks3,
+    pac,
+    api,
+    api2,
+    mixed,
+    speedtest,
 }
 
-int_enum!(InboundProtocol {
-    socks = 0,
-    socks2 = 1,
-    socks3 = 2,
-    pac = 3,
-    api = 4,
-    api2 = 5,
-    mixed = 6,
-    speedtest = 21,
-});
+impl InboundProtocol {
+    #[must_use]
+    pub const fn port_offset(self) -> i32 {
+        match self {
+            Self::socks => 0,
+            Self::socks2 => 1,
+            Self::socks3 => 2,
+            Self::pac => 3,
+            Self::api => 4,
+            Self::api2 => 5,
+            Self::mixed => 6,
+            Self::speedtest => 21,
+        }
+    }
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum MoveAction {
-    Top = 1,
-    Up = 2,
-    Down = 3,
-    Bottom = 4,
-    Position = 5,
+    Top,
+    Up,
+    Down,
+    Bottom,
+    Position,
 }
 
-int_enum!(MoveAction {
-    Top = 1,
-    Up = 2,
-    Down = 3,
-    Bottom = 4,
-    Position = 5,
-});
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum MultipleLoad {
-    LeastPing = 0,
-    Fallback = 1,
-    Random = 2,
-    RoundRobin = 3,
-    LeastLoad = 4,
+    LeastPing,
+    Fallback,
+    Random,
+    RoundRobin,
+    LeastLoad,
 }
 
-int_enum!(MultipleLoad {
-    LeastPing = 0,
-    Fallback = 1,
-    Random = 2,
-    RoundRobin = 3,
-    LeastLoad = 4,
-});
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TrafficMode {
     #[default]
-    Rule = 0,
-    Global = 1,
-    Direct = 2,
-    Unchanged = 3,
+    Rule,
+    Global,
+    Direct,
+    Unchanged,
 }
-
-int_enum!(TrafficMode {
-    Rule = 0,
-    Global = 1,
-    Direct = 2,
-    Unchanged = 3,
-});
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RuleType {
-    ALL = 0,
-    Routing = 1,
-    DNS = 2,
+    #[serde(rename = "all")]
+    ALL,
+    Routing,
+    #[serde(rename = "dns")]
+    DNS,
 }
 
-int_enum!(RuleType {
-    ALL = 0,
-    Routing = 1,
-    DNS = 2,
-});
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
-pub enum SpeedActionType {
-    Tcping = 0,
-    Realping = 1,
-    UdpTest = 2,
-    Speedtest = 3,
-    Mixedtest = 4,
-    FastRealping = 5,
-}
-
-int_enum!(SpeedActionType {
-    Tcping = 0,
-    Realping = 1,
-    UdpTest = 2,
-    Speedtest = 3,
-    Mixedtest = 4,
-    FastRealping = 5,
-});
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
-#[repr(i32)]
-#[specta(type = i32)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SysProxyType {
     #[default]
-    ForcedClear = 0,
-    ForcedChange = 1,
-    Unchanged = 2,
-    Pac = 3,
-}
-
-int_enum!(SysProxyType {
-    ForcedClear = 0,
-    ForcedChange = 1,
-    Unchanged = 2,
-    Pac = 3,
-});
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn config_type_discriminants_match_v2rayn() {
-        assert_eq!(ConfigType::VMess.as_i32(), 1);
-        assert_eq!(ConfigType::Custom.as_i32(), 2);
-        assert_eq!(ConfigType::Shadowsocks.as_i32(), 3);
-        assert_eq!(ConfigType::SOCKS.as_i32(), 4);
-        assert_eq!(ConfigType::VLESS.as_i32(), 5);
-        assert_eq!(ConfigType::Trojan.as_i32(), 6);
-        assert_eq!(ConfigType::Hysteria2.as_i32(), 7);
-        assert_eq!(ConfigType::TUIC.as_i32(), 8);
-        assert_eq!(ConfigType::WireGuard.as_i32(), 9);
-        assert_eq!(ConfigType::HTTP.as_i32(), 10);
-        assert_eq!(ConfigType::Anytls.as_i32(), 11);
-        assert_eq!(ConfigType::Naive.as_i32(), 12);
-        assert_eq!(ConfigType::PolicyGroup.as_i32(), 101);
-        assert_eq!(ConfigType::ProxyChain.as_i32(), 102);
-    }
-
-    #[test]
-    fn core_type_discriminants_keep_singbox_value() {
-        assert_eq!(CoreType::sing_box.as_i32(), 24);
-    }
-
-    #[test]
-    fn enum_json_uses_integer_discriminants() {
-        assert_eq!(
-            serde_json::to_string(&ConfigType::VLESS)
-                .expect("config type should serialize as integer discriminant"),
-            "5"
-        );
-        assert_eq!(
-            serde_json::from_str::<CoreType>("24")
-                .expect("core type integer discriminant should deserialize"),
-            CoreType::sing_box
-        );
-    }
+    ForcedClear,
+    ForcedChange,
+    Unchanged,
+    Pac,
 }

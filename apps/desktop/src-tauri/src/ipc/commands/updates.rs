@@ -57,8 +57,9 @@ pub async fn update_srs_assets(
 #[specta::specta]
 pub fn install_core_seed(
     state: tauri::State<'_, AppState>,
-    core_type: CoreType,
+    core_type: ContractCoreType,
 ) -> Result<CoreSeedInstallResult, AppError> {
+    let domain_core_type = voya_app::contract_map::core_type_from_contract(core_type);
     let Some(seed_dir) = state.core_seed_resource_dir() else {
         return Ok(CoreSeedInstallResult {
             core_type,
@@ -68,8 +69,9 @@ pub fn install_core_seed(
     };
 
     if TargetOs::current() == TargetOs::Macos {
-        let core_info = get_core_info(core_type)
-            .ok_or_else(|| core_seed_install_error(CoreInfoError::MissingCoreInfo(core_type)))?;
+        let core_info = get_core_info(domain_core_type).ok_or_else(|| {
+            core_seed_install_error(CoreInfoError::MissingCoreInfo(domain_core_type))
+        })?;
         if let Some(executable) =
             discover_packaged_seed_executable(seed_dir, core_info, TargetOs::Macos)
                 .map_err(core_seed_install_error)?
@@ -82,7 +84,7 @@ pub fn install_core_seed(
         }
     }
 
-    let outcome = copy_seed_core_asset(state.runtime_paths(), seed_dir, core_type)
+    let outcome = copy_seed_core_asset(state.runtime_paths(), seed_dir, domain_core_type)
         .map_err(core_seed_install_error)?;
 
     Ok(core_seed_install_result(outcome))

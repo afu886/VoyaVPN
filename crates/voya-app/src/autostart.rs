@@ -4,9 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
+pub use voya_contracts::{AutostartPlatform, AutostartStatus};
 use voya_core::AppConfig;
 use voya_platform::{
     autostart::{
@@ -16,25 +15,6 @@ use voya_platform::{
     coreinfo::TargetOs,
     process::StdProcessRunner,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AutostartPlatform {
-    Windows,
-    Linux,
-    Macos,
-    Other,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AutostartStatus {
-    pub enabled: bool,
-    pub platform: AutostartPlatform,
-    pub artifact_kind: Option<String>,
-    pub artifact_path: Option<String>,
-    pub artifact_name: Option<String>,
-}
 
 #[derive(Clone)]
 pub struct AutostartManager {

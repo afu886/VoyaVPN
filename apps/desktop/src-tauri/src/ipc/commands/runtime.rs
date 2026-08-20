@@ -153,36 +153,3 @@ pub async fn runtime_status(
         .map(runtime_status_response)
         .map_err(runtime_error)
 }
-
-#[cfg(test)]
-mod tests {
-    use voya_core::CoreType;
-
-    use super::*;
-
-    #[test]
-    fn core_state_from_snapshot_maps_connected() {
-        let snapshot = SupervisorSnapshot {
-            state: SupervisorConnectionState::Connected,
-            active_profile_id: Some("active".to_string()),
-            main_pid: Some(42),
-            pre_pid: None,
-            running_core_type: Some(CoreType::sing_box),
-        };
-
-        assert!(matches!(
-            core_state_from_snapshot(&snapshot),
-            CoreState::Connected
-        ));
-    }
-
-    #[test]
-    fn core_state_from_snapshot_maps_disconnected() {
-        let snapshot = SupervisorSnapshot::disconnected();
-
-        assert!(matches!(
-            core_state_from_snapshot(&snapshot),
-            CoreState::Disconnected
-        ));
-    }
-}

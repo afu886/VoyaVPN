@@ -184,12 +184,6 @@ public final class PacketTunnelProvider: NEPacketTunnelProvider {
             throw PacketTunnelProviderError.libboxBasePathTooLong(commandSocketPath)
         }
 
-        let legacyBaseURL = containerURL.appendingPathComponent(
-            "Library/Application Support/VoyaVPN/PacketTunnel",
-            isDirectory: true
-        )
-        try? FileManager.default.removeItem(at: legacyBaseURL)
-
         return PacketTunnelRuntimePaths(
             baseURL: baseURL,
             workingURL: baseURL.appendingPathComponent("Working", isDirectory: true),

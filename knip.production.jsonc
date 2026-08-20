@@ -6,7 +6,7 @@
     "apps/desktop": {
       "entry": ["src/main.tsx!"],
       "project": ["src/**/*.{ts,tsx,css}!"],
-      "ignore": ["e2e/**", "src/**/*.{test,spec}.{ts,tsx}", "src/test/setup.ts"],
+      "ignore": ["e2e/**", "src/**/*.{test,spec}.{ts,tsx}", "src/**/*.test-fixture.ts", "src/test/**"],
       "ignoreDependencies": ["@tauri-apps/cli"],
       "ignoreIssues": {
         "src/ipc/bindings.ts": ["duplicates", "enumMembers", "exports", "types"]

@@ -1,60 +1,21 @@
-use std::collections::BTreeSet;
-
 use thiserror::Error;
-use voya_core::{GlobalHotkey, KeyEventItem};
-
-pub const HOTKEY_ACTIONS: [GlobalHotkey; 1] = [GlobalHotkey::ShowForm];
+use voya_core::KeyEventItem;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyRegistration {
-    pub action: GlobalHotkey,
     pub accelerator: String,
 }
 
 #[must_use]
-pub fn all_hotkey_actions() -> &'static [GlobalHotkey; 1] {
-    &HOTKEY_ACTIONS
+pub fn normalize_show_window_shortcut(item: Option<&KeyEventItem>) -> KeyEventItem {
+    item.cloned().unwrap_or_default()
 }
 
-#[must_use]
-pub fn normalize_key_event_items(items: &[KeyEventItem]) -> Vec<KeyEventItem> {
-    let mut normalized = Vec::with_capacity(HOTKEY_ACTIONS.len());
-
-    for action in HOTKEY_ACTIONS {
-        let mut item = items
-            .iter()
-            .find(|item| item.global_hotkey == action)
-            .cloned()
-            .unwrap_or_default();
-        item.global_hotkey = action;
-        normalized.push(item);
-    }
-
-    normalized
-}
-
-pub fn hotkey_registrations(
-    items: &[KeyEventItem],
-) -> Result<Vec<HotkeyRegistration>, HotkeyError> {
-    let mut seen = BTreeSet::new();
-    let mut registrations = Vec::new();
-
-    for item in normalize_key_event_items(items) {
-        let Some(accelerator) = key_event_item_accelerator(&item)? else {
-            continue;
-        };
-
-        if !seen.insert(accelerator.clone()) {
-            return Err(HotkeyError::DuplicateAccelerator(accelerator));
-        }
-
-        registrations.push(HotkeyRegistration {
-            action: item.global_hotkey,
-            accelerator,
-        });
-    }
-
-    Ok(registrations)
+pub fn show_window_hotkey_registration(
+    item: Option<&KeyEventItem>,
+) -> Result<Option<HotkeyRegistration>, HotkeyError> {
+    key_event_item_accelerator(&normalize_show_window_shortcut(item))
+        .map(|accelerator| accelerator.map(|accelerator| HotkeyRegistration { accelerator }))
 }
 
 pub fn key_event_item_accelerator(item: &KeyEventItem) -> Result<Option<String>, HotkeyError> {
@@ -82,19 +43,12 @@ pub fn key_event_item_accelerator(item: &KeyEventItem) -> Result<Option<String>,
     parts.push(key);
 
     let accelerator = parts.join("+");
-    validate_hotkey_accelerator(item.global_hotkey, &accelerator)?;
+    validate_hotkey_accelerator(&accelerator)?;
 
     Ok(Some(accelerator))
 }
 
-pub fn validate_hotkey_accelerator(
-    action: GlobalHotkey,
-    accelerator: &str,
-) -> Result<(), HotkeyError> {
-    if !HOTKEY_ACTIONS.contains(&action) {
-        return Err(HotkeyError::UnsupportedAction(action.as_i32()));
-    }
-
+pub fn validate_hotkey_accelerator(accelerator: &str) -> Result<(), HotkeyError> {
     let mut saw_control = false;
     let mut saw_alt = false;
     let mut saw_shift = false;
@@ -115,20 +69,20 @@ pub fn validate_hotkey_accelerator(
     if !saw_key {
         return Err(HotkeyError::InvalidAccelerator(accelerator.to_string()));
     }
-    validate_hotkey_modifiers(action, accelerator, saw_control, saw_alt)
+    validate_hotkey_modifiers(accelerator, saw_control, saw_alt)
 }
 
 fn validate_hotkey_modifiers(
-    action: GlobalHotkey,
     accelerator: &str,
     control: bool,
     alt: bool,
 ) -> Result<(), HotkeyError> {
-    match action {
-        GlobalHotkey::ShowForm if control || alt => Ok(()),
-        _ => Err(HotkeyError::UnsupportedModifierChord(
+    if control || alt {
+        Ok(())
+    } else {
+        Err(HotkeyError::UnsupportedModifierChord(
             accelerator.to_string(),
-        )),
+        ))
     }
 }
 
@@ -248,16 +202,12 @@ pub fn key_code_to_accelerator_key(key_code: i32) -> Option<&'static str> {
 
 #[derive(Debug, Error)]
 pub enum HotkeyError {
-    #[error("unsupported global hotkey action discriminant {0}")]
-    UnsupportedAction(i32),
     #[error("unsupported hotkey key code {0}")]
     UnsupportedKeyCode(i32),
     #[error("invalid global hotkey accelerator {0}")]
     InvalidAccelerator(String),
     #[error("unsupported global hotkey modifier chord {0}")]
     UnsupportedModifierChord(String),
-    #[error("duplicate global hotkey accelerator {0}")]
-    DuplicateAccelerator(String),
 }
 
 #[cfg(test)]
@@ -266,41 +216,38 @@ mod hotkey_tests {
 
     #[test]
     fn hotkey_normalization_only_represents_show_window() {
-        let normalized = normalize_key_event_items(&[]);
-
-        assert_eq!(normalized.len(), 1);
-        assert_eq!(normalized[0].global_hotkey, GlobalHotkey::ShowForm);
+        assert_eq!(
+            normalize_show_window_shortcut(None),
+            KeyEventItem::default()
+        );
     }
 
     #[test]
     fn hotkey_registration_builds_accelerators_from_key_events() {
-        let registrations = hotkey_registrations(&[KeyEventItem {
-            global_hotkey: GlobalHotkey::ShowForm,
+        let registration = show_window_hotkey_registration(Some(&KeyEventItem {
             control: true,
             alt: true,
             shift: false,
             key_code: Some(83),
-        }])
-        .expect("registrations");
+        }))
+        .expect("registration");
 
         assert_eq!(
-            registrations,
-            vec![HotkeyRegistration {
-                action: GlobalHotkey::ShowForm,
+            registration,
+            Some(HotkeyRegistration {
                 accelerator: "Ctrl+Alt+KeyS".to_string()
-            }]
+            })
         );
     }
 
     #[test]
     fn hotkey_registration_rejects_modifierless_accelerator() {
-        let error = hotkey_registrations(&[KeyEventItem {
-            global_hotkey: GlobalHotkey::ShowForm,
+        let error = show_window_hotkey_registration(Some(&KeyEventItem {
             control: false,
             alt: false,
             shift: false,
             key_code: Some(72),
-        }])
+        }))
         .expect_err("modifierless hotkey should fail");
 
         assert!(matches!(
@@ -311,7 +258,7 @@ mod hotkey_tests {
 
     #[test]
     fn hotkey_accelerator_validator_rejects_unknown_string_parts() {
-        let error = validate_hotkey_accelerator(GlobalHotkey::ShowForm, "Ctrl+Command+KeyH")
+        let error = validate_hotkey_accelerator("Ctrl+Command+KeyH")
             .expect_err("unknown modifier should fail");
 
         assert!(matches!(

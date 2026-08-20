@@ -19,28 +19,45 @@ impl ShareFmt for VmessFmt {
     fn export(&self, item: &ProfileItem) -> Result<String, ShareError> {
         ensure_type("vmess", item, ConfigType::VMess)?;
         ensure_address_port("vmess", item)?;
-        ensure_nonempty("vmess", "password", &item.password)?;
-
-        let aid = item
-            .protocol_extra
-            .alter_id
-            .as_deref()
-            .unwrap_or("0")
-            .parse::<i32>()
-            .unwrap_or(0);
+        ensure_nonempty("vmess", "password", item.password())?;
+        let ProfileProtocol::Vmess { uuid, cipher, .. } = &item.protocol else {
+            return Err(ShareError::WrongConfigType {
+                protocol: "vmess",
+                actual: item.config_type(),
+            });
+        };
         let network = item_network(item);
-        let transport = &item.transport_extra;
+        let transport_type = match item.transport.as_ref() {
+            Some(ProfileTransport::Tcp { header, .. })
+            | Some(ProfileTransport::Kcp { header, .. }) => option_or(header, NONE),
+            Some(ProfileTransport::Xhttp { mode, .. })
+            | Some(ProfileTransport::Grpc { mode, .. }) => option_or(mode, NONE),
+            _ => NONE.to_string(),
+        };
+        let transport_host = item
+            .transport
+            .as_ref()
+            .and_then(ProfileTransport::host)
+            .unwrap_or_default()
+            .to_string();
+        let transport_path = item
+            .transport
+            .as_ref()
+            .and_then(ProfileTransport::path)
+            .unwrap_or_default()
+            .to_string();
+        let tls = item.tls.as_ref();
         let vmess = json_object([
             ("v", Value::String("2".to_string())),
             ("ps", Value::String(item.remarks.trim().to_string())),
-            ("add", Value::String(item.address.clone())),
-            ("port", Value::String(item.port.to_string())),
-            ("id", Value::String(item.password.clone())),
-            ("aid", Value::String(aid.to_string())),
+            ("add", Value::String(item.address().to_string())),
+            ("port", Value::String(item.port().to_string())),
+            ("id", Value::String(uuid.clone())),
+            ("aid", Value::String("0".to_string())),
             (
                 "scy",
                 Value::String(
-                    nonempty_option(&item.protocol_extra.vmess_security)
+                    nonempty_option(cipher)
                         .unwrap_or(DEFAULT_SECURITY)
                         .to_string(),
                 ),
@@ -53,36 +70,21 @@ impl ShareFmt for VmessFmt {
                     network.to_string()
                 }),
             ),
+            ("type", Value::String(transport_type)),
+            ("host", Value::String(transport_host)),
+            ("path", Value::String(transport_path)),
+            ("tls", Value::String(item.stream_security().to_string())),
             (
-                "type",
-                Value::String(match network {
-                    "raw" => option_or(&transport.raw_header_type, NONE),
-                    "kcp" => option_or(&transport.kcp_header_type, NONE),
-                    "xhttp" => option_or(&transport.xhttp_mode, NONE),
-                    "grpc" => option_or(&transport.grpc_mode, NONE),
-                    _ => NONE.to_string(),
-                }),
+                "sni",
+                Value::String(
+                    tls.and_then(|tls| tls.server_name.clone())
+                        .unwrap_or_default(),
+                ),
             ),
             (
-                "host",
-                Value::String(match network {
-                    "raw" | "ws" | "httpupgrade" | "xhttp" => option_or(&transport.host, ""),
-                    "grpc" => option_or(&transport.grpc_authority, ""),
-                    _ => String::new(),
-                }),
+                "alpn",
+                Value::String(tls.map(|tls| tls.alpn.join(",")).unwrap_or_default()),
             ),
-            (
-                "path",
-                Value::String(match network {
-                    "raw" | "ws" | "httpupgrade" | "xhttp" => option_or(&transport.path, ""),
-                    "kcp" => option_or(&transport.kcp_seed, ""),
-                    "grpc" => option_or(&transport.grpc_service_name, ""),
-                    _ => String::new(),
-                }),
-            ),
-            ("tls", Value::String(item.stream_security.clone())),
-            ("sni", Value::String(item.sni.clone())),
-            ("alpn", Value::String(item.alpn.clone())),
         ]);
 
         let payload = serde_json::to_string(&vmess).map_err(|error| ShareError::InvalidJson {
@@ -96,11 +98,13 @@ impl ShareFmt for VmessFmt {
 fn parse_vmess_standard(input: &str) -> Result<ProfileItem, ShareError> {
     let parsed = parse_uri(input, "vmess")?;
     let mut item = profile_from_uri(ConfigType::VMess, &parsed);
-    item.password = parsed.user_info;
-    item.protocol_extra.vmess_security = Some(DEFAULT_SECURITY.to_string());
+    if let ProfileProtocol::Vmess { uuid, cipher, .. } = &mut item.protocol {
+        *uuid = parsed.user_info;
+        *cipher = Some(DEFAULT_SECURITY.to_string());
+    }
     resolve_uri_query(&parsed.query, &mut item);
     ensure_address_port("vmess", &item)?;
-    ensure_nonempty("vmess", "password", &item.password)?;
+    ensure_nonempty("vmess", "password", item.password())?;
     Ok(item)
 }
 
@@ -119,73 +123,81 @@ fn parse_vmess_base64(input: &str) -> Result<ProfileItem, ShareError> {
         reason: "expected object".to_string(),
     })?;
 
+    let address = value_string(object, "add");
+    let port = value_i32(object, "port").unwrap_or(0);
+    let security = value_string(object, "scy");
     let mut item = ProfileItem {
-        config_type: ConfigType::VMess,
-        network: DEFAULT_NETWORK.to_string(),
         remarks: value_string(object, "ps"),
-        address: value_string(object, "add"),
-        port: value_i32(object, "port").unwrap_or(0),
-        password: value_string(object, "id"),
-        stream_security: value_string(object, "tls"),
-        sni: value_string(object, "sni"),
-        alpn: value_string(object, "alpn"),
-        protocol_extra: ProtocolExtraItem {
-            alter_id: Some(value_i32(object, "aid").unwrap_or(0).to_string()),
-            vmess_security: Some({
-                let security = value_string(object, "scy");
-                if security.is_empty() {
-                    DEFAULT_SECURITY.to_string()
-                } else {
-                    security
-                }
+        protocol: ProfileProtocol::Vmess {
+            server: ServerEndpoint { address, port },
+            uuid: value_string(object, "id"),
+            cipher: Some(if security.is_empty() {
+                DEFAULT_SECURITY.to_string()
+            } else {
+                security
             }),
-            ..ProtocolExtraItem::default()
-        },
-        transport_extra: TransportExtraItem {
-            raw_header_type: Some(NONE.to_string()),
-            ..TransportExtraItem::default()
         },
         ..ProfileItem::default()
     };
 
-    let network = value_string(object, "net");
-    if !network.is_empty() {
-        item.network = if network == RAW_NETWORK_ALIAS {
-            DEFAULT_NETWORK.to_string()
-        } else {
-            network
-        };
-    }
+    let network = match value_string(object, "net").as_str() {
+        "" | RAW_NETWORK_ALIAS => DEFAULT_NETWORK.to_string(),
+        network => network.to_string(),
+    };
     let vmess_type = value_string(object, "type");
-    if !vmess_type.is_empty() {
-        match item.network.as_str() {
-            "raw" => item.transport_extra.raw_header_type = Some(vmess_type),
-            "kcp" => item.transport_extra.kcp_header_type = Some(vmess_type),
-            "xhttp" => item.transport_extra.xhttp_mode = Some(vmess_type),
-            "grpc" => item.transport_extra.grpc_mode = Some(vmess_type),
-            _ => {}
-        }
-    }
     let host = value_string(object, "host");
     let path = value_string(object, "path");
-    match item.network.as_str() {
-        "raw" => {
-            item.transport_extra.host = nonempty(host);
-            item.transport_extra.path = nonempty(path);
-        }
-        "kcp" => item.transport_extra.kcp_seed = nonempty(path),
-        "ws" | "httpupgrade" | "xhttp" => {
-            item.transport_extra.host = nonempty(host);
-            item.transport_extra.path = nonempty(path);
-        }
-        "grpc" => {
-            item.transport_extra.grpc_authority = nonempty(host);
-            item.transport_extra.grpc_service_name = nonempty(path);
-        }
-        _ => {}
+    item.transport = Some(match network.as_str() {
+        "kcp" => ProfileTransport::Kcp {
+            header: nonempty(vmess_type),
+            seed: nonempty(path),
+            mtu: None,
+        },
+        "ws" => ProfileTransport::Websocket {
+            host: nonempty(host),
+            path: nonempty(path),
+        },
+        "httpupgrade" => ProfileTransport::HttpUpgrade {
+            host: nonempty(host),
+            path: nonempty(path),
+        },
+        "xhttp" => ProfileTransport::Xhttp {
+            host: nonempty(host),
+            path: nonempty(path),
+            mode: nonempty(vmess_type),
+            extra: None,
+        },
+        "grpc" => ProfileTransport::Grpc {
+            authority: nonempty(host),
+            service_name: nonempty(path),
+            mode: nonempty(vmess_type),
+        },
+        _ => ProfileTransport::Tcp {
+            header: nonempty(vmess_type),
+            host: nonempty(host),
+            path: nonempty(path),
+        },
+    });
+    let tls_mode = value_string(object, "tls");
+    let sni = nonempty(value_string(object, "sni"));
+    let alpn = split_csv(&value_string(object, "alpn"));
+    if matches!(tls_mode.as_str(), STREAM_SECURITY_TLS | "reality")
+        || sni.is_some()
+        || !alpn.is_empty()
+    {
+        item.tls = Some(TlsSettings {
+            mode: if tls_mode == "reality" {
+                TlsMode::Reality
+            } else {
+                TlsMode::Tls
+            },
+            server_name: sni,
+            alpn,
+            ..default_tls_settings()
+        });
     }
 
     ensure_address_port("vmess", &item)?;
-    ensure_nonempty("vmess", "password", &item.password)?;
+    ensure_nonempty("vmess", "password", item.password())?;
     Ok(item)
 }

@@ -5,13 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   CoreStateEvent,
-  ProfileItem_Deserialize,
-  ProfileListItem_Serialize,
+  ProfileListEntry,
   RuntimeStatusResponse,
   StatisticsSnapshot,
   TunProviderDiagnostics,
 } from "@/ipc/bindings";
 import { useToastStore } from "@/stores/toast-store";
+import { makeProfileFixture } from "@/test/profile-fixture";
 
 import { StatusBar } from "./status-bar";
 
@@ -80,63 +80,15 @@ const packetTunnelDiagnostics: TunProviderDiagnostics = {
 };
 
 function profilesOfLength(count: number) {
-  return Array.from({ length: count }) as unknown as ProfileListItem_Serialize[];
+  return Array.from({ length: count }) as unknown as ProfileListEntry[];
 }
 
 function makeProfile(
   index = 0,
-  overrides: ProfileItem_Deserialize = {},
+  overrides: Parameters<typeof makeProfileFixture>[1] = {},
   isActive = true,
-): ProfileListItem_Serialize {
-  const indexId = overrides.IndexId ?? `profile-${index}`;
-
-  return {
-    isActive,
-    profile: {
-      Address: `node-${index}.example.test`,
-      Alpn: "",
-      Cert: "",
-      CertSha: "",
-      ConfigType: 1,
-      ConfigVersion: 4,
-      DisplayLog: true,
-      EchConfigList: "",
-      Finalmask: "",
-      IndexId: indexId,
-      IsSub: false,
-      Mldsa65Verify: "",
-      Network: "tcp",
-      Password: `uuid-${index}`,
-      Port: 443,
-      ProtocolExtra: {},
-      PublicKey: "",
-      Remarks: `Server ${index}`,
-      ShortId: "",
-      Sni: "",
-      SpiderX: "",
-      StreamSecurity: "",
-      Subid: "",
-      TransportExtra: {},
-      Username: "",
-      ...overrides,
-    },
-    profileEx: {
-      Delay: 0,
-      IndexId: indexId,
-      IpInfo: null,
-      Message: null,
-      Sort: index,
-      Speed: null,
-    },
-    serverStat: {
-      DateNow: 1,
-      IndexId: indexId,
-      TodayDown: 0,
-      TodayUp: 0,
-      TotalDown: 0,
-      TotalUp: 0,
-    },
-  };
+): ProfileListEntry {
+  return makeProfileFixture(index, overrides, isActive);
 }
 
 function renderStatusBar() {
@@ -259,14 +211,14 @@ describe("StatusBar", () => {
       activeProfileId: "profile-0",
       mainPid: 100,
       prePid: null,
-      runningCoreType: 24,
+      runningCoreType: "singBox",
       state: "connected",
     };
     runtimeMock.state.coreState = {
       activeProfileId: "profile-0",
       mainPid: 100,
       prePid: null,
-      runningCoreType: 24,
+      runningCoreType: "singBox",
       state: "connected",
     };
     vi.mocked(runtimeStatus).mockResolvedValue(connectedStatus);

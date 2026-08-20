@@ -43,9 +43,9 @@ export function SecurityPanel({
   const reality = security === "reality";
 
   async function fetchRemoteCertificate(includeChain: boolean) {
-    const address = String(getValues("Address") ?? "").trim();
-    const port = Number(getValues("Port") ?? 0);
-    const serverName = String(getValues("Sni") || address).trim();
+    const address = String(getValues("address") ?? "").trim();
+    const port = Number(getValues("port") ?? 0);
+    const serverName = String(getValues("sni") || address).trim();
     if (!address || !Number.isFinite(port) || port <= 0) {
       setCertError(t("panes.profiles.certFetch.missingEndpoint"));
       return;
@@ -62,8 +62,8 @@ export function SecurityPanel({
         port,
         serverName: serverName || null,
       });
-      setValue("Cert", result.pem, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-      setValue("CertSha", result.sha256.join(","), { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      setValue("cert", result.pem, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      setValue("certSha", result.sha256.join(","), { shouldDirty: true, shouldTouch: true, shouldValidate: true });
       setCertStatus(
         result.warning ||
           t("panes.profiles.certFetch.fetched", { count: result.chainCount }),
@@ -76,7 +76,7 @@ export function SecurityPanel({
   }
 
   async function calculatePinnedCertificateSha() {
-    const pem = String(getValues("Cert") ?? "").trim();
+    const pem = String(getValues("cert") ?? "").trim();
     if (!pem) {
       setCertError(t("panes.profiles.certFetch.missingPem"));
       return;
@@ -87,7 +87,7 @@ export function SecurityPanel({
     setCertStatus(null);
     try {
       const hashes = await calculateCertificateSha256(pem);
-      setValue("CertSha", hashes.join(","), { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      setValue("certSha", hashes.join(","), { shouldDirty: true, shouldTouch: true, shouldValidate: true });
       setCertStatus(t("panes.profiles.certFetch.shaCalculated", { count: hashes.length }));
     } catch (error) {
       setCertError(getErrorMessage(error));
@@ -99,18 +99,18 @@ export function SecurityPanel({
   return (
     <Panel title={t("panes.profiles.panels.security")}>
       <div className="grid gap-3 lg:grid-cols-4">
-        <SelectField control={control} label={t("panes.profiles.fields.tlsMode")} name="StreamSecurity" options={SECURITY_OPTIONS} />
-        <TextField label={t("panes.profiles.fields.sni")} {...register("Sni")} />
-        <TextField label={t("panes.profiles.fields.alpn")} {...register("Alpn")} />
+        <SelectField control={control} label={t("panes.profiles.fields.tlsMode")} name="streamSecurity" options={SECURITY_OPTIONS} />
+        <TextField label={t("panes.profiles.fields.sni")} {...register("sni")} />
+        <TextField label={t("panes.profiles.fields.alpn")} {...register("alpn")} />
         <TextField
           label={reality ? t("panes.profiles.fields.realityPublicKey") : t("panes.profiles.fields.publicKey")}
-          {...register("PublicKey")}
+          {...register("publicKey")}
         />
-        <TextField label={t("panes.profiles.fields.shortId")} {...register("ShortId")} />
-        <TextField label={t("panes.profiles.fields.spiderX")} {...register("SpiderX")} />
-        <TextField label={t("panes.profiles.fields.mldsaVerify")} {...register("Mldsa65Verify")} />
-        <TextField label={t("panes.profiles.fields.echConfigList")} {...register("EchConfigList")} />
-        <TextField label={t("panes.profiles.fields.finalMask")} {...register("Finalmask")} />
+        <TextField label={t("panes.profiles.fields.shortId")} {...register("shortId")} />
+        <TextField label={t("panes.profiles.fields.spiderX")} {...register("spiderX")} />
+        <TextField label={t("panes.profiles.fields.mldsaVerify")} {...register("mldsa65Verify")} />
+        <TextField label={t("panes.profiles.fields.echConfigList")} {...register("echConfigList")} />
+        <TextField label={t("panes.profiles.fields.finalMask")} {...register("finalmask")} />
         <div className="grid min-w-0 gap-1 lg:col-span-2">
           <Label className="text-xs text-muted-foreground" htmlFor="profile-pinned-cert">
             <span className="truncate">{t("panes.profiles.fields.pinnedCert")}</span>
@@ -118,10 +118,10 @@ export function SecurityPanel({
           <Textarea
             className="min-h-24 resize-y bg-card font-mono text-xs"
             id="profile-pinned-cert"
-            {...register("Cert")}
+            {...register("cert")}
           />
         </div>
-        <TextField className="font-mono text-xs" label={t("panes.profiles.fields.certSha")} {...register("CertSha")} />
+        <TextField className="font-mono text-xs" label={t("panes.profiles.fields.certSha")} {...register("certSha")} />
         <div className="grid gap-2 lg:col-span-4">
           <div className="flex flex-wrap items-center gap-2">
             <Button

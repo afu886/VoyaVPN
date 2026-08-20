@@ -32,7 +32,7 @@ Implementation proceeds subsystem-by-subsystem. When feasible, each slice lands 
 
 Persistence is a fresh VoyaVPN schema only. There is no v2rayN data migration path, no legacy compatibility layer, and no obsolete v2rayN columns. v2rayN `[Obsolete]` profile fields such as `HeaderType`, `RequestHost`, `Path`, `Extra`, `Ports`, `AlterId`, `Flow`, `Id`, and `Security` must not be introduced into the schema or IPC DTOs.
 
-`ProtocolExtraItem` and `TransportExtraItem` are typed Rust structs across app and IPC boundaries. They may serialize to SQLite TEXT only inside `voya-db` blob helpers.
+Profiles use strict tagged unions for protocol, transport, and TLS data. The domain types remain in `voya-core`, public camel-case DTOs remain in `voya-contracts`, and only `voya-db` may serialize the tagged domain values into SQLite `TEXT` columns.
 
 ## Consequences
 

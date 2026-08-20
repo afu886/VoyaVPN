@@ -24,7 +24,7 @@ const DEFAULT_PROFILE_COLUMN_VISIBILITY: VisibilityState = {
   totalUp: false,
   totalDown: false,
   ipInfo: false,
-  subid: true,
+  subscriptionId: true,
 };
 
 type ProfileColumnsState = {

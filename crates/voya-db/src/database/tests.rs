@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::AppConfigStore;
 use sqlx::Row;
+use voya_contracts::{AppSettingsV1, CURRENT_SCHEMA_VERSION};
 use voya_core::{
-    AppConfig, ConfigType, ProfileExItem, ProfileItem, ProtocolExtraItem, RoutingItem, RuleType,
-    RulesItem, ServerStatItem, SubItem, SysProxyType, TransportExtraItem,
+    ProfileExItem, ProfileItem, ProfileProtocol, ProfileTransport, RoutingItem, RuleType,
+    RulesItem, ServerEndpoint, ServerStatItem, SubItem, TlsMode, TlsSettings,
 };
 
 use super::*;
@@ -29,6 +29,9 @@ async fn fresh_schema_contains_only_current_tables_and_columns() {
         .collect::<Vec<_>>();
 
     for obsolete in [
+        "config_version",
+        "is_sub",
+        "pre_socks_port",
         "header_type",
         "request_host",
         "path",
@@ -49,8 +52,10 @@ async fn fresh_schema_contains_only_current_tables_and_columns() {
         );
     }
 
-    assert!(columns.iter().any(|column| column == "protocol_extra"));
-    assert!(columns.iter().any(|column| column == "transport_extra"));
+    assert!(columns.iter().any(|column| column == "protocol"));
+    assert!(columns.iter().any(|column| column == "transport"));
+    assert!(columns.iter().any(|column| column == "tls"));
+    assert!(columns.iter().any(|column| column == "subscription_id"));
 
     let subscription_columns = sqlx::query("PRAGMA table_info(subscriptions)")
         .fetch_all(database.pool())
@@ -80,9 +85,12 @@ async fn fresh_schema_contains_only_current_tables_and_columns() {
     assert_eq!(
         tables,
         [
+            "app_settings",
+            "app_state",
             "profile_ex_items",
             "profile_items",
             "routing_items",
+            "schema_metadata",
             "server_stat_items",
             "subscriptions",
         ]
@@ -98,8 +106,7 @@ async fn fresh_schema_contains_only_current_tables_and_columns() {
         indexes,
         [
             "idx_profile_items_config_type",
-            "idx_profile_items_subid",
-            "idx_routing_items_active",
+            "idx_profile_items_subscription_id",
             "idx_routing_items_sort",
             "idx_subscriptions_sort",
         ]
@@ -225,7 +232,7 @@ async fn statistics_repository_rolls_over_cleans_orphans_and_clones() {
 }
 
 #[tokio::test]
-async fn profile_repository_persists_typed_extra_blobs() {
+async fn profile_repository_persists_tagged_domain_values() {
     let database = Database::connect_in_memory()
         .await
         .expect("database test operation should succeed");
@@ -245,16 +252,23 @@ async fn profile_repository_persists_typed_extra_blobs() {
 
     assert_eq!(loaded, profile);
 
-    let raw_protocol_extra: String =
-        sqlx::query_scalar("SELECT protocol_extra FROM profile_items WHERE index_id = ?")
+    let raw_protocol: String =
+        sqlx::query_scalar("SELECT protocol FROM profile_items WHERE index_id = ?")
             .bind("profile-1")
             .fetch_one(database.pool())
             .await
             .expect("database test operation should succeed");
 
     assert_eq!(
-        raw_protocol_extra,
-        r#"{"SsMethod":"2022-blake3-aes-256-gcm","Ports":"443,8443"}"#
+        serde_json::from_str::<serde_json::Value>(&raw_protocol)
+            .expect("stored protocol should be strict JSON"),
+        serde_json::json!({
+            "kind": "shadowsocks",
+            "server": { "address": "example.com", "port": 443 },
+            "password": "secret",
+            "method": "2022-blake3-aes-256-gcm",
+            "udpOverTcp": false
+        })
     );
 }
 
@@ -295,10 +309,8 @@ async fn profile_repository_orders_by_profile_ex_sort() {
         .expect("database test operation should succeed");
     let mut first = sample_profile();
     first.index_id = "first".to_string();
-    first.subid = "old".to_string();
     let mut second = sample_profile();
     second.index_id = "second".to_string();
-    second.subid = "old".to_string();
 
     database
         .profiles()
@@ -345,10 +357,8 @@ async fn profile_batch_delete_rolls_back_on_mid_batch_error() {
         .expect("database test operation should succeed");
     let mut first = sample_profile();
     first.index_id = "first".to_string();
-    first.subid = "old".to_string();
     let mut second = sample_profile();
     second.index_id = "second".to_string();
-    second.subid = "old".to_string();
 
     database
         .profiles()
@@ -493,26 +503,12 @@ async fn subscription_repository_persists_orders_and_deletes_sub_profiles() {
 
     let mut profile = sample_profile();
     profile.index_id = "sub-profile".to_string();
-    profile.subid = "sub-a".to_string();
-    profile.is_sub = true;
+    profile.subscription_id = Some("sub-a".to_string());
     database
         .profiles()
         .upsert(&profile)
         .await
         .expect("database test operation should succeed");
-    let deleted = database
-        .profiles()
-        .delete_by_subid("sub-a", true)
-        .await
-        .expect("database test operation should succeed");
-    assert_eq!(deleted, 1);
-    assert!(database
-        .profiles()
-        .get("sub-profile")
-        .await
-        .expect("database test operation should succeed")
-        .is_none());
-
     assert!(database
         .subscriptions()
         .delete("sub-a")
@@ -521,6 +517,12 @@ async fn subscription_repository_persists_orders_and_deletes_sub_profiles() {
     assert!(database
         .subscriptions()
         .get("sub-a")
+        .await
+        .expect("database test operation should succeed")
+        .is_none());
+    assert!(database
+        .profiles()
+        .get("sub-profile")
         .await
         .expect("database test operation should succeed")
         .is_none());
@@ -535,7 +537,6 @@ async fn routing_repository_serializes_rules_and_enforces_active_selection() {
         id: "routing-a".to_string(),
         remarks: "A".to_string(),
         sort: 20,
-        is_active: true,
         domain_strategy: "AsIs".to_string(),
         rule_set: vec![RulesItem {
             id: "rule-a".to_string(),
@@ -563,6 +564,11 @@ async fn routing_repository_serializes_rules_and_enforces_active_selection() {
         .upsert(&second)
         .await
         .expect("database test operation should succeed");
+    assert!(database
+        .routings()
+        .set_active(&first.id)
+        .await
+        .expect("active routing should persist"));
 
     let listed = database
         .routings()
@@ -570,7 +576,6 @@ async fn routing_repository_serializes_rules_and_enforces_active_selection() {
         .await
         .expect("database test operation should succeed");
     assert_eq!(listed[0].id, "routing-b");
-    assert_eq!(listed[1].rule_num, 1);
     assert_eq!(
         listed[1].rule_set[0].domain.clone(),
         Some(vec!["full:direct.example.com".to_string()])
@@ -671,187 +676,137 @@ async fn routing_delete_many_rolls_back_on_mid_batch_error() {
         .expect("database test operation should succeed"));
 }
 
-#[test]
-fn app_config_store_defaults_and_persists_across_restart() {
-    let path = temp_path("guiNConfig.json");
-    let store = AppConfigStore::new(&path);
-    let mut config = store
-        .load()
+#[tokio::test]
+async fn settings_and_active_state_persist_with_schema_version_one() {
+    let database = Database::connect_in_memory()
+        .await
         .expect("database test operation should succeed");
+    let profile = sample_profile();
+    let routing = RoutingItem {
+        id: "routing-1".to_string(),
+        remarks: "Routing".to_string(),
+        ..RoutingItem::default()
+    };
+    database
+        .profiles()
+        .upsert(&profile)
+        .await
+        .expect("profile should persist");
+    database
+        .routings()
+        .upsert(&routing)
+        .await
+        .expect("routing should persist");
 
-    assert_eq!(config.inbound[0].local_port, 10808);
-    config.index_id = "active-profile".to_string();
-    config.ui_item.current_language = "fa-Ir".to_string();
-    config.system_proxy_item.sys_proxy_type = SysProxyType::Unchanged;
-    store
-        .save(&config)
-        .expect("database test operation should succeed");
+    let mut settings = AppSettingsV1::default();
+    settings.appearance.language = "zh-Hans".to_string();
+    database
+        .settings()
+        .save(&settings)
+        .await
+        .expect("settings should persist");
+    database
+        .app_state()
+        .set_active_profile(Some(&profile.index_id))
+        .await
+        .expect("active profile should persist");
+    database
+        .app_state()
+        .set_active_routing(Some(&routing.id))
+        .await
+        .expect("active routing should persist");
 
-    let restarted_store = AppConfigStore::new(&path);
-    let loaded = restarted_store
-        .load()
-        .expect("database test operation should succeed");
-
-    assert_eq!(loaded.index_id, "active-profile");
-    assert_eq!(loaded.ui_item.current_language, "fa-Ir");
     assert_eq!(
-        loaded.system_proxy_item.sys_proxy_type,
-        SysProxyType::Unchanged
+        database.settings().load().await.expect("load settings"),
+        settings
     );
-    let _ = fs::remove_file(path);
+    let state = database.app_state().load().await.expect("load app state");
+    assert_eq!(
+        state.active_profile_id.as_deref(),
+        Some(profile.index_id.as_str())
+    );
+    assert_eq!(
+        state.active_routing_id.as_deref(),
+        Some(routing.id.as_str())
+    );
+    let version: i64 = sqlx::query_scalar("SELECT version FROM schema_metadata WHERE id = 1")
+        .fetch_one(database.pool())
+        .await
+        .expect("schema version should exist");
+    assert_eq!(version, i64::from(CURRENT_SCHEMA_VERSION));
 }
 
-#[test]
-fn app_config_store_converges_retired_voya_fields_and_preserves_live_settings() {
-    let path = temp_path("guiNConfig-retired-fields.json");
-    let mut value =
-        serde_json::to_value(AppConfig::default()).expect("default app config should serialize");
-    *value
-        .pointer_mut("/IndexId")
-        .expect("default profile index should exist") = serde_json::json!("active-profile");
-    *value
-        .pointer_mut("/TunModeItem/EnableTun")
-        .expect("default TUN setting should exist") = serde_json::json!(true);
-    *value
-        .pointer_mut("/UIItem/CurrentLanguage")
-        .expect("default language should exist") = serde_json::json!("zh-Hans");
+#[tokio::test]
+async fn existing_legacy_database_is_rejected_without_modification() {
+    let path = temp_path("legacy.sqlite");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .expect("legacy fixture should open");
+    sqlx::query("CREATE TABLE legacy_settings (payload TEXT NOT NULL)")
+        .execute(&pool)
+        .await
+        .expect("legacy fixture should be created");
+    sqlx::query("INSERT INTO legacy_settings (payload) VALUES ('unchanged')")
+        .execute(&pool)
+        .await
+        .expect("legacy fixture should contain data");
+    pool.close().await;
+    let before = fs::read(&path).expect("legacy database should be readable");
 
-    let root = value
-        .as_object_mut()
-        .expect("app config JSON should be an object");
-    for key in [
-        "KcpItem",
-        "MsgUIItem",
-        "Mux4RayItem",
-        "CheckUpdateItem",
-        "DiagnosticsItem",
-        "Fragment4RayItem",
-    ] {
-        root.insert(key.to_string(), serde_json::json!({}));
-    }
-    for (pointer, fields) in [
-        ("/TunModeItem", &["EnableLegacyProtect"][..]),
-        ("/GrpcItem", &["InitialWindowsSize"]),
-        (
-            "/GUIItem",
-            &[
-                "KeepOlderDedupl",
-                "AutoUpdateInterval",
-                "TrayMenuServersLimit",
-                "EnableHWA",
-                "EnableLog",
-            ],
-        ),
-        (
-            "/UIItem",
-            &[
-                "EnableAutoAdjustMainLvColWidth",
-                "MainGirdHeight1",
-                "MainGirdHeight2",
-                "MainGirdOrientation",
-                "ColorPrimaryName",
-                "EnableDragDropSort",
-                "DoubleClick2Activate",
-                "AutoHideStartup",
-                "Hide2TrayWhenClose",
-                "MacOSShowInDock",
-                "MainColumnItem",
-                "WindowSizeItem",
-            ],
-        ),
-        (
-            "/ConstItem",
-            &["CdnBaseUrl", "CdnReleaseIndexUrl", "CdnCoreManifestUrl"],
-        ),
-        (
-            "/ProxyUIItem",
-            &[
-                "RuleMode",
-                "EnableIPv6",
-                "EnableMixinContent",
-                "ProxiesSorting",
-                "ProxiesAutoRefresh",
-                "ProxiesAutoDelayTestInterval",
-                "ConnectionsAutoRefresh",
-                "ConnectionsRefreshInterval",
-                "ConnectionsColumnItem",
-            ],
-        ),
-        ("/Inbound/0", &["UdpEnabled", "DestOverride", "RouteOnly"]),
-    ] {
-        let section = value
-            .pointer_mut(pointer)
-            .and_then(serde_json::Value::as_object_mut)
-            .expect("retired field parent should be an object");
-        for field in fields {
-            section.insert((*field).to_string(), serde_json::json!(false));
+    let error = Database::connect(&path)
+        .await
+        .expect_err("legacy database must be rejected");
+    assert!(matches!(
+        error,
+        DbError::UnsupportedDatabaseSchema {
+            found: None,
+            expected: 1,
+            ..
         }
-    }
-    fs::write(
-        &path,
-        serde_json::to_vec_pretty(&value).expect("retired app config should serialize"),
-    )
-    .expect("retired app config fixture should be written");
-
-    let loaded = AppConfigStore::new(&path)
-        .load()
-        .expect("retired Voya config should converge");
-
-    assert_eq!(loaded.index_id, "active-profile");
-    assert!(loaded.tun_mode_item.enable_tun);
-    assert_eq!(loaded.ui_item.current_language, "zh-Hans");
-
-    let persisted = fs::read_to_string(&path).expect("converged app config should be readable");
-    let persisted_value: serde_json::Value =
-        serde_json::from_str(&persisted).expect("converged app config should remain valid JSON");
-    assert!(persisted_value.get("KcpItem").is_none());
-    assert!(persisted_value
-        .pointer("/TunModeItem/EnableLegacyProtect")
-        .is_none());
-    assert!(persisted_value.pointer("/Inbound/0/UdpEnabled").is_none());
-    serde_json::from_value::<AppConfig>(persisted_value)
-        .expect("converged app config should match the current strict schema");
-
-    let _ = fs::remove_file(path);
-}
-
-#[test]
-fn app_config_store_rejects_old_schema_without_changing_the_file() {
-    let path = temp_path("guiNConfig-invalid.json");
-    let original = br#"{"CoreBasicItem":{"Loglevel":"debug"},"EnableLegacyProtect":true}"#;
-    fs::write(&path, original).expect("invalid app config fixture should be written");
-
-    let store = AppConfigStore::new(&path);
-    assert!(store.load().is_err());
+    ));
+    assert!(error.to_string().contains("reset it manually with"));
     assert_eq!(
-        fs::read(&path).expect("invalid app config fixture should remain readable"),
-        original
+        fs::read(&path).expect("legacy database should remain readable"),
+        before
     );
-
     let _ = fs::remove_file(path);
 }
 
 fn sample_profile() -> ProfileItem {
     ProfileItem {
         index_id: "profile-1".to_string(),
-        config_type: ConfigType::Shadowsocks,
         remarks: "Demo".to_string(),
-        address: "example.com".to_string(),
-        port: 443,
-        password: "secret".to_string(),
-        network: "ws".to_string(),
-        stream_security: "tls".to_string(),
-        sni: "example.com".to_string(),
-        protocol_extra: ProtocolExtraItem {
-            ss_method: Some("2022-blake3-aes-256-gcm".to_string()),
-            ports: Some("443,8443".to_string()),
-            ..ProtocolExtraItem::default()
+        protocol: ProfileProtocol::Shadowsocks {
+            server: ServerEndpoint {
+                address: "example.com".to_string(),
+                port: 443,
+            },
+            password: "secret".to_string(),
+            method: "2022-blake3-aes-256-gcm".to_string(),
+            udp_over_tcp: false,
         },
-        transport_extra: TransportExtraItem {
+        transport: Some(ProfileTransport::Websocket {
             host: Some("example.com".to_string()),
             path: Some("/ws".to_string()),
-            ..TransportExtraItem::default()
-        },
+        }),
+        tls: Some(TlsSettings {
+            mode: TlsMode::Tls,
+            server_name: Some("example.com".to_string()),
+            alpn: Vec::new(),
+            reality_public_key: None,
+            reality_short_id: None,
+            reality_spider_x: None,
+            mldsa65_verify: None,
+            certificate_pem: None,
+            certificate_sha256: Vec::new(),
+            ech_config: Vec::new(),
+            final_mask: None,
+        }),
         ..ProfileItem::default()
     }
 }

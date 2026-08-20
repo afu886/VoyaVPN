@@ -21,7 +21,9 @@ pub(super) async fn export_profiles_result(
     )?;
     let config = current_config(state)?;
 
-    ExportManager::new(state.database())
+    state
+        .services()
+        .exports()
         .export_profiles(
             state.runtime_paths(),
             &config,
@@ -108,11 +110,7 @@ pub(super) fn ipc_text_error(
 }
 
 pub(super) fn runtime_manager(state: &AppState) -> RuntimeManager<'_> {
-    let manager = RuntimeManager::new(
-        state.database(),
-        state.runtime_paths().clone(),
-        state.supervisor(),
-    );
+    let manager = state.services().runtime(state.supervisor());
 
     if let Some(seed_dir) = state.core_seed_resource_dir() {
         manager.with_core_seed_resource_dir(seed_dir.to_path_buf())
@@ -130,7 +128,7 @@ pub(super) fn tun_manager(state: &AppState) -> TunManager {
 }
 
 pub(super) fn update_manager(state: &AppState) -> UpdateManager<'_> {
-    UpdateManager::new(state.database(), state.runtime_paths().clone())
+    state.services().updates()
 }
 
 pub(super) struct TauriHotkeyRegistrar<R: tauri::Runtime> {
@@ -148,20 +146,16 @@ where
             .map_err(|error| HotkeyManagerError::Register(error.to_string()))
     }
 
-    fn register(&self, bindings: &[GlobalHotkeyBinding]) -> Result<(), HotkeyManagerError> {
+    fn register(&self, bindings: &[ShowWindowShortcutBinding]) -> Result<(), HotkeyManagerError> {
         for binding in bindings {
-            voya_platform::hotkeys::validate_hotkey_accelerator(
-                binding.action,
-                &binding.accelerator,
-            )?;
-            let action = binding.action;
+            voya_platform::hotkeys::validate_hotkey_accelerator(&binding.accelerator)?;
             self.app
                 .global_shortcut()
                 .on_shortcut(
                     binding.accelerator.as_str(),
                     move |app, _shortcut, event| {
                         if event.state == ShortcutState::Pressed {
-                            handle_global_hotkey(app, action);
+                            toggle_main_window(app);
                         }
                     },
                 )
@@ -169,16 +163,6 @@ where
         }
 
         Ok(())
-    }
-}
-
-pub(super) fn handle_global_hotkey<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    action: GlobalHotkey,
-) {
-    match action {
-        GlobalHotkey::ShowForm => toggle_main_window(app),
-        _ => tracing::warn!(?action, "ignored retired global hotkey action"),
     }
 }
 
@@ -213,65 +197,11 @@ pub(super) fn apply_system_proxy<R>(
 where
     R: tauri::Runtime,
 {
-    let runtime_config = runtime_system_proxy_config(config, force_disable);
+    let runtime_config =
+        app_runtime_system_proxy_config(config, force_disable, TargetOs::current());
     state
         .system_proxy_manager()
         .apply_config(&runtime_config.config, runtime_config.force_disable)
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct RuntimeSystemProxyConfig {
-    pub(super) config: AppConfig,
-    pub(super) force_disable: bool,
-}
-
-pub(super) fn runtime_system_proxy_config(
-    config: &AppConfig,
-    force_disable: bool,
-) -> RuntimeSystemProxyConfig {
-    runtime_system_proxy_config_for_os(config, force_disable, TargetOs::current())
-}
-
-pub(super) fn runtime_system_proxy_config_for_os(
-    config: &AppConfig,
-    force_disable: bool,
-    target_os: TargetOs,
-) -> RuntimeSystemProxyConfig {
-    let mut runtime = RuntimeSystemProxyConfig {
-        config: config.clone(),
-        force_disable,
-    };
-
-    if force_disable {
-        return runtime;
-    }
-
-    if should_disable_native_tun_system_proxy(config, target_os) {
-        runtime.force_disable = true;
-        return runtime;
-    }
-
-    if should_apply_tun_system_proxy_fallback(config, target_os) {
-        runtime.config.system_proxy_item.sys_proxy_type = SysProxyType::ForcedChange;
-    }
-
-    runtime
-}
-
-pub(super) fn should_disable_native_tun_system_proxy(
-    config: &AppConfig,
-    target_os: TargetOs,
-) -> bool {
-    config.tun_mode_item.enable_tun && tun_backend(target_os).is_native()
-}
-
-pub(super) fn should_apply_tun_system_proxy_fallback(
-    config: &AppConfig,
-    target_os: TargetOs,
-) -> bool {
-    config.tun_mode_item.enable_tun
-        && config.system_proxy_item.sys_proxy_type == SysProxyType::ForcedClear
-        && tun_backend(target_os) == PlatformTunBackend::Process
 }
 
 pub(super) fn runtime_proxy_url(
@@ -279,48 +209,7 @@ pub(super) fn runtime_proxy_url(
     proxy_url: Option<String>,
     config: &AppConfig,
 ) -> Option<String> {
-    runtime_proxy_url_for_os(prefer_proxy, proxy_url, config, TargetOs::current())
-}
-
-pub(super) fn runtime_proxy_url_for_os(
-    prefer_proxy: bool,
-    proxy_url: Option<String>,
-    config: &AppConfig,
-    target_os: TargetOs,
-) -> Option<String> {
-    let explicit = proxy_url.and_then(|value| {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    });
-
-    if !prefer_proxy {
-        return explicit;
-    }
-
-    explicit.or_else(|| runtime_default_proxy_url_for_os(config, target_os))
-}
-
-pub(super) fn runtime_default_proxy_url_for_os(
-    config: &AppConfig,
-    target_os: TargetOs,
-) -> Option<String> {
-    if config.tun_mode_item.enable_tun && tun_backend(target_os).is_native() {
-        return None;
-    }
-
-    let port = config
-        .inbound
-        .first()
-        .map_or(voya_core::DEFAULT_LOCAL_PORT, |inbound| inbound.local_port);
-    if !(1..=65535).contains(&port) {
-        return None;
-    }
-
-    Some(format!("http://127.0.0.1:{port}"))
+    app_runtime_proxy_url(prefer_proxy, proxy_url, config, TargetOs::current())
 }
 
 pub(crate) fn restore_system_proxy<R>(
@@ -373,7 +262,9 @@ pub(super) fn runtime_status_response(snapshot: SupervisorSnapshot) -> RuntimeSt
         active_profile_id: snapshot.active_profile_id,
         main_pid: snapshot.main_pid,
         pre_pid: snapshot.pre_pid,
-        running_core_type: snapshot.running_core_type,
+        running_core_type: snapshot
+            .running_core_type
+            .map(voya_app::contract_map::core_type_to_contract),
     }
 }
 
@@ -386,8 +277,8 @@ pub(super) fn core_state_from_snapshot(snapshot: &SupervisorSnapshot) -> CoreSta
 
 pub(super) fn system_proxy_status_response(status: SystemProxyStatus) -> SystemProxyStatusResponse {
     SystemProxyStatusResponse {
-        requested_mode: status.requested_type,
-        effective_mode: status.effective_type,
+        requested_mode: voya_app::contract_map::sysproxy_type_to_contract(status.requested_type),
+        effective_mode: voya_app::contract_map::sysproxy_type_to_contract(status.effective_type),
         pac_available: status.pac_available,
         proxy: status.proxy,
         exceptions: status.exceptions,
@@ -468,11 +359,13 @@ pub(super) fn core_state_event(
             .or(active_profile_id),
         main_pid: snapshot.and_then(|snapshot| snapshot.main_pid),
         pre_pid: snapshot.and_then(|snapshot| snapshot.pre_pid),
-        running_core_type: snapshot.and_then(|snapshot| snapshot.running_core_type),
+        running_core_type: snapshot
+            .and_then(|snapshot| snapshot.running_core_type)
+            .map(voya_app::contract_map::core_type_to_contract),
     }
 }
 
-pub(super) fn persist_config_if_changed(
+pub(super) async fn persist_config_if_changed(
     state: &AppState,
     original: &AppConfig,
     updated: &AppConfig,
@@ -482,8 +375,9 @@ pub(super) fn persist_config_if_changed(
     }
 
     state
-        .config_store()
-        .save(updated)
+        .services()
+        .persist_config(updated)
+        .await
         .map_err(|error| AppError::ConfigSave(error.to_string()))?;
     let mut guard = state
         .config()
@@ -511,7 +405,7 @@ pub(super) fn runtime_error(error: RuntimeError) -> AppError {
             url,
         }) => AppError::MissingCore(MissingCoreError {
             message: missing_core_error_message(core_type),
-            core_type,
+            core_type: voya_app::contract_map::core_type_to_contract(core_type),
             search_dir: missing_core_search_dir_label(),
             candidates: missing_core_candidates(&candidates),
             download_url: url.to_string(),
@@ -552,7 +446,7 @@ pub(super) fn core_seed_install_result(outcome: CoreSeedCopyOutcome) -> CoreSeed
         .collect();
 
     CoreSeedInstallResult {
-        core_type: outcome.core_type,
+        core_type: voya_app::contract_map::core_type_to_contract(outcome.core_type),
         status,
         installed_files,
     }

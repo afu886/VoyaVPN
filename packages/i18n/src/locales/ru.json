@@ -1,15 +1,22 @@
 {
   "actions": {
+    "activate": "Activate",
+    "apply": "Apply",
+    "cancel": "Cancel",
     "clear": "Clear",
     "close": "Close",
     "closeAll": "Close all",
     "connect": "Connect",
+    "delete": "Delete",
     "disconnect": "Disconnect",
+    "edit": "Edit",
     "refresh": "Refresh",
     "refreshRuntimeState": "Refresh runtime state",
+    "reload": "Reload",
     "reloadCoreConfig": "Reload core configuration",
     "restart": "Restart",
     "runningProxyGroupDelayTest": "Running proxy group delay test",
+    "save": "Save",
     "settings": "Settings",
     "testSelected": "Test selected"
   },
@@ -63,14 +70,9 @@
       "customSourcesRequired": "Для пользовательского импорта необходимо указать URL-адрес источника шаблона маршрутизации.",
       "default": "По умолчанию",
       "defaultDescription": "Удалить региональные источники, восстановить встроенный DNS и импортировать встроенный шаблон маршрутизации.",
-      "dnsFallbackWarning": "Один или несколько шаблонов DNS недоступны. Сохранена резервная конфигурация DNS.",
       "import": "Импортировать шаблон конфигурации",
       "invalidSourceUrl": "Каждый пользовательский источник должен быть допустимым URL-адресом HTTPS без учётных данных.",
-      "iran": "Иран",
-      "iranDescription": "Использовать иранские источники Geo, наборов правил, маршрутизации и DNS.",
       "reusedDescription": "Совпадающий шаблон маршрутизации уже существовал; он был повторно использован и включён.",
-      "russia": "Россия",
-      "russiaDescription": "Использовать российские источники Geo, наборов правил, маршрутизации и DNS.",
       "selectPrompt": "Выберите шаблон",
       "title": "Импортировать шаблон конфигурации"
     },
@@ -86,6 +88,26 @@
     "srsSource": "sing-box ruleset source"
   },
   "panes": {
+    "dns": {
+      "errorCount": "{{count}} errors",
+      "loading": "Loading DNS settings",
+      "simpleTitle": "Simple DNS"
+    },
+    "groups": {
+      "applyChildren": "Apply",
+      "chooseChildren": "Choose children",
+      "chooseDescription": "Choose servers, policy groups, or proxy chains for the current group.",
+      "filterChildren": "Filter child profiles",
+      "loadingChildren": "Loading profiles",
+      "loadMode": "Load mode",
+      "noChildren": "No child profiles selected",
+      "noGeneratedRoutes": "No generated routes",
+      "noMatches": "No matching profiles",
+      "preview": "Preview",
+      "previewGenerated": "Preview generated from validated children",
+      "selectChildren": "Select child profiles",
+      "selectedChildren": "Selected children"
+    },
     "logs": {
       "empty": "No log lines",
       "jumpToLatest": "Jump to latest",
@@ -151,14 +173,14 @@
         "clipboardUnavailable": "Clipboard write is unavailable in this context.",
         "copied": "Copied {{count}} exported profile(s) to clipboard.",
         "export": "Export",
-        "innerLinks": "Inner links",
         "noSelection": "Select at least one profile to export.",
         "saveClientConfig": "Save client config",
         "savedFile": "Saved export to {{path}}.",
         "saveShareLinks": "Save share links",
         "shareBase64": "Share links (Base64)",
         "shareLinks": "Share links",
-        "showQr": "Show QR"
+        "showQr": "Show QR",
+        "voyaBundle": "Voya profile bundle"
       },
       "fields": {
         "address": "Address",
@@ -223,6 +245,17 @@
         "clipboardUnavailable": "Clipboard text read is unavailable in this WebView.",
         "discardedNodeOverrides": "Discarded {{count}} node-level override(s); global settings will be used."
       },
+      "importDialog": {
+        "description": "Import share links, subscription URLs, or JSON payloads.",
+        "file": "File",
+        "manual": "Manual import",
+        "mode": "Mode",
+        "paste": "Paste",
+        "payload": "Import payload",
+        "subscriptionTarget": "Subscription target",
+        "target": "Target",
+        "title": "Import Profiles"
+      },
       "menu": {
         "move": "Move",
         "moveBottom": "Move to bottom",
@@ -278,10 +311,33 @@
       "empty": "No proxy groups",
       "title": "Proxy Groups"
     },
+    "routing": {
+      "active": "Active",
+      "domain": "domain",
+      "editor": "Routing profile editor",
+      "network": "network",
+      "outbound": "Outbound",
+      "port": "port",
+      "profile": "Profile",
+      "profileCount": "{{count}} profiles",
+      "profiles": "Profiles",
+      "remarks": "remarks",
+      "rule": "Rule",
+      "ruleEditor": "Routing rule editor",
+      "rulesCount": "{{count}} rules ·",
+      "type": "type"
+    },
     "subscriptions": {
+      "description": "Manage subscription sources and run updates.",
+      "details": "Subscription details",
       "empty": "No subscriptions",
       "emptyDescription": "Add a subscription source to import profiles automatically.",
-      "loading": "Loading subscriptions"
+      "enabled": "Enabled",
+      "loading": "Loading subscriptions",
+      "sources": "Sources",
+      "title": "Subscriptions",
+      "updateAll": "Update all",
+      "updateSelected": "Update selected"
     }
   },
   "proxy": {
@@ -324,44 +380,25 @@
     "scanScreen": "Screen",
     "screenUnavailable": "Screen QR scanning is unavailable on this platform or permission state."
   },
-  "resx": {
-    "TbHopInt7": "Интервал смены портов (Port Hopping)",
-    "TbIcmpRoutingPolicy": "Политика маршрутизации ICMP",
-    "TbMtu": "MTU",
-    "TbSettingsAdvancedProtocol": "Расширенные настройки прокси, выбор протокола (необязательно)",
-    "TbSettingsBindInterface": "Привязать интерфейс",
-    "TbSettingsCore": "Ядро: базовые настройки",
-    "TbSettingsCustomSystemProxyPacPath": "Путь к пользовательскому PAC-файлу",
-    "TbSettingsCustomSystemProxyScriptPath": "Путь к скрипту системного прокси",
-    "TbSettingsDefAllowInsecure": "По умолчанию пропускать проверку сертификата (allowInsecure)",
-    "TbSettingsDefFingerprint": "TLS отпечаток по умолчанию",
-    "TbSettingsDefUserAgent": "User-Agent",
-    "TbSettingsEnableCacheFile4Sbox": "Включить файл кэша для sing-box (файлы наборов правил)",
-    "TbSettingsEnableFragment": "Включить фрагментацию (Fragment)",
-    "TbSettingsEnableIPv6Address": "Включить IPv6 адреса",
-    "TbSettingsException": "Исключение",
-    "TbSettingsHysteriaBandwidth": "Максимальная пропускная способность Hysteria (отдача/загрузка)",
-    "TbSettingsIPAPIUrl": "URL для тестирования текущего соединения",
-    "TbSettingsLogEnabled": "Записывать логи",
-    "TbSettingsLogLevel": "Уровень записи логов",
-    "TbSettingsMixedConcurrencyCount": "Количество параллельных задач при многопоточном тестировании",
-    "TbSettingsMux4SboxProtocol": "Протокол Mux для sing-box",
-    "TbSettingsMuxEnabled": "Включить мультиплексирование Mux",
-    "TbSettingsNotProxyLocalAddress": "Не использовать прокси для локальных (интранет) адресов",
-    "TbSettingsSendThrough": "Локальный исходящий адрес (SendThrough)",
-    "TbSettingsSpeedPingTestUrl": "URL для быстрой проверки реальной задержки",
-    "TbSettingsSpeedTestTimeout": "Тайм-аут одиночного тестирования скорости",
-    "TbSettingsSpeedTestUrl": "URL для тестирования скорости",
-    "TbSettingsSubConvert": "URL конвертации подписок (необязательно)",
-    "TbSettingsTunAutoRoute": "Автоматическая маршрутизация",
-    "TbSettingsTunMode": "Настройки режима TUN",
-    "TbSettingsTunStack": "Сетевой стек",
-    "TbSettingsTunStrictRoute": "Строгая маршрутизация",
-    "TbSettingsUdpTestUrl": "URL для UDP-теста"
-  },
   "settings": {
     "closeUnsavedDescription": "Save all changes, discard them, or keep editing.",
     "closeUnsavedTitle": "Unsaved settings",
+    "core": {
+      "allowInsecure": "По умолчанию пропускать проверку сертификата (allowInsecure)",
+      "bindInterface": "Привязать интерфейс",
+      "cacheFileEnabled": "Включить файл кэша для sing-box (файлы наборов правил)",
+      "fingerprint": "TLS отпечаток по умолчанию",
+      "fragmentEnabled": "Включить фрагментацию (Fragment)",
+      "hysteriaBandwidth": "Максимальная пропускная способность Hysteria (отдача/загрузка)",
+      "hysteriaHopInterval": "Интервал смены портов (Port Hopping)",
+      "logEnabled": "Записывать логи",
+      "logLevel": "Уровень записи логов",
+      "muxEnabled": "Включить мультиплексирование Mux",
+      "muxProtocol": "Протокол Mux для sing-box",
+      "sendThrough": "Локальный исходящий адрес (SendThrough)",
+      "title": "Ядро: базовые настройки",
+      "userAgent": "User-Agent"
+    },
     "discardChanges": "Discard changes",
     "fields": {
       "hysteriaDownMbps": "Максимальная пропускная способность Hysteria: загрузка (Мбит/с)",
@@ -371,12 +408,37 @@
       "speedTestDelayInterval": "Пауза между партиями теста скорости (секунды)",
       "speedTestPageSize": "Серверов в одной партии теста скорости"
     },
+    "network": {
+      "bypassLocalAddress": "Не использовать прокси для локальных (интранет) адресов",
+      "customPacPath": "Путь к пользовательскому PAC-файлу",
+      "customScriptPath": "Путь к скрипту системного прокси",
+      "enableIpv6Address": "Включить IPv6 адреса",
+      "icmpRoutingPolicy": "Политика маршрутизации ICMP",
+      "mtu": "MTU",
+      "systemProxyExceptions": "Исключение",
+      "systemProxyProtocol": "Расширенные настройки прокси, выбор протокола (необязательно)",
+      "tunAutoRoute": "Автоматическая маршрутизация",
+      "tunMode": "Настройки режима TUN",
+      "tunStack": "Сетевой стек",
+      "tunStrictRoute": "Строгая маршрутизация"
+    },
     "saveAll": "Save all",
     "saveBeforeActions": "Save or discard pending changes before running this action.",
+    "sources": {
+      "subscriptionConverter": "URL конвертации подписок (необязательно)"
+    },
     "startup": "Автозапуск",
     "tabGeneral": "Общие",
     "tabTests": "Тесты",
     "tabUpdates": "Обновления",
+    "tests": {
+      "downloadUrl": "URL для тестирования скорости",
+      "ipApiUrl": "URL для тестирования текущего соединения",
+      "mixedConcurrency": "Количество параллельных задач при многопоточном тестировании",
+      "pingUrl": "URL для быстрой проверки реальной задержки",
+      "timeout": "Тайм-аут одиночного тестирования скорости",
+      "udpTarget": "URL для UDP-теста"
+    },
     "unsavedChanges": "Unsaved changes"
   },
   "status": {

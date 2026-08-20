@@ -15,7 +15,7 @@ export function RoutingDialogs({ controller }: { controller: RoutingScreenContro
   return (
     <>
       <RoutingProfileDialog
-        key={routingDialog?.mode === "edit" ? `routing-${routingDialog.routing.Id}` : `routing-${routingDialog?.mode ?? "closed"}`}
+        key={routingDialog?.mode === "edit" ? `routing-${routingDialog.routing.id}` : `routing-${routingDialog?.mode ?? "closed"}`}
         mode={routingDialog?.mode ?? "create"}
         onOpenChange={(open) => !open && setRoutingDialog(null)}
         onSubmit={handleSaveRouting}
@@ -23,7 +23,7 @@ export function RoutingDialogs({ controller }: { controller: RoutingScreenContro
         routing={routingDialog?.mode === "edit" ? routingDialog.routing : null}
       />
       <RoutingRuleDialog
-        key={ruleDialog?.mode === "edit" ? `rule-${ruleDialog.rule.Id}` : `rule-${ruleDialog?.mode ?? "closed"}`}
+        key={ruleDialog?.mode === "edit" ? `rule-${ruleDialog.rule.id}` : `rule-${ruleDialog?.mode ?? "closed"}`}
         mode={ruleDialog?.mode ?? "create"}
         onOpenChange={(open) => !open && setRuleDialog(null)}
         onSubmit={handleSaveRule}

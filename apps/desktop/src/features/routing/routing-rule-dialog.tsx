@@ -2,6 +2,7 @@ import { useState } from "react";
 import type * as React from "react";
 import { Route, Save } from "lucide-react";
 import { z } from "zod";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import { Button } from "@voya/ui/components/button";
 import {
@@ -12,7 +13,7 @@ import {
   DialogTitle,
   ScrollableDialogContent,
 } from "@voya/ui/components/dialog";
-import type { RulesItem_Serialize } from "@/ipc/bindings";
+import type { RoutingRule, RoutingRuleScope } from "@/ipc/bindings";
 
 import { RULE_TYPES } from "./routing-constants";
 import { CheckboxField, SelectField, TextAreaField, TextField } from "./routing-form-fields";
@@ -35,8 +36,9 @@ export function RoutingRuleDialog({
   onOpenChange: (open: boolean) => void;
   onSubmit: (rule: RoutingRulePayload) => Promise<void>;
   open: boolean;
-  rule: RulesItem_Serialize | null;
+  rule: RoutingRule | null;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(() => ruleToForm(rule));
   const [fieldErrors, setFieldErrors] = useState<ErrorMap>({});
 
@@ -63,7 +65,7 @@ export function RoutingRuleDialog({
             <Route className="size-4" aria-hidden="true" />
             {mode === "edit" ? "Edit routing rule" : "Create routing rule"}
           </DialogTitle>
-          <DialogDescription className="sr-only">Routing rule editor</DialogDescription>
+          <DialogDescription className="sr-only">{t("panes.routing.ruleEditor")}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -73,95 +75,95 @@ export function RoutingRuleDialog({
         >
           <div className="grid gap-3 sm:grid-cols-[1fr_10rem_10rem]">
             <TextField
-              error={fieldErrors.Remarks}
-              label="Remarks"
-              onChange={(value) => setForm((current) => ({ ...current, Remarks: value }))}
-              value={form.Remarks}
+              error={fieldErrors.remarks}
+              label="remarks"
+              onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
+              value={form.remarks}
             />
             <SelectField
-              error={fieldErrors.RuleType}
+              error={fieldErrors.scope}
               label="Rule type"
-              onChange={(value) => setForm((current) => ({ ...current, RuleType: Number(value) }))}
+              onChange={(value) => setForm((current) => ({ ...current, scope: value as RoutingRuleScope }))}
               options={[
                 { label: "All", value: String(RULE_TYPES.All) },
                 { label: "Routing", value: String(RULE_TYPES.Routing) },
                 { label: "DNS", value: String(RULE_TYPES.Dns) },
               ]}
-              value={String(form.RuleType)}
+              value={String(form.scope)}
             />
             <TextField
-              error={fieldErrors.OutboundTag}
+              error={fieldErrors.outbound}
               label="Outbound"
-              onChange={(value) => setForm((current) => ({ ...current, OutboundTag: value }))}
-              value={form.OutboundTag}
+              onChange={(value) => setForm((current) => ({ ...current, outbound: value }))}
+              value={form.outbound}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <TextField
-              error={fieldErrors.Port}
-              label="Port"
-              onChange={(value) => setForm((current) => ({ ...current, Port: value }))}
-              value={form.Port}
+              error={fieldErrors.port}
+              label="port"
+              onChange={(value) => setForm((current) => ({ ...current, port: value }))}
+              value={form.port}
             />
             <TextField
-              error={fieldErrors.Network}
-              label="Network"
-              onChange={(value) => setForm((current) => ({ ...current, Network: value }))}
-              value={form.Network}
+              error={fieldErrors.network}
+              label="network"
+              onChange={(value) => setForm((current) => ({ ...current, network: value }))}
+              value={form.network}
             />
             <TextField
-              error={fieldErrors.Type}
-              label="Type"
-              onChange={(value) => setForm((current) => ({ ...current, Type: value }))}
-              value={form.Type}
+              error={fieldErrors.kind}
+              label="type"
+              onChange={(value) => setForm((current) => ({ ...current, kind: value }))}
+              value={form.kind}
             />
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             <TextAreaField
-              error={fieldErrors.Domain}
-              label="Domain"
-              onChange={(value) => setForm((current) => ({ ...current, Domain: value }))}
-              value={form.Domain}
+              error={fieldErrors.domain}
+              label="domain"
+              onChange={(value) => setForm((current) => ({ ...current, domain: value }))}
+              value={form.domain}
             />
             <TextAreaField
-              error={fieldErrors.Ip}
+              error={fieldErrors.ip}
               label="IP"
-              onChange={(value) => setForm((current) => ({ ...current, Ip: value }))}
-              value={form.Ip}
+              onChange={(value) => setForm((current) => ({ ...current, ip: value }))}
+              value={form.ip}
             />
             <TextAreaField
-              error={fieldErrors.Protocol}
-              label="Protocol"
-              onChange={(value) => setForm((current) => ({ ...current, Protocol: value }))}
-              value={form.Protocol}
+              error={fieldErrors.protocol}
+              label="protocol"
+              onChange={(value) => setForm((current) => ({ ...current, protocol: value }))}
+              value={form.protocol}
             />
             <TextAreaField
-              error={fieldErrors.Process}
-              label="Process"
-              onChange={(value) => setForm((current) => ({ ...current, Process: value }))}
-              value={form.Process}
+              error={fieldErrors.process}
+              label="process"
+              onChange={(value) => setForm((current) => ({ ...current, process: value }))}
+              value={form.process}
             />
             <TextAreaField
-              error={fieldErrors.InboundTag}
+              error={fieldErrors.inboundTags}
               label="Inbound tags"
-              onChange={(value) => setForm((current) => ({ ...current, InboundTag: value }))}
-              value={form.InboundTag}
+              onChange={(value) => setForm((current) => ({ ...current, inboundTags: value }))}
+              value={form.inboundTags}
             />
           </div>
           <CheckboxField
-            checked={form.Enabled}
-            label="Enabled"
-            onCheckedChange={(checked) => setForm((current) => ({ ...current, Enabled: checked }))}
+            checked={form.enabled}
+            label="enabled"
+            onCheckedChange={(checked) => setForm((current) => ({ ...current, enabled: checked }))}
           />
         </form>
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            Cancel
+            {t("actions.cancel")}
           </Button>
           <Button form="routing-rule-form" type="submit">
             <Save className="size-4" aria-hidden="true" />
-            Save
+            {t("actions.save")}
           </Button>
         </DialogFooter>
       </ScrollableDialogContent>

@@ -2,15 +2,16 @@ import type * as React from "react";
 
 import { Badge } from "@voya/ui/components/badge";
 import type { TranslationFunction, TranslationKey } from "@voya/i18n";
-import type { ProfileListItem_Serialize, ProfileSortKey } from "@/ipc/bindings";
+import type { ProfileListEntry, ProfileSortKey } from "@/ipc/bindings";
 import { formatDelay, formatSpeed, formatTraffic } from "@voya/utils/formatting";
 
 import { getProtocolLabel } from "./profile-constants";
+import { profileAddress, profilePort, profileTransportName } from "./profile-display";
 
 export type TranslateFn = TranslationFunction;
 
 export type ServerColumn = {
-  cell: (item: ProfileListItem_Serialize, rowNumber: number, t: TranslateFn) => React.ReactNode;
+  cell: (item: ProfileListEntry, rowNumber: number, t: TranslateFn) => React.ReactNode;
   id: string;
   labelKey: TranslationKey;
   sortKey?: ProfileSortKey;
@@ -43,99 +44,99 @@ export const serverColumns: ServerColumn[] = [
   {
     cell: (item) => (
       <Badge className="max-w-full justify-start truncate text-muted-foreground" variant="outline">
-        <span className="truncate">{getProtocolLabel(item.profile.ConfigType)}</span>
+        <span className="truncate">{getProtocolLabel(item.profile.protocol.kind)}</span>
       </Badge>
     ),
     id: "configType",
     labelKey: "panes.profiles.columns.labels.protocol",
-    sortKey: "configType",
+    sortKey: "protocol",
     width: "8rem",
   },
   {
-    cell: (item, _rowNumber, t) => item.profile.Remarks || t("panes.profiles.untitled"),
+    cell: (item, _rowNumber, t) => item.profile.remarks || t("panes.profiles.untitled"),
     id: "remarks",
     labelKey: "panes.profiles.columns.labels.remarks",
     sortKey: "remarks",
     width: "minmax(13rem,1.3fr)",
   },
   {
-    cell: (item) => item.profile.Address,
+    cell: (item) => profileAddress(item.profile),
     id: "address",
     labelKey: "panes.profiles.columns.labels.address",
     sortKey: "address",
     width: "minmax(12rem,1fr)",
   },
   {
-    cell: (item) => <span className="tabular-nums">{item.profile.Port || ""}</span>,
+    cell: (item) => <span className="tabular-nums">{profilePort(item.profile) || ""}</span>,
     id: "port",
     labelKey: "panes.profiles.columns.labels.port",
     sortKey: "port",
     width: "5rem",
   },
   {
-    cell: (item) => item.profile.Network || "tcp",
+    cell: (item) => profileTransportName(item.profile.transport),
     id: "network",
     labelKey: "panes.profiles.columns.labels.transport",
-    sortKey: "network",
+    sortKey: "transport",
     width: "7rem",
   },
   {
-    cell: (item) => item.profile.StreamSecurity || "none",
+    cell: (item) => item.profile.tls?.mode ?? "none",
     id: "security",
     labelKey: "panes.profiles.columns.labels.security",
-    sortKey: "streamSecurity",
+    sortKey: "tls",
     width: "7rem",
   },
   {
-    cell: (item) => formatDelay(item.profileEx.Delay),
+    cell: (item) => formatDelay(item.metrics.delayMs),
     id: "delay",
     labelKey: "panes.profiles.columns.labels.delay",
     sortKey: "delay",
     width: "6rem",
   },
   {
-    cell: (item) => formatSpeedOrMessage(item.profileEx.Speed, item.profileEx.Message),
+    cell: (item) => formatSpeedOrMessage(item.metrics.speedBytesPerSecond, item.metrics.message),
     id: "speed",
     labelKey: "panes.profiles.columns.labels.speed",
     sortKey: "speed",
     width: "7rem",
   },
   {
-    cell: (item) => formatTraffic(item.serverStat?.TodayUp),
+    cell: (item) => formatTraffic(item.traffic.todayUpload),
     id: "todayUp",
     labelKey: "panes.profiles.columns.labels.todayUp",
     width: "8rem",
   },
   {
-    cell: (item) => formatTraffic(item.serverStat?.TodayDown),
+    cell: (item) => formatTraffic(item.traffic.todayDownload),
     id: "todayDown",
     labelKey: "panes.profiles.columns.labels.todayDown",
     width: "8rem",
   },
   {
-    cell: (item) => formatTraffic(item.serverStat?.TotalUp),
+    cell: (item) => formatTraffic(item.traffic.totalUpload),
     id: "totalUp",
     labelKey: "panes.profiles.columns.labels.totalUp",
     width: "8rem",
   },
   {
-    cell: (item) => formatTraffic(item.serverStat?.TotalDown),
+    cell: (item) => formatTraffic(item.traffic.totalDownload),
     id: "totalDown",
     labelKey: "panes.profiles.columns.labels.totalDown",
     width: "8rem",
   },
   {
-    cell: (item) => item.profileEx.IpInfo ?? "",
+    cell: (item) => item.metrics.ipInfo ?? "",
     id: "ipInfo",
     labelKey: "panes.profiles.columns.labels.ipInfo",
     sortKey: "ipInfo",
     width: "10rem",
   },
   {
-    cell: (item) => item.profile.Subid,
-    id: "subid",
+    cell: (item) => item.profile.subscriptionId ?? "",
+    id: "subscriptionId",
     labelKey: "panes.profiles.columns.labels.group",
-    sortKey: "subid",
+    sortKey: "subscriptionId",
     width: "8rem",
   },
 ];

@@ -5,16 +5,18 @@ import { Badge } from "@voya/ui/components/badge";
 import { EmptyState } from "@voya/ui/components/empty-state";
 import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { cn } from "@voya/ui/lib/utils";
+import { useI18n } from "@voya/i18n/use-i18n";
 
 import type { RoutingScreenController } from "./use-routing-screen";
 
 export function RoutingProfileList({ controller }: { controller: RoutingScreenController }) {
+  const { t } = useI18n();
   const { routings, selectRouting, selectedRouting } = controller;
 
   return (
     <aside className="min-h-0 border-b lg:border-b-0 lg:border-e">
       <div className="h-10 border-b px-4 py-2 text-xs font-medium uppercase text-muted-foreground">
-        Profiles
+        {t("panes.routing.profiles")}
       </div>
       <ScrollArea className="h-[18rem] lg:h-full">
         {routings.length > 0 ? (
@@ -23,24 +25,24 @@ export function RoutingProfileList({ controller }: { controller: RoutingScreenCo
               <button
                 className={cn(
                   "mb-1 flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2 text-start outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  selectedRouting?.Id === routing.Id ? dataTableRowSelected : "hover:bg-surface-hovered",
+                  selectedRouting?.id === routing.id ? dataTableRowSelected : "hover:bg-surface-hovered",
                 )}
-                key={routing.Id}
-                onClick={() => selectRouting(routing.Id)}
+                key={routing.id}
+                onClick={() => selectRouting(routing.id)}
                 type="button"
               >
                 <span className="grid size-6 shrink-0 place-items-center rounded-md border bg-surface-raised">
-                  {routing.IsActive ? <CheckCircle2 className="size-4 text-connected" aria-hidden="true" /> : null}
+                  {routing.isActive ? <CheckCircle2 className="size-4 text-connected" aria-hidden="true" /> : null}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-1 text-sm font-medium">{routing.Remarks || "Untitled routing"}</span>
+                  <span className="line-clamp-1 text-sm font-medium">{routing.remarks || "Untitled routing"}</span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {routing.RuleNum} rules · {routing.DomainStrategy4Singbox || "default"}
+                    {t("panes.routing.rulesCount", { count: routing.rules.length })} {routing.singboxDomainStrategy || "default"}
                   </span>
                 </span>
-                {routing.IsActive ? (
+                {routing.isActive ? (
                   <Badge className="shrink-0 border-connected/30 bg-connected/10 text-connected" variant="outline">
-                    Active
+                    {t("panes.routing.active")}
                   </Badge>
                 ) : null}
               </button>

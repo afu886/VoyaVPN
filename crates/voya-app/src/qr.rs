@@ -1,33 +1,8 @@
 use qrcode::{render::svg, EcLevel, QrCode};
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use thiserror::Error;
+pub use voya_contracts::{QrCodeImage, QrScanResult, QrScanStatus};
 
 const QR_MIN_DIMENSION: u32 = 256;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct QrCodeImage {
-    pub mime_type: String,
-    pub svg: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum QrScanStatus {
-    Found,
-    NotFound,
-    Unavailable,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct QrScanResult {
-    pub status: QrScanStatus,
-    pub text: Option<String>,
-    pub source: String,
-    pub message: Option<String>,
-}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct QrCodeManager;

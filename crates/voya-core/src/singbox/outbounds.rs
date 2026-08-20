@@ -51,7 +51,7 @@ pub(super) fn build_all_proxy_servers(
     base_tag_name: &str,
     with_selector: bool,
 ) -> Vec<SingboxServer> {
-    let mut proxy_servers = if node.config_type.is_group_type() {
+    let mut proxy_servers = if node.config_type().is_group_type() {
         build_group_proxy_servers(context, node, base_tag_name)
     } else {
         build_proxy_server(context, node, base_tag_name)
@@ -76,7 +76,7 @@ fn build_proxy_server(
     node: &ProfileItem,
     base_tag_name: &str,
 ) -> Option<SingboxServer> {
-    if node.config_type == ConfigType::WireGuard {
+    if node.config_type() == ConfigType::WireGuard {
         let mut endpoint = build_wireguard_endpoint(node)?;
         endpoint.tag = base_tag_name.to_string();
         return Some(SingboxServer::Endpoint(Box::new(endpoint)));
@@ -92,7 +92,7 @@ fn build_group_proxy_servers(
     node: &ProfileItem,
     base_tag_name: &str,
 ) -> Vec<SingboxServer> {
-    match node.config_type {
+    match node.config_type() {
         ConfigType::PolicyGroup => build_outbounds_list(context, node, base_tag_name),
         ConfigType::ProxyChain => build_chain_outbounds_list(context, node, base_tag_name),
         _ => Vec::new(),
@@ -114,7 +114,7 @@ fn build_outbounds_list(
             format!("{base_tag_name}-{}-{}", index + 1, child_node.remarks)
         };
 
-        if child_node.config_type.is_group_type() {
+        if child_node.config_type().is_group_type() {
             result.extend(build_group_proxy_servers(context, child_node, &current_tag));
             continue;
         }
@@ -150,7 +150,7 @@ fn build_chain_outbounds_list(
             )
         });
 
-        if child_node.config_type.is_group_type() {
+        if child_node.config_type().is_group_type() {
             let mut child_profiles = build_group_proxy_servers(context, child_node, &current_tag);
             if let Some(detour_tag) = detour_tag.as_deref() {
                 for server in child_profiles
@@ -225,90 +225,115 @@ fn build_chain_outbounds_list(
 }
 
 pub(super) fn build_outbound(context: &CoreConfigContext, node: &ProfileItem) -> SingboxOutbound {
-    let protocol_extra = &node.protocol_extra;
-    let transport_extra = &node.transport_extra;
     let network = singbox_network(node);
     let mut outbound = SingboxOutbound {
-        r#type: protocol_name(node.config_type).to_string(),
+        r#type: protocol_name(node.config_type()).to_string(),
         tag: PROXY_TAG.to_string(),
-        server: Some(node.address.clone()),
-        server_port: Some(node.port),
+        server: Some(node.address().to_string()),
+        server_port: Some(node.port()),
         ..SingboxOutbound::default()
     };
 
-    match node.config_type {
-        ConfigType::VMess => {
-            outbound.uuid = Some(node.password.clone());
-            outbound.alter_id = Some(parse_i32(protocol_extra.alter_id.as_deref()).unwrap_or(0));
-            outbound.security = Some(vmess_security(protocol_extra));
+    match &node.protocol {
+        ProfileProtocol::Vmess { uuid, .. } => {
+            outbound.uuid = Some(uuid.clone());
+            outbound.alter_id = Some(0);
+            outbound.security = Some(vmess_security(&node.protocol));
             fill_outbound_mux(&mut outbound, context, node);
-            fill_outbound_transport(&mut outbound, context, node, &network, transport_extra);
+            fill_outbound_transport(&mut outbound, context, node);
         }
-        ConfigType::Shadowsocks => {
-            outbound.method = Some(shadowsocks_method(protocol_extra));
-            outbound.password = Some(node.password.clone());
-            outbound.udp_over_tcp = (protocol_extra.uot == Some(true)).then_some(true);
-            fill_shadowsocks_plugin(&mut outbound, node, &network, transport_extra);
+        ProfileProtocol::Shadowsocks {
+            password,
+            udp_over_tcp,
+            ..
+        } => {
+            outbound.method = Some(shadowsocks_method(&node.protocol));
+            outbound.password = Some(password.clone());
+            outbound.udp_over_tcp = (*udp_over_tcp).then_some(true);
+            fill_shadowsocks_plugin(&mut outbound, node, &network);
             fill_outbound_mux(&mut outbound, context, node);
         }
-        ConfigType::SOCKS => {
+        ProfileProtocol::Socks {
+            username, password, ..
+        } => {
             outbound.version = Some("5".to_string());
-            if !trimmed(&node.username).is_empty() && !trimmed(&node.password).is_empty() {
-                outbound.username = Some(node.username.clone());
-                outbound.password = Some(node.password.clone());
+            if !trimmed(username).is_empty() && !trimmed(password).is_empty() {
+                outbound.username = Some(username.clone());
+                outbound.password = Some(password.clone());
             }
         }
-        ConfigType::HTTP => {
-            if !trimmed(&node.username).is_empty() && !trimmed(&node.password).is_empty() {
-                outbound.username = Some(node.username.clone());
-                outbound.password = Some(node.password.clone());
+        ProfileProtocol::Http {
+            username, password, ..
+        } => {
+            if !trimmed(username).is_empty() && !trimmed(password).is_empty() {
+                outbound.username = Some(username.clone());
+                outbound.password = Some(password.clone());
             }
         }
-        ConfigType::VLESS => {
-            outbound.uuid = Some(node.password.clone());
+        ProfileProtocol::Vless { uuid, flow, .. } => {
+            outbound.uuid = Some(uuid.clone());
             outbound.packet_encoding = Some("xudp".to_string());
-            if let Some(flow) = nonempty_string(protocol_extra.flow.as_deref()) {
+            if let Some(flow) = nonempty_string(flow.as_deref()) {
                 outbound.flow = Some(flow);
             } else {
                 fill_outbound_mux(&mut outbound, context, node);
             }
-            fill_outbound_transport(&mut outbound, context, node, &network, transport_extra);
+            fill_outbound_transport(&mut outbound, context, node);
         }
-        ConfigType::Trojan => {
-            outbound.password = Some(node.password.clone());
+        ProfileProtocol::Trojan { password, .. } => {
+            outbound.password = Some(password.clone());
             fill_outbound_mux(&mut outbound, context, node);
-            fill_outbound_transport(&mut outbound, context, node, &network, transport_extra);
+            fill_outbound_transport(&mut outbound, context, node);
         }
-        ConfigType::Hysteria2 => {
-            outbound.password = Some(node.password.clone());
-            fill_hysteria2_fields(&mut outbound, context, protocol_extra);
+        ProfileProtocol::Hysteria2 {
+            password,
+            port_hops,
+            obfuscation_password,
+            ..
+        } => {
+            outbound.password = Some(password.clone());
+            fill_hysteria2_fields(
+                &mut outbound,
+                context,
+                port_hops.as_deref(),
+                obfuscation_password.as_deref(),
+            );
         }
-        ConfigType::TUIC => {
-            outbound.uuid = nonempty_string(Some(&node.username));
-            outbound.password = Some(node.password.clone());
-            outbound.congestion_control =
-                nonempty_string(protocol_extra.congestion_control.as_deref());
+        ProfileProtocol::Tuic {
+            uuid,
+            password,
+            congestion_control,
+            ..
+        } => {
+            outbound.uuid = nonempty_string(Some(uuid));
+            outbound.password = Some(password.clone());
+            outbound.congestion_control = nonempty_string(congestion_control.as_deref());
         }
-        ConfigType::Anytls => {
-            outbound.password = Some(node.password.clone());
+        ProfileProtocol::Anytls { password, .. } => {
+            outbound.password = Some(password.clone());
         }
-        ConfigType::Naive => {
-            outbound.username = nonempty_string(Some(&node.username));
-            outbound.password = Some(node.password.clone());
-            if protocol_extra.naive_quic == Some(true) {
+        ProfileProtocol::Naive {
+            username,
+            password,
+            quic,
+            congestion_control,
+            insecure_concurrency,
+            udp_over_tcp,
+            ..
+        } => {
+            outbound.username = nonempty_string(Some(username));
+            outbound.password = Some(password.clone());
+            if *quic {
                 outbound.quic = Some(true);
-                outbound.quic_congestion_control =
-                    nonempty_string(protocol_extra.congestion_control.as_deref());
+                outbound.quic_congestion_control = nonempty_string(congestion_control.as_deref());
             }
-            outbound.insecure_concurrency = protocol_extra
-                .insecure_concurrency
-                .filter(|value| *value > 0);
-            outbound.udp_over_tcp = (protocol_extra.uot == Some(true)).then_some(true);
+            outbound.insecure_concurrency = insecure_concurrency.filter(|value| *value > 0);
+            outbound.udp_over_tcp = (*udp_over_tcp).then_some(true);
         }
-        ConfigType::WireGuard
-        | ConfigType::Custom
-        | ConfigType::PolicyGroup
-        | ConfigType::ProxyChain => {}
+        ProfileProtocol::WireGuard { .. }
+        | ProfileProtocol::Custom { .. }
+        | ProfileProtocol::PolicyGroup { .. }
+        | ProfileProtocol::ProxyChain { .. } => {}
     }
 
     fill_outbound_tls(&mut outbound, context, node);
@@ -316,75 +341,80 @@ pub(super) fn build_outbound(context: &CoreConfigContext, node: &ProfileItem) ->
 }
 
 fn build_wireguard_endpoint(node: &ProfileItem) -> Option<SingboxEndpoint> {
-    let protocol_extra = &node.protocol_extra;
-    let public_key = wireguard_public_key(protocol_extra)?;
+    let ProfileProtocol::WireGuard {
+        server,
+        private_key,
+        preshared_key,
+        interface_address,
+        reserved,
+        mtu,
+        ..
+    } = &node.protocol
+    else {
+        return None;
+    };
+    let public_key = wireguard_public_key(&node.protocol)?;
     Some(SingboxEndpoint {
-        r#type: protocol_name(node.config_type).to_string(),
+        r#type: protocol_name(node.config_type()).to_string(),
         tag: PROXY_TAG.to_string(),
-        address: split_list(
-            protocol_extra
-                .wg_interface_address
-                .as_deref()
-                .unwrap_or_default(),
-        )
-        .filter(|items| !items.is_empty())
-        .unwrap_or_else(|| vec![WIREGUARD_DEFAULT_ADDRESS.to_string()]),
-        private_key: node.password.clone(),
-        mtu: Some(
-            protocol_extra
-                .wg_mtu
-                .filter(|mtu| *mtu > 0)
-                .unwrap_or(WIREGUARD_DEFAULT_MTU),
-        ),
+        address: split_list(interface_address.as_deref().unwrap_or_default())
+            .filter(|items| !items.is_empty())
+            .unwrap_or_else(|| vec![WIREGUARD_DEFAULT_ADDRESS.to_string()]),
+        private_key: private_key.clone(),
+        mtu: Some(mtu.filter(|mtu| *mtu > 0).unwrap_or(WIREGUARD_DEFAULT_MTU)),
         peers: vec![SingboxPeer {
-            address: node.address.clone(),
-            port: node.port,
+            address: server.address.clone(),
+            port: server.port,
             public_key,
-            pre_shared_key: protocol_extra.wg_preshared_key.clone(),
-            allowed_ips: wireguard_allowed_ips(protocol_extra),
-            reserved: parse_wireguard_reserved(protocol_extra.wg_reserved.as_deref()),
+            pre_shared_key: preshared_key.clone(),
+            allowed_ips: wireguard_allowed_ips(&node.protocol),
+            reserved: parse_wireguard_reserved(reserved.as_deref()),
             persistent_keepalive_interval: None,
         }],
         ..SingboxEndpoint::default()
     })
 }
 
-fn fill_shadowsocks_plugin(
-    outbound: &mut SingboxOutbound,
-    node: &ProfileItem,
-    network: &str,
-    transport_extra: &TransportExtraItem,
-) {
-    if network == DEFAULT_NETWORK
-        && transport_extra.raw_header_type.as_deref() == Some(RAW_HEADER_HTTP)
-    {
+fn fill_shadowsocks_plugin(outbound: &mut SingboxOutbound, node: &ProfileItem, network: &str) {
+    let is_http_obfs = matches!(
+        &node.transport,
+        Some(ProfileTransport::Tcp { header, .. })
+            if header.as_deref() == Some(RAW_HEADER_HTTP)
+    );
+    if is_http_obfs {
+        let Some(ProfileTransport::Tcp { host, .. }) = &node.transport else {
+            return;
+        };
         outbound.plugin = Some("obfs-local".to_string());
         outbound.plugin_opts = Some(format!(
             "obfs=http;obfs-host={};",
-            transport_extra.host.as_deref().unwrap_or_default()
+            host.as_deref().unwrap_or_default()
         ));
         return;
     }
 
     let mut plugin_args = String::new();
     if network == "ws" {
-        plugin_args.push_str("mode=websocket;");
-        plugin_args.push_str(&format!(
-            "host={};",
-            first_list_value(transport_extra.host.as_deref())
-        ));
-        let path = transport_extra
-            .path
-            .as_deref()
-            .unwrap_or_default()
-            .replace('\\', "\\\\")
-            .replace('=', "\\=")
-            .replace(',', "\\,");
-        plugin_args.push_str(&format!("path={path};"));
+        if let Some(ProfileTransport::Websocket { host, path }) = &node.transport {
+            plugin_args.push_str("mode=websocket;");
+            plugin_args.push_str(&format!("host={};", first_list_value(host.as_deref())));
+            let path = path
+                .as_deref()
+                .unwrap_or_default()
+                .replace('\\', "\\\\")
+                .replace('=', "\\=")
+                .replace(',', "\\,");
+            plugin_args.push_str(&format!("path={path};"));
+        }
     }
-    if node.stream_security == STREAM_SECURITY_TLS {
+    if node.stream_security() == STREAM_SECURITY_TLS {
         plugin_args.push_str("tls;");
-        let certs = parse_pem_chain(&node.cert);
+        let certs = node
+            .tls
+            .as_ref()
+            .and_then(|tls| tls.certificate_pem.as_deref())
+            .map(parse_pem_chain)
+            .unwrap_or_default();
         if let Some(cert) = certs.first() {
             let base64_content = cert
                 .replace("-----BEGIN CERTIFICATE-----\n", "")
@@ -405,9 +435,10 @@ fn fill_shadowsocks_plugin(
 fn fill_hysteria2_fields(
     outbound: &mut SingboxOutbound,
     context: &CoreConfigContext,
-    protocol_extra: &ProtocolExtraItem,
+    port_hops: Option<&str>,
+    obfuscation_password: Option<&str>,
 ) {
-    if let Some(salamander_pass) = nonempty_str(protocol_extra.salamander_pass.as_deref()) {
+    if let Some(salamander_pass) = nonempty_str(obfuscation_password) {
         outbound.obfs = Some(SingboxHyObfs {
             r#type: Some("salamander".to_string()),
             password: Some(salamander_pass.to_string()),
@@ -419,7 +450,7 @@ fn fill_hysteria2_fields(
     outbound.up_mbps = (up_mbps > 0).then_some(up_mbps);
     outbound.down_mbps = (down_mbps > 0).then_some(down_mbps);
 
-    let Some(ports) = nonempty_str(protocol_extra.ports.as_deref()) else {
+    let Some(ports) = nonempty_str(port_hops) else {
         return;
     };
     if !ports.contains([':', '-', ',']) {
@@ -476,20 +507,18 @@ fn fill_outbound_transport(
     outbound: &mut SingboxOutbound,
     context: &CoreConfigContext,
     node: &ProfileItem,
-    network: &str,
-    transport_extra: &TransportExtraItem,
 ) {
     let user_agent = raw_http_user_agent(&context.app_config.core_basic_item.def_user_agent);
     let mut transport = SingboxTransport::default();
 
-    match network {
-        DEFAULT_NETWORK => {
-            if transport_extra.raw_header_type.as_deref() == Some(RAW_HEADER_HTTP) {
+    match &node.transport {
+        Some(ProfileTransport::Tcp { header, host, path }) => {
+            if header.as_deref() == Some(RAW_HEADER_HTTP) {
                 transport.r#type = Some("http".to_string());
-                transport.host = split_list(transport_extra.host.as_deref().unwrap_or_default())
+                transport.host = split_list(host.as_deref().unwrap_or_default())
                     .filter(|items| !items.is_empty())
                     .map(|items| json!(items));
-                transport.path = nonempty_string(transport_extra.path.as_deref());
+                transport.path = nonempty_string(path.as_deref());
                 if !user_agent.is_empty() {
                     transport.headers = Some(SingboxHeaders {
                         host: None,
@@ -498,15 +527,15 @@ fn fill_outbound_transport(
                 }
             }
         }
-        "ws" => {
+        Some(ProfileTransport::Websocket { host, path }) => {
             transport.r#type = Some("ws".to_string());
-            let mut ws_path = transport_extra.path.clone().unwrap_or_default();
+            let mut ws_path = path.clone().unwrap_or_default();
             let (path, early_data, early_header) = parse_ws_early_data(&ws_path);
             ws_path = path;
             transport.path = nonempty_string(Some(&ws_path));
             transport.max_early_data = early_data;
             transport.early_data_header_name = early_header;
-            let host = first_list_value(transport_extra.host.as_deref());
+            let host = first_list_value(host.as_deref());
             if !host.is_empty() || !user_agent.is_empty() {
                 transport.headers = Some(SingboxHeaders {
                     host: nonempty_string(Some(&host)),
@@ -514,10 +543,10 @@ fn fill_outbound_transport(
                 });
             }
         }
-        "httpupgrade" => {
+        Some(ProfileTransport::HttpUpgrade { host, path }) => {
             transport.r#type = Some("httpupgrade".to_string());
-            transport.path = nonempty_string(transport_extra.path.as_deref());
-            let host = first_list_value(transport_extra.host.as_deref());
+            transport.path = nonempty_string(path.as_deref());
+            let host = first_list_value(host.as_deref());
             transport.host = nonempty_string(Some(&host)).map(Value::String);
             if !user_agent.is_empty() {
                 transport.headers = Some(SingboxHeaders {
@@ -526,14 +555,9 @@ fn fill_outbound_transport(
                 });
             }
         }
-        "grpc" => {
+        Some(ProfileTransport::Grpc { service_name, .. }) => {
             transport.r#type = Some("grpc".to_string());
-            transport.service_name = Some(
-                transport_extra
-                    .grpc_service_name
-                    .clone()
-                    .unwrap_or_default(),
-            );
+            transport.service_name = Some(service_name.clone().unwrap_or_default());
             transport.idle_timeout = context
                 .app_config
                 .grpc_item
@@ -553,7 +577,7 @@ fn fill_outbound_transport(
         outbound.transport = Some(transport);
     }
 
-    if node.config_type == ConfigType::Shadowsocks {
+    if node.config_type() == ConfigType::Shadowsocks {
         outbound.transport = None;
     }
 }
@@ -598,18 +622,18 @@ fn fill_outbound_tls(
     context: &CoreConfigContext,
     node: &ProfileItem,
 ) {
-    if !matches!(
-        node.stream_security.as_str(),
-        STREAM_SECURITY_TLS | STREAM_SECURITY_REALITY
-    ) || matches!(
-        node.config_type,
+    let Some(domain_tls) = &node.tls else {
+        return;
+    };
+    if matches!(
+        node.config_type(),
         ConfigType::Shadowsocks | ConfigType::SOCKS | ConfigType::WireGuard
     ) {
         return;
     }
 
     let transport_host = transport_host_for_tls(node);
-    let server_name = nonempty_string(Some(&node.sni)).or_else(|| {
+    let server_name = nonempty_string(domain_tls.server_name.as_deref()).or_else(|| {
         split_list(transport_host.as_deref().unwrap_or_default()).and_then(|items| {
             items
                 .into_iter()
@@ -621,13 +645,13 @@ fn fill_outbound_tls(
         enabled: true,
         server_name,
         insecure: Some(allow_insecure(context)),
-        alpn: split_list(&node.alpn).filter(|items| !items.is_empty()),
+        alpn: (!domain_tls.alpn.is_empty()).then(|| domain_tls.alpn.clone()),
         record_fragment: context
             .app_config
             .core_basic_item
             .enable_fragment
             .then_some(true),
-        ech: parse_ech(&node.ech_config_list),
+        ech: parse_ech(&domain_tls.ech_config),
         ..SingboxTls::default()
     };
 
@@ -638,17 +662,21 @@ fn fill_outbound_tls(
         });
     }
 
-    if node.stream_security == STREAM_SECURITY_TLS {
-        let certs = parse_pem_chain(&node.cert);
+    if domain_tls.mode == TlsMode::Tls {
+        let certs = domain_tls
+            .certificate_pem
+            .as_deref()
+            .map(parse_pem_chain)
+            .unwrap_or_default();
         if !certs.is_empty() {
             tls.certificate = Some(certs);
             tls.insecure = Some(false);
         }
-    } else if node.stream_security == STREAM_SECURITY_REALITY {
+    } else if domain_tls.mode == TlsMode::Reality {
         tls.reality = Some(SingboxReality {
             enabled: true,
-            public_key: node.public_key.clone(),
-            short_id: node.short_id.clone(),
+            public_key: domain_tls.reality_public_key.clone().unwrap_or_default(),
+            short_id: domain_tls.reality_short_id.clone().unwrap_or_default(),
         });
         tls.insecure = Some(false);
     }
@@ -656,12 +684,17 @@ fn fill_outbound_tls(
     outbound.tls = Some(tls);
 }
 
-fn parse_ech(ech_config: &str) -> Option<SingboxEch> {
-    let ech_config = ech_config.trim();
-    if ech_config.is_empty() {
+fn parse_ech(ech_configs: &[String]) -> Option<SingboxEch> {
+    let ech_configs = ech_configs
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if ech_configs.is_empty() {
         return None;
     }
-    if !ech_config.contains("://") {
+    if !ech_configs.iter().any(|value| value.contains("://")) {
+        let ech_config = ech_configs.join(",");
         return Some(SingboxEch {
             enabled: true,
             config: Some(vec![format!(
@@ -671,9 +704,10 @@ fn parse_ech(ech_config: &str) -> Option<SingboxEch> {
         });
     }
 
-    let query_server_name = ech_config
-        .split_once('+')
-        .map(|(query_server_name, _)| query_server_name)
+    let query_server_name = ech_configs
+        .iter()
+        .find(|value| !value.contains("://"))
+        .map(|value| value.split_once('+').map_or(*value, |(name, _)| name))
         .and_then(|value| nonempty_string(Some(value)));
 
     Some(SingboxEch {
@@ -688,10 +722,10 @@ fn build_selector_servers(
     proxy_tags: &[String],
     base_tag_name: &str,
 ) -> Vec<SingboxServer> {
-    let multiple_load = node
-        .protocol_extra
-        .multiple_load
-        .unwrap_or(MultipleLoad::LeastPing);
+    let multiple_load = match &node.protocol {
+        ProfileProtocol::PolicyGroup { strategy, .. } => *strategy,
+        _ => MultipleLoad::LeastPing,
+    };
     let auto_tag = format!("{base_tag_name}-auto");
     let out_urltest = SingboxOutbound {
         r#type: "urltest".to_string(),

@@ -17,12 +17,12 @@ import { cn } from "@voya/ui/lib/utils";
 import { useI18n } from "@voya/i18n/use-i18n";
 import type { TranslationKey } from "@voya/i18n";
 import { importConfigTemplate } from "@/ipc";
-import type { ConfigSourceSettings, ConfigTemplateSelection } from "@/ipc/bindings";
+import type { ConfigSourceSettings, ConfigTemplateSelection, SourceSettings } from "@/ipc/bindings";
 import { useToastStore } from "@/stores/toast-store";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { SettingsGroup, SettingsRow } from "./settings-form";
-import type { SettingsBundleController } from "./use-settings-bundle";
+import type { AppSettingsController } from "./use-app-settings";
 
 type SourceForm = {
   geoSourceUrl: string;
@@ -30,7 +30,7 @@ type SourceForm = {
   srsSourceUrl: string;
 };
 
-type TemplateType = "default" | "russia" | "iran" | "custom";
+type TemplateType = "default" | "custom";
 
 const templateOptions: Array<{
   descriptionKey: TranslationKey;
@@ -38,12 +38,10 @@ const templateOptions: Array<{
   type: TemplateType;
 }> = [
   { descriptionKey: "options.configTemplate.defaultDescription", labelKey: "options.configTemplate.default", type: "default" },
-  { descriptionKey: "options.configTemplate.russiaDescription", labelKey: "options.configTemplate.russia", type: "russia" },
-  { descriptionKey: "options.configTemplate.iranDescription", labelKey: "options.configTemplate.iran", type: "iran" },
   { descriptionKey: "options.configTemplate.customDescription", labelKey: "options.configTemplate.custom", type: "custom" },
 ];
 
-export function SourcesTab({ controller }: { controller: SettingsBundleController }) {
+export function SourcesTab({ controller }: { controller: AppSettingsController }) {
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const pushToast = useToastStore((state) => state.pushToast);
@@ -51,16 +49,19 @@ export function SourcesTab({ controller }: { controller: SettingsBundleControlle
   const [importOpen, setImportOpen] = useState(false);
   const [importWorking, setImportWorking] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null);
-  const { bundle, dirty, update, working } = controller;
+  const { settings, dirty, update, working } = controller;
 
-  if (!bundle) {
+  if (!settings) {
     return <p className="text-xs text-muted-foreground">{working ? t("options.loading") : controller.error}</p>;
   }
 
-  const form = toSourceForm(bundle.sources);
+  const form = toSourceForm(settings.sources);
   const patchSources = (patch: Partial<SourceForm>) => {
     const next = { ...form, ...patch };
-    update((current) => ({ ...current, sources: toSourceSettings(next) }));
+    update((current) => ({
+      ...current,
+      sources: sourceSettingsFromForm(next, current.sources.subscriptionConverter),
+    }));
   };
 
   function handleImportOpenChange(open: boolean) {
@@ -84,10 +85,8 @@ export function SourcesTab({ controller }: { controller: SettingsBundleControlle
 
     const selection: ConfigTemplateSelection =
       selectedTemplate === "custom"
-        ? { sources: toSourceSettings(form), type: "custom" }
+        ? { sources: configSourcesFromForm(form), type: "custom" }
         : { type: selectedTemplate };
-    const regional = selectedTemplate === "russia" || selectedTemplate === "iran";
-
     setImportWorking(true);
     setImportError(null);
     try {
@@ -100,7 +99,6 @@ export function SourcesTab({ controller }: { controller: SettingsBundleControlle
       ]);
       const descriptions = [t("options.configTemplate.appliedDescription")];
       if (result.reusedExistingRouting) descriptions.push(t("options.configTemplate.reusedDescription"));
-      if (regional && !result.simpleDnsFetched) descriptions.push(t("options.configTemplate.dnsFallbackWarning"));
       pushToast({ description: descriptions.join(" "), title: t("options.configTemplate.applied") });
       setImportOpen(false);
       setSelectedTemplate(null);
@@ -120,11 +118,17 @@ export function SourcesTab({ controller }: { controller: SettingsBundleControlle
         <SourceField
           disabled={working}
           id="subscription-convert-url"
-          label={t("resx.TbSettingsSubConvert")}
+          label={t("settings.sources.subscriptionConverter")}
           onChange={(subConvertUrl) =>
-            update((current) => ({ ...current, subConvertUrl: subConvertUrl.trim() || null }))
+            update((current) => ({
+              ...current,
+              sources: {
+                ...current.sources,
+                subscriptionConverter: subConvertUrl.trim() || null,
+              },
+            }))
           }
-          value={bundle.subConvertUrl ?? ""}
+          value={settings.sources.subscriptionConverter ?? ""}
         />
         <SettingsRow>
           <Button
@@ -205,15 +209,27 @@ function SourceField({ disabled, id, label, onChange, value }: { disabled: boole
   );
 }
 
-function toSourceForm(settings: ConfigSourceSettings): SourceForm {
+function toSourceForm(settings: SourceSettings): SourceForm {
   return {
-    geoSourceUrl: settings.geoSourceUrl ?? "",
-    routeRulesTemplateSourceUrl: settings.routeRulesTemplateSourceUrl ?? "",
-    srsSourceUrl: settings.srsSourceUrl ?? "",
+    geoSourceUrl: settings.geo ?? "",
+    routeRulesTemplateSourceUrl: settings.routingTemplate ?? "",
+    srsSourceUrl: settings.singboxRuleset ?? "",
   };
 }
 
-function toSourceSettings(form: SourceForm): ConfigSourceSettings {
+function sourceSettingsFromForm(
+  form: SourceForm,
+  subscriptionConverter: string | null,
+): SourceSettings {
+  return {
+    subscriptionConverter,
+    geo: form.geoSourceUrl.trim() || null,
+    routingTemplate: form.routeRulesTemplateSourceUrl.trim() || null,
+    singboxRuleset: form.srsSourceUrl.trim() || null,
+  };
+}
+
+function configSourcesFromForm(form: SourceForm): ConfigSourceSettings {
   return {
     geoSourceUrl: form.geoSourceUrl.trim() || null,
     routeRulesTemplateSourceUrl: form.routeRulesTemplateSourceUrl.trim() || null,

@@ -51,17 +51,12 @@ fn should_bind_outbound(outbound: &SingboxOutbound) -> bool {
 
 fn child_nodes(context: &CoreConfigContext, node: &ProfileItem) -> Vec<ProfileItem> {
     let mut seen = BTreeSet::new();
-    split_list(
-        node.protocol_extra
-            .child_items
-            .as_deref()
-            .unwrap_or_default(),
-    )
-    .unwrap_or_default()
-    .into_iter()
-    .filter(|node_id| seen.insert(node_id.clone()))
-    .filter_map(|node_id| context.all_proxies_map.get(&node_id).cloned())
-    .collect()
+    node.protocol
+        .child_profile_ids()
+        .iter()
+        .filter(|node_id| seen.insert((*node_id).clone()))
+        .filter_map(|node_id| context.all_proxies_map.get(node_id).cloned())
+        .collect()
 }
 
 pub(super) fn buildable_child_nodes(
@@ -70,14 +65,14 @@ pub(super) fn buildable_child_nodes(
 ) -> Vec<ProfileItem> {
     child_nodes(context, node)
         .into_iter()
-        .filter(|child| child.config_type.is_group_type() || singbox_can_build_leaf(child))
+        .filter(|child| child.config_type().is_group_type() || singbox_can_build_leaf(child))
         .collect()
 }
 
 fn singbox_can_build_leaf(node: &ProfileItem) -> bool {
-    singbox_supports_config_type(node.config_type)
-        && (node.config_type != ConfigType::WireGuard
-            || wireguard_public_key(&node.protocol_extra).is_some())
+    singbox_supports_config_type(node.config_type())
+        && (node.config_type() != ConfigType::WireGuard
+            || wireguard_public_key(&node.protocol).is_some())
 }
 
 pub(super) fn singbox_supports_config_type(config_type: ConfigType) -> bool {
@@ -98,7 +93,7 @@ pub(super) fn singbox_supports_config_type(config_type: ConfigType) -> bool {
 }
 
 pub(super) fn singbox_network(node: &ProfileItem) -> String {
-    let network = trimmed(&node.network);
+    let network = trimmed(node.network());
     if network.is_empty() {
         DEFAULT_NETWORK.to_string()
     } else {
@@ -106,8 +101,11 @@ pub(super) fn singbox_network(node: &ProfileItem) -> String {
     }
 }
 
-pub(super) fn vmess_security(protocol_extra: &ProtocolExtraItem) -> String {
-    let security = protocol_extra.vmess_security.as_deref().unwrap_or_default();
+pub(super) fn vmess_security(protocol: &ProfileProtocol) -> String {
+    let security = match protocol {
+        ProfileProtocol::Vmess { cipher, .. } => cipher.as_deref().unwrap_or_default(),
+        _ => "",
+    };
     if VMESS_SECURITIES.contains(&security) {
         security.to_string()
     } else {
@@ -115,8 +113,11 @@ pub(super) fn vmess_security(protocol_extra: &ProtocolExtraItem) -> String {
     }
 }
 
-pub(super) fn shadowsocks_method(protocol_extra: &ProtocolExtraItem) -> String {
-    let method = protocol_extra.ss_method.as_deref().unwrap_or_default();
+pub(super) fn shadowsocks_method(protocol: &ProfileProtocol) -> String {
+    let method = match protocol {
+        ProfileProtocol::Shadowsocks { method, .. } => method.as_str(),
+        _ => "",
+    };
     if SS_SECURITIES_IN_SINGBOX.contains(&method) {
         method.to_string()
     } else {
@@ -142,12 +143,7 @@ fn singbox_utls_fingerprint(value: &str) -> Option<String> {
 }
 
 pub(super) fn transport_host_for_tls(node: &ProfileItem) -> Option<String> {
-    let host = match singbox_network(node).as_str() {
-        DEFAULT_NETWORK | "ws" | "httpupgrade" | "xhttp" => node.transport_extra.host.clone(),
-        "grpc" => node.transport_extra.grpc_authority.clone(),
-        _ => None,
-    };
-    let first_host = first_list_value(host.as_deref());
+    let first_host = first_list_value(node.transport.as_ref().and_then(ProfileTransport::host));
     nonempty_string(Some(&first_host))
 }
 

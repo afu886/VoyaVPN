@@ -427,7 +427,7 @@ fn gen_routing_user_rule_outbound(
     else {
         return PROXY_TAG.to_string();
     };
-    if !node.config_type.is_group_type() && !singbox_supports_config_type(node.config_type) {
+    if !node.config_type().is_group_type() && !singbox_supports_config_type(node.config_type()) {
         return PROXY_TAG.to_string();
     }
 

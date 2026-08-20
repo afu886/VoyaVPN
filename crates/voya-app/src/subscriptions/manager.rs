@@ -7,7 +7,7 @@ use std::{
 use regex::Regex;
 use thiserror::Error;
 use voya_core::{
-    parse_full_custom_config, parse_inner_share_links, parse_share_link, parse_ss_sip008,
+    parse_full_custom_config, parse_share_link, parse_ss_sip008, parse_voya_profile_bundle,
     parse_wireguard_config, profile_items_match, AppConfig, ConfigType, ImportProfilesResult,
     ProfileExItem, ProfileItem, SubItem, SubscriptionUpdateResult,
 };
@@ -124,7 +124,10 @@ impl<'db> SubscriptionManager<'db> {
         for id in ids {
             if self.database.subscriptions().delete(id).await? {
                 deleted = deleted.saturating_add(1);
-                self.database.profiles().delete_by_subid(id, false).await?;
+                self.database
+                    .profiles()
+                    .delete_by_subscription_id(id)
+                    .await?;
             }
         }
 
@@ -145,25 +148,28 @@ impl<'db> SubscriptionManager<'db> {
         &self,
         config: &mut AppConfig,
         text: &str,
-        subid: Option<&str>,
-        is_sub: bool,
+        subscription_id: Option<&str>,
     ) -> Result<ImportProfilesResult> {
-        let subid = subid.map(str::trim).filter(|value| !value.is_empty());
-        let sub_item = match (is_sub, subid) {
-            (true, Some(id)) => self.database.subscriptions().get(id).await?,
-            _ => None,
+        let subscription_id = subscription_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let sub_item = match subscription_id {
+            Some(id) => self.database.subscriptions().get(id).await?,
+            None => None,
         };
         let filter = sub_item.as_ref().and_then(|item| item.filter.as_deref());
         let regex = compile_filter(filter)?;
-        let pre_socks_port = sub_item.as_ref().and_then(|item| item.pre_socks_port);
-        let old_profiles = if is_sub {
-            self.database.profiles().list_by_subid(subid).await?
+        let old_profiles = if subscription_id.is_some() {
+            self.database
+                .profiles()
+                .list_by_subscription_id(subscription_id)
+                .await?
         } else {
             Vec::new()
         };
 
         let parsed_import = self
-            .parse_import_text(config, text, subid.unwrap_or_default(), is_sub)
+            .parse_import_text(config, text, subscription_id.unwrap_or_default())
             .await?;
         let mut profiles = parsed_import.profiles;
         let parsed = profiles.len();
@@ -174,9 +180,7 @@ impl<'db> SubscriptionManager<'db> {
         let filtered = before_filter.saturating_sub(profiles.len());
 
         for profile in &mut profiles {
-            profile.subid = subid.unwrap_or_default().to_string();
-            profile.is_sub = is_sub;
-            profile.pre_socks_port = pre_socks_port;
+            profile.subscription_id = subscription_id.map(str::to_string);
             normalize_profile(config, profile);
         }
 
@@ -202,7 +206,7 @@ impl<'db> SubscriptionManager<'db> {
                 removed_duplicates: 0,
                 discarded_node_overrides: u32::try_from(parsed_import.discarded_node_overrides)
                     .unwrap_or(u32::MAX),
-                subid: subid.map(str::to_string),
+                subscription_id: subscription_id.map(str::to_string),
                 imported_index_ids: Vec::new(),
                 updated_index_ids: Vec::new(),
                 messages: parsed_import.messages,
@@ -227,7 +231,7 @@ impl<'db> SubscriptionManager<'db> {
                 &match_indices,
                 &existing_profiles,
                 &config.index_id,
-                subid,
+                subscription_id,
             ) {
                 let canonical_index_id = existing_profiles[canonical_index].0.index_id.clone();
                 let duplicate_index_ids = match_indices
@@ -265,15 +269,14 @@ impl<'db> SubscriptionManager<'db> {
                 .await?
         };
 
-        let removed_existing = if is_sub {
-            if let Some(id) = subid {
+        let removed_existing = if subscription_id.is_some() {
+            if let Some(id) = subscription_id {
                 let retained_current_sub_index_ids: BTreeSet<&str> =
                     imported_index_ids.iter().map(String::as_str).collect();
                 let stale_index_ids = old_profiles
                     .iter()
                     .filter(|profile| {
-                        profile.is_sub
-                            && profile.subid.as_str() == id
+                        profile.subscription_id.as_deref() == Some(id)
                             && !retained_current_sub_index_ids.contains(profile.index_id.as_str())
                     })
                     .map(|profile| profile.index_id.clone())
@@ -303,7 +306,7 @@ impl<'db> SubscriptionManager<'db> {
             removed_duplicates: u32::try_from(removed_duplicates).unwrap_or(u32::MAX),
             discarded_node_overrides: u32::try_from(parsed_import.discarded_node_overrides)
                 .unwrap_or(u32::MAX),
-            subid: subid.map(str::to_string),
+            subscription_id: subscription_id.map(str::to_string),
             imported_index_ids,
             updated_index_ids,
             messages: parsed_import.messages,
@@ -313,29 +316,37 @@ impl<'db> SubscriptionManager<'db> {
     pub async fn update_subscriptions(
         &self,
         config: &mut AppConfig,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         prefer_proxy: bool,
         proxy_url: Option<&str>,
     ) -> Result<SubscriptionUpdateResult> {
         let subscriptions = self.database.subscriptions().list().await?;
-        self.update_subscription_snapshot(config, subscriptions, subid, prefer_proxy, proxy_url)
-            .await
+        self.update_subscription_snapshot(
+            config,
+            subscriptions,
+            subscription_id,
+            prefer_proxy,
+            proxy_url,
+        )
+        .await
     }
 
     async fn update_subscription_snapshot(
         &self,
         config: &mut AppConfig,
         subscriptions: Vec<SubItem>,
-        subid: Option<&str>,
+        subscription_id: Option<&str>,
         prefer_proxy: bool,
         proxy_url: Option<&str>,
     ) -> Result<SubscriptionUpdateResult> {
         let client = SubscriptionClient::new();
         let mut result = SubscriptionUpdateResult::default();
-        let subid = subid.map(str::trim).filter(|value| !value.is_empty());
+        let subscription_id = subscription_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
 
         for item in subscriptions {
-            if subid.is_some_and(|wanted| wanted != item.id) {
+            if subscription_id.is_some_and(|wanted| wanted != item.id) {
                 continue;
             }
             if item.id.trim().is_empty() || item.url.trim().is_empty() || !is_http_url(&item.url) {
@@ -375,7 +386,7 @@ impl<'db> SubscriptionManager<'db> {
                     }
 
                     match self
-                        .import_profiles_from_text(config, &fetch.content, Some(&item.id), true)
+                        .import_profiles_from_text(config, &fetch.content, Some(&item.id))
                         .await
                     {
                         Ok(import) if import.imported > 0 => {
@@ -426,15 +437,14 @@ impl<'db> SubscriptionManager<'db> {
         &self,
         config: &mut AppConfig,
         text: &str,
-        subid: &str,
-        is_sub: bool,
+        subscription_id: &str,
     ) -> Result<ParsedImportText> {
         let mut profiles = Vec::new();
         let mut added_subscription = false;
         let mut failed_lines = 0_usize;
         let mut discarded_node_overrides = 0_usize;
         let mut messages = Vec::new();
-        let allow_subscription_import = !is_sub && subid.trim().is_empty();
+        let allow_subscription_import = subscription_id.trim().is_empty();
         let mut contents = Vec::new();
         if let Some(decoded) = decode_base64_payload(text) {
             contents.push(decoded);
@@ -451,7 +461,7 @@ impl<'db> SubscriptionManager<'db> {
                 .filter(|line| !line.is_empty())
                 .enumerate()
             {
-                if is_sub && !lines_seen.insert(line.to_string()) {
+                if !subscription_id.is_empty() && !lines_seen.insert(line.to_string()) {
                     continue;
                 }
                 if allow_subscription_import && is_http_url(line) {
@@ -473,8 +483,8 @@ impl<'db> SubscriptionManager<'db> {
                 }
             }
 
-            if let Ok(mut inner) = parse_inner_share_links(&content, subid) {
-                profiles.append(&mut inner);
+            if let Ok(mut bundle) = parse_voya_profile_bundle(&content, subscription_id) {
+                profiles.append(&mut bundle);
             }
             if let Ok(mut ss) = parse_ss_sip008(&content) {
                 profiles.append(&mut ss);
@@ -485,7 +495,10 @@ impl<'db> SubscriptionManager<'db> {
             if let Ok(custom_imports) = parse_full_custom_config(&content, None) {
                 profiles.extend(custom_imports.into_iter().map(|import| {
                     let mut profile = import.profile;
-                    profile.address = import.contents;
+                    if let voya_core::ProfileProtocol::Custom { source, .. } = &mut profile.protocol
+                    {
+                        *source = import.contents;
+                    }
                     profile
                 }));
             }
@@ -587,8 +600,6 @@ fn normalize_subscription(item: &mut SubItem) {
     item.user_agent = item.user_agent.trim().to_string();
     item.filter = trimmed_option(item.filter.take());
     item.convert_target = trimmed_option(item.convert_target.take());
-    item.prev_profile = trimmed_option(item.prev_profile.take());
-    item.next_profile = trimmed_option(item.next_profile.take());
 }
 
 fn trimmed_option(value: Option<String>) -> Option<String> {
@@ -610,7 +621,7 @@ fn compile_filter(filter: Option<&str>) -> Result<Option<Regex>> {
 fn dedupe_profiles(profiles: Vec<ProfileItem>) -> Vec<ProfileItem> {
     let mut kept = Vec::<ProfileItem>::new();
     for profile in profiles {
-        if profile.config_type != ConfigType::Custom
+        if profile.config_type() != ConfigType::Custom
             && !profile.is_complex()
             && kept
                 .iter()
@@ -627,7 +638,7 @@ fn choose_canonical_match_index(
     match_indices: &[usize],
     existing_profiles: &[(ProfileItem, ProfileExItem)],
     active_index_id: &str,
-    target_subid: Option<&str>,
+    target_subscription_id: Option<&str>,
 ) -> Option<usize> {
     match_indices.iter().copied().min_by_key(|index| {
         let (profile, profile_ex) = &existing_profiles[*index];
@@ -636,14 +647,20 @@ fn choose_canonical_match_index(
         } else {
             1
         };
-        let target_subid_rank = if target_subid.is_some_and(|subid| profile.subid.as_str() == subid)
-        {
+        let target_subscription_id_rank = if target_subscription_id.is_some_and(|subscription_id| {
+            profile.subscription_id.as_deref() == Some(subscription_id)
+        }) {
             0
         } else {
             1
         };
 
-        (active_rank, target_subid_rank, profile_ex.sort, *index)
+        (
+            active_rank,
+            target_subscription_id_rank,
+            profile_ex.sort,
+            *index,
+        )
     })
 }
 
@@ -717,7 +734,7 @@ mod tests {
         net::TcpListener,
         sync::Mutex,
     };
-    use voya_core::ProtocolExtraItem;
+    use voya_core::{ProfileProtocol, ProfileTransport, ServerEndpoint};
 
     use super::*;
 
@@ -746,8 +763,7 @@ mod tests {
             .await
             .expect("subscription manager test operation should succeed");
         let mut old_profile = old.profile.clone();
-        old_profile.subid.clone_from(&sub.id);
-        old_profile.is_sub = true;
+        old_profile.subscription_id = Some(sub.id.clone());
         database
             .profiles()
             .upsert(&old_profile)
@@ -762,7 +778,7 @@ mod tests {
         ]
         .join("\n");
         let result = manager
-            .import_profiles_from_text(&mut config, &text, Some(&sub.id), true)
+            .import_profiles_from_text(&mut config, &text, Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -771,13 +787,15 @@ mod tests {
         assert_eq!(result.removed_existing, 1);
         let profiles = database
             .profiles()
-            .list_by_subid(Some(&sub.id))
+            .list_by_subscription_id(Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].remarks, "US node");
-        assert_eq!(profiles[0].subid, sub.id);
-        assert!(profiles[0].is_sub);
+        assert_eq!(
+            profiles[0].subscription_id.as_deref(),
+            Some(sub.id.as_str())
+        );
         assert_eq!(config.index_id, profiles[0].index_id);
     }
 
@@ -902,8 +920,7 @@ mod tests {
         }
 
         let mut old_profile = sample_profile("filtered-old", "JP old");
-        old_profile.subid = "filtered".to_string();
-        old_profile.is_sub = true;
+        old_profile.subscription_id = Some("filtered".to_string());
         database
             .profiles()
             .upsert(&old_profile)
@@ -964,7 +981,7 @@ mod tests {
 
         let filtered_profiles = database
             .profiles()
-            .list_by_subid(Some("filtered"))
+            .list_by_subscription_id(Some("filtered"))
             .await
             .expect("subscription manager test operation should succeed");
         assert_eq!(filtered_profiles.len(), 1);
@@ -981,7 +998,7 @@ mod tests {
         let json = r#"{"remarks":"custom-json","inbounds":[],"outbounds":[],"route":{},"dns":{}}"#;
 
         let result = manager
-            .import_profiles_from_text(&mut config, json, None, false)
+            .import_profiles_from_text(&mut config, json, None)
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -991,9 +1008,9 @@ mod tests {
             .list()
             .await
             .expect("subscription manager test operation should succeed");
-        assert_eq!(profiles[0].config_type, ConfigType::Custom);
+        assert_eq!(profiles[0].config_type(), ConfigType::Custom);
         assert_eq!(profiles[0].remarks, "singbox_custom");
-        assert_eq!(profiles[0].address, json);
+        assert_eq!(profiles[0].address(), json);
     }
 
     #[tokio::test]
@@ -1005,7 +1022,7 @@ mod tests {
         let mut config = AppConfig::default();
 
         let result = manager
-            .import_profiles_from_text(&mut config, "vmess://%%%%", None, false)
+            .import_profiles_from_text(&mut config, "vmess://%%%%", None)
             .await
             .expect("bad share line should return diagnostics");
 
@@ -1036,7 +1053,7 @@ mod tests {
         .join("\n");
 
         let result = manager
-            .import_profiles_from_text(&mut config, &text, None, false)
+            .import_profiles_from_text(&mut config, &text, None)
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1104,11 +1121,11 @@ mod tests {
         .join("\n");
 
         let first = manager
-            .import_profiles_from_text(&mut config, &text, None, false)
+            .import_profiles_from_text(&mut config, &text, None)
             .await
             .expect("subscription manager test operation should succeed");
         let second = manager
-            .import_profiles_from_text(&mut config, &text, None, false)
+            .import_profiles_from_text(&mut config, &text, None)
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1136,7 +1153,7 @@ mod tests {
         let mut config = AppConfig::default();
         let text = test_vless_link("same.example.test", "manual node");
         let manual = manager
-            .import_profiles_from_text(&mut config, &text, None, false)
+            .import_profiles_from_text(&mut config, &text, None)
             .await
             .expect("subscription manager test operation should succeed");
         let sub = manager
@@ -1153,7 +1170,7 @@ mod tests {
             .expect("subscription manager test operation should succeed");
 
         let result = manager
-            .import_profiles_from_text(&mut config, &text, Some(&sub.id), true)
+            .import_profiles_from_text(&mut config, &text, Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1167,8 +1184,10 @@ mod tests {
             .expect("subscription manager test operation should succeed");
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].index_id, manual.imported_index_ids[0]);
-        assert_eq!(profiles[0].subid, sub.id);
-        assert!(profiles[0].is_sub);
+        assert_eq!(
+            profiles[0].subscription_id.as_deref(),
+            Some(sub.id.as_str())
+        );
     }
 
     #[tokio::test]
@@ -1196,7 +1215,7 @@ mod tests {
         ]
         .join("\n");
         let first = manager
-            .import_profiles_from_text(&mut config, &first_text, Some(&sub.id), true)
+            .import_profiles_from_text(&mut config, &first_text, Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
         let keep_index_id = first.imported_index_ids[0].clone();
@@ -1208,7 +1227,7 @@ mod tests {
         .join("\n");
 
         let second = manager
-            .import_profiles_from_text(&mut config, &second_text, Some(&sub.id), true)
+            .import_profiles_from_text(&mut config, &second_text, Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1219,7 +1238,7 @@ mod tests {
         assert!(!second.imported_index_ids.contains(&stale_index_id));
         let profiles = database
             .profiles()
-            .list_by_subid(Some(&sub.id))
+            .list_by_subscription_id(Some(&sub.id))
             .await
             .expect("subscription manager test operation should succeed");
         assert_eq!(profiles.len(), 2);
@@ -1241,7 +1260,7 @@ mod tests {
         let mut config = AppConfig::default();
         let text = "vless://uuid@example.test:443#Imported";
         let initial = manager
-            .import_profiles_from_text(&mut config, text, None, false)
+            .import_profiles_from_text(&mut config, text, None)
             .await
             .expect("subscription manager test operation should succeed");
         let original_index_id = initial.imported_index_ids[0].clone();
@@ -1276,7 +1295,7 @@ mod tests {
         config.index_id = "active".to_string();
 
         let result = manager
-            .import_profiles_from_text(&mut config, text, None, false)
+            .import_profiles_from_text(&mut config, text, None)
             .await
             .expect("subscription manager test operation should succeed");
 
@@ -1301,16 +1320,21 @@ mod tests {
     fn sample_profile(index_id: &str, remarks: &str) -> ProfileItem {
         ProfileItem {
             index_id: index_id.to_string(),
-            config_type: ConfigType::VLESS,
             remarks: remarks.to_string(),
-            address: "example.test".to_string(),
-            port: 443,
-            password: "uuid".to_string(),
-            network: "tcp".to_string(),
-            protocol_extra: ProtocolExtraItem {
-                vless_encryption: Some("none".to_string()),
-                ..ProtocolExtraItem::default()
+            protocol: ProfileProtocol::Vless {
+                server: ServerEndpoint {
+                    address: "example.test".to_string(),
+                    port: 443,
+                },
+                uuid: "uuid".to_string(),
+                flow: None,
+                encryption: Some("none".to_string()),
             },
+            transport: Some(ProfileTransport::Tcp {
+                header: None,
+                host: None,
+                path: None,
+            }),
             ..ProfileItem::default()
         }
     }

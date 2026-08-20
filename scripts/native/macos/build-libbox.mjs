@@ -17,7 +17,6 @@ const frameworkRoot = resolve(repoRoot, "apps", "desktop", "src-tauri", "native"
 const targetFramework = resolve(
   process.env.VOYAVPN_LIBBOX_FRAMEWORK || resolve(frameworkRoot, "Libbox.framework"),
 );
-const legacyTargetXCFramework = resolve(frameworkRoot, "Libbox.xcframework");
 
 function captureText(program, args, options = {}) {
   const result = capture(program, args, {
@@ -50,6 +49,7 @@ function ensureSource() {
 }
 
 function buildLibbox() {
+  rmSync(resolve(sourceDir, "Libbox.xcframework"), { force: true, recursive: true });
   run("make", ["lib_install"], { cwd: sourceDir });
   run("make", ["lib_apple"], { cwd: sourceDir });
 }
@@ -93,7 +93,6 @@ export function assertUniversalMacosFramework(frameworkPath, captureCommand = ca
 export function stageLibbox({
   outputXCFramework = resolve(sourceDir, "Libbox.xcframework"),
   destinationFramework = targetFramework,
-  legacyXCFramework = legacyTargetXCFramework,
   captureCommand = capture,
 } = {}) {
   if (!existsSync(outputXCFramework) || !statSync(outputXCFramework).isDirectory()) {
@@ -113,9 +112,6 @@ export function stageLibbox({
   assertUniversalMacosFramework(destinationFramework, captureCommand);
 
   rmSync(outputXCFramework, { force: true, recursive: true });
-  if (resolve(legacyXCFramework) !== resolve(outputXCFramework)) {
-    rmSync(legacyXCFramework, { force: true, recursive: true });
-  }
 }
 
 export function main() {

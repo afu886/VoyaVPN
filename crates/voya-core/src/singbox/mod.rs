@@ -10,19 +10,19 @@ use thiserror::Error;
 
 use crate::{
     protocol_common::{
-        first_list_value, inbound_port, inbound_protocol_tag, nonempty_str, parse_i32,
-        parse_pem_chain, parse_wireguard_reserved, protocol_name, raw_http_user_agent, split_list,
-        trimmed, wireguard_allowed_ips, wireguard_public_key, DEFAULT_NETWORK, DEFAULT_SECURITY,
+        first_list_value, inbound_port, inbound_protocol_tag, nonempty_str, parse_pem_chain,
+        parse_wireguard_reserved, protocol_name, raw_http_user_agent, split_list, trimmed,
+        wireguard_allowed_ips, wireguard_public_key, DEFAULT_NETWORK, DEFAULT_SECURITY,
         WIREGUARD_DEFAULT_ADDRESS, WIREGUARD_DEFAULT_MTU,
     },
     AppConfig, ConfigType, CoreConfigContext, InItem, InboundProtocol, MultipleLoad, ProfileItem,
-    ProtocolExtraItem, RuleType, RulesItem, SpeedtestConfigEntry, TransportExtraItem, BLOCK_TAG,
-    DEFAULT_BOOTSTRAP_DNS, DEFAULT_DIRECT_DNS, DEFAULT_REMOTE_DNS, DIRECT_TAG, LOOPBACK, PROXY_TAG,
+    ProfileProtocol, ProfileTransport, RuleType, RulesItem, SpeedtestConfigEntry, TlsMode,
+    BLOCK_TAG, DEFAULT_BOOTSTRAP_DNS, DEFAULT_DIRECT_DNS, DEFAULT_REMOTE_DNS, DIRECT_TAG, LOOPBACK,
+    PROXY_TAG,
 };
 
 const RAW_HEADER_HTTP: &str = "http";
 const STREAM_SECURITY_TLS: &str = "tls";
-const STREAM_SECURITY_REALITY: &str = "reality";
 const USER_AGENT_HEADER: &str = "Sec-WebSocket-Protocol";
 const DEFAULT_HYSTERIA2_HOP_INTERVAL: i32 = 30;
 const DEFAULT_TUN_STACK: &str = "gvisor";
