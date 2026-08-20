@@ -14,7 +14,7 @@ import {
 import { useI18n } from "@voya/i18n/use-i18n";
 import type { ProfileListEntry } from "@/ipc/bindings";
 
-import { CONFIG_TYPES, PROFILE_PROTOCOLS, type ProfileProtocol } from "./profile-constants";
+import { CONFIG_TYPES, localizeProfileProtocols, type ProfileProtocol } from "./profile-constants";
 import {
   Panel,
   SelectField,
@@ -84,7 +84,7 @@ function ProfileDialogForm({
   });
 
   return (
-    <ScrollableDialogContent width="68rem">
+    <ScrollableDialogContent closeLabel={t("actions.close")} width="68rem">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Server className="size-4" aria-hidden="true" />
@@ -113,7 +113,7 @@ function ProfileDialogForm({
                     setValue("address", "chain");
                   }
                 }}
-                options={PROFILE_PROTOCOLS}
+                options={localizeProfileProtocols(t)}
               />
 
               <TextField error={errors.remarks?.message} label={t("panes.profiles.fields.remarks")} {...register("remarks")} />

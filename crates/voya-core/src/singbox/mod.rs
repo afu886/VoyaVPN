@@ -120,9 +120,6 @@ mod routing;
 mod schema;
 mod support;
 
-#[cfg(test)]
-mod tests;
-
 pub use entry::*;
 pub use schema::*;
 
@@ -132,3 +129,6 @@ use inbounds::*;
 use outbounds::*;
 use routing::*;
 use support::*;
+
+#[cfg(test)]
+mod tests;

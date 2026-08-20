@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
+import { productionLineCount, splitRustProduction } from "./architecture-analyzer.mjs";
+
 const root = resolve(import.meta.dirname, "../..");
 const failures = [];
 
@@ -13,8 +15,11 @@ const rustFiles = ["crates", "apps/desktop/src-tauri/src"]
 
 for (const path of rustFiles) {
   const source = readFileSync(path, "utf8");
-  const production = source.split(/^#\[cfg\(test\)\]/m, 1)[0];
-  const lineCount = production.split(/\r?\n/).length - 1;
+  const { layoutError, production } = splitRustProduction(source);
+  if (layoutError) {
+    failures.push(`${display(path)}: ${layoutError}`);
+  }
+  const lineCount = productionLineCount(production);
   if (lineCount > 800) {
     failures.push(`${display(path)} has ${lineCount} production lines (maximum 800)`);
   }

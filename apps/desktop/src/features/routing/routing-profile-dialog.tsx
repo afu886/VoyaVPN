@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type * as React from "react";
 import { Route, Save } from "lucide-react";
-import { z } from "zod";
 
 import { Button } from "@voya/ui/components/button";
 import {
@@ -44,26 +43,22 @@ export function RoutingProfileDialog({
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    try {
-      const payload = routingProfileSchema.parse(form);
-      setFieldErrors({});
-      await onSubmit(payload);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        setFieldErrors(zodIssuesToErrorMap(error));
-        return;
-      }
-      throw error;
+    const parsed = routingProfileSchema.safeParse(form);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToErrorMap(parsed.error));
+      return;
     }
+    setFieldErrors({});
+    await onSubmit(parsed.data);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(96vw,42rem)]">
+      <DialogContent className="w-[min(96vw,42rem)]" closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Route className="size-4" aria-hidden="true" />
-            {mode === "edit" ? "Edit routing profile" : "Create routing profile"}
+            {t(mode === "edit" ? "panes.routing.editProfile" : "panes.routing.createProfile")}
           </DialogTitle>
           <DialogDescription className="sr-only">{t("panes.routing.editor")}</DialogDescription>
         </DialogHeader>
@@ -75,37 +70,37 @@ export function RoutingProfileDialog({
         >
           <TextField
             error={fieldErrors.remarks}
-            label="remarks"
+            label={t("panes.routing.remarks")}
             onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
-            value={form.remarks ?? ""}
+            value={form.remarks}
           />
           <div className="grid gap-3">
             <SelectField
               error={fieldErrors.singboxDomainStrategy}
-              label="sing-box domain strategy"
+              label={t("panes.routing.domainStrategy")}
               onChange={(value) => setForm((current) => ({ ...current, singboxDomainStrategy: value }))}
               options={SINGBOX_DOMAIN_STRATEGIES.map((strategy) => ({
-                label: strategy || "default",
+                label: strategy || t("panes.routing.defaultValue"),
                 value: strategy,
               }))}
-              value={form.singboxDomainStrategy ?? ""}
+              value={form.singboxDomainStrategy}
             />
           </div>
           <TextField
             error={fieldErrors.singboxRulesetPath}
-            label="Ruleset path for sing-box"
+            label={t("panes.routing.rulesetPath")}
             onChange={(value) => setForm((current) => ({ ...current, singboxRulesetPath: value }))}
-            value={form.singboxRulesetPath ?? ""}
+            value={form.singboxRulesetPath}
           />
           <TextField
             error={fieldErrors.sourceUrl}
-            label="Source URL"
+            label={t("panes.routing.sourceUrl")}
             onChange={(value) => setForm((current) => ({ ...current, sourceUrl: value }))}
-            value={form.sourceUrl ?? ""}
+            value={form.sourceUrl}
           />
           <CheckboxField
-            checked={form.enabled ?? true}
-            label="enabled"
+            checked={form.enabled}
+            label={t("panes.routing.enabled")}
             onCheckedChange={(checked) => setForm((current) => ({ ...current, enabled: checked }))}
           />
         </form>

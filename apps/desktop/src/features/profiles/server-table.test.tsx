@@ -8,7 +8,7 @@ import { useRuntimeEventStore } from "@/ipc/runtime-event-store";
 import { useProfileColumnsStore } from "@/stores/profile-columns-store";
 import { makeProfileFixture } from "@/test/profile-fixture";
 
-import { MOVE_ACTIONS, PROFILE_PROTOCOLS, SPEED_ACTIONS } from "./profile-constants";
+import { MOVE_ACTIONS, SPEED_ACTIONS } from "./profile-constants";
 import { ProfilesScreen } from "./server-table";
 import { applyLiveUpdates } from "./server-table-live-updates";
 
@@ -686,9 +686,13 @@ describe("ProfilesScreen", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Protocol" }));
     const protocolOptions = within(await screen.findByRole("listbox")).getAllByRole("option");
-    expect(protocolOptions).toHaveLength(PROFILE_PROTOCOLS.length);
-    PROFILE_PROTOCOLS.forEach((protocol) => {
-      expect(screen.getByRole("option", { name: new RegExp(`^${escapeRegExp(protocol.label)}`) })).toBeInTheDocument();
+    const protocolLabels = [
+      "VMess", "Custom", "Shadowsocks", "SOCKS", "VLESS", "Trojan", "Hysteria2",
+      "TUIC", "WireGuard", "HTTP", "AnyTLS", "Naive", "Policy Group", "Proxy Chain",
+    ];
+    expect(protocolOptions).toHaveLength(protocolLabels.length);
+    protocolLabels.forEach((label) => {
+      expect(screen.getByRole("option", { name: new RegExp(`^${escapeRegExp(label)}`) })).toBeInTheDocument();
     });
 
     await userEvent.click(screen.getByRole("option", { name: /^WireGuard/ }));
@@ -783,7 +787,7 @@ describe("ProfilesScreen", () => {
     expect(await screen.findByText("Chain A")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Preview" }));
-    expect(await screen.findByText("sing-box selector/urltest + detour")).toBeInTheDocument();
+    expect(await screen.findByText("Generated routes")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Save/ }));
 

@@ -19,7 +19,7 @@ export function RoutingToolbar({ controller }: { controller: RoutingScreenContro
 
   return (
     <PageHeader>
-      <PageHeaderHeading icon={Route} title="Routing">
+      <PageHeaderHeading icon={Route} title={t("panes.routing.title")}>
         <Badge variant="outline">{t("panes.routing.profileCount", { count: routings.length })}</Badge>
       </PageHeaderHeading>
 

@@ -114,17 +114,24 @@ pub async fn proxy_set_traffic_mode<R: tauri::Runtime>(
         voya_contracts::TrafficMode::Direct => TrafficMode::Direct,
         voya_contracts::TrafficMode::Unchanged => TrafficMode::Unchanged,
     };
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    if config.proxy_ui_item.traffic_mode != mode {
-        if mode != TrafficMode::Unchanged {
-            ProxyRuntimeManager::new()
-                .set_traffic_mode(&config, mode)
-                .await
-                .map_err(proxy_runtime_error)?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let changed = mutation.config().proxy_ui_item.traffic_mode != mode;
+    if changed {
+        mutation.config_mut().proxy_ui_item.traffic_mode = mode;
+    }
+    let config = commit_config_mutation(mutation).await?;
+    if changed && mode != TrafficMode::Unchanged {
+        if let Err(error) = ProxyRuntimeManager::new()
+            .set_traffic_mode(&config, mode)
+            .await
+        {
+            report_post_commit_error(
+                &app,
+                "Proxy mode saved; runtime update failed",
+                &error.to_string(),
+                AppNoticeLevel::Warning,
+            );
         }
-        config.proxy_ui_item.traffic_mode = mode;
-        persist_config_if_changed(&state, &original, &config).await?;
     }
 
     emit_proxy_runtime_invalidation(&app, "proxy-traffic-mode-changed")?;

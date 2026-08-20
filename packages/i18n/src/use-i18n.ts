@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import {
   changeLocale,
@@ -23,7 +23,10 @@ function getSnapshot() {
 
 export function useI18n() {
   const language = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as Locale;
-  const t: TranslationFunction = (key, options) => String(i18next.t(key, options));
+  const t = useMemo<TranslationFunction>(() => {
+    const fixedT = i18next.getFixedT(language);
+    return (key, options) => String(fixedT(key, options));
+  }, [language]);
 
   return {
     direction: getLocaleDirection(language),

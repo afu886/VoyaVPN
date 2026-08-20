@@ -1,25 +1,44 @@
-use sqlx::{
-    sqlite::{SqlitePool, SqliteRow},
-    Row,
-};
+use sqlx::{sqlite::SqliteRow, Row};
+use tokio::sync::Mutex;
 use voya_core::ProfileExItem;
 
-use crate::Result;
+use crate::{
+    executor::{run_query, RepositoryExecutor},
+    Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ProfileExRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct ProfileExRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> ProfileExRepository<'pool> {
+impl<'executor> ProfileExRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn from_executor(executor: RepositoryExecutor<'executor>) -> Self {
+        Self { executor }
     }
 
     pub async fn upsert(&self, item: &ProfileExItem) -> Result<()> {
-        sqlx::query(
-            r#"
+        run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             INSERT INTO profile_ex_items (
                 index_id, delay, speed, sort, message, ip_info
             ) VALUES (?, ?, ?, ?, ?, ?)
@@ -30,24 +49,25 @@ impl<'pool> ProfileExRepository<'pool> {
                 message = excluded.message,
                 ip_info = excluded.ip_info
             "#,
-        )
-        .bind(&item.index_id)
-        .bind(item.delay)
-        .bind(item.speed)
-        .bind(item.sort)
-        .bind(&item.message)
-        .bind(&item.ip_info)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(&item.index_id)
+            .bind(item.delay)
+            .bind(item.speed)
+            .bind(item.sort)
+            .bind(&item.message)
+            .bind(&item.ip_info),
+            execute
+        )?;
 
         Ok(())
     }
 
     pub async fn get(&self, index_id: &str) -> Result<Option<ProfileExItem>> {
-        let row = sqlx::query("SELECT * FROM profile_ex_items WHERE index_id = ?")
-            .bind(index_id)
-            .fetch_optional(self.pool)
-            .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM profile_ex_items WHERE index_id = ?").bind(index_id),
+            fetch_optional
+        )?;
 
         row.map(row_to_profile_ex).transpose()
     }
@@ -67,17 +87,21 @@ impl<'pool> ProfileExRepository<'pool> {
     }
 
     pub async fn list(&self) -> Result<Vec<ProfileExItem>> {
-        let rows = sqlx::query("SELECT * FROM profile_ex_items ORDER BY sort, index_id")
-            .fetch_all(self.pool)
-            .await?;
+        let rows = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM profile_ex_items ORDER BY sort, index_id"),
+            fetch_all
+        )?;
 
         rows.into_iter().map(row_to_profile_ex).collect()
     }
 
     pub async fn max_sort(&self) -> Result<i32> {
-        let max_sort: Option<i32> = sqlx::query_scalar("SELECT MAX(sort) FROM profile_ex_items")
-            .fetch_one(self.pool)
-            .await?;
+        let max_sort: Option<i32> = run_query!(
+            self.executor,
+            sqlx::query_scalar("SELECT MAX(sort) FROM profile_ex_items"),
+            fetch_one
+        )?;
 
         Ok(max_sort.unwrap_or(0))
     }
@@ -89,14 +113,16 @@ impl<'pool> ProfileExRepository<'pool> {
     }
 
     pub async fn delete_orphans(&self) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
+        let result = run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             DELETE FROM profile_ex_items
             WHERE index_id NOT IN (SELECT index_id FROM profile_items)
             "#,
-        )
-        .execute(self.pool)
-        .await?;
+            ),
+            execute
+        )?;
 
         Ok(result.rows_affected())
     }

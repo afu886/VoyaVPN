@@ -21,17 +21,18 @@ pub async fn save_subscription<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     item: SubscriptionContract,
 ) -> Result<SubscriptionContract, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let saved = state
-        .services()
-        .subscriptions()
-        .save_subscription(&mut config, subscription_from_contract(item))
-        .await
-        .map_err(subscription_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_subscription_invalidation(&app, "subscription-saved", false, original != config)?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let saved = {
+        let (unit_of_work, config) = mutation.split();
+        SubscriptionManager::new_in(unit_of_work)
+            .save_subscription(config, subscription_from_contract(item))
+            .await
+            .map_err(subscription_error)?
+    };
+    let config_changed = original != *mutation.config();
+    commit_config_mutation(mutation).await?;
+    emit_subscription_invalidation(&app, "subscription-saved", false, config_changed)?;
 
     Ok(subscription_to_contract(saved))
 }
@@ -49,17 +50,18 @@ pub async fn delete_subscriptions<R: tauri::Runtime>(
         IPC_ID_MAX_CHARS,
         AppError::Subscription,
     )?;
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let deleted = state
-        .services()
-        .subscriptions()
-        .delete_subscriptions(&mut config, &ids)
-        .await
-        .map_err(subscription_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_subscription_invalidation(&app, "subscriptions-deleted", true, original != config)?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let deleted = {
+        let (unit_of_work, config) = mutation.split();
+        SubscriptionManager::new_in(unit_of_work)
+            .delete_subscriptions(config, &ids)
+            .await
+            .map_err(subscription_error)?
+    };
+    let config_changed = original != *mutation.config();
+    commit_config_mutation(mutation).await?;
+    emit_subscription_invalidation(&app, "subscriptions-deleted", true, config_changed)?;
 
     Ok(deleted)
 }
@@ -78,17 +80,18 @@ pub async fn import_profiles_from_text<R: tauri::Runtime>(
         IPC_ID_MAX_CHARS,
         AppError::Subscription,
     )?;
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let result = state
-        .services()
-        .subscriptions()
-        .import_profiles_from_text(&mut config, &text, subscription_id.as_deref())
-        .await
-        .map_err(subscription_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_subscription_invalidation(&app, "profiles-imported", true, original != config)?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let result = {
+        let (unit_of_work, config) = mutation.split();
+        SubscriptionManager::new_in(unit_of_work)
+            .import_profiles_from_text(config, &text, subscription_id.as_deref())
+            .await
+            .map_err(subscription_error)?
+    };
+    let config_changed = original != *mutation.config();
+    commit_config_mutation(mutation).await?;
+    emit_subscription_invalidation(&app, "profiles-imported", true, config_changed)?;
 
     Ok(import_profiles_to_contract(result))
 }
@@ -114,23 +117,34 @@ pub async fn update_subscriptions<R: tauri::Runtime>(
         IPC_PROXY_URL_MAX_CHARS,
         AppError::Subscription,
     )?;
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
-    let result = state
+    let snapshot = current_config(&state)?;
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &snapshot);
+    let prepared = state
         .services()
         .subscriptions()
-        .update_subscriptions(
-            &mut config,
+        .prepare_subscription_update(
+            &snapshot,
             subscription_id.as_deref(),
             prefer_proxy,
             proxy_url.as_deref(),
         )
         .await
         .map_err(subscription_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_subscription_invalidation(&app, "subscriptions-updated", true, original != config)?;
+    if !prepared.has_imports() {
+        return Ok(subscription_update_to_contract(prepared.into_result()));
+    }
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let result = {
+        let (unit_of_work, config) = mutation.split();
+        SubscriptionManager::new_in(unit_of_work)
+            .apply_prepared_subscription_update(config, prepared)
+            .await
+            .map_err(subscription_error)?
+    };
+    let config_changed = original != *mutation.config();
+    commit_config_mutation(mutation).await?;
+    emit_subscription_invalidation(&app, "subscriptions-updated", true, config_changed)?;
 
     Ok(subscription_update_to_contract(result))
 }

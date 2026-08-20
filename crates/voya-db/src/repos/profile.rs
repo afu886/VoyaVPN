@@ -1,20 +1,33 @@
-use sqlx::{
-    sqlite::{SqlitePool, SqliteRow},
-    Row,
-};
+use sqlx::{sqlite::SqliteRow, Row};
+use tokio::sync::Mutex;
 use voya_core::{ConfigType, ProfileExItem, ProfileItem};
 
-use crate::{blob, DbError, ProfileExRepository, Result};
+use crate::{
+    blob,
+    executor::{run_query, RepositoryExecutor},
+    DbError, ProfileExRepository, Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ProfileRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct ProfileRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> ProfileRepository<'pool> {
+impl<'executor> ProfileRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
     }
 
     pub async fn upsert(&self, item: &ProfileItem) -> Result<()> {
@@ -30,8 +43,10 @@ impl<'pool> ProfileRepository<'pool> {
             .map(blob::tls_settings_to_text)
             .transpose()?;
 
-        sqlx::query(
-            r#"
+        run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             INSERT INTO profile_items (
                 index_id, config_type, subscription_id,
                 display_log, remarks, protocol, transport, tls
@@ -47,17 +62,17 @@ impl<'pool> ProfileRepository<'pool> {
                 transport = excluded.transport,
                 tls = excluded.tls
             "#,
-        )
-        .bind(&item.index_id)
-        .bind(config_type_to_str(item.config_type()))
-        .bind(item.subscription_id.as_deref())
-        .bind(item.display_log)
-        .bind(&item.remarks)
-        .bind(protocol)
-        .bind(transport)
-        .bind(tls)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(&item.index_id)
+            .bind(config_type_to_str(item.config_type()))
+            .bind(item.subscription_id.as_deref())
+            .bind(item.display_log)
+            .bind(&item.remarks)
+            .bind(protocol)
+            .bind(transport)
+            .bind(tls),
+            execute
+        )?;
 
         Ok(())
     }
@@ -68,29 +83,34 @@ impl<'pool> ProfileRepository<'pool> {
         profile_ex: &ProfileExItem,
     ) -> Result<()> {
         self.upsert(item).await?;
-        ProfileExRepository::new(self.pool).upsert(profile_ex).await
+        ProfileExRepository::from_executor(self.executor)
+            .upsert(profile_ex)
+            .await
     }
 
     pub async fn get(&self, index_id: &str) -> Result<Option<ProfileItem>> {
-        let row = sqlx::query("SELECT * FROM profile_items WHERE index_id = ?")
-            .bind(index_id)
-            .fetch_optional(self.pool)
-            .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM profile_items WHERE index_id = ?").bind(index_id),
+            fetch_optional
+        )?;
 
         row.map(row_to_profile).transpose()
     }
 
     pub async fn list(&self) -> Result<Vec<ProfileItem>> {
-        let rows = sqlx::query(
-            r#"
+        let rows = run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             SELECT p.*
             FROM profile_items p
             LEFT JOIN profile_ex_items e ON p.index_id = e.index_id
             ORDER BY COALESCE(e.sort, 0), p.index_id
             "#,
-        )
-        .fetch_all(self.pool)
-        .await?;
+            ),
+            fetch_all
+        )?;
 
         rows.into_iter().map(row_to_profile).collect()
     }
@@ -101,29 +121,33 @@ impl<'pool> ProfileRepository<'pool> {
     ) -> Result<Vec<ProfileItem>> {
         let rows = if let Some(subscription_id) = subscription_id.filter(|value| !value.is_empty())
         {
-            sqlx::query(
-                r#"
+            run_query!(
+                self.executor,
+                sqlx::query(
+                    r#"
                 SELECT p.*
                 FROM profile_items p
                 LEFT JOIN profile_ex_items e ON p.index_id = e.index_id
                 WHERE p.subscription_id = ?
                 ORDER BY COALESCE(e.sort, 0), p.index_id
                 "#,
-            )
-            .bind(subscription_id)
-            .fetch_all(self.pool)
-            .await?
+                )
+                .bind(subscription_id),
+                fetch_all
+            )?
         } else {
-            sqlx::query(
-                r#"
+            run_query!(
+                self.executor,
+                sqlx::query(
+                    r#"
                 SELECT p.*
                 FROM profile_items p
                 LEFT JOIN profile_ex_items e ON p.index_id = e.index_id
                 ORDER BY COALESCE(e.sort, 0), p.index_id
                 "#,
-            )
-            .fetch_all(self.pool)
-            .await?
+                ),
+                fetch_all
+            )?
         };
 
         rows.into_iter().map(row_to_profile).collect()
@@ -135,8 +159,10 @@ impl<'pool> ProfileRepository<'pool> {
     ) -> Result<Vec<(ProfileItem, ProfileExItem)>> {
         let rows = if let Some(subscription_id) = subscription_id.filter(|value| !value.is_empty())
         {
-            sqlx::query(
-                r#"
+            run_query!(
+                self.executor,
+                sqlx::query(
+                    r#"
                 SELECT
                     p.*,
                     COALESCE(e.delay, 0) AS ex_delay,
@@ -149,13 +175,15 @@ impl<'pool> ProfileRepository<'pool> {
                 WHERE p.subscription_id = ?
                 ORDER BY COALESCE(e.sort, 0), p.index_id
                 "#,
-            )
-            .bind(subscription_id)
-            .fetch_all(self.pool)
-            .await?
+                )
+                .bind(subscription_id),
+                fetch_all
+            )?
         } else {
-            sqlx::query(
-                r#"
+            run_query!(
+                self.executor,
+                sqlx::query(
+                    r#"
                 SELECT
                     p.*,
                     COALESCE(e.delay, 0) AS ex_delay,
@@ -167,9 +195,9 @@ impl<'pool> ProfileRepository<'pool> {
                 LEFT JOIN profile_ex_items e ON p.index_id = e.index_id
                 ORDER BY COALESCE(e.sort, 0), p.index_id
                 "#,
-            )
-            .fetch_all(self.pool)
-            .await?
+                ),
+                fetch_all
+            )?
         };
 
         rows.into_iter()
@@ -183,44 +211,63 @@ impl<'pool> ProfileRepository<'pool> {
     }
 
     pub async fn exists(&self, index_id: &str) -> Result<bool> {
-        let exists: i64 =
+        let exists: i64 = run_query!(
+            self.executor,
             sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM profile_items WHERE index_id = ?)")
-                .bind(index_id)
-                .fetch_one(self.pool)
-                .await?;
+                .bind(index_id),
+            fetch_one
+        )?;
 
         Ok(exists != 0)
     }
 
     pub async fn delete(&self, index_id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM profile_items WHERE index_id = ?")
-            .bind(index_id)
-            .execute(self.pool)
-            .await?;
+        let result = run_query!(
+            self.executor,
+            sqlx::query("DELETE FROM profile_items WHERE index_id = ?").bind(index_id),
+            execute
+        )?;
 
         Ok(result.rows_affected() > 0)
     }
 
     pub async fn delete_many(&self, index_ids: &[String]) -> Result<u64> {
-        let mut tx = self.pool.begin().await?;
-        let mut deleted = 0;
-        for index_id in index_ids {
-            let result = sqlx::query("DELETE FROM profile_items WHERE index_id = ?")
-                .bind(index_id)
-                .execute(&mut *tx)
-                .await?;
-            deleted += result.rows_affected();
+        match self.executor {
+            RepositoryExecutor::Pool(pool) => {
+                let mut transaction = pool.begin().await?;
+                let mut deleted = 0;
+                for index_id in index_ids {
+                    let result = sqlx::query("DELETE FROM profile_items WHERE index_id = ?")
+                        .bind(index_id)
+                        .execute(&mut *transaction)
+                        .await?;
+                    deleted += result.rows_affected();
+                }
+                transaction.commit().await?;
+                Ok(deleted)
+            }
+            RepositoryExecutor::Transaction(transaction) => {
+                let mut transaction = transaction.lock().await;
+                let mut deleted = 0;
+                for index_id in index_ids {
+                    let result = sqlx::query("DELETE FROM profile_items WHERE index_id = ?")
+                        .bind(index_id)
+                        .execute(&mut **transaction)
+                        .await?;
+                    deleted += result.rows_affected();
+                }
+                Ok(deleted)
+            }
         }
-
-        tx.commit().await?;
-        Ok(deleted)
     }
 
     pub async fn delete_by_subscription_id(&self, subscription_id: &str) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM profile_items WHERE subscription_id = ?")
-            .bind(subscription_id)
-            .execute(self.pool)
-            .await?;
+        let result = run_query!(
+            self.executor,
+            sqlx::query("DELETE FROM profile_items WHERE subscription_id = ?")
+                .bind(subscription_id),
+            execute
+        )?;
 
         Ok(result.rows_affected())
     }

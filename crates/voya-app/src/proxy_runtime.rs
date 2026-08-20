@@ -70,16 +70,6 @@ pub trait ProxyRuntimeEventSink: Send + Sync {
     fn emit_connections(&self, event: ProxyConnectionsSnapshot);
 }
 
-#[cfg(test)]
-#[derive(Clone)]
-pub struct NoopProxyRuntimeEventSink;
-
-#[cfg(test)]
-impl ProxyRuntimeEventSink for NoopProxyRuntimeEventSink {
-    fn emit_traffic(&self, _event: ProxyTrafficEvent) {}
-    fn emit_connections(&self, _event: ProxyConnectionsSnapshot) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct ProxyRuntimeManager<T = ReqwestClashHttpTransport> {
     transport: T,
@@ -679,6 +669,14 @@ mod tests {
     use voya_net::clash::{ClashHttpMethod, ClashHttpRequest};
 
     use super::*;
+
+    #[derive(Clone)]
+    struct NoopProxyRuntimeEventSink;
+
+    impl ProxyRuntimeEventSink for NoopProxyRuntimeEventSink {
+        fn emit_traffic(&self, _event: ProxyTrafficEvent) {}
+        fn emit_connections(&self, _event: ProxyConnectionsSnapshot) {}
+    }
 
     #[derive(Clone, Default)]
     struct MockTransport {

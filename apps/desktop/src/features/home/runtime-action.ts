@@ -36,8 +36,8 @@ export const SYS_PROXY_TYPE = {
 
 // The selector offers exactly three modes — off / smart / global — in this
 // order. `unchanged` is intentionally not surfaced (the backend enum still
-// supports it); PAC is always offered (it silently no-ops on the rare platform
-// without PAC support).
+// supports it); the home screen keeps PAC visible but disables it when the
+// backend reports that the platform cannot apply PAC settings.
 export const PROXY_MODE_OPTIONS: SysProxyMode[] = ["forcedClear", "pac", "forcedChange"];
 
 export function statusToSysProxyChanged(status: SystemProxyStatusResponse): SysProxyChanged {

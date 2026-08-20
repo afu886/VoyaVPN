@@ -12,6 +12,7 @@ use voya_db::{AppStateRecord, Database, DbError};
 use voya_platform::{paths::AppPaths, process::ProcessRunner};
 
 use crate::{
+    config_mutation::{ConfigMutationCoordinator, SharedAppConfig},
     dns::DnsManager,
     exports::ExportManager,
     groups::GroupManager,
@@ -59,17 +60,9 @@ impl AppServices {
         Ok(app_config_from_settings(&settings, &state)?)
     }
 
-    pub async fn persist_config(&self, config: &AppConfig) -> Result<(), DbError> {
-        let settings = settings_from_app_config(config);
-        let state = AppStateRecord {
-            active_profile_id: (!config.index_id.is_empty()).then(|| config.index_id.clone()),
-            active_routing_id: (!config.routing_basic_item.routing_index_id.is_empty())
-                .then(|| config.routing_basic_item.routing_index_id.clone()),
-        };
-        self.database
-            .settings()
-            .save_with_state(&settings, &state)
-            .await
+    #[must_use]
+    pub fn config_mutations(&self, config: SharedAppConfig) -> ConfigMutationCoordinator {
+        ConfigMutationCoordinator::new(self.database.clone(), config)
     }
 
     pub fn config_from_settings(

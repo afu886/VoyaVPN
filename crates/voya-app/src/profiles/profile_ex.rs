@@ -1,16 +1,26 @@
 use voya_core::ProfileExItem;
-use voya_db::Database;
+use voya_db::{Database, DatabaseSession, UnitOfWork};
 
 use super::Result;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProfileExManager<'db> {
-    database: &'db Database,
+    database: DatabaseSession<'db>,
 }
 
 impl<'db> ProfileExManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
+        Self::from_session(DatabaseSession::from_database(database))
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self::from_session(DatabaseSession::from_unit_of_work(unit_of_work))
+    }
+
+    #[must_use]
+    pub(crate) const fn from_session(database: DatabaseSession<'db>) -> Self {
         Self { database }
     }
 

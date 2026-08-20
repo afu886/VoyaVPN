@@ -85,6 +85,8 @@ export function HomeScreen() {
         <NetworkControls
           onProxyModeChange={home.changeProxyMode}
           onTunToggle={home.toggleTun}
+          pacAvailable={home.pacAvailable}
+          proxyPending={home.proxyPending}
           requestedProxyMode={home.requestedProxyMode}
           t={t}
           tunEnabled={home.tunEnabled}
@@ -116,6 +118,7 @@ function useHomeRuntime(t: Translation) {
   const pushToast = useToastStore((state) => state.pushToast);
   const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<RuntimeAction | null>(null);
+  const [proxyPending, setProxyPending] = useState<SysProxyMode | null>(null);
   // TUN toggling is tracked separately from connect/disconnect so the two
   // controls never block each other.
   const [tunPending, setTunPending] = useState(false);
@@ -146,19 +149,35 @@ function useHomeRuntime(t: Translation) {
           setSysProxy(statusToSysProxyChanged(status));
         }
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          pushToast({
+            description: getErrorMessage(error),
+            severity: "error",
+            title: t("status.sysProxyStatusFailed"),
+          });
+        }
+      });
     void tunStatus()
       .then((status) => {
         if (!cancelled) {
           setTun(statusToTunChanged(status));
         }
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          pushToast({
+            description: getErrorMessage(error),
+            severity: "error",
+            title: t("status.tunStatusFailed"),
+          });
+        }
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [setSysProxy, setTun]);
+  }, [pushToast, setSysProxy, setTun, t]);
 
   const state = coreState?.state ?? "disconnected";
   const connected = state === "connected";
@@ -171,8 +190,9 @@ function useHomeRuntime(t: Translation) {
   // from the persisted-active node only while disconnected.
   const runningId = connected ? (coreState?.activeProfileId ?? null) : null;
   const requestedProxyMode = sysProxy?.requestedMode ?? "forcedClear";
+  const pacAvailable = sysProxy?.pacAvailable ?? false;
   const tunEnabled = tun?.enabled ?? false;
-  const tunProviderSummary = tun ? tunProviderLabel(tun) : null;
+  const tunProviderSummary = tun ? tunProviderLabel(tun, t) : null;
 
   // Seed the local selection from the persisted active profile and re-sync it
   // whenever the active profile changes (e.g. after a switch). Adjusting state
@@ -203,6 +223,7 @@ function useHomeRuntime(t: Translation) {
       } else {
         pushToast({
           description: getErrorMessage(error),
+          severity: "error",
           title: runtimeActionLabel(action, t),
         });
       }
@@ -216,8 +237,12 @@ function useHomeRuntime(t: Translation) {
     try {
       const status = await runtimeStatus();
       setCoreState(statusToCoreState(status));
-    } catch {
-      return;
+    } catch (error) {
+      pushToast({
+        description: getErrorMessage(error),
+        severity: "error",
+        title: t("status.runtimeStatusFailed"),
+      });
     }
   }
 
@@ -245,6 +270,7 @@ function useHomeRuntime(t: Translation) {
       } else {
         pushToast({
           description: getErrorMessage(error),
+          severity: "error",
           title: t(wasConnected ? "actions.restart" : "actions.connect"),
         });
         await refreshRuntimeState();
@@ -274,11 +300,22 @@ function useHomeRuntime(t: Translation) {
   }
 
   async function runProxyMode(mode: SysProxyMode) {
+    if (proxyPending !== null || (mode === "pac" && !pacAvailable)) {
+      return;
+    }
+
+    setProxyPending(mode);
     try {
       const status = await setSystemProxyMode(SYS_PROXY_TYPE[mode]);
       setSysProxy(statusToSysProxyChanged(status));
-    } catch {
-      return;
+    } catch (error) {
+      pushToast({
+        description: getErrorMessage(error),
+        severity: "error",
+        title: t("status.sysProxyChangeFailed"),
+      });
+    } finally {
+      setProxyPending(null);
     }
   }
 
@@ -293,14 +330,16 @@ function useHomeRuntime(t: Translation) {
         const current = await tunStatus();
         if (current.backend !== "process" && !current.nativeComponentReady) {
           pushToast({
-            description: current.lastProviderError ?? "Native tunnel component is not installed.",
+            description: current.lastProviderError ?? t("status.nativeTunnelMissing"),
+            severity: "error",
             title: t("status.tunEnableFailed"),
           });
           return;
         }
         if (current.providerPathMismatch) {
           pushToast({
-            description: tunProviderPathMismatchDescription(current),
+            description: tunProviderPathMismatchDescription(current, t),
+            severity: "error",
             title: t("status.tunEnableFailed"),
           });
           return;
@@ -319,6 +358,7 @@ function useHomeRuntime(t: Translation) {
     } catch (error) {
       pushToast({
         description: getErrorMessage(error),
+        severity: "error",
         title: t(nextEnabled ? "status.tunEnableFailed" : "status.tunDisableFailed"),
       });
     } finally {
@@ -353,8 +393,10 @@ function useHomeRuntime(t: Translation) {
     connected,
     handlePrimaryAction,
     inProgress,
+    pacAvailable,
     profiles: profilesQuery.data ?? [],
     profilesPending: profilesQuery.isPending,
+    proxyPending,
     requestedProxyMode,
     restart,
     runningId,
@@ -461,6 +503,8 @@ function RuntimeActions({
 function NetworkControls({
   onProxyModeChange,
   onTunToggle,
+  pacAvailable,
+  proxyPending,
   requestedProxyMode,
   t,
   tunEnabled,
@@ -469,6 +513,8 @@ function NetworkControls({
 }: {
   onProxyModeChange: (mode: SysProxyMode) => void;
   onTunToggle: () => void;
+  pacAvailable: boolean;
+  proxyPending: SysProxyMode | null;
   requestedProxyMode: SysProxyMode;
   t: Translation;
   tunEnabled: boolean;
@@ -479,31 +525,47 @@ function NetworkControls({
     <div className="w-full shrink-0 rounded-lg bg-surface-raised px-4 shadow-raised">
       <div className="flex items-center justify-between gap-3 py-2.5">
         <span className="text-sm font-medium text-foreground">{t("status.sysProxyMode")}</span>
-        <div aria-label={t("status.sysProxyMode")} className="flex h-7 items-center rounded-md bg-muted p-0.5" role="group">
-          {PROXY_MODE_OPTIONS.map((mode) => {
-            const selected = requestedProxyMode === mode;
-            const modeLabel = sysProxyLabel(mode, t);
+        <div className="flex flex-col items-end gap-1">
+          <div
+            aria-busy={proxyPending !== null}
+            aria-label={t("status.sysProxyMode")}
+            className="flex h-7 items-center rounded-md bg-muted p-0.5"
+            role="group"
+          >
+            {PROXY_MODE_OPTIONS.map((mode) => {
+              const selected = requestedProxyMode === mode;
+              const modeLabel = sysProxyLabel(mode, t);
+              const pacUnavailable = mode === "pac" && !pacAvailable;
 
-            return (
-              <Button
-                key={mode}
-                aria-label={modeLabel}
-                aria-pressed={selected}
-                className={cn(
-                  "h-6 rounded-sm px-2.5 text-sm leading-none shadow-none focus-visible:relative focus-visible:z-10",
-                  selected
-                    ? "bg-background text-foreground hover:bg-background hover:text-foreground"
-                    : "text-subtlest hover:bg-background/60 hover:text-foreground",
-                )}
-                onClick={() => onProxyModeChange(mode)}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {modeLabel}
-              </Button>
-            );
-          })}
+              return (
+                <Button
+                  key={mode}
+                  aria-describedby={pacUnavailable ? "home-pac-unavailable" : undefined}
+                  aria-label={modeLabel}
+                  aria-pressed={selected}
+                  className={cn(
+                    "h-6 rounded-sm px-2.5 text-sm leading-none shadow-none focus-visible:relative focus-visible:z-10",
+                    selected
+                      ? "bg-background text-foreground hover:bg-background hover:text-foreground"
+                      : "text-subtlest hover:bg-background/60 hover:text-foreground",
+                  )}
+                  disabled={proxyPending !== null || pacUnavailable}
+                  onClick={() => onProxyModeChange(mode)}
+                  size="sm"
+                  title={pacUnavailable ? t("status.sysProxyPacUnavailable") : undefined}
+                  type="button"
+                  variant="ghost"
+                >
+                  {modeLabel}
+                </Button>
+              );
+            })}
+          </div>
+          {!pacAvailable ? (
+            <p className="max-w-64 text-end text-xs text-subtlest" id="home-pac-unavailable">
+              {t("status.sysProxyPacUnavailable")}
+            </p>
+          ) : null}
         </div>
       </div>
       <Separator />
@@ -543,9 +605,9 @@ function runtimeActionLabel(action: RuntimeAction, t: ReturnType<typeof useI18n>
   }
 }
 
-function tunProviderLabel(tun: TunChanged) {
-  const backend = tunBackendLabel(tun.backend);
-  const providerState = tunProviderStateLabel(tun.providerState);
+function tunProviderLabel(tun: TunChanged, t: Translation) {
+  const backend = tunBackendLabel(tun.backend, t);
+  const providerState = tunProviderStateLabel(tun.providerState, t);
   if (tun.lastProviderError) {
     return `${backend}: ${providerState}: ${tun.lastProviderError}`;
   }
@@ -556,50 +618,43 @@ function tunProviderLabel(tun: TunChanged) {
   return `${backend}: ${providerState}`;
 }
 
-function tunProviderPathMismatchDescription(status: TunStatus) {
-  const expected = status.expectedProviderPath ? `Expected: ${status.expectedProviderPath}.` : "";
-  const resolved = status.resolvedProviderPath ? `PlugInKit elected: ${status.resolvedProviderPath}.` : "";
-
-  return [
-    "macOS is using a stale PacketTunnel provider.",
-    expected,
-    resolved,
-    "Quit VoyaVPN, run `pnpm native:macos:ne:doctor --fix`, then launch the /Applications copy.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+function tunProviderPathMismatchDescription(status: TunStatus, t: Translation) {
+  return t("status.tunProviderPathMismatch", {
+    expected: status.expectedProviderPath ?? "—",
+    resolved: status.resolvedProviderPath ?? "—",
+  });
 }
 
-function tunBackendLabel(backend: TunChanged["backend"]) {
+function tunBackendLabel(backend: TunChanged["backend"], t: Translation) {
   switch (backend) {
     case "macosPacketTunnel":
-      return "macOS PacketTunnel";
+      return t("status.tunBackendMacos");
     case "windowsService":
-      return "Windows Service";
+      return t("status.tunBackendWindows");
     case "process":
-      return "Process TUN";
+      return t("status.tunBackendProcess");
     case "unsupported":
     default:
-      return "Unsupported TUN";
+      return t("status.tunBackendUnsupported");
   }
 }
 
-function tunProviderStateLabel(state: TunChanged["providerState"]) {
+function tunProviderStateLabel(state: TunChanged["providerState"], t: Translation) {
   switch (state) {
     case "running":
-      return "Running";
+      return t("status.tunProviderRunning");
     case "starting":
-      return "Starting";
+      return t("status.tunProviderStarting");
     case "stopped":
-      return "Stopped";
+      return t("status.tunProviderStopped");
     case "permissionRequired":
-      return "Permission required";
+      return t("status.tunProviderPermissionRequired");
     case "missingComponent":
-      return "Missing component";
+      return t("status.tunProviderMissingComponent");
     case "error":
-      return "Error";
+      return t("status.tunProviderError");
     case "notApplicable":
     default:
-      return "Not applicable";
+      return t("status.tunProviderNotApplicable");
   }
 }

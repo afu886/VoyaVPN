@@ -92,7 +92,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
       setSelectedId(saved.id);
       setForm(saved);
 
-      return "Subscription saved";
+      return t("panes.subscriptions.saved");
     });
   }
 
@@ -105,7 +105,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
       setSelectedId("");
       setForm(createBlankSubscription());
 
-      return "Subscription deleted";
+      return t("panes.subscriptions.deleted");
     });
   }
 
@@ -113,13 +113,16 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
     await run(async () => {
       const result = await updateSubscriptions(id, true, null);
 
-      return `${result.updated ?? 0} updated, ${result.imported ?? 0} profiles imported`;
+      return t("panes.subscriptions.updateResult", {
+        imported: result.imported ?? 0,
+        updated: result.updated ?? 0,
+      });
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ScrollableDialogContent width="5xl">
+      <ScrollableDialogContent closeLabel={t("actions.close")} width="5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Rss className="size-4" aria-hidden="true" />
@@ -133,7 +136,7 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
             <CardHeader className="flex h-10 flex-row items-center justify-between border-b px-3 py-0">
               <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">{t("panes.subscriptions.sources")}</CardTitle>
               <Button
-                aria-label="New subscription"
+                aria-label={t("panes.subscriptions.new")}
                 className="size-7"
                 onClick={() => {
                   setSelectedId("");
@@ -171,9 +174,9 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
                         }}
                         type="button"
                       >
-                        <span className="truncate font-medium">{item.remarks || "Untitled"}</span>
+                        <span className="truncate font-medium">{item.remarks || t("panes.subscriptions.untitled")}</span>
                         <Badge className="self-start" variant={item.enabled ? "secondary" : "outline"}>
-                          {item.enabled ? "Enabled" : "Disabled"}
+                          {item.enabled ? t("panes.subscriptions.enabled") : t("panes.subscriptions.disabled")}
                         </Badge>
                         <span className="col-span-2 truncate text-xs text-muted-foreground">{item.url}</span>
                       </button>
@@ -191,34 +194,34 @@ export function SubscriptionsDialog({ onChanged, onOpenChange, open }: Subscript
             <CardContent className="grid content-start gap-3 p-0">
               <div className="grid gap-3 md:grid-cols-2">
                 <TextField
-                  label="Remarks"
+                  label={t("panes.subscriptions.remarks")}
                   onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
                   value={form.remarks}
                 />
                 <TextField
-                  label="User agent"
+                  label={t("panes.subscriptions.userAgent")}
                   onChange={(value) => setForm((current) => ({ ...current, userAgent: value }))}
                   value={form.userAgent}
                 />
               </div>
               <TextField
-                label="URL"
+                label={t("panes.subscriptions.url")}
                 onChange={(value) => setForm((current) => ({ ...current, url: value }))}
                 value={form.url}
               />
               <TextField
-                label="More URL"
+                label={t("panes.subscriptions.additionalUrl")}
                 onChange={(value) => setForm((current) => ({ ...current, additionalUrl: value }))}
                 value={form.additionalUrl}
               />
               <div className="grid gap-3 md:grid-cols-2">
                 <TextField
-                  label="Filter"
+                  label={t("panes.subscriptions.filter")}
                   onChange={(value) => setForm((current) => ({ ...current, filter: value || null }))}
                   value={form.filter ?? ""}
                 />
                 <TextField
-                  label="Convert target"
+                  label={t("panes.subscriptions.convertTarget")}
                   onChange={(value) => setForm((current) => ({ ...current, converterTarget: value || null }))}
                   value={form.converterTarget ?? ""}
                 />

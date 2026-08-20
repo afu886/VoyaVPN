@@ -1,7 +1,7 @@
 use thiserror::Error;
 pub use voya_contracts::DnsValidationIssue;
 use voya_core::{SimpleDnsItem, DEFAULT_BOOTSTRAP_DNS, DEFAULT_DIRECT_DNS, DEFAULT_REMOTE_DNS};
-use voya_db::Database;
+use voya_db::{Database, DatabaseSession, UnitOfWork};
 
 pub type Result<T> = std::result::Result<T, DnsManagerError>;
 
@@ -18,14 +18,21 @@ pub enum DnsManagerError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct DnsManager<'db> {
-    _database: &'db Database,
+    _database: DatabaseSession<'db>,
 }
 
 impl<'db> DnsManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
         Self {
-            _database: database,
+            _database: DatabaseSession::from_database(database),
+        }
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self {
+            _database: DatabaseSession::from_unit_of_work(unit_of_work),
         }
     }
 

@@ -42,10 +42,15 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
     <div className="flex min-h-0 flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold">{selectedRouting?.remarks ?? "No routing profile"}</h3>
+          <h3 className="truncate text-sm font-semibold">
+            {selectedRouting?.remarks ?? t("panes.routing.noProfile")}
+          </h3>
           <p className="truncate text-xs text-muted-foreground">
             {selectedRouting
-              ? `${selectedRouting.rules.length} rules · sing-box ${selectedRouting.singboxDomainStrategy || "default"}`
+              ? t("panes.routing.rulesSummary", {
+                  count: selectedRouting.rules.length,
+                  strategy: selectedRouting.singboxDomainStrategy || t("panes.routing.defaultValue"),
+                })
               : ""}
           </p>
         </div>
@@ -55,6 +60,7 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
             {t("panes.routing.rule")}
           </Button>
           <Button
+            aria-label={t("panes.routing.moveRuleUp")}
             disabled={!selectedRule}
             onClick={() => selectedRule && setRuleDialog({ mode: "edit", rule: selectedRule })}
             size="sm"
@@ -65,6 +71,7 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
             {t("actions.edit")}
           </Button>
           <Button
+            aria-label={t("panes.routing.moveRuleDown")}
             disabled={!selectedRouting || !selectedRule}
             onClick={() => moveSelectedRule(MOVE_ACTIONS.Up)}
             size="icon"
@@ -154,7 +161,7 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
             </TableBody>
           </Table>
         ) : (
-          <EmptyState className="h-full content-center" icon={Route} title="No routing rules" />
+          <EmptyState className="h-full content-center" icon={Route} title={t("panes.routing.emptyRules")} />
         )}
       </ScrollArea>
     </div>
@@ -162,22 +169,23 @@ export function RoutingRulesPanel({ controller }: { controller: RoutingScreenCon
 }
 
 function RuleTypeBadge({ scope }: { scope: RoutingRuleScope | null | undefined }) {
+  const { t } = useI18n();
   return (
     <Badge className="bg-background" variant="outline">
-      {formatRuleType(scope)}
+      {formatRuleType(scope, t)}
     </Badge>
   );
 }
 
-function formatRuleType(scope: RoutingRuleScope | null | undefined) {
+function formatRuleType(scope: RoutingRuleScope | null | undefined, t: ReturnType<typeof useI18n>["t"]) {
   switch (scope) {
     case RULE_TYPES.Routing:
-      return "Routing";
+      return t("panes.routing.scopeRouting");
     case RULE_TYPES.Dns:
       return "DNS";
     case RULE_TYPES.All:
     default:
-      return "All";
+      return t("panes.routing.scopeAll");
   }
 }
 

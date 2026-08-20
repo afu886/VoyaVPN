@@ -26,10 +26,10 @@ export function DnsScreen() {
   } = useDnsSettings();
 
   return (
-    <PageSection aria-label="DNS">
+    <PageSection aria-label={t("panes.dns.title")}>
       <PageHeader>
-        <PageHeaderHeading icon={Database} title="DNS">
-          <Badge variant="outline">{form?.fakeIp ? "FakeIP" : "Standard"}</Badge>
+        <PageHeaderHeading icon={Database} title={t("panes.dns.title")}>
+          <Badge variant="outline">{form?.fakeIp ? t("panes.dns.fakeIp") : t("panes.dns.standard")}</Badge>
           {issueCount ? (
             <Badge variant="destructive">
               <TriangleAlert className="size-3.5" aria-hidden="true" />

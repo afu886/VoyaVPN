@@ -10,7 +10,7 @@ use voya_core::{
     AppConfig, MoveAction, RoutingItem, RuleType, RulesItem, BLOCK_TAG, DEFAULT_DOMAIN_STRATEGY,
     DIRECT_TAG, PROXY_TAG,
 };
-use voya_db::{Database, DbError};
+use voya_db::{Database, DatabaseSession, DbError, UnitOfWork};
 use voya_net::{DownloadClient, DownloadError, DownloadRequest, DEFAULT_TEXT_RESPONSE_LIMIT_BYTES};
 
 const DEFAULT_ROUTING_SORT_STEP: i32 = 10;
@@ -56,12 +56,22 @@ pub(crate) struct RoutingTemplateApplyResult {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RoutingManager<'db> {
-    database: &'db Database,
+    database: DatabaseSession<'db>,
 }
 
 impl<'db> RoutingManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
+        Self::from_session(DatabaseSession::from_database(database))
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self::from_session(DatabaseSession::from_unit_of_work(unit_of_work))
+    }
+
+    #[must_use]
+    pub(crate) const fn from_session(database: DatabaseSession<'db>) -> Self {
         Self { database }
     }
 

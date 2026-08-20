@@ -115,6 +115,7 @@ describe("EventBridge", () => {
     expect(bridgeMocks.setActiveTab).not.toHaveBeenCalled();
     expect(bridgeMocks.pushToast).toHaveBeenCalledWith({
       description: "Saved",
+      severity: "info",
       title: "Preferences",
     });
   });

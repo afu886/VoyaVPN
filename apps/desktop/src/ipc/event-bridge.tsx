@@ -149,6 +149,7 @@ function routeAppEvent(event: AppEvent, surface: EventBridgeSurface) {
     case "notice":
       useToastStore.getState().pushToast({
         description: event.payload.message ?? undefined,
+        severity: event.payload.level,
         title: event.payload.title,
       });
       return;

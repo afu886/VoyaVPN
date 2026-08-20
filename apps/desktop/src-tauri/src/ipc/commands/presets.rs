@@ -27,27 +27,41 @@ pub async fn import_config_template<R: tauri::Runtime>(
             validate_optional_ipc_text(value, label, IPC_PROXY_URL_MAX_CHARS, AppError::Preset)?;
         }
     }
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &config);
-    let result = state
+    let snapshot = current_config(&state)?;
+    let proxy_url = runtime_proxy_url(prefer_proxy, proxy_url, &snapshot);
+    let prepared = state
         .services()
         .presets()
-        .import_config_template(
-            &mut config,
+        .prepare_config_template_import(
             selection,
-            ConfigTemplateImportOptions {
+            &ConfigTemplateImportOptions {
                 prefer_proxy,
                 proxy_url,
             },
         )
         .await
         .map_err(preset_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let result = {
+        let (unit_of_work, config) = mutation.split();
+        PresetManager::new_in(unit_of_work)
+            .apply_prepared_config_template_import(config, prepared)
+            .await
+            .map_err(preset_error)?
+    };
+    let config = commit_config_mutation(mutation).await?;
     emit_preset_invalidation(&app, "config-template-imported")?;
-    restart_if_connected_after_config_change(&app, &state, &config, "Config template imported")
-        .await?;
+    if let Err(error) =
+        restart_if_connected_after_config_change(&app, &state, &config, "Config template imported")
+            .await
+    {
+        report_post_commit_error(
+            &app,
+            "Template imported; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(result)
 }

@@ -52,21 +52,22 @@ pub async fn save_group_profile<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     profile: ProfileContract,
 ) -> Result<ProfileListEntry, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let result = state
-        .services()
-        .groups()
-        .save_group_profile(&mut config, profile_from_contract(profile))
-        .await
-        .map_err(group_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original_active = mutation.config().index_id.clone();
+    let result = {
+        let (unit_of_work, config) = mutation.split();
+        GroupManager::new_in(unit_of_work)
+            .save_group_profile(config, profile_from_contract(profile))
+            .await
+            .map_err(group_error)?
+    };
+    let active_changed = original_active != mutation.config().index_id;
+    commit_config_mutation(mutation).await?;
     emit_profile_invalidation(
         &app,
         "group-profile-saved",
         [result.profile.index_id.clone()],
-        original.index_id != config.index_id,
+        active_changed,
     )?;
 
     Ok(profile_list_to_contract(result))

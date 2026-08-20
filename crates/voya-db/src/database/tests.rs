@@ -7,6 +7,8 @@ use voya_core::{
     RulesItem, ServerEndpoint, ServerStatItem, SubItem, TlsMode, TlsSettings,
 };
 
+use crate::AppStateRecord;
+
 use super::*;
 
 #[test]
@@ -734,6 +736,259 @@ async fn settings_and_active_state_persist_with_schema_version_one() {
         .await
         .expect("schema version should exist");
     assert_eq!(version, i64::from(CURRENT_SCHEMA_VERSION));
+}
+
+#[tokio::test]
+async fn unit_of_work_commits_business_rows_settings_and_state_together() {
+    let database = Database::connect_in_memory()
+        .await
+        .expect("database test operation should succeed");
+    let profile = sample_profile();
+    let mut settings = AppSettingsV1::default();
+    settings.appearance.language = "fr".to_string();
+    let state = AppStateRecord {
+        active_profile_id: Some(profile.index_id.clone()),
+        active_routing_id: None,
+    };
+    let unit_of_work = database.begin().await.expect("transaction should begin");
+
+    unit_of_work
+        .profiles()
+        .upsert(&profile)
+        .await
+        .expect("profile should be staged");
+    unit_of_work
+        .settings()
+        .save_with_state(&settings, &state)
+        .await
+        .expect("configuration should be staged");
+    unit_of_work
+        .commit()
+        .await
+        .expect("transaction should commit");
+
+    assert!(database
+        .profiles()
+        .exists(&profile.index_id)
+        .await
+        .expect("profile lookup should succeed"));
+    assert_eq!(
+        database
+            .settings()
+            .load()
+            .await
+            .expect("settings should load"),
+        settings
+    );
+    assert_eq!(
+        database
+            .app_state()
+            .load()
+            .await
+            .expect("state should load"),
+        state
+    );
+}
+
+#[tokio::test]
+async fn dropped_unit_of_work_rolls_back_all_staged_rows() {
+    let database = Database::connect_in_memory()
+        .await
+        .expect("database test operation should succeed");
+    let profile = sample_profile();
+    let mut settings = AppSettingsV1::default();
+    settings.appearance.language = "de".to_string();
+    let state = AppStateRecord {
+        active_profile_id: Some(profile.index_id.clone()),
+        active_routing_id: None,
+    };
+    let unit_of_work = database.begin().await.expect("transaction should begin");
+    unit_of_work
+        .profiles()
+        .upsert(&profile)
+        .await
+        .expect("profile should be staged");
+    unit_of_work
+        .settings()
+        .save_with_state(&settings, &state)
+        .await
+        .expect("configuration should be staged");
+    drop(unit_of_work);
+
+    assert!(!database
+        .profiles()
+        .exists(&profile.index_id)
+        .await
+        .expect("profile lookup should succeed"));
+    assert_eq!(
+        database
+            .settings()
+            .load()
+            .await
+            .expect("settings should load"),
+        AppSettingsV1::default()
+    );
+    assert_eq!(
+        database
+            .app_state()
+            .load()
+            .await
+            .expect("state should load"),
+        AppStateRecord::default()
+    );
+}
+
+#[tokio::test]
+async fn unit_of_work_failure_rolls_back_business_rows_and_config() {
+    let database = Database::connect_in_memory()
+        .await
+        .expect("database test operation should succeed");
+    sqlx::query(
+        r#"
+        CREATE TRIGGER reject_settings_insert
+        BEFORE INSERT ON app_settings
+        BEGIN
+            SELECT RAISE(ABORT, 'blocked settings update');
+        END
+        "#,
+    )
+    .execute(database.pool())
+    .await
+    .expect("failure trigger should be created");
+    let profile = sample_profile();
+    let mut settings = AppSettingsV1::default();
+    settings.appearance.language = "ru".to_string();
+    let unit_of_work = database.begin().await.expect("transaction should begin");
+    unit_of_work
+        .profiles()
+        .upsert(&profile)
+        .await
+        .expect("profile should be staged");
+
+    let result = unit_of_work
+        .settings()
+        .save_with_state(&settings, &AppStateRecord::default())
+        .await;
+    assert!(result.is_err());
+    drop(unit_of_work);
+
+    assert!(!database
+        .profiles()
+        .exists(&profile.index_id)
+        .await
+        .expect("profile lookup should succeed"));
+    assert_eq!(
+        database
+            .settings()
+            .load()
+            .await
+            .expect("settings should load"),
+        AppSettingsV1::default()
+    );
+}
+
+#[tokio::test]
+async fn unit_of_work_business_write_failure_rolls_back_prior_rows() {
+    let database = Database::connect_in_memory()
+        .await
+        .expect("database test operation should succeed");
+    sqlx::query(
+        r#"
+        CREATE TRIGGER reject_profile_insert
+        BEFORE INSERT ON profile_items
+        BEGIN
+            SELECT RAISE(ABORT, 'blocked profile insert');
+        END
+        "#,
+    )
+    .execute(database.pool())
+    .await
+    .expect("failure trigger should be created");
+    let unit_of_work = database.begin().await.expect("transaction should begin");
+    unit_of_work
+        .subscriptions()
+        .upsert(&SubItem {
+            id: "staged-subscription".to_string(),
+            remarks: "Staged".to_string(),
+            ..SubItem::default()
+        })
+        .await
+        .expect("subscription should be staged");
+
+    assert!(unit_of_work
+        .profiles()
+        .upsert(&sample_profile())
+        .await
+        .is_err());
+    drop(unit_of_work);
+
+    assert!(database
+        .subscriptions()
+        .get("staged-subscription")
+        .await
+        .expect("subscription lookup should succeed")
+        .is_none());
+    assert_eq!(
+        database
+            .settings()
+            .load()
+            .await
+            .expect("settings should load"),
+        AppSettingsV1::default()
+    );
+}
+
+#[tokio::test]
+async fn unit_of_work_commit_failure_rolls_back_rows_settings_and_state() {
+    let database = Database::connect_in_memory()
+        .await
+        .expect("database test operation should succeed");
+    let unit_of_work = database.begin().await.expect("transaction should begin");
+    {
+        let mut transaction = unit_of_work.transaction.lock().await;
+        sqlx::query("PRAGMA defer_foreign_keys = ON")
+            .execute(&mut **transaction)
+            .await
+            .expect("foreign keys should be deferred");
+        sqlx::query(
+            "INSERT INTO profile_ex_items (index_id, delay, speed, sort) VALUES ('missing-profile', 0, 0, 0)",
+        )
+        .execute(&mut **transaction)
+        .await
+        .expect("deferred foreign key violation should be staged");
+    }
+    let mut settings = AppSettingsV1::default();
+    settings.appearance.language = "hu".to_string();
+    unit_of_work
+        .settings()
+        .save_with_state(&settings, &AppStateRecord::default())
+        .await
+        .expect("settings should be staged");
+
+    assert!(unit_of_work.commit().await.is_err());
+
+    assert!(database
+        .profile_exs()
+        .get("missing-profile")
+        .await
+        .expect("profile extension lookup should succeed")
+        .is_none());
+    assert_eq!(
+        database
+            .settings()
+            .load()
+            .await
+            .expect("settings should load"),
+        AppSettingsV1::default()
+    );
+    assert_eq!(
+        database
+            .app_state()
+            .load()
+            .await
+            .expect("state should load"),
+        AppStateRecord::default()
+    );
 }
 
 #[tokio::test]

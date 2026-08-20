@@ -521,7 +521,7 @@ mod tests {
     use tokio::sync::Mutex;
     use voya_core::{RoutingItem, RuleType, RulesItem};
 
-    use crate::test_support::{
+    use crate::download::test_support::{
         spawn_http_bytes_fixture as spawn_http_fixture, spawn_raw_http_fixture, RawFixtureResponse,
     };
 

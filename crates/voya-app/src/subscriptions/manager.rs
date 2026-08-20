@@ -11,7 +11,7 @@ use voya_core::{
     parse_wireguard_config, profile_items_match, AppConfig, ConfigType, ImportProfilesResult,
     ProfileExItem, ProfileItem, SubItem, SubscriptionUpdateResult,
 };
-use voya_db::{Database, DbError};
+use voya_db::{Database, DatabaseSession, DbError, UnitOfWork};
 use voya_net::{
     decode_base64_payload, DownloadError, SubscriptionClient, SubscriptionFetchOptions,
     SubscriptionFetchResult, SubscriptionFetchSource,
@@ -47,12 +47,22 @@ pub enum SubscriptionManagerError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SubscriptionManager<'db> {
-    database: &'db Database,
+    database: DatabaseSession<'db>,
 }
 
 impl<'db> SubscriptionManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
+        Self::from_session(DatabaseSession::from_database(database))
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self::from_session(DatabaseSession::from_unit_of_work(unit_of_work))
+    }
+
+    #[must_use]
+    pub(crate) const fn from_session(database: DatabaseSession<'db>) -> Self {
         Self { database }
     }
 
@@ -137,7 +147,7 @@ impl<'db> SubscriptionManager<'db> {
         {
             config.sub_index_id = subs.last().map(|item| item.id.clone()).unwrap_or_default();
         }
-        ProfileManager::new(self.database)
+        ProfileManager::from_session(self.database)
             .ensure_active_profile(config)
             .await?;
 
@@ -191,7 +201,7 @@ impl<'db> SubscriptionManager<'db> {
             .saturating_add(deduped)
             .saturating_add(parsed_import.failed_lines);
         if profiles.is_empty() {
-            ProfileManager::new(self.database)
+            ProfileManager::from_session(self.database)
                 .ensure_active_profile(config)
                 .await?;
             return Ok(ImportProfilesResult {
@@ -213,7 +223,7 @@ impl<'db> SubscriptionManager<'db> {
             });
         }
 
-        let profile_manager = ProfileManager::new(self.database);
+        let profile_manager = ProfileManager::from_session(self.database);
         let mut existing_profiles = self.database.profiles().list_with_profile_ex(None).await?;
         let mut imported_index_ids = Vec::new();
         let mut updated_index_ids = Vec::new();
@@ -320,8 +330,22 @@ impl<'db> SubscriptionManager<'db> {
         prefer_proxy: bool,
         proxy_url: Option<&str>,
     ) -> Result<SubscriptionUpdateResult> {
+        let prepared = self
+            .prepare_subscription_update(config, subscription_id, prefer_proxy, proxy_url)
+            .await?;
+        self.apply_prepared_subscription_update(config, prepared)
+            .await
+    }
+
+    pub async fn prepare_subscription_update(
+        &self,
+        config: &AppConfig,
+        subscription_id: Option<&str>,
+        prefer_proxy: bool,
+        proxy_url: Option<&str>,
+    ) -> Result<PreparedSubscriptionUpdate> {
         let subscriptions = self.database.subscriptions().list().await?;
-        self.update_subscription_snapshot(
+        prepare_subscription_snapshot(
             config,
             subscriptions,
             subscription_id,
@@ -331,102 +355,60 @@ impl<'db> SubscriptionManager<'db> {
         .await
     }
 
-    async fn update_subscription_snapshot(
+    pub async fn apply_prepared_subscription_update(
         &self,
         config: &mut AppConfig,
-        subscriptions: Vec<SubItem>,
-        subscription_id: Option<&str>,
-        prefer_proxy: bool,
-        proxy_url: Option<&str>,
+        prepared: PreparedSubscriptionUpdate,
     ) -> Result<SubscriptionUpdateResult> {
-        let client = SubscriptionClient::new();
-        let mut result = SubscriptionUpdateResult::default();
-        let subscription_id = subscription_id
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-
-        for item in subscriptions {
-            if subscription_id.is_some_and(|wanted| wanted != item.id) {
-                continue;
-            }
-            if item.id.trim().is_empty() || item.url.trim().is_empty() || !is_http_url(&item.url) {
+        let mut result = prepared.result;
+        for prepared_import in prepared.imports {
+            let current = self
+                .database
+                .subscriptions()
+                .get(&prepared_import.item.id)
+                .await?;
+            if current.as_ref() != Some(&prepared_import.item) {
                 result.skipped = result.skipped.saturating_add(1);
+                result.messages.push(format!(
+                    "{}->subscription changed while the update was downloading; prepared content was discarded",
+                    prepared_import.item.remarks
+                ));
                 continue;
             }
-            if !item.enabled {
-                result.skipped = result.skipped.saturating_add(1);
-                result
-                    .messages
-                    .push(format!("{}->subscription update skipped", item.remarks));
-                continue;
-            }
-
-            let source = SubscriptionFetchSource {
-                url: item.url.clone(),
-                more_url: item.more_url.clone(),
-                user_agent: item.user_agent.clone(),
-                convert_target: item.convert_target.clone(),
-                sub_convert_url: config.const_item.sub_convert_url.clone(),
-            };
-            let options = SubscriptionFetchOptions {
-                prefer_proxy,
-                proxy_url: proxy_url.map(str::to_string),
-            };
-            let fetch = fetch_subscription(&client, &source, &options).await;
-
-            match fetch {
-                Ok(fetch) => {
-                    if fetch.content.trim().is_empty() {
-                        result.skipped = result.skipped.saturating_add(1);
-                        result.messages.push(format!(
-                            "{}->fetched empty subscription content",
-                            item.remarks
-                        ));
-                        continue;
-                    }
-
-                    match self
-                        .import_profiles_from_text(config, &fetch.content, Some(&item.id))
-                        .await
-                    {
-                        Ok(import) if import.imported > 0 => {
-                            result.updated = result.updated.saturating_add(1);
-                            result.imported = result.imported.saturating_add(import.imported);
-                            result.removed_existing = result
-                                .removed_existing
-                                .saturating_add(import.removed_existing);
-                            result.messages.push(format!(
-                                "{}->imported {} profiles",
-                                item.remarks, import.imported
-                            ));
-                        }
-                        Ok(_) => {
-                            result.skipped = result.skipped.saturating_add(1);
-                            result
-                                .messages
-                                .push(format!("{}->no profiles were imported", item.remarks));
-                        }
-                        Err(SubscriptionManagerError::NoImportableProfiles) => {
-                            result.skipped = result.skipped.saturating_add(1);
-                            result.messages.push(format!(
-                                "{}->no importable profiles were found",
-                                item.remarks
-                            ));
-                        }
-                        Err(error) => return Err(error),
-                    }
+            match self
+                .import_profiles_from_text(
+                    config,
+                    &prepared_import.content,
+                    Some(&prepared_import.item.id),
+                )
+                .await
+            {
+                Ok(import) if import.imported > 0 => {
+                    result.updated = result.updated.saturating_add(1);
+                    result.imported = result.imported.saturating_add(import.imported);
+                    result.removed_existing = result
+                        .removed_existing
+                        .saturating_add(import.removed_existing);
+                    result.messages.push(format!(
+                        "{}->imported {} profiles",
+                        prepared_import.item.remarks, import.imported
+                    ));
                 }
-                Err(error) => {
+                Ok(_) => {
                     result.skipped = result.skipped.saturating_add(1);
-                    let message = if is_empty_download_error(&error) {
-                        "fetched empty subscription content".to_string()
-                    } else {
-                        error.to_string()
-                    };
-                    result
-                        .messages
-                        .push(format!("{}->{}", item.remarks, message));
+                    result.messages.push(format!(
+                        "{}->no profiles were imported",
+                        prepared_import.item.remarks
+                    ));
                 }
+                Err(SubscriptionManagerError::NoImportableProfiles) => {
+                    result.skipped = result.skipped.saturating_add(1);
+                    result.messages.push(format!(
+                        "{}->no importable profiles were found",
+                        prepared_import.item.remarks
+                    ));
+                }
+                Err(error) => return Err(error),
             }
         }
 
@@ -517,6 +499,100 @@ impl<'db> SubscriptionManager<'db> {
     }
 }
 
+#[derive(Debug)]
+pub struct PreparedSubscriptionUpdate {
+    imports: Vec<PreparedSubscriptionImport>,
+    result: SubscriptionUpdateResult,
+}
+
+impl PreparedSubscriptionUpdate {
+    #[must_use]
+    pub fn has_imports(&self) -> bool {
+        !self.imports.is_empty()
+    }
+
+    #[must_use]
+    pub fn into_result(self) -> SubscriptionUpdateResult {
+        self.result
+    }
+}
+
+#[derive(Debug)]
+struct PreparedSubscriptionImport {
+    item: SubItem,
+    content: String,
+}
+
+async fn prepare_subscription_snapshot(
+    config: &AppConfig,
+    subscriptions: Vec<SubItem>,
+    subscription_id: Option<&str>,
+    prefer_proxy: bool,
+    proxy_url: Option<&str>,
+) -> Result<PreparedSubscriptionUpdate> {
+    let client = SubscriptionClient::new();
+    let mut result = SubscriptionUpdateResult::default();
+    let mut imports = Vec::new();
+    let subscription_id = subscription_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    for item in subscriptions {
+        if subscription_id.is_some_and(|wanted| wanted != item.id) {
+            continue;
+        }
+        if item.id.trim().is_empty() || item.url.trim().is_empty() || !is_http_url(&item.url) {
+            result.skipped = result.skipped.saturating_add(1);
+            continue;
+        }
+        if !item.enabled {
+            result.skipped = result.skipped.saturating_add(1);
+            result
+                .messages
+                .push(format!("{}->subscription update skipped", item.remarks));
+            continue;
+        }
+
+        let source = SubscriptionFetchSource {
+            url: item.url.clone(),
+            more_url: item.more_url.clone(),
+            user_agent: item.user_agent.clone(),
+            convert_target: item.convert_target.clone(),
+            sub_convert_url: config.const_item.sub_convert_url.clone(),
+        };
+        let options = SubscriptionFetchOptions {
+            prefer_proxy,
+            proxy_url: proxy_url.map(str::to_string),
+        };
+        match fetch_subscription(&client, &source, &options).await {
+            Ok(fetch) if !fetch.content.trim().is_empty() => {
+                imports.push(PreparedSubscriptionImport {
+                    item,
+                    content: fetch.content,
+                });
+            }
+            Ok(_) => {
+                result.skipped = result.skipped.saturating_add(1);
+                result.messages.push(format!(
+                    "{}->fetched empty subscription content",
+                    item.remarks
+                ));
+            }
+            Err(error) => {
+                result.skipped = result.skipped.saturating_add(1);
+                let message = if is_empty_download_error(&error) {
+                    "fetched empty subscription content".to_string()
+                } else {
+                    error.to_string()
+                };
+                result.messages.push(format!("{}->{message}", item.remarks));
+            }
+        }
+    }
+
+    Ok(PreparedSubscriptionUpdate { imports, result })
+}
+
 #[derive(Debug, Default)]
 struct ParsedImportText {
     profiles: Vec<ProfileItem>,
@@ -574,22 +650,16 @@ fn line_has_prefix_ci(line: &str, prefix: &str) -> bool {
         .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
 }
 
-#[cfg(not(test))]
 async fn fetch_subscription(
     client: &SubscriptionClient,
     source: &SubscriptionFetchSource,
     options: &SubscriptionFetchOptions,
 ) -> std::result::Result<SubscriptionFetchResult, DownloadError> {
-    client.fetch(source, options).await
-}
-
-#[cfg(test)]
-async fn fetch_subscription(
-    client: &SubscriptionClient,
-    source: &SubscriptionFetchSource,
-    options: &SubscriptionFetchOptions,
-) -> std::result::Result<SubscriptionFetchResult, DownloadError> {
-    client.fetch_allowing_local_for_tests(source, options).await
+    #[cfg(not(test))]
+    let result = client.fetch(source, options).await;
+    #[cfg(test)]
+    let result = client.fetch_allowing_local_for_tests(source, options).await;
+    result
 }
 
 fn normalize_subscription(item: &mut SubItem) {
@@ -986,6 +1056,116 @@ mod tests {
             .expect("subscription manager test operation should succeed");
         assert_eq!(filtered_profiles.len(), 1);
         assert_eq!(filtered_profiles[0].remarks, "JP old");
+    }
+
+    #[tokio::test]
+    async fn failed_network_preparation_does_not_modify_profiles_or_config() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([("/empty".to_string(), String::new())]),
+            1,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+        let database = Database::connect_in_memory()
+            .await
+            .expect("subscription database should connect");
+        let manager = SubscriptionManager::new(&database);
+        let mut config = AppConfig::default();
+        manager
+            .save_subscription(
+                &mut config,
+                SubItem {
+                    id: "empty-network".to_string(),
+                    remarks: "Empty network".to_string(),
+                    url: format!("{base}/empty"),
+                    ..SubItem::default()
+                },
+            )
+            .await
+            .expect("subscription should be saved");
+        let original = config.clone();
+
+        let prepared = manager
+            .prepare_subscription_update(&config, Some("empty-network"), false, None)
+            .await
+            .expect("empty response should produce a skipped result");
+
+        assert!(!prepared.has_imports());
+        assert_eq!(prepared.into_result().skipped, 1);
+        assert_eq!(config, original);
+        assert!(database
+            .profiles()
+            .list()
+            .await
+            .expect("profiles should load")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn prepared_subscription_content_is_discarded_when_source_changes() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([(
+                "/profile".to_string(),
+                "vless://uuid@example.test:443#Prepared".to_string(),
+            )]),
+            1,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+        let database = Database::connect_in_memory()
+            .await
+            .expect("subscription database should connect");
+        let manager = SubscriptionManager::new(&database);
+        let mut config = AppConfig::default();
+        manager
+            .save_subscription(
+                &mut config,
+                SubItem {
+                    id: "changing-source".to_string(),
+                    remarks: "Original".to_string(),
+                    url: format!("{base}/profile"),
+                    ..SubItem::default()
+                },
+            )
+            .await
+            .expect("subscription should be saved");
+        let prepared = manager
+            .prepare_subscription_update(&config, Some("changing-source"), false, None)
+            .await
+            .expect("subscription should be prepared");
+        assert!(prepared.has_imports());
+        manager
+            .save_subscription(
+                &mut config,
+                SubItem {
+                    id: "changing-source".to_string(),
+                    remarks: "Changed".to_string(),
+                    url: "https://changed.example.test/sub".to_string(),
+                    ..SubItem::default()
+                },
+            )
+            .await
+            .expect("subscription should change");
+
+        let result = manager
+            .apply_prepared_subscription_update(&mut config, prepared)
+            .await
+            .expect("stale preparation should be skipped");
+
+        assert_eq!(result.imported, 0);
+        assert_eq!(result.skipped, 1);
+        assert!(result
+            .messages
+            .iter()
+            .any(|message| message.contains("prepared content was discarded")));
+        assert!(database
+            .profiles()
+            .list()
+            .await
+            .expect("profiles should load")
+            .is_empty());
     }
 
     #[tokio::test]

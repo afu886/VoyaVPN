@@ -1,4 +1,5 @@
 import type { MoveAction, ProfileKind, SpeedTestKind } from "@/ipc/bindings";
+import type { TranslationFunction } from "@voya/i18n";
 
 export const CONFIG_TYPES = {
   VMess: "vmess",
@@ -35,28 +36,53 @@ export const SPEED_ACTIONS = {
 
 export type ProfileProtocol = (typeof CONFIG_TYPES)[keyof typeof CONFIG_TYPES];
 
-export type ProfileProtocolOption = {
-  description: string;
+type ProfileProtocolOption = {
   label: string;
   value: ProfileProtocol;
 };
 
-export const PROFILE_PROTOCOLS: ProfileProtocolOption[] = [
-  { description: "VMess outbound", label: "VMess", value: CONFIG_TYPES.VMess },
-  { description: "Custom core JSON or file", label: "Custom", value: CONFIG_TYPES.Custom },
-  { description: "Shadowsocks outbound", label: "Shadowsocks", value: CONFIG_TYPES.Shadowsocks },
-  { description: "SOCKS outbound", label: "SOCKS", value: CONFIG_TYPES.SOCKS },
-  { description: "VLESS outbound", label: "VLESS", value: CONFIG_TYPES.VLESS },
-  { description: "Trojan outbound", label: "Trojan", value: CONFIG_TYPES.Trojan },
-  { description: "Hysteria2 outbound", label: "Hysteria2", value: CONFIG_TYPES.Hysteria2 },
-  { description: "TUIC outbound", label: "TUIC", value: CONFIG_TYPES.TUIC },
-  { description: "WireGuard outbound", label: "WireGuard", value: CONFIG_TYPES.WireGuard },
-  { description: "HTTP outbound", label: "HTTP", value: CONFIG_TYPES.HTTP },
-  { description: "AnyTLS outbound", label: "AnyTLS", value: CONFIG_TYPES.Anytls },
-  { description: "NaiveProxy outbound", label: "Naive", value: CONFIG_TYPES.Naive },
-  { description: "Policy group selector", label: "Policy Group", value: CONFIG_TYPES.PolicyGroup },
-  { description: "Ordered proxy chain", label: "Proxy Chain", value: CONFIG_TYPES.ProxyChain },
+const PROFILE_PROTOCOLS: ProfileProtocolOption[] = [
+  { label: "VMess", value: CONFIG_TYPES.VMess },
+  { label: "Custom", value: CONFIG_TYPES.Custom },
+  { label: "Shadowsocks", value: CONFIG_TYPES.Shadowsocks },
+  { label: "SOCKS", value: CONFIG_TYPES.SOCKS },
+  { label: "VLESS", value: CONFIG_TYPES.VLESS },
+  { label: "Trojan", value: CONFIG_TYPES.Trojan },
+  { label: "Hysteria2", value: CONFIG_TYPES.Hysteria2 },
+  { label: "TUIC", value: CONFIG_TYPES.TUIC },
+  { label: "WireGuard", value: CONFIG_TYPES.WireGuard },
+  { label: "HTTP", value: CONFIG_TYPES.HTTP },
+  { label: "AnyTLS", value: CONFIG_TYPES.Anytls },
+  { label: "Naive", value: CONFIG_TYPES.Naive },
+  { label: "Policy Group", value: CONFIG_TYPES.PolicyGroup },
+  { label: "Proxy Chain", value: CONFIG_TYPES.ProxyChain },
 ];
+
+export function localizeProfileProtocols(t: TranslationFunction) {
+  return PROFILE_PROTOCOLS.map((option) => ({
+    ...option,
+    description: protocolDescription(option.value, t),
+  }));
+}
+
+function protocolDescription(value: ProfileProtocol, t: TranslationFunction) {
+  switch (value) {
+    case CONFIG_TYPES.VMess: return t("panes.profiles.protocolDescriptions.vmess");
+    case CONFIG_TYPES.Custom: return t("panes.profiles.protocolDescriptions.custom");
+    case CONFIG_TYPES.Shadowsocks: return t("panes.profiles.protocolDescriptions.shadowsocks");
+    case CONFIG_TYPES.SOCKS: return t("panes.profiles.protocolDescriptions.socks");
+    case CONFIG_TYPES.VLESS: return t("panes.profiles.protocolDescriptions.vless");
+    case CONFIG_TYPES.Trojan: return t("panes.profiles.protocolDescriptions.trojan");
+    case CONFIG_TYPES.Hysteria2: return t("panes.profiles.protocolDescriptions.hysteria2");
+    case CONFIG_TYPES.TUIC: return t("panes.profiles.protocolDescriptions.tuic");
+    case CONFIG_TYPES.WireGuard: return t("panes.profiles.protocolDescriptions.wireGuard");
+    case CONFIG_TYPES.HTTP: return t("panes.profiles.protocolDescriptions.http");
+    case CONFIG_TYPES.Anytls: return t("panes.profiles.protocolDescriptions.anytls");
+    case CONFIG_TYPES.Naive: return t("panes.profiles.protocolDescriptions.naive");
+    case CONFIG_TYPES.PolicyGroup: return t("panes.profiles.protocolDescriptions.policyGroup");
+    case CONFIG_TYPES.ProxyChain: return t("panes.profiles.protocolDescriptions.proxyChain");
+  }
+}
 
 const PROFILE_PROTOCOL_LABELS = PROFILE_PROTOCOLS.reduce<Partial<Record<ProfileKind, string>>>(
   (labels, protocol) => {
@@ -86,5 +112,5 @@ export const SECURITY_OPTIONS = [
 export function getProtocolLabel(configType: ProfileKind | null | undefined) {
   return configType == null
     ? ""
-    : (PROFILE_PROTOCOL_LABELS[configType] ?? `Type ${configType}`);
+    : (PROFILE_PROTOCOL_LABELS[configType] ?? configType);
 }

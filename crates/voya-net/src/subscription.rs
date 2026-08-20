@@ -276,7 +276,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::test_support::spawn_http_fixture;
+    use crate::download::test_support::spawn_http_fixture;
 
     #[test]
     fn subscription_url_guard_rejects_loopback_and_link_local() {

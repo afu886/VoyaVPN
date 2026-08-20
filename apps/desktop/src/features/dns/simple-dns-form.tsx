@@ -30,66 +30,66 @@ export function SimpleDnsForm({
         <div className="grid gap-2">
           <CheckboxField
             checked={Boolean(settings.useSystemHosts)}
-            label="System hosts"
+            label={t("panes.dns.systemHosts")}
             onChange={(value) => updateSimple({ useSystemHosts: value })}
           />
           <CheckboxField
             checked={Boolean(settings.addCommonHosts)}
-            label="Common hosts"
+            label={t("panes.dns.commonHosts")}
             onChange={(value) => updateSimple({ addCommonHosts: value })}
           />
           <CheckboxField
             checked={Boolean(settings.blockBindingQuery)}
-            label="Block HTTPS/SVCB"
+            label={t("panes.dns.blockBindingQuery")}
             onChange={(value) => updateSimple({ blockBindingQuery: value })}
           />
           <CheckboxField
             checked={Boolean(settings.serveStale)}
-            label="Serve stale"
+            label={t("panes.dns.serveStale")}
             onChange={(value) => updateSimple({ serveStale: value })}
           />
           <CheckboxField
             checked={Boolean(settings.parallelQuery)}
-            label="Parallel query"
+            label={t("panes.dns.parallelQuery")}
             onChange={(value) => updateSimple({ parallelQuery: value })}
           />
           <CheckboxField
             checked={Boolean(settings.fakeIp)}
-            label="FakeIP"
+            label={t("panes.dns.fakeIp")}
             onChange={(value) => updateSimple({ fakeIp: value })}
           />
           <CheckboxField
             checked={Boolean(settings.globalFakeIp)}
             disabled={!settings.fakeIp}
-            label="Global FakeIP"
+            label={t("panes.dns.globalFakeIp")}
             onChange={(value) => updateSimple({ globalFakeIp: value })}
           />
         </div>
 
         <TextField
-          label="Direct DNS"
+          label={t("panes.dns.directDns")}
           onChange={(value) => updateSimple({ direct: value })}
           value={settings.direct ?? ""}
         />
         <TextField
-          label="Remote DNS"
+          label={t("panes.dns.remoteDns")}
           onChange={(value) => updateSimple({ remote: value })}
           value={settings.remote ?? ""}
         />
         <TextField
-          label="Bootstrap DNS"
+          label={t("panes.dns.bootstrapDns")}
           onChange={(value) => updateSimple({ bootstrap: value })}
           value={settings.bootstrap ?? ""}
         />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
           <SelectField
-            label="Direct strategy"
+            label={t("panes.dns.directStrategy")}
             onChange={(value) => updateSimple({ directStrategy: value || null })}
             value={settings.directStrategy ?? ""}
           />
           <SelectField
-            label="Proxy strategy"
+            label={t("panes.dns.proxyStrategy")}
             onChange={(value) => updateSimple({ proxyStrategy: value || null })}
             value={settings.proxyStrategy ?? ""}
           />
@@ -97,13 +97,13 @@ export function SimpleDnsForm({
 
         <TextAreaField
           error={errors.hosts}
-          label="Hosts"
+          label={t("panes.dns.hosts")}
           onChange={(value) => updateSimple({ hosts: value })}
           value={settings.hosts ?? ""}
         />
         <TextAreaField
           error={errors.directExpectedIps}
-          label="Expected IPs"
+          label={t("panes.dns.expectedIps")}
           onChange={(value) => updateSimple({ directExpectedIps: value })}
           value={settings.directExpectedIps ?? ""}
         />

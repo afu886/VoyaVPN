@@ -11,22 +11,6 @@ pub enum TrafficMode {
     Unchanged,
 }
 
-#[cfg(test)]
-mod contract_tests {
-    use super::TrafficMode;
-
-    #[test]
-    fn traffic_mode_rejects_numeric_and_pascal_case_values() {
-        assert!(serde_json::from_value::<TrafficMode>(serde_json::json!(0)).is_err());
-        assert!(serde_json::from_value::<TrafficMode>(serde_json::json!("Rule")).is_err());
-        assert_eq!(
-            serde_json::from_value::<TrafficMode>(serde_json::json!("rule"))
-                .expect("camelCase string enum should be accepted"),
-            TrafficMode::Rule
-        );
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TrafficModeResponse {
@@ -155,5 +139,21 @@ impl ProxyMonitorStatus {
             stale: true,
             message: Some(message.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::TrafficMode;
+
+    #[test]
+    fn traffic_mode_rejects_numeric_and_pascal_case_values() {
+        assert!(serde_json::from_value::<TrafficMode>(serde_json::json!(0)).is_err());
+        assert!(serde_json::from_value::<TrafficMode>(serde_json::json!("Rule")).is_err());
+        assert_eq!(
+            serde_json::from_value::<TrafficMode>(serde_json::json!("rule"))
+                .expect("camelCase string enum should be accepted"),
+            TrafficMode::Rule
+        );
     }
 }

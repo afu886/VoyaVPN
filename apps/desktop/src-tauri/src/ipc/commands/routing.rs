@@ -21,23 +21,26 @@ pub async fn save_routing<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     item: RoutingContract,
 ) -> Result<RoutingContract, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let saved = state
-        .services()
-        .routings()
-        .save_routing(&mut config, routing_from_contract(item))
-        .await
-        .map_err(routing_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_routing_invalidation(
-        &app,
-        "routing-saved",
-        [saved.id.clone()],
-        original != config,
-    )?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let saved = {
+        let (unit_of_work, config) = mutation.split();
+        RoutingManager::new_in(unit_of_work)
+            .save_routing(config, routing_from_contract(item))
+            .await
+            .map_err(routing_error)?
+    };
+    let changed = original != *mutation.config();
+    let config = commit_config_mutation(mutation).await?;
+    emit_routing_invalidation(&app, "routing-saved", [saved.id.clone()], changed)?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing saved; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(routing_to_contract(saved))
 }
@@ -50,18 +53,26 @@ pub async fn delete_routings<R: tauri::Runtime>(
     ids: Vec<String>,
 ) -> Result<u32, AppError> {
     validate_ipc_text_list(&ids, "routing id", IPC_ID_MAX_CHARS, AppError::Routing)?;
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let deleted = state
-        .services()
-        .routings()
-        .delete_routings(&mut config, &ids)
-        .await
-        .map_err(routing_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_routing_invalidation(&app, "routings-deleted", ids, original != config)?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
+    let deleted = {
+        let (unit_of_work, config) = mutation.split();
+        RoutingManager::new_in(unit_of_work)
+            .delete_routings(config, &ids)
+            .await
+            .map_err(routing_error)?
+    };
+    let changed = original != *mutation.config();
+    let config = commit_config_mutation(mutation).await?;
+    emit_routing_invalidation(&app, "routings-deleted", ids, changed)?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing deleted; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(deleted)
 }
@@ -74,18 +85,24 @@ pub async fn set_active_routing<R: tauri::Runtime>(
     id: String,
 ) -> Result<RoutingContract, AppError> {
     validate_required_ipc_text(&id, "routing id", IPC_ID_MAX_CHARS, AppError::Routing)?;
-    let original = current_config(&state)?;
-    let mut config = original.clone();
-    let active = state
-        .services()
-        .routings()
-        .set_active_routing(&mut config, &id)
-        .await
-        .map_err(routing_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let active = {
+        let (unit_of_work, config) = mutation.split();
+        RoutingManager::new_in(unit_of_work)
+            .set_active_routing(config, &id)
+            .await
+            .map_err(routing_error)?
+    };
+    let config = commit_config_mutation(mutation).await?;
     emit_routing_invalidation(&app, "active-routing-changed", [id], true)?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing selected; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(routing_to_contract(active))
 }
@@ -104,16 +121,23 @@ pub async fn save_routing_rule<R: tauri::Runtime>(
         IPC_ID_MAX_CHARS,
         AppError::Routing,
     )?;
-    let config = current_config(&state)?;
-    let saved = state
-        .services()
+    let mutation = begin_config_mutation(&state).await?;
+    let saved = mutation
         .routings()
         .save_rule(&routing_id, rule_from_contract(rule))
         .await
         .map_err(routing_error)?;
+    let config = commit_config_mutation(mutation).await?;
 
     emit_routing_invalidation(&app, "routing-rule-saved", [routing_id], false)?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing rule saved; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(routing_to_contract(saved))
 }
@@ -138,16 +162,23 @@ pub async fn delete_routing_rules<R: tauri::Runtime>(
         IPC_ID_MAX_CHARS,
         AppError::Routing,
     )?;
-    let config = current_config(&state)?;
-    let saved = state
-        .services()
+    let mutation = begin_config_mutation(&state).await?;
+    let saved = mutation
         .routings()
         .delete_rules(&routing_id, &rule_ids)
         .await
         .map_err(routing_error)?;
+    let config = commit_config_mutation(mutation).await?;
 
     emit_routing_invalidation(&app, "routing-rules-deleted", [routing_id], false)?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing rules deleted; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(routing_to_contract(saved))
 }
@@ -174,9 +205,8 @@ pub async fn move_routing_rule<R: tauri::Runtime>(
         IPC_ID_MAX_CHARS,
         AppError::Routing,
     )?;
-    let config = current_config(&state)?;
-    let saved = state
-        .services()
+    let mutation = begin_config_mutation(&state).await?;
+    let saved = mutation
         .routings()
         .move_rule(
             &routing_id,
@@ -186,9 +216,17 @@ pub async fn move_routing_rule<R: tauri::Runtime>(
         )
         .await
         .map_err(routing_error)?;
+    let config = commit_config_mutation(mutation).await?;
 
     emit_routing_invalidation(&app, "routing-rule-moved", [routing_id], false)?;
-    restart_if_connected_after_routing_change(&app, &state, &config).await?;
+    if let Err(error) = restart_if_connected_after_routing_change(&app, &state, &config).await {
+        report_post_commit_error(
+            &app,
+            "Routing rule moved; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(routing_to_contract(saved))
 }

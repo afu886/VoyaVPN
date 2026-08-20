@@ -1,8 +1,10 @@
 import { create } from "zustand";
+import type { AppNoticeLevel } from "@/ipc/bindings";
 
 type AppToast = {
   description?: string;
   id: string;
+  severity: AppNoticeLevel;
   title: string;
 };
 

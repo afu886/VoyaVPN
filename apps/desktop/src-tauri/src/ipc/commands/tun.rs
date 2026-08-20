@@ -43,15 +43,29 @@ pub async fn set_tun_enabled<R: tauri::Runtime>(
     state: tauri::State<'_, AppState>,
     enabled: bool,
 ) -> Result<TunStatus, AppError> {
-    let original = current_config(&state)?;
-    let mut config = original.clone();
+    let mut mutation = begin_config_mutation(&state).await?;
     let status = tun_manager(&state)
-        .set_enabled(&mut config, enabled)
+        .set_enabled(mutation.config_mut(), enabled)
         .map_err(tun_error)?;
-
-    persist_config_if_changed(&state, &original, &config).await?;
-    emit_tun_changed(&app, &status)?;
-    restart_if_connected_after_config_change(&app, &state, &config, "TUN changed").await?;
+    let config = commit_config_mutation(mutation).await?;
+    if let Err(error) = emit_tun_changed(&app, &status) {
+        report_post_commit_error(
+            &app,
+            "TUN status refresh failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
+    if let Err(error) =
+        restart_if_connected_after_config_change(&app, &state, &config, "TUN changed").await
+    {
+        report_post_commit_error(
+            &app,
+            "TUN saved; core restart failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
+    }
 
     Ok(status)
 }

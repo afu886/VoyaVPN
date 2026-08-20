@@ -8,9 +8,13 @@ const minimum = 80;
 const targetFiles = [
   "apps/desktop/src/ipc/commands.ts",
   "apps/desktop/src/features/settings/use-app-settings.ts",
+  "apps/desktop/src/features/dns/use-dns-settings.ts",
   "apps/desktop/src/features/profiles/profile-form-schema.ts",
   "apps/desktop/src/features/routing/routing-form-schema.ts",
   "apps/desktop/src/features/routing/routing-form-values.ts",
+  "apps/desktop/src/features/routing/use-routing-screen.ts",
+  "apps/desktop/src/features/routing/routing-profile-dialog.tsx",
+  "apps/desktop/src/features/routing/routing-rule-dialog.tsx",
 ];
 const failures = [];
 

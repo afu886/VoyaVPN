@@ -57,6 +57,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 function DialogContent({
   className,
   children,
+  closeLabel,
   showCloseButton = true,
   ...props
 }: DialogContentProps) {
@@ -74,12 +75,12 @@ function DialogContent({
         {children}
         {showCloseButton ? (
           <DialogPrimitive.Close
-            aria-label="Close"
+            aria-label={closeLabel}
             data-slot="dialog-close"
             className="absolute end-4 top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon aria-hidden="true" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         ) : null}
       </DialogPrimitive.Content>
@@ -88,6 +89,7 @@ function DialogContent({
 }
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
+  closeLabel: string;
   showCloseButton?: boolean;
 };
 

@@ -99,7 +99,11 @@ export function SourcesTab({ controller }: { controller: AppSettingsController }
       ]);
       const descriptions = [t("options.configTemplate.appliedDescription")];
       if (result.reusedExistingRouting) descriptions.push(t("options.configTemplate.reusedDescription"));
-      pushToast({ description: descriptions.join(" "), title: t("options.configTemplate.applied") });
+      pushToast({
+        description: descriptions.join(" "),
+        severity: "info",
+        title: t("options.configTemplate.applied"),
+      });
       setImportOpen(false);
       setSelectedTemplate(null);
     } catch (error) {
@@ -150,7 +154,7 @@ export function SourcesTab({ controller }: { controller: AppSettingsController }
       </SettingsGroup>
 
       <Dialog open={importOpen} onOpenChange={handleImportOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" closeLabel={t("actions.close")}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Download className="size-4" aria-hidden="true" />

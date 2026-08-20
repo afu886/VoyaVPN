@@ -25,6 +25,3 @@ pub use url::{validate_absolute_http_url, validate_absolute_https_url, UrlValida
 pub(crate) use download::{
     build_http_client, is_denied_local_host, read_response_text_limited, LimitedBodyReadError,
 };
-
-#[cfg(test)]
-pub(crate) use download::test_support;

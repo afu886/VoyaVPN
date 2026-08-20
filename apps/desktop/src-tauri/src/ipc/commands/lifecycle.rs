@@ -22,7 +22,7 @@ where
         }
     }
 
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: keys
             .into_iter()
             .map(|query_key| QueryInvalidation {
@@ -30,9 +30,17 @@ where
                 reason: reason.to_string(),
             })
             .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Profile refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_subscription_invalidation<R>(
@@ -54,7 +62,7 @@ where
         keys.insert(vec!["active-profile".to_string()]);
     }
 
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: keys
             .into_iter()
             .map(|query_key| QueryInvalidation {
@@ -62,9 +70,17 @@ where
                 reason: reason.to_string(),
             })
             .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Subscription refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_routing_invalidation<R, I>(
@@ -88,7 +104,7 @@ where
         }
     }
 
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: keys
             .into_iter()
             .map(|query_key| QueryInvalidation {
@@ -96,9 +112,17 @@ where
                 reason: reason.to_string(),
             })
             .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Routing refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_dns_invalidation<R>(
@@ -108,7 +132,7 @@ pub(super) fn emit_dns_invalidation<R>(
 where
     R: tauri::Runtime,
 {
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: [
             vec!["dns".to_string()],
             vec!["app-config".to_string()],
@@ -120,9 +144,17 @@ where
             reason: reason.to_string(),
         })
         .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "DNS refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_preset_invalidation<R>(
@@ -132,7 +164,7 @@ pub(super) fn emit_preset_invalidation<R>(
 where
     R: tauri::Runtime,
 {
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: [
             vec!["dns".to_string()],
             vec!["app-config".to_string()],
@@ -146,9 +178,17 @@ where
             reason: reason.to_string(),
         })
         .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Configuration refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_proxy_runtime_invalidation<R>(
@@ -158,7 +198,7 @@ pub(super) fn emit_proxy_runtime_invalidation<R>(
 where
     R: tauri::Runtime,
 {
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: [
             vec!["proxy-groups".to_string()],
             vec!["proxy-connections".to_string()],
@@ -170,9 +210,17 @@ where
             reason: reason.to_string(),
         })
         .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Proxy view refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_proxy_monitor_status<R>(app: &tauri::AppHandle<R>, status: &ProxyMonitorStatus)
@@ -242,43 +290,70 @@ where
         return Ok(());
     }
 
-    emit_runtime_log(app, LogLevel::Info, &format!("{reason}; restarting core"))?;
-    emit_core_state(
+    if let Err(error) = emit_runtime_log(app, LogLevel::Info, &format!("{reason}; restarting core"))
+    {
+        tracing::warn!(?error, "failed to emit core restart log");
+    }
+    if let Err(error) = emit_core_state(
         app,
         CoreState::Connecting,
         Some(config.index_id.clone()).filter(|value| !value.is_empty()),
         None,
-    )?;
+    ) {
+        tracing::warn!(?error, "failed to emit connecting state");
+    }
 
     match runtime_manager(state).restart(config).await {
         Ok(snapshot) => {
-            emit_runtime_log(
+            if let Err(error) = emit_runtime_log(
                 app,
                 LogLevel::Info,
                 &format!("Core supervisor restarted after {reason}"),
-            )?;
-            emit_core_state(app, CoreState::Connected, None, Some(&snapshot))?;
-            match apply_system_proxy(app, state, config, false) {
-                Ok(status) => emit_sysproxy_changed(app, &status)?,
-                Err(error) => emit_runtime_log(
-                    app,
-                    LogLevel::Warn,
-                    &format!("System proxy apply failed: {error}"),
-                )?,
+            ) {
+                tracing::warn!(?error, "failed to emit core restart success log");
             }
-            emit_current_tun_status(app, state)?;
+            if let Err(error) = emit_core_state(app, CoreState::Connected, None, Some(&snapshot)) {
+                tracing::warn!(?error, "failed to emit connected state");
+            }
+            match apply_system_proxy(app, state, config, false) {
+                Ok(status) => {
+                    if let Err(error) = emit_sysproxy_changed(app, &status) {
+                        tracing::warn!(?error, "failed to emit system proxy state");
+                    }
+                }
+                Err(error) => report_post_commit_error(
+                    app,
+                    "Core restarted; system proxy update failed",
+                    &error.to_string(),
+                    AppNoticeLevel::Warning,
+                ),
+            }
+            if let Err(error) = emit_current_tun_status(app, state) {
+                tracing::warn!(?error, "failed to emit current TUN status");
+            }
             Ok(())
         }
         Err(error) => {
             let message = error.to_string();
-            emit_runtime_log(app, LogLevel::Error, &message)?;
-            emit_core_state(app, CoreState::Disconnected, None, None)?;
-            restore_system_proxy_after_native_tun_failure(
+            if let Err(emit_error) = emit_runtime_log(app, LogLevel::Error, &message) {
+                tracing::warn!(?emit_error, "failed to emit core restart error log");
+            }
+            if let Err(emit_error) = emit_core_state(app, CoreState::Disconnected, None, None) {
+                tracing::warn!(?emit_error, "failed to emit disconnected state");
+            }
+            if let Err(restore_error) = restore_system_proxy_after_native_tun_failure(
                 app,
                 state,
                 config,
                 "config-change restart failure",
-            )?;
+            ) {
+                report_post_commit_error(
+                    app,
+                    "Core restart and system proxy recovery failed",
+                    &format!("{restore_error:?}"),
+                    AppNoticeLevel::Error,
+                );
+            }
             Err(runtime_error(error))
         }
     }
@@ -301,16 +376,19 @@ where
     }
 
     match apply_system_proxy(app, state, config, false) {
-        Ok(status) => emit_sysproxy_changed(app, &status),
-        Err(error) => {
-            emit_runtime_log(
-                app,
-                LogLevel::Warn,
-                &format!("System proxy apply failed: {error}"),
-            )?;
-            Ok(())
+        Ok(status) => {
+            if let Err(error) = emit_sysproxy_changed(app, &status) {
+                tracing::warn!(?error, "failed to emit system proxy state");
+            }
         }
+        Err(error) => report_post_commit_error(
+            app,
+            "Settings saved; system proxy update failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        ),
     }
+    Ok(())
 }
 
 pub(super) fn emit_settings_bundle_invalidation<R>(
@@ -320,7 +398,7 @@ pub(super) fn emit_settings_bundle_invalidation<R>(
 where
     R: tauri::Runtime,
 {
-    InvalidateEvent {
+    if let Err(error) = (InvalidateEvent {
         keys: ["app-config", "ui-preferences", "config-sources"]
             .into_iter()
             .map(|key| QueryInvalidation {
@@ -328,9 +406,17 @@ where
                 reason: reason.to_string(),
             })
             .collect(),
-    }
+    })
     .emit(app)
-    .map_err(|error| AppError::EventEmit(error.to_string()))
+    {
+        report_post_commit_error(
+            app,
+            "Settings refresh failed",
+            &error.to_string(),
+            AppNoticeLevel::Warning,
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn emit_sysproxy_changed<R>(

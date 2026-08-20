@@ -1,25 +1,39 @@
-use sqlx::{
-    sqlite::{SqlitePool, SqliteRow},
-    Row,
-};
+use sqlx::{sqlite::SqliteRow, Row};
+use tokio::sync::Mutex;
 use voya_core::SubItem;
 
-use crate::Result;
+use crate::{
+    executor::{run_query, RepositoryExecutor},
+    Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct SubscriptionRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct SubscriptionRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> SubscriptionRepository<'pool> {
+impl<'executor> SubscriptionRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
     }
 
     pub async fn upsert(&self, item: &SubItem) -> Result<()> {
-        sqlx::query(
-            r#"
+        run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             INSERT INTO subscriptions (
                 id, remarks, url, more_url, enabled, user_agent, sort, filter,
                 convert_target, pre_socks_port
@@ -35,62 +49,69 @@ impl<'pool> SubscriptionRepository<'pool> {
                 convert_target = excluded.convert_target,
                 pre_socks_port = excluded.pre_socks_port
             "#,
-        )
-        .bind(&item.id)
-        .bind(&item.remarks)
-        .bind(&item.url)
-        .bind(&item.more_url)
-        .bind(item.enabled)
-        .bind(&item.user_agent)
-        .bind(item.sort)
-        .bind(&item.filter)
-        .bind(&item.convert_target)
-        .bind(item.pre_socks_port)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(&item.id)
+            .bind(&item.remarks)
+            .bind(&item.url)
+            .bind(&item.more_url)
+            .bind(item.enabled)
+            .bind(&item.user_agent)
+            .bind(item.sort)
+            .bind(&item.filter)
+            .bind(&item.convert_target)
+            .bind(item.pre_socks_port),
+            execute
+        )?;
 
         Ok(())
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<SubItem>> {
-        let row = sqlx::query("SELECT * FROM subscriptions WHERE id = ?")
-            .bind(id)
-            .fetch_optional(self.pool)
-            .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM subscriptions WHERE id = ?").bind(id),
+            fetch_optional
+        )?;
 
         row.map(row_to_subscription).transpose()
     }
 
     pub async fn get_by_url(&self, url: &str) -> Result<Option<SubItem>> {
-        let row = sqlx::query("SELECT * FROM subscriptions WHERE url = ?")
-            .bind(url)
-            .fetch_optional(self.pool)
-            .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM subscriptions WHERE url = ?").bind(url),
+            fetch_optional
+        )?;
 
         row.map(row_to_subscription).transpose()
     }
 
     pub async fn list(&self) -> Result<Vec<SubItem>> {
-        let rows = sqlx::query("SELECT * FROM subscriptions ORDER BY sort, id")
-            .fetch_all(self.pool)
-            .await?;
+        let rows = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM subscriptions ORDER BY sort, id"),
+            fetch_all
+        )?;
 
         rows.into_iter().map(row_to_subscription).collect()
     }
 
     pub async fn max_sort(&self) -> Result<i32> {
-        let max_sort: Option<i32> = sqlx::query_scalar("SELECT MAX(sort) FROM subscriptions")
-            .fetch_one(self.pool)
-            .await?;
+        let max_sort: Option<i32> = run_query!(
+            self.executor,
+            sqlx::query_scalar("SELECT MAX(sort) FROM subscriptions"),
+            fetch_one
+        )?;
 
         Ok(max_sort.unwrap_or(0))
     }
 
     pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM subscriptions WHERE id = ?")
-            .bind(id)
-            .execute(self.pool)
-            .await?;
+        let result = run_query!(
+            self.executor,
+            sqlx::query("DELETE FROM subscriptions WHERE id = ?").bind(id),
+            execute
+        )?;
 
         Ok(result.rows_affected() > 0)
     }

@@ -27,9 +27,6 @@ const SOCKS5_ATYP_DOMAIN: u8 = 0x03;
 const SOCKS5_ATYP_IPV6: u8 = 0x04;
 const STUN_BINDING_SUCCESS_RESPONSE_TYPE: u16 = 0x0101;
 const STUN_MAGIC_COOKIE: u32 = 0x2112_a442;
-#[cfg(test)]
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-
 pub type Result<T> = std::result::Result<T, UdpTestError>;
 
 #[derive(Debug, Error)]
@@ -622,6 +619,8 @@ mod tests {
     use tokio::{net::TcpListener, sync::oneshot};
 
     use super::*;
+
+    const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
     #[test]
     fn tester_family_is_udp() {

@@ -422,8 +422,6 @@ fn platform_native_tun_stop(backend: TunBackend) -> Result<(), NativeTunError> {
 }
 
 mod macos;
-#[cfg(test)]
-use macos::parse_macos_provider_state;
 pub use macos::{
     ensure_macos_provider_path_matches, parse_pluginkit_matches, parse_provider_status_json,
     parse_systemextensionsctl_matches, parse_systemextensionsctl_state,
@@ -671,6 +669,7 @@ pub enum NativeTunError {
 
 #[cfg(test)]
 mod tests {
+    use super::macos::parse_macos_provider_state;
     use super::*;
 
     #[test]

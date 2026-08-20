@@ -13,9 +13,6 @@ pub mod groups;
 pub(crate) mod protocol_common;
 pub mod singbox;
 
-#[cfg(test)]
-pub(crate) mod golden;
-
 pub use config::*;
 pub use context::*;
 pub use entities::*;
@@ -23,6 +20,9 @@ pub use enums::*;
 pub use fmt::*;
 pub use groups::*;
 pub use singbox::*;
+
+#[cfg(test)]
+pub(crate) mod golden;
 
 #[cfg(test)]
 mod tests {

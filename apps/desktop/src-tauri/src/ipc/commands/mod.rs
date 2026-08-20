@@ -9,6 +9,9 @@ use voya_app::certificates::{
     calculate_certificate_sha256 as calculate_certificate_sha256_impl,
     fetch_certificate as fetch_certificate_impl, CertificateError,
 };
+use voya_app::config_mutation::{
+    commit_with_compensation, ConfigMutationError, ConfigMutationGuard,
+};
 use voya_app::contract_map::{
     dns_from_contract, dns_to_contract, group_child_to_contract, group_preview_to_contract,
     import_profiles_to_contract, move_action_from_contract, profile_dedupe_to_contract,
@@ -19,16 +22,16 @@ use voya_app::contract_map::{
 use voya_app::dns::DnsManagerError;
 use voya_app::elevation::ElevationError;
 use voya_app::exports::ExportManagerError;
-use voya_app::groups::GroupManagerError;
+use voya_app::groups::{GroupManager, GroupManagerError};
 use voya_app::hotkeys::{
     HotkeyManager, HotkeyManagerError, HotkeyRegistrar, HotkeyStatus, ShowWindowShortcutBinding,
 };
 use voya_app::input_safety::{self, InputSafetyError};
-use voya_app::presets::PresetManagerError;
-use voya_app::profiles::ProfileManagerError;
+use voya_app::presets::{PresetManager, PresetManagerError};
+use voya_app::profiles::{ProfileManager, ProfileManagerError};
 use voya_app::proxy_runtime::{ProxyRuntimeError, ProxyRuntimeManager};
 use voya_app::qr::{QrCodeError, QrCodeManager};
-use voya_app::routing::RoutingManagerError;
+use voya_app::routing::{RoutingManager, RoutingManagerError};
 use voya_app::runtime::{RuntimeError, RuntimeManager};
 use voya_app::services::{AppConfig, CoreType, SysProxyType, TrafficMode};
 use voya_app::settings_save::{
@@ -37,7 +40,7 @@ use voya_app::settings_save::{
     SettingsRuntimeAction, SettingsSideEffectAdapter,
 };
 use voya_app::speedtest::{SpeedtestError, SpeedtestManager};
-use voya_app::subscriptions::SubscriptionManagerError;
+use voya_app::subscriptions::{SubscriptionManager, SubscriptionManagerError};
 use voya_app::supervisor::{SupervisorConnectionState, SupervisorSnapshot};
 use voya_app::sysproxy::{
     runtime_proxy_url as app_runtime_proxy_url,
@@ -47,10 +50,10 @@ use voya_app::sysproxy::{
 use voya_app::tun::{TunManager, TunManagerError};
 use voya_app::updates::{UpdateManager, UpdateManagerError};
 use voya_contracts::{
-    AppError, AppSettingsV1, AppUpdaterState, AppUpdaterStatus, AppearanceSettings,
-    CertificateFetchRequest, CertificateFetchResult, ConfigTemplateImportOptions,
-    ConfigTemplateImportResult, ConfigTemplateSelection, CoreSeedInstallResult,
-    CoreSeedInstallStatus, CoreType as ContractCoreType, DnsCommandError,
+    AppError, AppNotice, AppNoticeLevel, AppSettingsV1, AppUpdaterState, AppUpdaterStatus,
+    AppearanceSettings, CertificateFetchRequest, CertificateFetchResult,
+    ConfigTemplateImportOptions, ConfigTemplateImportResult, ConfigTemplateSelection,
+    CoreSeedInstallResult, CoreSeedInstallStatus, CoreType as ContractCoreType, DnsCommandError,
     DnsSettings as DnsSettingsContract, ExportProfilesFormat, ExportProfilesRequest,
     ExportProfilesResult, GroupChildCandidate as GroupChildContract,
     GroupPreview as GroupPreviewContract, ImportProfilesResult as ImportProfilesContract,
@@ -73,7 +76,7 @@ use voya_platform::{
 };
 
 use super::events::{
-    next_log_line_id, CoreState, CoreStateEvent, InvalidateEvent, LogLevel, LogLineEvent,
+    next_log_line_id, AppEvent, CoreState, CoreStateEvent, InvalidateEvent, LogLevel, LogLineEvent,
     QueryInvalidation, TransientStreamEvent,
 };
 use crate::AppState;

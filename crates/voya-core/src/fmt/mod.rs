@@ -51,9 +51,6 @@ mod vless;
 mod vmess;
 mod wireguard;
 
-#[cfg(test)]
-mod tests;
-
 use common::*;
 use uri::*;
 
@@ -73,3 +70,6 @@ pub use tuic::TuicFmt;
 pub use vless::VlessFmt;
 pub use vmess::VmessFmt;
 pub use wireguard::{parse_wireguard_config, WireguardFmt};
+
+#[cfg(test)]
+mod tests;

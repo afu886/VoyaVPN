@@ -1,25 +1,39 @@
-use sqlx::{
-    sqlite::{SqlitePool, SqliteRow},
-    Row,
-};
+use sqlx::{sqlite::SqliteRow, Row};
+use tokio::sync::Mutex;
 use voya_core::ServerStatItem;
 
-use crate::Result;
+use crate::{
+    executor::{run_query, RepositoryExecutor},
+    Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ServerStatRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct ServerStatRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> ServerStatRepository<'pool> {
+impl<'executor> ServerStatRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
     }
 
     pub async fn upsert(&self, item: &ServerStatItem) -> Result<()> {
-        sqlx::query(
-            r#"
+        run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             INSERT INTO server_stat_items (
                 index_id, total_up, total_down, today_up, today_down, date_now
             ) VALUES (?, ?, ?, ?, ?, ?)
@@ -30,24 +44,25 @@ impl<'pool> ServerStatRepository<'pool> {
                 today_down = excluded.today_down,
                 date_now = excluded.date_now
             "#,
-        )
-        .bind(&item.index_id)
-        .bind(item.total_up)
-        .bind(item.total_down)
-        .bind(item.today_up)
-        .bind(item.today_down)
-        .bind(item.date_now)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(&item.index_id)
+            .bind(item.total_up)
+            .bind(item.total_down)
+            .bind(item.today_up)
+            .bind(item.today_down)
+            .bind(item.date_now),
+            execute
+        )?;
 
         Ok(())
     }
 
     pub async fn get(&self, index_id: &str) -> Result<Option<ServerStatItem>> {
-        let row = sqlx::query("SELECT * FROM server_stat_items WHERE index_id = ?")
-            .bind(index_id)
-            .fetch_optional(self.pool)
-            .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM server_stat_items WHERE index_id = ?").bind(index_id),
+            fetch_optional
+        )?;
 
         row.map(row_to_server_stat).transpose()
     }
@@ -75,38 +90,44 @@ impl<'pool> ServerStatRepository<'pool> {
     }
 
     pub async fn list(&self) -> Result<Vec<ServerStatItem>> {
-        let rows = sqlx::query("SELECT * FROM server_stat_items ORDER BY index_id")
-            .fetch_all(self.pool)
-            .await?;
+        let rows = run_query!(
+            self.executor,
+            sqlx::query("SELECT * FROM server_stat_items ORDER BY index_id"),
+            fetch_all
+        )?;
 
         rows.into_iter().map(row_to_server_stat).collect()
     }
 
     pub async fn delete_orphans(&self) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
+        let result = run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             DELETE FROM server_stat_items
             WHERE index_id NOT IN (SELECT index_id FROM profile_items)
             "#,
-        )
-        .execute(self.pool)
-        .await?;
+            ),
+            execute
+        )?;
 
         Ok(result.rows_affected())
     }
 
     pub async fn reset_rollover(&self, date_now: i64) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
+        let result = run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             UPDATE server_stat_items
             SET today_up = 0, today_down = 0, date_now = ?
             WHERE date_now <> ?
             "#,
-        )
-        .bind(date_now)
-        .bind(date_now)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(date_now)
+            .bind(date_now),
+            execute
+        )?;
 
         Ok(result.rows_affected())
     }

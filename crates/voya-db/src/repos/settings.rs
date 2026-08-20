@@ -1,25 +1,41 @@
-use sqlx::SqlitePool;
+use tokio::sync::Mutex;
 use voya_contracts::{AppSettingsV1, CURRENT_SCHEMA_VERSION};
 
-use crate::{AppStateRecord, DbError, Result};
+use crate::{
+    executor::{run_query, RepositoryExecutor},
+    AppStateRecord, DbError, Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct SettingsRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct SettingsRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> SettingsRepository<'pool> {
+impl<'executor> SettingsRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
     }
 
     pub async fn load(&self) -> Result<AppSettingsV1> {
-        let row = sqlx::query_as::<_, (i64, String)>(
-            "SELECT schema_version, payload FROM app_settings WHERE id = 1",
-        )
-        .fetch_optional(self.pool)
-        .await?;
+        let row = run_query!(
+            self.executor,
+            sqlx::query_as::<_, (i64, String)>(
+                "SELECT schema_version, payload FROM app_settings WHERE id = 1",
+            ),
+            fetch_optional
+        )?;
         let Some((version, payload)) = row else {
             return Ok(AppSettingsV1::default());
         };
@@ -49,7 +65,7 @@ impl<'pool> SettingsRepository<'pool> {
 
     pub async fn save(&self, settings: &AppSettingsV1) -> Result<()> {
         let payload = validated_payload(settings)?;
-        save_settings(self.pool, &payload).await?;
+        save_settings(self.executor, &payload).await?;
         Ok(())
     }
 
@@ -59,17 +75,20 @@ impl<'pool> SettingsRepository<'pool> {
         state: &AppStateRecord,
     ) -> Result<()> {
         let payload = validated_payload(settings)?;
-        let mut transaction = self.pool.begin().await?;
-        save_settings(&mut *transaction, &payload).await?;
-        sqlx::query(
-            "UPDATE app_state SET active_profile_id = ?, active_routing_id = ? WHERE id = 1",
-        )
-        .bind(state.active_profile_id.as_deref())
-        .bind(state.active_routing_id.as_deref())
-        .execute(&mut *transaction)
-        .await?;
-        transaction.commit().await?;
-        Ok(())
+        match self.executor {
+            RepositoryExecutor::Pool(pool) => {
+                let mut transaction = pool.begin().await?;
+                save_settings_on(&mut *transaction, &payload).await?;
+                save_state_on(&mut *transaction, state).await?;
+                transaction.commit().await?;
+                Ok(())
+            }
+            RepositoryExecutor::Transaction(transaction) => {
+                let mut transaction = transaction.lock().await;
+                save_settings_on(&mut **transaction, &payload).await?;
+                save_state_on(&mut **transaction, state).await
+            }
+        }
     }
 }
 
@@ -93,10 +112,14 @@ fn settings_reset_command() -> String {
     "remove the Voya database file reported at startup, then restart VoyaVPN".to_string()
 }
 
-async fn save_settings<'executor, E>(executor: E, payload: &str) -> Result<()>
-where
-    E: sqlx::Executor<'executor, Database = sqlx::Sqlite>,
-{
+async fn save_settings(executor: RepositoryExecutor<'_>, payload: &str) -> Result<()> {
+    run_query!(executor, settings_upsert_query(payload), execute)?;
+    Ok(())
+}
+
+fn settings_upsert_query(
+    payload: &str,
+) -> sqlx::query::Query<'_, sqlx::Sqlite, sqlx::sqlite::SqliteArguments> {
     sqlx::query(
         r#"
             INSERT INTO app_settings (id, schema_version, payload)
@@ -108,7 +131,24 @@ where
     )
     .bind(i64::from(CURRENT_SCHEMA_VERSION))
     .bind(payload)
-    .execute(executor)
-    .await?;
+}
+
+async fn save_settings_on<'executor, E>(executor: E, payload: &str) -> Result<()>
+where
+    E: sqlx::Executor<'executor, Database = sqlx::Sqlite>,
+{
+    settings_upsert_query(payload).execute(executor).await?;
+    Ok(())
+}
+
+async fn save_state_on<'executor, E>(executor: E, state: &AppStateRecord) -> Result<()>
+where
+    E: sqlx::Executor<'executor, Database = sqlx::Sqlite>,
+{
+    sqlx::query("UPDATE app_state SET active_profile_id = ?, active_routing_id = ? WHERE id = 1")
+        .bind(state.active_profile_id.as_deref())
+        .bind(state.active_routing_id.as_deref())
+        .execute(executor)
+        .await?;
     Ok(())
 }

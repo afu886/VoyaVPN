@@ -50,7 +50,11 @@ function ToastDescription({ className, ...props }: React.ComponentProps<typeof T
   );
 }
 
-function ToastClose({ className, ...props }: React.ComponentProps<typeof ToastPrimitive.Close>) {
+function ToastClose({
+  className,
+  label,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Close> & { label: string }) {
   return (
     <ToastPrimitive.Close
       data-slot="toast-close"
@@ -62,7 +66,7 @@ function ToastClose({ className, ...props }: React.ComponentProps<typeof ToastPr
       {...props}
     >
       <X aria-hidden="true" />
-      <span className="sr-only">Close</span>
+      <span className="sr-only">{label}</span>
     </ToastPrimitive.Close>
   );
 }

@@ -73,13 +73,17 @@ type GroupBuilderProps = {
   setValue: UseFormSetValue<ProfileFormValues>;
 };
 
-const multipleLoadOptions = [
-  { label: "Least ping", value: "leastPing" },
-  { label: "Fallback", value: "fallback" },
-  { label: "Random", value: "random" },
-  { label: "Round robin", value: "roundRobin" },
-  { label: "Least load", value: "leastLoad" },
-] as const satisfies ReadonlyArray<{ label: string; value: LoadStrategy }>;
+type Translation = ReturnType<typeof useI18n>["t"];
+
+function loadStrategyOptions(t: Translation) {
+  return [
+    { label: t("panes.groups.loadLeastPing"), value: "leastPing" },
+    { label: t("panes.groups.loadFallback"), value: "fallback" },
+    { label: t("panes.groups.loadRandom"), value: "random" },
+    { label: t("panes.groups.loadRoundRobin"), value: "roundRobin" },
+    { label: t("panes.groups.loadLeastLoad"), value: "leastLoad" },
+  ] as const satisfies ReadonlyArray<{ label: string; value: LoadStrategy }>;
+}
 
 export function GroupBuilder({
   configType,
@@ -173,9 +177,12 @@ export function GroupBuilder({
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr_10rem]">
         <GroupTypeField
           groupType={groupType}
-          label={isProxyChain ? "Chain marker" : "Group marker"}
+          label={t(isProxyChain ? "panes.groups.chainMarker" : "panes.groups.groupMarker")}
         />
-        <LabeledField label="Subscription child group" {...register("protocolOptions.sourceSubscriptionId")} />
+        <LabeledField
+          label={t("panes.groups.subscriptionChildGroup")}
+          {...register("protocolOptions.sourceSubscriptionId")}
+        />
         <div className="grid gap-1.5">
           <Label htmlFor={multipleLoadId}>{t("panes.groups.loadMode")}</Label>
           <Select
@@ -191,7 +198,7 @@ export function GroupBuilder({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {multipleLoadOptions.map((option) => (
+              {loadStrategyOptions(t).map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -202,7 +209,11 @@ export function GroupBuilder({
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
-        <LabeledField label="Subscription filter" placeholder="^US|Japan" {...register("protocolOptions.filter")} />
+        <LabeledField
+          label={t("panes.groups.subscriptionFilter")}
+          placeholder="^US|Japan"
+          {...register("protocolOptions.filter")}
+        />
         <div className="flex items-end">
           <Button
             className="w-full"
@@ -248,25 +259,27 @@ export function GroupBuilder({
                       {candidate?.remarks || indexId}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
-                      {candidate ? `${getProtocolLabel(candidate.protocol)} · ${candidate.address || "group"}` : indexId}
+                      {candidate
+                        ? `${getProtocolLabel(candidate.protocol)} · ${candidate.address || t("panes.groups.groupFallback")}`
+                        : indexId}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <IconButton
                       disabled={index === 0}
-                      label="Move child up"
+                      label={t("panes.groups.moveChildUp")}
                       onClick={() => moveChild(indexId, -1)}
                     >
                       <ArrowUp className="size-4" aria-hidden="true" />
                     </IconButton>
                     <IconButton
                       disabled={index + 1 === selectedIds.length}
-                      label="Move child down"
+                      label={t("panes.groups.moveChildDown")}
                       onClick={() => moveChild(indexId, 1)}
                     >
                       <ArrowDown className="size-4" aria-hidden="true" />
                     </IconButton>
-                    <IconButton label="Remove child" onClick={() => removeChild(indexId)}>
+                    <IconButton label={t("panes.groups.removeChild")} onClick={() => removeChild(indexId)}>
                       <X className="size-4" aria-hidden="true" />
                     </IconButton>
                   </div>
@@ -346,7 +359,12 @@ function ServerPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ScrollableDialogContent height="compact" rows="toolbar-body" width="54rem">
+      <ScrollableDialogContent
+        closeLabel={t("actions.close")}
+        height="compact"
+        rows="toolbar-body"
+        width="54rem"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers3 className="size-4" aria-hidden="true" />
@@ -370,9 +388,9 @@ function ServerPickerDialog({
               type="search"
               autoComplete="off"
               aria-controls={pickerId}
-              aria-label="Filter child profiles"
+              aria-label={t("panes.groups.filterChildren")}
               onChange={(event) => setFilter(event.target.value)}
-              placeholder="Filter child profiles"
+              placeholder={t("panes.groups.filterChildren")}
               value={filter}
             />
           </div>
@@ -407,11 +425,11 @@ function ServerPickerDialog({
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{candidate.remarks || candidate.profileId}</span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {candidate.profileId} · {candidate.address || "group"}
+                        {candidate.profileId} · {candidate.address || t("panes.groups.groupFallback")}
                       </span>
                     </span>
                     <Badge className="justify-self-end bg-background text-muted-foreground" variant="outline">
-                      {candidate.isGroup ? "Nested" : getProtocolLabel(candidate.protocol)}
+                      {candidate.isGroup ? t("panes.groups.nested") : getProtocolLabel(candidate.protocol)}
                     </Badge>
                   </Label>
                 );
@@ -459,7 +477,7 @@ function GroupPreviewPanel({ preview }: { preview: GroupPreview }) {
       ) : null}
 
       <div className="grid gap-3">
-        <PreviewList routes={singboxRoutes} title="sing-box selector/urltest + detour" />
+        <PreviewList routes={singboxRoutes} title={t("panes.groups.previewRoutesTitle")} />
       </div>
     </Card>
   );
@@ -501,10 +519,16 @@ function PreviewList({
                   </Badge>
                 </div>
                 <div className="truncate text-muted-foreground">
-                  {route.dialerProxy ? `dialerProxy -> ${route.dialerProxy}` : null}
-                  {route.detour ? `detour -> ${route.detour}` : null}
-                  {route.outbounds.length > 0 ? `outbounds -> ${route.outbounds.join(", ")}` : null}
-                  {route.downloadDialerProxy ? `download dialerProxy -> ${route.downloadDialerProxy}` : null}
+                  {route.dialerProxy
+                    ? t("panes.groups.routeDialerProxy", { value: route.dialerProxy })
+                    : null}
+                  {route.detour ? t("panes.groups.routeDetour", { value: route.detour }) : null}
+                  {route.outbounds.length > 0
+                    ? t("panes.groups.routeOutbounds", { value: route.outbounds.join(", ") })
+                    : null}
+                  {route.downloadDialerProxy
+                    ? t("panes.groups.routeDownloadDialerProxy", { value: route.downloadDialerProxy })
+                    : null}
                 </div>
               </div>
             ))}
@@ -522,6 +546,7 @@ function ValidationMessage({
   messages: string[];
   tone: "error" | "warning";
 }) {
+  const { t } = useI18n();
   if (messages.length === 0) {
     return null;
   }
@@ -537,7 +562,7 @@ function ValidationMessage({
     >
       <AlertTriangle className="size-4" aria-hidden="true" />
       <AlertTitle>
-        {tone === "error" ? "Validation failed" : "Validation warnings"}
+        {tone === "error" ? t("panes.groups.validationFailed") : t("panes.groups.validationWarnings")}
       </AlertTitle>
       <AlertDescription>
         {messages.map((message) => (

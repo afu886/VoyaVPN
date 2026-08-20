@@ -35,9 +35,12 @@ export function RoutingProfileList({ controller }: { controller: RoutingScreenCo
                   {routing.isActive ? <CheckCircle2 className="size-4 text-connected" aria-hidden="true" /> : null}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-1 text-sm font-medium">{routing.remarks || "Untitled routing"}</span>
+                  <span className="line-clamp-1 text-sm font-medium">
+                    {routing.remarks || t("panes.routing.untitled")}
+                  </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {t("panes.routing.rulesCount", { count: routing.rules.length })} {routing.singboxDomainStrategy || "default"}
+                    {t("panes.routing.rulesCount", { count: routing.rules.length })}{" "}
+                    {routing.singboxDomainStrategy || t("panes.routing.defaultValue")}
                   </span>
                 </span>
                 {routing.isActive ? (
@@ -49,7 +52,7 @@ export function RoutingProfileList({ controller }: { controller: RoutingScreenCo
             ))}
           </div>
         ) : (
-          <EmptyState className="py-10" icon={Route} title="No routing profiles" />
+          <EmptyState className="py-10" icon={Route} title={t("panes.routing.emptyProfiles")} />
         )}
       </ScrollArea>
     </aside>

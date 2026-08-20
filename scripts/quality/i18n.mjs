@@ -1,11 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import ts from "typescript";
 import { repoRootFromScript } from "../lib/common.mjs";
+import { inspectI18nSource } from "./i18n-analyzer.mjs";
 
 const repoRoot = repoRootFromScript(import.meta.url);
 const localesDir = resolve(repoRoot, "packages/i18n/src/locales");
-const productionSourceDir = resolve(repoRoot, "apps/desktop/src");
+const productionSourceDirs = [
+  resolve(repoRoot, "apps/desktop/src"),
+  resolve(repoRoot, "packages/ui/src"),
+];
 const localeCodes = ["en", "zh-Hans", "zh-Hant", "fr", "fa", "hu", "ru", "de"];
 
 const resources = Object.fromEntries(localeCodes.map((code) => [code, readLocale(code)]));
@@ -31,8 +34,10 @@ const invalidKeys = [];
 const dynamicKeys = [];
 const hardcodedJsx = [];
 
-for (const path of productionSourceFiles(productionSourceDir)) {
-  inspectSource(path);
+for (const root of productionSourceDirs) {
+  for (const path of productionSourceFiles(root)) {
+    inspectSource(path);
+  }
 }
 
 if (invalidKeys.length > 0) {
@@ -42,55 +47,17 @@ if (dynamicKeys.length > 0) {
   throw new Error(`Dynamic translation keys must use explicit translated values:\n${formatList(dynamicKeys)}`);
 }
 if (hardcodedJsx.length > 0) {
-  throw new Error(`User-visible JSX text must use Voya locale resources:\n${formatList(hardcodedJsx)}`);
+  throw new Error(`User-visible frontend text must use Voya locale resources:\n${formatList(hardcodedJsx)}`);
 }
 
 console.log(`i18n check passed: ${localeCodes.length} aligned Voya locales, ${englishKeys.length} keys.`);
 
 function inspectSource(path) {
   const source = readFileSync(path, "utf8");
-  const sourceFile = ts.createSourceFile(
-    path,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  );
-
-  function visit(node) {
-    if (ts.isCallExpression(node) && isTranslationCall(node.expression) && node.arguments.length > 0) {
-      const [key] = node.arguments;
-      if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) {
-        validateStaticKey(sourceFile, path, key);
-      } else if (ts.isConditionalExpression(key)) {
-        validateStaticKey(sourceFile, path, key.whenTrue);
-        validateStaticKey(sourceFile, path, key.whenFalse);
-      } else if (ts.isTemplateExpression(key) || ts.isBinaryExpression(key)) {
-        dynamicKeys.push(location(sourceFile, path, key, key.getText(sourceFile)));
-      }
-    }
-
-    if (ts.isJsxText(node)) {
-      const text = node.text.replace(/\s+/g, " ").trim();
-      if (isUserVisibleText(text)) {
-        hardcodedJsx.push(location(sourceFile, path, node, text));
-      }
-    }
-
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-}
-
-function validateStaticKey(sourceFile, path, node) {
-  if (!ts.isStringLiteral(node) && !ts.isNoSubstitutionTemplateLiteral(node)) {
-    dynamicKeys.push(location(sourceFile, path, node, node.getText(sourceFile)));
-    return;
-  }
-  if (!knownKeys.has(node.text)) {
-    invalidKeys.push(location(sourceFile, path, node, node.text));
-  }
+  const result = inspectI18nSource({ path, source, knownKeys });
+  invalidKeys.push(...result.invalidKeys.map((item) => location(path, item)));
+  dynamicKeys.push(...result.dynamicKeys.map((item) => location(path, item)));
+  hardcodedJsx.push(...result.hardcodedText.map((item) => location(path, item)));
 }
 
 function readLocale(code) {
@@ -118,21 +85,8 @@ function flattenResourceKeys(resource, prefix = "") {
   });
 }
 
-function isTranslationCall(expression) {
-  return (ts.isIdentifier(expression) && expression.text === "t")
-    || (ts.isPropertyAccessExpression(expression) && expression.name.text === "t");
-}
-
-function isUserVisibleText(text) {
-  if (text.length === 0 || !/[A-Za-z\u3400-\u9fff]/u.test(text)) {
-    return false;
-  }
-  return !/^(?:VoyaVPN|sing-box|HTTP|HTTPS|SOCKS|TCP|UDP|TLS|TUN|URL|JSON|QR|IP|IPv6|Mbps|KB\/s|MB\/s)$/u.test(text);
-}
-
-function location(sourceFile, path, node, detail) {
-  const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-  return `${relative(repoRoot, path)}:${line + 1} ${detail}`;
+function location(path, item) {
+  return `${relative(repoRoot, path)}:${item.line} ${item.detail}`;
 }
 
 function formatList(items) {

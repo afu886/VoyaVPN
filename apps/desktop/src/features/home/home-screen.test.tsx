@@ -347,8 +347,14 @@ describe("HomeScreen", () => {
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeEnabled();
   });
 
-  it("offers the three system-proxy modes and applies the picked one", async () => {
+  it("offers and applies all three system-proxy modes when PAC is supported", async () => {
     const user = userEvent.setup();
+    runtimeMock.state.sysProxy = {
+      effectiveMode: "forcedClear",
+      pacAvailable: true,
+      proxy: null,
+      requestedMode: "forcedClear",
+    };
 
     renderHome();
 
@@ -361,6 +367,69 @@ describe("HomeScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "Smart" }));
     expect(ipcMock.setSystemProxyMode).toHaveBeenCalledWith("pac");
+  });
+
+  it("keeps Smart visible but disabled when PAC is unavailable", async () => {
+    const user = userEvent.setup();
+
+    renderHome();
+
+    const smart = screen.getByRole("button", { name: "Smart" });
+    expect(smart).toBeDisabled();
+    expect(screen.getByText("Smart proxy is not supported on this platform.")).toBeInTheDocument();
+    await user.click(smart);
+    expect(ipcMock.setSystemProxyMode).not.toHaveBeenCalledWith("pac");
+  });
+
+  it("shows the backend reason and restores controls when proxy mode switching fails", async () => {
+    const user = userEvent.setup();
+    runtimeMock.state.sysProxy = {
+      effectiveMode: "forcedClear",
+      pacAvailable: true,
+      proxy: null,
+      requestedMode: "forcedClear",
+    };
+    ipcMock.setSystemProxyMode.mockRejectedValue(new Error("desktop policy rejected PAC"));
+
+    renderHome();
+    const smart = screen.getByRole("button", { name: "Smart" });
+    await user.click(smart);
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+        description: "desktop policy rejected PAC",
+        severity: "error",
+        title: "Failed to change system proxy mode",
+      }),
+    );
+    expect(smart).toBeEnabled();
+  });
+
+  it("prevents duplicate proxy mode submissions while one is pending", async () => {
+    const user = userEvent.setup();
+    runtimeMock.state.sysProxy = {
+      effectiveMode: "forcedClear",
+      pacAvailable: true,
+      proxy: null,
+      requestedMode: "forcedClear",
+    };
+    let resolveMode: ((status: SystemProxyStatusResponse) => void) | undefined;
+    ipcMock.setSystemProxyMode.mockImplementation(
+      () =>
+        new Promise<SystemProxyStatusResponse>((resolve) => {
+          resolveMode = resolve;
+        }),
+    );
+
+    renderHome();
+    const global = screen.getByRole("button", { name: "Global" });
+    await user.click(global);
+    expect(global).toBeDisabled();
+    await user.click(global);
+    expect(ipcMock.setSystemProxyMode).toHaveBeenCalledTimes(1);
+
+    resolveMode?.({ ...sysProxyStatus, effectiveMode: "forcedChange", requestedMode: "forcedChange" });
+    await waitFor(() => expect(global).toBeEnabled());
   });
 
   it("requests system authorization on demand before switching TUN on", async () => {

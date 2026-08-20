@@ -62,7 +62,7 @@ function MissingCoreDialog({ payload }: { payload?: MissingCorePayload }) {
   }
 
   return (
-    <DialogContent>
+    <DialogContent closeLabel={t("actions.close")}>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Cpu className="size-4" aria-hidden="true" />

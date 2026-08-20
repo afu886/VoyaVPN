@@ -27,7 +27,8 @@ pub async fn save_app_settings<R: tauri::Runtime>(
 ) -> Result<AppSettingsV1, AppError> {
     validate_app_settings(&settings).map_err(|error| AppError::State(error.to_string()))?;
 
-    let original = current_config(&state)?;
+    let mut mutation = begin_config_mutation(&state).await?;
+    let original = mutation.config().clone();
     let target = state
         .services()
         .config_from_settings(&settings, &original)
@@ -50,7 +51,8 @@ pub async fn save_app_settings<R: tauri::Runtime>(
         }
     };
 
-    if let Err(error) = persist_config_if_changed(&state, &original, &target).await {
+    *mutation.config_mut() = target.clone();
+    if let Err(error) = commit_config_mutation(mutation).await {
         let compensation_errors =
             compensate_settings_side_effects(&side_effects, &original, applied_side_effects);
         log_settings_compensation_errors(&compensation_errors);
@@ -68,13 +70,12 @@ pub async fn save_app_settings<R: tauri::Runtime>(
     };
 
     if let Err(error) = apply_result {
-        if let Err(rollback_error) = persist_config_if_changed(&state, &target, &original).await {
-            tracing::error!(?rollback_error, "failed to roll back settings persistence");
-        }
-        let compensation_errors =
-            compensate_settings_side_effects(&side_effects, &original, applied_side_effects);
-        log_settings_compensation_errors(&compensation_errors);
-        return Err(error);
+        report_post_commit_error(
+            &app,
+            "Settings saved; runtime update failed",
+            &format!("{error:?}"),
+            AppNoticeLevel::Warning,
+        );
     }
 
     if original != target {

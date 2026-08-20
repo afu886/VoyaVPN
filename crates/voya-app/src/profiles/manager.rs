@@ -11,7 +11,7 @@ use voya_core::{
     ProfileListItem, ProfileProtocol, ProfileSortKey, ProfileTransport, ServerEndpoint,
     ServerStatItem,
 };
-use voya_db::{Database, DbError};
+use voya_db::{Database, DatabaseSession, DbError, UnitOfWork};
 
 use super::{ProfileExManager, DEFAULT_PROFILE_SORT_STEP};
 
@@ -33,18 +33,28 @@ pub enum ProfileManagerError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProfileManager<'db> {
-    database: &'db Database,
+    database: DatabaseSession<'db>,
 }
 
 impl<'db> ProfileManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
+        Self::from_session(DatabaseSession::from_database(database))
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self::from_session(DatabaseSession::from_unit_of_work(unit_of_work))
+    }
+
+    #[must_use]
+    pub(crate) const fn from_session(database: DatabaseSession<'db>) -> Self {
         Self { database }
     }
 
     #[must_use]
     pub fn profile_ex(&self) -> ProfileExManager<'db> {
-        ProfileExManager::new(self.database)
+        ProfileExManager::from_session(self.database)
     }
 
     pub async fn list_profiles(

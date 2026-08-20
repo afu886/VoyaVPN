@@ -45,7 +45,7 @@ export function ShareQrDialog({ content, onOpenChange, open }: ShareQrDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto" closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="size-4" aria-hidden="true" />

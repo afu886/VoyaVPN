@@ -25,6 +25,7 @@ voya-platform.workspace = true
 voya-udptest.workspace = true
 
 [dev-dependencies]
+sqlx.workspace = true
 voya-net = { workspace = true, features = ["test-utils"] }
 voya-platform = { workspace = true, features = ["test-support"] }
 

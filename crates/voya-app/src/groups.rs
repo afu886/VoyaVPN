@@ -5,7 +5,7 @@ use voya_core::{
     GroupChildCandidate, GroupPreview, GroupValidationResult, ProfileItem, ProfileListItem,
     RoutingItem, SingboxConfigError, SubItem,
 };
-use voya_db::{Database, DbError};
+use voya_db::{Database, DatabaseSession, DbError, UnitOfWork};
 
 use crate::coregen::{SnapshotCoreGenData, SnapshotCoreGenEnv};
 use crate::profiles::{ProfileManager, ProfileManagerError};
@@ -28,12 +28,22 @@ pub enum GroupManagerError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct GroupManager<'db> {
-    database: &'db Database,
+    database: DatabaseSession<'db>,
 }
 
 impl<'db> GroupManager<'db> {
     #[must_use]
     pub fn new(database: &'db Database) -> Self {
+        Self::from_session(DatabaseSession::from_database(database))
+    }
+
+    #[must_use]
+    pub fn new_in(unit_of_work: &'db UnitOfWork) -> Self {
+        Self::from_session(DatabaseSession::from_unit_of_work(unit_of_work))
+    }
+
+    #[must_use]
+    const fn from_session(database: DatabaseSession<'db>) -> Self {
         Self { database }
     }
 
@@ -104,7 +114,7 @@ impl<'db> GroupManager<'db> {
             return Err(GroupManagerError::Validation(validation.errors));
         }
 
-        ProfileManager::new(self.database)
+        ProfileManager::from_session(self.database)
             .save_profile(config, profile)
             .await
             .map_err(Into::into)

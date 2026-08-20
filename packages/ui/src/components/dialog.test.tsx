@@ -13,7 +13,7 @@ describe("ScrollableDialogContent", () => {
   it("applies the default sticky header/body/footer geometry with a width variant", () => {
     render(
       <Dialog open>
-        <ScrollableDialogContent width="68rem">
+        <ScrollableDialogContent closeLabel="Close" width="68rem">
           <DialogHeader>
             <DialogTitle>Profile</DialogTitle>
             <DialogDescription>Profile editor</DialogDescription>
@@ -33,7 +33,7 @@ describe("ScrollableDialogContent", () => {
   it("supports the compact four-row picker geometry", () => {
     render(
       <Dialog open>
-        <ScrollableDialogContent height="compact" rows="toolbar-body" width="54rem">
+        <ScrollableDialogContent closeLabel="Close" height="compact" rows="toolbar-body" width="54rem">
           <DialogHeader>
             <DialogTitle>Picker</DialogTitle>
             <DialogDescription>Picker dialog</DialogDescription>

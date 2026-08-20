@@ -13,6 +13,7 @@ use tauri::{
 use tauri_specta::Event;
 use tokio::sync::Mutex as AsyncMutex;
 use voya_app::{
+    config_mutation::ConfigMutationCoordinator,
     elevation::ElevationManager,
     proxy_runtime::{
         ProxyConnectionsSnapshot, ProxyMonitorController, ProxyRuntimeEventSink, ProxyTrafficEvent,
@@ -42,7 +43,7 @@ const TRAY_HIDE: &str = "tray-hide";
 const TRAY_QUIT: &str = "tray-quit";
 pub(crate) struct AppState {
     services: AppServices,
-    config: Arc<RwLock<AppConfig>>,
+    config_mutations: ConfigMutationCoordinator,
     core_seed_resource_dir: Option<PathBuf>,
     elevation_manager: ElevationManager,
     supervisor: CoreSupervisor,
@@ -59,7 +60,11 @@ impl AppState {
     }
 
     pub(crate) fn config(&self) -> &RwLock<AppConfig> {
-        self.config.as_ref()
+        self.config_mutations.config_lock()
+    }
+
+    pub(crate) fn config_mutations(&self) -> &ConfigMutationCoordinator {
+        &self.config_mutations
     }
 
     pub(crate) fn runtime_paths(&self) -> &AppPaths {
@@ -160,6 +165,7 @@ pub fn run() {
                 }
             };
             let shared_config = Arc::new(RwLock::new(config.clone()));
+            let config_mutations = services.config_mutations(Arc::clone(&shared_config));
             tauri::async_runtime::block_on(services.initialize_profile_metrics())?;
             let core_seed_resource_dir = Some(core_seed_resources_dir(app.path().resource_dir()?));
             match (TargetOs::current(), core_seed_resource_dir.as_ref()) {
@@ -224,7 +230,7 @@ pub fn run() {
                 .speedtest_manager(core_seed_resource_dir.clone(), Arc::new(speedtest_runner));
             app.manage(AppState {
                 services,
-                config: shared_config,
+                config_mutations,
                 core_seed_resource_dir,
                 elevation_manager,
                 supervisor,

@@ -808,7 +808,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::test_support::{
+    use crate::download::test_support::{
         spawn_http_fixture, spawn_raw_http_fixture, spawn_redirect_chain_fixture,
         RawFixtureResponse,
     };

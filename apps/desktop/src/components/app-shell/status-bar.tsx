@@ -81,11 +81,13 @@ export function StatusBar() {
       await navigator.clipboard.writeText(formatTunDiagnosticsForClipboard(diagnostics));
       pushToast({
         description: t("status.copyTunDiagnosticsCopied"),
+        severity: "info",
         title: copyTunDiagnosticsLabel,
       });
     } catch (error) {
       pushToast({
         description: getErrorMessage(error),
+        severity: "error",
         title: t("status.copyTunDiagnosticsFailed"),
       });
     } finally {
@@ -101,6 +103,7 @@ export function StatusBar() {
     } catch (error) {
       pushToast({
         description: getErrorMessage(error),
+        severity: "error",
         title: settingsLabel,
       });
     }

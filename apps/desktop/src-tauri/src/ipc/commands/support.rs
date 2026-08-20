@@ -1,11 +1,23 @@
 use super::{lifecycle::*, *};
 
 pub(super) fn current_config(state: &AppState) -> Result<AppConfig, AppError> {
+    Ok(state.config_mutations().current_config())
+}
+
+pub(super) async fn begin_config_mutation(
+    state: &AppState,
+) -> Result<ConfigMutationGuard<'_>, AppError> {
     state
-        .config()
-        .read()
-        .map_err(|_| AppError::State("app config lock is poisoned".to_string()))
-        .map(|guard| guard.clone())
+        .config_mutations()
+        .begin()
+        .await
+        .map_err(config_mutation_error)
+}
+
+pub(super) async fn commit_config_mutation(
+    mutation: ConfigMutationGuard<'_>,
+) -> Result<AppConfig, AppError> {
+    mutation.commit().await.map_err(config_mutation_error)
 }
 
 pub(super) async fn export_profiles_result(
@@ -365,27 +377,45 @@ pub(super) fn core_state_event(
     }
 }
 
-pub(super) async fn persist_config_if_changed(
-    state: &AppState,
-    original: &AppConfig,
-    updated: &AppConfig,
-) -> Result<(), AppError> {
-    if original == updated {
-        return Ok(());
+pub(super) fn config_mutation_error(error: ConfigMutationError) -> AppError {
+    match error {
+        ConfigMutationError::Database(error) => AppError::ConfigSave(error.to_string()),
+    }
+}
+
+pub(super) fn report_post_commit_error<R>(
+    app: &tauri::AppHandle<R>,
+    title: &str,
+    message: &str,
+    level: AppNoticeLevel,
+) where
+    R: tauri::Runtime,
+{
+    match level {
+        AppNoticeLevel::Info => tracing::info!(title, message, "post-commit operation failed"),
+        AppNoticeLevel::Warning => {
+            tracing::warn!(title, message, "post-commit operation failed");
+        }
+        AppNoticeLevel::Error => tracing::error!(title, message, "post-commit operation failed"),
     }
 
-    state
-        .services()
-        .persist_config(updated)
-        .await
-        .map_err(|error| AppError::ConfigSave(error.to_string()))?;
-    let mut guard = state
-        .config()
-        .write()
-        .map_err(|_| AppError::State("app config lock is poisoned".to_string()))?;
-    *guard = updated.clone();
-
-    Ok(())
+    let log_level = match level {
+        AppNoticeLevel::Info => LogLevel::Info,
+        AppNoticeLevel::Warning => LogLevel::Warn,
+        AppNoticeLevel::Error => LogLevel::Error,
+    };
+    if let Err(error) = emit_runtime_log(app, log_level, message) {
+        tracing::warn!(?error, "failed to emit post-commit runtime log");
+    }
+    if let Err(error) = AppEvent::Notice(AppNotice {
+        level,
+        title: title.to_string(),
+        message: Some(message.to_string()),
+    })
+    .emit(app)
+    {
+        tracing::warn!(?error, "failed to emit post-commit notice");
+    }
 }
 
 pub(super) fn profile_error(error: ProfileManagerError) -> AppError {

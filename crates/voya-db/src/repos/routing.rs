@@ -1,26 +1,41 @@
-use sqlx::{
-    sqlite::{SqlitePool, SqliteRow},
-    Row,
-};
+use sqlx::{sqlite::SqliteRow, Row};
+use tokio::sync::Mutex;
 use voya_core::RoutingItem;
 
-use crate::{blob, Result};
+use crate::{
+    blob,
+    executor::{run_query, RepositoryExecutor},
+    Result,
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct RoutingRepository<'pool> {
-    pool: &'pool SqlitePool,
+pub struct RoutingRepository<'executor> {
+    executor: RepositoryExecutor<'executor>,
 }
 
-impl<'pool> RoutingRepository<'pool> {
+impl<'executor> RoutingRepository<'executor> {
     #[must_use]
-    pub fn new(pool: &'pool SqlitePool) -> Self {
-        Self { pool }
+    pub(crate) const fn new(pool: &'executor sqlx::SqlitePool) -> Self {
+        Self {
+            executor: RepositoryExecutor::Pool(pool),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn new_in_transaction(
+        transaction: &'executor Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    ) -> Self {
+        Self {
+            executor: RepositoryExecutor::Transaction(transaction),
+        }
     }
 
     pub async fn upsert(&self, item: &RoutingItem) -> Result<()> {
         let rule_set = blob::rules_to_text(&item.rule_set)?;
-        sqlx::query(
-            r#"
+        run_query!(
+            self.executor,
+            sqlx::query(
+                r#"
             INSERT INTO routing_items (
                 id, remarks, url, rule_set, enabled, locked,
                 custom_icon, custom_ruleset_path4_singbox, domain_strategy,
@@ -38,79 +53,72 @@ impl<'pool> RoutingRepository<'pool> {
                 domain_strategy4_singbox = excluded.domain_strategy4_singbox,
                 sort = excluded.sort
             "#,
-        )
-        .bind(&item.id)
-        .bind(&item.remarks)
-        .bind(&item.url)
-        .bind(rule_set)
-        .bind(item.enabled)
-        .bind(item.locked)
-        .bind(&item.custom_icon)
-        .bind(&item.custom_ruleset_path4_singbox)
-        .bind(&item.domain_strategy)
-        .bind(&item.domain_strategy4_singbox)
-        .bind(item.sort)
-        .execute(self.pool)
-        .await?;
+            )
+            .bind(&item.id)
+            .bind(&item.remarks)
+            .bind(&item.url)
+            .bind(rule_set)
+            .bind(item.enabled)
+            .bind(item.locked)
+            .bind(&item.custom_icon)
+            .bind(&item.custom_ruleset_path4_singbox)
+            .bind(&item.domain_strategy)
+            .bind(&item.domain_strategy4_singbox)
+            .bind(item.sort),
+            execute
+        )?;
 
         Ok(())
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<RoutingItem>> {
-        let row = sqlx::query(
+        let row = run_query!(self.executor, sqlx::query(
             "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s WHERE r.id = ?",
-        )
-            .bind(id)
-            .fetch_optional(self.pool)
-            .await?;
+        ).bind(id), fetch_optional)?;
 
         row.map(row_to_routing).transpose()
     }
 
     pub async fn list(&self) -> Result<Vec<RoutingItem>> {
-        let rows = sqlx::query(
+        let rows = run_query!(self.executor, sqlx::query(
             "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s ORDER BY r.sort, r.id",
-        )
-            .fetch_all(self.pool)
-            .await?;
+        ), fetch_all)?;
 
         rows.into_iter().map(row_to_routing).collect()
     }
 
     pub async fn active(&self) -> Result<Option<RoutingItem>> {
-        let row = sqlx::query(
+        let row = run_query!(self.executor, sqlx::query(
             "SELECT r.*, 1 AS is_active FROM routing_items r JOIN app_state s ON s.active_routing_id = r.id ORDER BY r.sort, r.id LIMIT 1",
-        )
-        .fetch_optional(self.pool)
-        .await?;
+        ), fetch_optional)?;
 
         row.map(row_to_routing).transpose()
     }
 
     pub async fn first(&self) -> Result<Option<RoutingItem>> {
-        let row = sqlx::query(
+        let row = run_query!(self.executor, sqlx::query(
             "SELECT r.*, (s.active_routing_id = r.id) AS is_active FROM routing_items r CROSS JOIN app_state s ORDER BY r.sort, r.id LIMIT 1",
-        )
-            .fetch_optional(self.pool)
-            .await?;
+        ), fetch_optional)?;
 
         row.map(row_to_routing).transpose()
     }
 
     pub async fn exists(&self, id: &str) -> Result<bool> {
-        let exists: i64 =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM routing_items WHERE id = ?)")
-                .bind(id)
-                .fetch_one(self.pool)
-                .await?;
+        let exists: i64 = run_query!(
+            self.executor,
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM routing_items WHERE id = ?)").bind(id),
+            fetch_one
+        )?;
 
         Ok(exists != 0)
     }
 
     pub async fn max_sort(&self) -> Result<i32> {
-        let max_sort: Option<i32> = sqlx::query_scalar("SELECT MAX(sort) FROM routing_items")
-            .fetch_one(self.pool)
-            .await?;
+        let max_sort: Option<i32> = run_query!(
+            self.executor,
+            sqlx::query_scalar("SELECT MAX(sort) FROM routing_items"),
+            fetch_one
+        )?;
 
         Ok(max_sort.unwrap_or(0))
     }
@@ -120,36 +128,53 @@ impl<'pool> RoutingRepository<'pool> {
             return Ok(false);
         }
 
-        let result = sqlx::query("UPDATE app_state SET active_routing_id = ? WHERE id = 1")
-            .bind(id)
-            .execute(self.pool)
-            .await?;
+        let result = run_query!(
+            self.executor,
+            sqlx::query("UPDATE app_state SET active_routing_id = ? WHERE id = 1").bind(id),
+            execute
+        )?;
 
         Ok(result.rows_affected() > 0)
     }
 
     pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM routing_items WHERE id = ?")
-            .bind(id)
-            .execute(self.pool)
-            .await?;
+        let result = run_query!(
+            self.executor,
+            sqlx::query("DELETE FROM routing_items WHERE id = ?").bind(id),
+            execute
+        )?;
 
         Ok(result.rows_affected() > 0)
     }
 
     pub async fn delete_many(&self, ids: &[String]) -> Result<u64> {
-        let mut tx = self.pool.begin().await?;
-        let mut deleted = 0;
-        for id in ids {
-            let result = sqlx::query("DELETE FROM routing_items WHERE id = ?")
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
-            deleted += result.rows_affected();
+        match self.executor {
+            RepositoryExecutor::Pool(pool) => {
+                let mut transaction = pool.begin().await?;
+                let mut deleted = 0;
+                for id in ids {
+                    let result = sqlx::query("DELETE FROM routing_items WHERE id = ?")
+                        .bind(id)
+                        .execute(&mut *transaction)
+                        .await?;
+                    deleted += result.rows_affected();
+                }
+                transaction.commit().await?;
+                Ok(deleted)
+            }
+            RepositoryExecutor::Transaction(transaction) => {
+                let mut transaction = transaction.lock().await;
+                let mut deleted = 0;
+                for id in ids {
+                    let result = sqlx::query("DELETE FROM routing_items WHERE id = ?")
+                        .bind(id)
+                        .execute(&mut **transaction)
+                        .await?;
+                    deleted += result.rows_affected();
+                }
+                Ok(deleted)
+            }
         }
-
-        tx.commit().await?;
-        Ok(deleted)
     }
 }
 

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type * as React from "react";
 import { Route, Save } from "lucide-react";
-import { z } from "zod";
 import { useI18n } from "@voya/i18n/use-i18n";
 
 import { Button } from "@voya/ui/components/button";
@@ -44,26 +43,22 @@ export function RoutingRuleDialog({
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    try {
-      const payload = routingRuleSchema.parse(formToRule(form));
-      setFieldErrors({});
-      await onSubmit(payload);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        setFieldErrors(zodIssuesToErrorMap(error));
-        return;
-      }
-      throw error;
+    const parsed = routingRuleSchema.safeParse(formToRule(form));
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToErrorMap(parsed.error));
+      return;
     }
+    setFieldErrors({});
+    await onSubmit(parsed.data);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ScrollableDialogContent width="56rem">
+      <ScrollableDialogContent closeLabel={t("actions.close")} width="56rem">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Route className="size-4" aria-hidden="true" />
-            {mode === "edit" ? "Edit routing rule" : "Create routing rule"}
+            {t(mode === "edit" ? "panes.routing.editRule" : "panes.routing.createRule")}
           </DialogTitle>
           <DialogDescription className="sr-only">{t("panes.routing.ruleEditor")}</DialogDescription>
         </DialogHeader>
@@ -76,24 +71,24 @@ export function RoutingRuleDialog({
           <div className="grid gap-3 sm:grid-cols-[1fr_10rem_10rem]">
             <TextField
               error={fieldErrors.remarks}
-              label="remarks"
+              label={t("panes.routing.remarks")}
               onChange={(value) => setForm((current) => ({ ...current, remarks: value }))}
               value={form.remarks}
             />
             <SelectField
               error={fieldErrors.scope}
-              label="Rule type"
+              label={t("panes.routing.ruleScope")}
               onChange={(value) => setForm((current) => ({ ...current, scope: value as RoutingRuleScope }))}
               options={[
-                { label: "All", value: String(RULE_TYPES.All) },
-                { label: "Routing", value: String(RULE_TYPES.Routing) },
+                { label: t("panes.routing.scopeAll"), value: String(RULE_TYPES.All) },
+                { label: t("panes.routing.scopeRouting"), value: String(RULE_TYPES.Routing) },
                 { label: "DNS", value: String(RULE_TYPES.Dns) },
               ]}
               value={String(form.scope)}
             />
             <TextField
               error={fieldErrors.outbound}
-              label="Outbound"
+              label={t("panes.routing.outbound")}
               onChange={(value) => setForm((current) => ({ ...current, outbound: value }))}
               value={form.outbound}
             />
@@ -101,19 +96,19 @@ export function RoutingRuleDialog({
           <div className="grid gap-3 sm:grid-cols-3">
             <TextField
               error={fieldErrors.port}
-              label="port"
+              label={t("panes.routing.port")}
               onChange={(value) => setForm((current) => ({ ...current, port: value }))}
               value={form.port}
             />
             <TextField
               error={fieldErrors.network}
-              label="network"
+              label={t("panes.routing.network")}
               onChange={(value) => setForm((current) => ({ ...current, network: value }))}
               value={form.network}
             />
             <TextField
               error={fieldErrors.kind}
-              label="type"
+              label={t("panes.routing.type")}
               onChange={(value) => setForm((current) => ({ ...current, kind: value }))}
               value={form.kind}
             />
@@ -121,7 +116,7 @@ export function RoutingRuleDialog({
           <div className="grid gap-3 lg:grid-cols-2">
             <TextAreaField
               error={fieldErrors.domain}
-              label="domain"
+              label={t("panes.routing.domain")}
               onChange={(value) => setForm((current) => ({ ...current, domain: value }))}
               value={form.domain}
             />
@@ -133,26 +128,26 @@ export function RoutingRuleDialog({
             />
             <TextAreaField
               error={fieldErrors.protocol}
-              label="protocol"
+              label={t("panes.routing.protocol")}
               onChange={(value) => setForm((current) => ({ ...current, protocol: value }))}
               value={form.protocol}
             />
             <TextAreaField
               error={fieldErrors.process}
-              label="process"
+              label={t("panes.routing.process")}
               onChange={(value) => setForm((current) => ({ ...current, process: value }))}
               value={form.process}
             />
             <TextAreaField
               error={fieldErrors.inboundTags}
-              label="Inbound tags"
+              label={t("panes.routing.inboundTags")}
               onChange={(value) => setForm((current) => ({ ...current, inboundTags: value }))}
               value={form.inboundTags}
             />
           </div>
           <CheckboxField
             checked={form.enabled}
-            label="enabled"
+            label={t("panes.routing.enabled")}
             onCheckedChange={(checked) => setForm((current) => ({ ...current, enabled: checked }))}
           />
         </form>

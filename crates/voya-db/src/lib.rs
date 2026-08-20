@@ -5,8 +5,9 @@
 
 mod database;
 mod error;
+mod executor;
 mod repos;
 
-pub use database::{Database, DATABASE_NAME};
+pub use database::{Database, DatabaseSession, UnitOfWork, DATABASE_NAME};
 pub use error::{blob, DbError, Result};
 pub use repos::*;

@@ -5,8 +5,9 @@ use std::{
 
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-    SqlitePool,
+    Sqlite, SqlitePool, Transaction,
 };
+use tokio::sync::Mutex;
 
 use crate::{
     AppStateRepository, DbError, ProfileExRepository, ProfileRepository, Result, RoutingRepository,
@@ -21,6 +22,17 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 pub struct Database {
     pool: SqlitePool,
     path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub struct UnitOfWork {
+    transaction: Mutex<Transaction<'static, Sqlite>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DatabaseSession<'database> {
+    Database(&'database Database),
+    UnitOfWork(&'database UnitOfWork),
 }
 
 impl Database {
@@ -109,8 +121,124 @@ impl Database {
         AppStateRepository::new(&self.pool)
     }
 
+    pub async fn begin(&self) -> Result<UnitOfWork> {
+        Ok(UnitOfWork {
+            transaction: Mutex::new(self.pool.begin().await?),
+        })
+    }
+
     pub async fn close(&self) {
         self.pool.close().await;
+    }
+}
+
+impl UnitOfWork {
+    #[must_use]
+    pub fn profiles(&self) -> ProfileRepository<'_> {
+        ProfileRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn profile_exs(&self) -> ProfileExRepository<'_> {
+        ProfileExRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn server_stats(&self) -> ServerStatRepository<'_> {
+        ServerStatRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn subscriptions(&self) -> SubscriptionRepository<'_> {
+        SubscriptionRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn routings(&self) -> RoutingRepository<'_> {
+        RoutingRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn settings(&self) -> SettingsRepository<'_> {
+        SettingsRepository::new_in_transaction(&self.transaction)
+    }
+
+    #[must_use]
+    pub fn app_state(&self) -> AppStateRepository<'_> {
+        AppStateRepository::new_in_transaction(&self.transaction)
+    }
+
+    pub async fn commit(self) -> Result<()> {
+        self.transaction.into_inner().commit().await?;
+        Ok(())
+    }
+}
+
+impl<'database> DatabaseSession<'database> {
+    #[must_use]
+    pub const fn from_database(database: &'database Database) -> Self {
+        Self::Database(database)
+    }
+
+    #[must_use]
+    pub const fn from_unit_of_work(unit_of_work: &'database UnitOfWork) -> Self {
+        Self::UnitOfWork(unit_of_work)
+    }
+
+    #[must_use]
+    pub fn profiles(self) -> ProfileRepository<'database> {
+        match self {
+            Self::Database(database) => database.profiles(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.profiles(),
+        }
+    }
+
+    #[must_use]
+    pub fn profile_exs(self) -> ProfileExRepository<'database> {
+        match self {
+            Self::Database(database) => database.profile_exs(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.profile_exs(),
+        }
+    }
+
+    #[must_use]
+    pub fn server_stats(self) -> ServerStatRepository<'database> {
+        match self {
+            Self::Database(database) => database.server_stats(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.server_stats(),
+        }
+    }
+
+    #[must_use]
+    pub fn subscriptions(self) -> SubscriptionRepository<'database> {
+        match self {
+            Self::Database(database) => database.subscriptions(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.subscriptions(),
+        }
+    }
+
+    #[must_use]
+    pub fn routings(self) -> RoutingRepository<'database> {
+        match self {
+            Self::Database(database) => database.routings(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.routings(),
+        }
+    }
+
+    #[must_use]
+    pub fn settings(self) -> SettingsRepository<'database> {
+        match self {
+            Self::Database(database) => database.settings(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.settings(),
+        }
+    }
+
+    #[must_use]
+    pub fn app_state(self) -> AppStateRepository<'database> {
+        match self {
+            Self::Database(database) => database.app_state(),
+            Self::UnitOfWork(unit_of_work) => unit_of_work.app_state(),
+        }
     }
 }
 

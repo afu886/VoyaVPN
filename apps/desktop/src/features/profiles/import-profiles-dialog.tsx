@@ -206,7 +206,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent
+        className="max-h-[90vh] max-w-3xl overflow-y-auto"
+        closeLabel={t("actions.close")}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="size-4" aria-hidden="true" />
@@ -281,7 +284,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
                 </Label>
               </Button>
               <input
-                aria-label="Import payload file"
+                aria-label={t("panes.profiles.importDialog.fileAria")}
                 className="sr-only"
                 id="import-payload-file"
                 onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
