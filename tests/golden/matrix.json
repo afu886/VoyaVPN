@@ -197,6 +197,60 @@
       ],
       "core_acceptance": false,
       "volatile_fields": []
+    },
+    {
+      "id": "singbox-runtime-pre-socks",
+      "core": "sing-box",
+      "fixture": "singbox/runtime/pre_socks.json",
+      "generated": "singbox.runtime.pre_socks",
+      "summary": "Two-process TUN topology: the main config exposes the local mixed proxy while the pre-socks config owns TUN and forwards to the injected SOCKS port.",
+      "hotspots": [
+        "pre-socks",
+        "tun",
+        "process-topology"
+      ],
+      "reference_paths": [
+        "ServiceLib/Services/CoreConfig/CoreConfigHandler.cs",
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxInboundService.cs"
+      ],
+      "core_acceptance": true,
+      "volatile_fields": []
+    },
+    {
+      "id": "singbox-routing-per-rule-outbound",
+      "core": "sing-box",
+      "fixture": "singbox/route/per_rule_outbound.json",
+      "generated": "singbox.routing.per_rule_outbound",
+      "summary": "Typed direct, block, and named-node routing rules with a dedicated per-rule outbound.",
+      "hotspots": [
+        "routing",
+        "per-rule-outbound",
+        "typed-template"
+      ],
+      "reference_paths": [
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxRoutingService.cs",
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxOutboundService.cs"
+      ],
+      "core_acceptance": true,
+      "volatile_fields": []
+    },
+    {
+      "id": "singbox-runtime-logs-and-api",
+      "core": "sing-box",
+      "fixture": "singbox/runtime/logs_and_api.json",
+      "generated": "singbox.runtime.logs_and_api",
+      "summary": "Runtime observability contract for log output, Clash API statistics, and cache persistence.",
+      "hotspots": [
+        "logs",
+        "statistics",
+        "clash-api"
+      ],
+      "reference_paths": [
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxConfig.cs",
+        "ServiceLib/Services/CoreConfig/Singbox/SingboxConfigService.cs"
+      ],
+      "core_acceptance": true,
+      "volatile_fields": []
     }
   ]
 }

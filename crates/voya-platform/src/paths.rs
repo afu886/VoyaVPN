@@ -77,11 +77,6 @@ impl AppPaths {
     }
 
     #[must_use]
-    pub fn temp_file(&self, file_name: impl AsRef<Path>) -> PathBuf {
-        self.temp_dir.join(file_name)
-    }
-
-    #[must_use]
     pub fn core_bin_dir(&self, core_type_dir: impl AsRef<Path>) -> PathBuf {
         self.bin_dir.join(core_type_dir)
     }

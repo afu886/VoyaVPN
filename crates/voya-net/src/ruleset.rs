@@ -1,7 +1,8 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ use voya_core::{RoutingItem, RulesItem};
 use crate::{DownloadAttempt, DownloadClient, DownloadError, DownloadRequest, USER_AGENT_PREFIX};
 
 const RULESET_ASSET_RESPONSE_LIMIT_BYTES: usize = 256 * 1024 * 1024;
+static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub const DEFAULT_GEO_SOURCE_URL: &str =
     "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/{0}.dat";
@@ -27,8 +29,8 @@ pub const DEFAULT_SRS_GEOSITE_TAGS: &[&str] =
 pub enum RulesetGeoError {
     #[error(transparent)]
     Download(#[from] DownloadError),
-    #[error("failed to inspect acquired asset {path}: {source}")]
-    Inspect {
+    #[error("asset file operation failed for {path}: {source}")]
+    AssetIo {
         path: PathBuf,
         #[source]
         source: std::io::Error,
@@ -207,27 +209,36 @@ impl RulesetGeoClient {
         options: &AssetAcquisitionOptions,
     ) -> Result<Vec<AcquiredRulesetGeoAsset>> {
         let target_dir = target_dir.as_ref();
+        let staging = StagingDir::create(target_dir)?;
         let mut acquired = Vec::new();
 
         for asset in assets {
             let target = target_dir.join(&asset.file_name);
-            let response = self
-                .download
-                .download_file(download_request(&asset.url, options), &target)
+            let staged = self
+                .stage_asset(
+                    &asset.url,
+                    &asset.file_name,
+                    staging.path(),
+                    &["dat", "mmdb", "metadb"],
+                    options,
+                )
                 .await?;
-            let bytes = validate_asset(&target, &["dat", "mmdb", "metadb"])?;
             acquired.push(AcquiredRulesetGeoAsset {
                 kind: AcquiredAssetKind::Geo,
                 name: asset.name.clone(),
                 file_name: asset.file_name.clone(),
                 url: asset.url.clone(),
                 path: target,
-                bytes,
-                used_proxy: response.used_proxy,
-                attempts: response.attempts,
+                bytes: staged.bytes,
+                used_proxy: staged.used_proxy,
+                attempts: staged.attempts,
             });
         }
 
+        staging.commit(
+            target_dir,
+            assets.iter().map(|asset| asset.file_name.as_str()),
+        )?;
         Ok(acquired)
     }
 
@@ -238,28 +249,113 @@ impl RulesetGeoClient {
         options: &AssetAcquisitionOptions,
     ) -> Result<Vec<AcquiredRulesetGeoAsset>> {
         let target_dir = target_dir.as_ref();
+        let staging = StagingDir::create(target_dir)?;
         let mut acquired = Vec::new();
 
         for asset in assets {
             let target = target_dir.join(&asset.file_name);
-            let response = self
-                .download
-                .download_file(download_request(&asset.url, options), &target)
+            let staged = self
+                .stage_asset(
+                    &asset.url,
+                    &asset.file_name,
+                    staging.path(),
+                    &["srs"],
+                    options,
+                )
                 .await?;
-            let bytes = validate_asset(&target, &["srs"])?;
             acquired.push(AcquiredRulesetGeoAsset {
                 kind: AcquiredAssetKind::Ruleset,
                 name: asset.tag.clone(),
                 file_name: asset.file_name.clone(),
                 url: asset.url.clone(),
                 path: target,
-                bytes,
-                used_proxy: response.used_proxy,
-                attempts: response.attempts,
+                bytes: staged.bytes,
+                used_proxy: staged.used_proxy,
+                attempts: staged.attempts,
             });
         }
 
+        staging.commit(
+            target_dir,
+            assets.iter().map(|asset| asset.file_name.as_str()),
+        )?;
         Ok(acquired)
+    }
+
+    async fn stage_asset(
+        &self,
+        url: &str,
+        file_name: &str,
+        staging_dir: &Path,
+        allowed_extensions: &[&str],
+        options: &AssetAcquisitionOptions,
+    ) -> Result<StagedAsset> {
+        let response = self
+            .download
+            .download_bytes(download_request(url, options))
+            .await?;
+        let bytes = validate_asset(file_name, &response.body, allowed_extensions)?;
+        let staged_path = staging_dir.join(file_name);
+        if let Some(parent) = staged_path.parent() {
+            fs::create_dir_all(parent).map_err(|source| asset_io(parent, source))?;
+        }
+        fs::write(&staged_path, response.body).map_err(|source| asset_io(&staged_path, source))?;
+
+        Ok(StagedAsset {
+            attempts: response.attempts,
+            bytes,
+            used_proxy: response.used_proxy,
+        })
+    }
+}
+
+struct StagedAsset {
+    attempts: Vec<DownloadAttempt>,
+    bytes: u64,
+    used_proxy: bool,
+}
+
+struct StagingDir {
+    path: PathBuf,
+}
+
+impl StagingDir {
+    fn create(target_dir: &Path) -> Result<Self> {
+        fs::create_dir_all(target_dir).map_err(|source| asset_io(target_dir, source))?;
+        let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let path = target_dir.join(format!(".voya-stage-{}-{sequence}", std::process::id()));
+        fs::create_dir(&path).map_err(|source| asset_io(&path, source))?;
+        Ok(Self { path })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn commit<'a>(
+        &self,
+        target_dir: &Path,
+        file_names: impl Iterator<Item = &'a str>,
+    ) -> Result<()> {
+        for file_name in file_names {
+            let staged = self.path.join(file_name);
+            let target = target_dir.join(file_name);
+            fs::copy(&staged, &target).map_err(|source| asset_io(&target, source))?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for StagingDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+fn asset_io(path: &Path, source: std::io::Error) -> RulesetGeoError {
+    RulesetGeoError::AssetIo {
+        path: path.to_path_buf(),
+        source,
     }
 }
 
@@ -356,7 +452,15 @@ fn download_request(url: &str, options: &AssetAcquisitionOptions) -> DownloadReq
     }
 }
 
-fn validate_asset(path: &Path, allowed_extensions: &[&str]) -> Result<u64> {
+fn validate_asset(file_name: &str, body: &[u8], allowed_extensions: &[&str]) -> Result<u64> {
+    let path = Path::new(file_name);
+    let mut components = path.components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+        return Err(RulesetGeoError::InvalidAsset {
+            path: path.to_path_buf(),
+            reason: "file name must not contain directories".to_string(),
+        });
+    }
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -367,18 +471,14 @@ fn validate_asset(path: &Path, allowed_extensions: &[&str]) -> Result<u64> {
             reason: format!("unexpected extension {extension:?}"),
         });
     }
-    let metadata = fs::metadata(path).map_err(|source| RulesetGeoError::Inspect {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    if metadata.len() == 0 {
+    if body.is_empty() {
         return Err(RulesetGeoError::InvalidAsset {
             path: path.to_path_buf(),
             reason: "empty file".to_string(),
         });
     }
 
-    Ok(metadata.len())
+    Ok(u64::try_from(body.len()).unwrap_or(u64::MAX))
 }
 
 fn collect_srs_from_rule(
@@ -534,6 +634,62 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(target_root);
+    }
+
+    #[tokio::test]
+    async fn failed_asset_batch_preserves_existing_files() {
+        let seen_user_agents = Arc::new(Mutex::new(Vec::new()));
+        let base = spawn_http_fixture(
+            HashMap::from([("/geosite.dat".to_string(), b"new-geosite".to_vec())]),
+            2,
+            Arc::clone(&seen_user_agents),
+        )
+        .await;
+        let target_root = unique_temp_root("ruleset-atomic");
+        fs::create_dir_all(&target_root).expect("target directory");
+        fs::write(target_root.join("geosite.dat"), b"old-geosite").expect("old geosite");
+        fs::write(target_root.join("geoip.dat"), b"old-geoip").expect("old geoip");
+
+        let error = RulesetGeoClient::new()
+            .acquire_geo_assets(
+                &[
+                    GeoAsset::new("geosite", "geosite.dat", format!("{base}/geosite.dat")),
+                    GeoAsset::new("geoip", "geoip.dat", format!("{base}/missing.dat")),
+                ],
+                &target_root,
+                &AssetAcquisitionOptions::default(),
+            )
+            .await
+            .expect_err("incomplete batch should fail");
+
+        assert!(matches!(error, RulesetGeoError::Download(_)));
+        assert_eq!(
+            fs::read(target_root.join("geosite.dat")).expect("geosite"),
+            b"old-geosite"
+        );
+        assert_eq!(
+            fs::read(target_root.join("geoip.dat")).expect("geoip"),
+            b"old-geoip"
+        );
+        assert!(fs::read_dir(&target_root)
+            .expect("target directory")
+            .all(|entry| !entry
+                .expect("target entry")
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".voya-stage-")));
+
+        let _ = fs::remove_dir_all(target_root);
+    }
+
+    #[test]
+    fn asset_file_names_cannot_escape_the_target_directory() {
+        assert!(validate_asset("../geoip.dat", b"data", &["dat"]).is_err());
+        assert!(validate_asset("nested/geoip.dat", b"data", &["dat"]).is_err());
+        assert_eq!(
+            validate_asset("geoip.dat", b"data", &["dat"]).expect("valid asset"),
+            4
+        );
     }
 
     #[tokio::test]

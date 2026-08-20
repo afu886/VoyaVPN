@@ -1,0 +1,49 @@
+{
+  "outbounds": [
+    {
+      "password": "pass",
+      "server": "127.0.0.1",
+      "server_port": 1080,
+      "tag": "proxy",
+      "type": "socks",
+      "username": "user",
+      "version": "5"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "password": "pass",
+      "server": "127.0.0.1",
+      "server_port": 1080,
+      "tag": "rule-node-proxy-RuleNode",
+      "type": "socks",
+      "username": "user",
+      "version": "5"
+    }
+  ],
+  "route": {
+    "final": "proxy",
+    "rules": [
+      {
+        "domain": [
+          "direct.example"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "action": "reject",
+        "domain": [
+          "block.example"
+        ]
+      },
+      {
+        "domain_suffix": [
+          "node.example"
+        ],
+        "outbound": "rule-node-proxy-RuleNode"
+      }
+    ]
+  }
+}

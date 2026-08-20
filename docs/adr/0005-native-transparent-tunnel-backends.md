@@ -23,11 +23,11 @@ VoyaVPN uses platform-native tunnel backends:
   PacketTunnel app extension. The Tauri app writes the generated sing-box config
   into the App Group container and starts or stops the VPN profile in-process
   through `NETunnelProviderManager`. The PacketTunnel provider links or embeds
-  sing-box's Apple `Libbox.xcframework`, starts a libbox command server, maps
+  the universal macOS `Libbox.framework` staged from sing-box's Apple build, starts a libbox command server, maps
   libbox TUN settings onto `NEPacketTunnelNetworkSettings`, and hands the
   `packetFlow` file descriptor back to libbox. It does not run the TUN core
-  directly with sudo, and App Store/TestFlight builds do not depend on a loose
-  helper executable for restricted NetworkExtension operations.
+  directly with sudo; restricted NetworkExtension operations stay within the
+  provisioned app and PacketTunnel provider.
 - Windows TUN uses a Windows service named `VoyaVPNTunnelService`. The desktop
   app writes the generated sing-box config and asks the service to start or stop
   sing-box with Wintun. The service validates the config with `sing-box check`

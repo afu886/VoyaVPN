@@ -15,6 +15,7 @@ import {
 import { Input } from "@voya/ui/components/input";
 import { cn } from "@voya/ui/lib/utils";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import { importConfigTemplate } from "@/ipc";
 import type { ConfigSourceSettings, ConfigTemplateSelection } from "@/ipc/bindings";
 import { useToastStore } from "@/stores/toast-store";
@@ -32,8 +33,8 @@ type SourceForm = {
 type TemplateType = "default" | "russia" | "iran" | "custom";
 
 const templateOptions: Array<{
-  descriptionKey: string;
-  labelKey: string;
+  descriptionKey: TranslationKey;
+  labelKey: TranslationKey;
   type: TemplateType;
 }> = [
   { descriptionKey: "options.configTemplate.defaultDescription", labelKey: "options.configTemplate.default", type: "default" },

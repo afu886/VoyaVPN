@@ -1,0 +1,85 @@
+{
+  "main": {
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "listen_port": 10808,
+        "tag": "socks",
+        "type": "mixed"
+      }
+    ],
+    "outbounds": [
+      {
+        "packet_encoding": "xudp",
+        "server": "server.example",
+        "server_port": 443,
+        "tag": "proxy",
+        "tls": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "ech": {
+            "enabled": true,
+            "query_server_name": "ech.example"
+          },
+          "enabled": true,
+          "insecure": false,
+          "server_name": "tls.example"
+        },
+        "transport": {
+          "early_data_header_name": "Sec-WebSocket-Protocol",
+          "headers": {
+            "Host": "cdn.example"
+          },
+          "max_early_data": 2048,
+          "path": "/ws",
+          "type": "ws"
+        },
+        "type": "vless",
+        "uuid": "00000000-0000-0000-0000-000000000011"
+      },
+      {
+        "tag": "direct",
+        "type": "direct"
+      }
+    ],
+    "routeFinal": "proxy"
+  },
+  "preSocks": {
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "listen_port": 10808,
+        "tag": "socks",
+        "type": "mixed"
+      },
+      {
+        "address": [
+          "172.18.0.1/30"
+        ],
+        "auto_route": true,
+        "interface_name": "singbox_tun",
+        "mtu": 1500,
+        "stack": "gvisor",
+        "strict_route": false,
+        "tag": "tun",
+        "type": "tun"
+      }
+    ],
+    "outbounds": [
+      {
+        "server": "127.0.0.1",
+        "server_port": 20808,
+        "tag": "proxy",
+        "type": "socks",
+        "version": "5"
+      },
+      {
+        "tag": "direct",
+        "type": "direct"
+      }
+    ],
+    "routeFinal": "proxy"
+  }
+}

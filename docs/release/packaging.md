@@ -18,9 +18,9 @@ The required local debug build is intentionally unsigned:
 pnpm tauri:build --debug
 ```
 
-The package script runs through `scripts/tauri-build.mjs`, which forwards all Tauri CLI arguments and normalizes `CI=1`/`CI=0` to the boolean strings required by the Tauri 2 CLI. This keeps local and runner debug packaging deterministic without requiring signing credentials.
+The package script runs through `scripts/tauri/cli.mjs`, which forwards all Tauri CLI arguments and normalizes `CI=1`/`CI=0` to the boolean strings required by the Tauri 2 CLI. This keeps local and runner debug packaging deterministic without requiring signing credentials.
 
-`bundle.createUpdaterArtifacts` stays `false` in the committed config by design. The base `apps/desktop/src-tauri/tauri.conf.json` is credential-free and safe for local debug builds, CI dry runs, and code review because it does not contain updater endpoints, updater public keys, private-key paths, or generated release state. Stable release jobs do not edit the committed config; `scripts/tauri-build.mjs` writes a generated overlay at `target/release-config/tauri.updater.stable.generated.json` when `VOYAVPN_RELEASE_CHANNEL=stable` or `VOYAVPN_TAURI_UPDATER_CONFIG=stable`.
+`bundle.createUpdaterArtifacts` stays `false` in the committed config by design. The base `apps/desktop/src-tauri/tauri.conf.json` is credential-free and safe for local debug builds, CI dry runs, and code review because it does not contain updater endpoints, updater public keys, private-key paths, or generated release state. Stable release jobs do not edit the committed config; `scripts/tauri/cli.mjs` writes a generated overlay at `target/release-config/tauri.updater.stable.generated.json` when `VOYAVPN_RELEASE_CHANNEL=stable` or `VOYAVPN_TAURI_UPDATER_CONFIG=stable`.
 
 ## Release Workflow Matrix
 
@@ -41,7 +41,7 @@ The workflow uploads package artifacts, `SHA256SUMS`, `artifact-manifest.json`, 
 
 For a stable, non-dry-run release, CDN staging starts from GitHub Actions artifacts produced by the `Release` workflow, not from `tests/fixtures`.
 
-The six package artifacts named `voyavpn-stable-<release_target>-release` are the app package inputs for manual CDN staging. Each package artifact contains the normalized package files, `SHA256SUMS`, and `artifact-manifest.json`; `scripts/release-index.mjs` and `scripts/release-updater-metadata.mjs` use those manifests as source evidence.
+The six package artifacts named `voyavpn-stable-<release_target>-release` are the app package inputs for manual CDN staging. Each package artifact contains the normalized package files, `SHA256SUMS`, and `artifact-manifest.json`; the `index` and `updater` release subcommands use those manifests as source evidence.
 
 The metadata artifacts are:
 
@@ -66,7 +66,7 @@ The bundled notices resource was present at `target/debug/bundle/macos/VoyaVPN.a
 
 ## CDN Release Index
 
-`scripts/release-index.mjs` turns one or more `artifact-manifest.json` files from `scripts/release-artifacts.mjs` into the manual-download CDN release index and a sibling evidence JSON file.
+`pnpm release -- index` turns one or more `artifact-manifest.json` files from `pnpm release -- artifacts` into the manual-download CDN release index and a sibling evidence JSON file.
 
 Stable generation requires `--base-url` or `VOYAVPN_CDN_BASE_URL`. Every generated artifact URL is derived from that base URL; artifact manifest URL fields are not trusted. Stable generation fails when the base URL is missing, empty, an example host, or a GitHub host.
 
@@ -85,14 +85,14 @@ Required stable artifact fields:
 Fixture generation:
 
 ```sh
-node scripts/release-index.mjs --input tests/fixtures/release/artifacts --out /tmp/voyavpn-release-index.json --base-url <cdn-base-url> --channel stable
+pnpm release -- index --input tests/fixtures/release/artifacts --out /tmp/voyavpn-release-index.json --base-url <cdn-base-url> --channel stable
 ```
 
 The evidence file defaults to the output filename with `.evidence.json`, for example `/tmp/voyavpn-release-index.evidence.json`.
 
 ## Core Asset Manifest
 
-`scripts/core-assets.mjs` turns fixture input into the stable core asset manifest used as release evidence. The current stable core manifest contains no downloadable core assets. sing-box is bundled with the app package instead of being listed in the core update manifest.
+`pnpm release -- core-assets` turns fixture input into the stable core asset manifest used as release evidence. The current stable core manifest contains no downloadable core assets. sing-box is bundled with the app package instead of being listed in the core update manifest.
 
 Stable generation requires `--base-url` or `VOYAVPN_CDN_BASE_URL`. If a future approved core asset is added, generated `url` values must be derived from that CDN base URL plus each fixture `path`; fixture download URL fields are not trusted. GitHub URLs are allowed only in `upstreamUrl`, where they record source and license reference material.
 
@@ -115,7 +115,7 @@ Stable validation fails when any core asset is present without an approved core 
 Fixture generation:
 
 ```sh
-node scripts/core-assets.mjs --fixture tests/fixtures/release/core-assets.json --out /tmp/voyavpn-core-assets.json --base-url <cdn-base-url>
+pnpm release -- core-assets --fixture tests/fixtures/release/core-assets.json --out /tmp/voyavpn-core-assets.json --base-url <cdn-base-url>
 ```
 
 The evidence file defaults to the output filename with `.evidence.json`, for example `/tmp/voyavpn-core-assets.evidence.json`.
@@ -135,7 +135,7 @@ Bundled sing-box seed assets are the only supported acquisition path for the pro
 
 The Tauri updater plugin is registered in `apps/desktop/src-tauri/src/lib.rs`. The committed `apps/desktop/src-tauri/tauri.conf.json` keeps an empty `plugins.updater` block and keeps `bundle.createUpdaterArtifacts` disabled so local debug builds initialize the plugin without updater credentials or endpoints.
 
-Stable packaging uses the generated overlay from `scripts/tauri-build.mjs`:
+Stable packaging uses the generated overlay from `scripts/tauri/cli.mjs`:
 
 - Overlay path: `target/release-config/tauri.updater.stable.generated.json`.
 - `bundle.createUpdaterArtifacts`: `true`.
@@ -147,7 +147,7 @@ The overlay generation command is exact and should be run from a prepared shell 
 
 ```sh
 export VOYAVPN_RELEASE_CHANNEL=stable
-pnpm tauri:stable-updater-config
+pnpm release -- updater-config
 ```
 
 The command writes only `target/release-config/tauri.updater.stable.generated.json`. Do not commit that generated file, copy it into `apps/desktop/src-tauri/tauri.conf.json`, or commit private updater keys. Private signing input is supplied through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`; it is required so updater artifacts can be created, but it is not written to the overlay.
@@ -168,7 +168,7 @@ Before a real stable release:
 6. Run the stable readiness check against the generated overlay:
 
    ```sh
-   pnpm check:release:stable
+   pnpm release -- readiness --mode stable
    ```
 
 7. Build release packages with the same environment. The wrapper passes the generated overlay to `tauri build` through `--config`.
@@ -249,10 +249,10 @@ notarization and stapling. Developer ID artifacts are expected to pass
 Gatekeeper assessment after `pnpm native:macos:app:notarize` has accepted and
 stapled the app.
 
-`pnpm native:macos:libbox` builds sing-box's Apple `Libbox.xcframework` from the
-pinned sing-box source tag and places it at
-`apps/desktop/src-tauri/native/macos/Frameworks/Libbox.xcframework`. Release owners may
-instead provide an already-built framework through `VOYAVPN_LIBBOX_XCFRAMEWORK`.
+`pnpm native:macos:libbox` builds sing-box's Apple output from the pinned source
+tag, verifies the arm64/x86_64 macOS architectures, and places only the universal
+`apps/desktop/src-tauri/native/macos/Frameworks/Libbox.framework`. Release owners may
+instead provide an already-built framework through `VOYAVPN_LIBBOX_FRAMEWORK`.
 `VOYAVPN_MACOS_APP_BUNDLE` points the staging, verification, signing, and
 notarization helpers at the actual Tauri `.app`; when it is omitted, the scripts
 use `target/native/macos/VoyaVPN.app` for local staging only.
@@ -280,10 +280,8 @@ The staged PacketTunnel provider depends on the macOS distribution lane:
 - `Contents/Frameworks/Libbox.framework` under the selected provider bundle
   only when the selected Libbox slice is dynamic.
 
-The macOS app controls `NETunnelProviderManager` in-process. A loose
-`voyavpn-macos-tunnelctl` executable is not bundled by default because it cannot
-carry a matching embedded provisioning profile for App Store/TestFlight
-NetworkExtension entitlements.
+The macOS app controls `NETunnelProviderManager` in-process; the production path
+contains only the app and its PacketTunnel provider.
 
 After launching local macOS bundles that contain the PacketTunnel provider,
 check registration health with `pnpm native:macos:ne:doctor`. Stale PlugInKit

@@ -1,0 +1,16 @@
+{
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:10813"
+    }
+  },
+  "log": {
+    "level": "info",
+    "output": "sbox.log",
+    "timestamp": true
+  }
+}

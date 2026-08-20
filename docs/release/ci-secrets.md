@@ -19,7 +19,7 @@ Dry-run updater metadata is not publishable. It exists only to validate the `lat
 
 ## Target Matrix
 
-The workflow target names are the stable metadata names consumed by `scripts/release-index.mjs` and `scripts/release-updater-metadata.mjs`.
+The workflow target names are the stable metadata names consumed by `pnpm release -- index` and `pnpm release -- updater`.
 
 | Target name | Runner label | Rust target |
 | --- | --- | --- |
@@ -109,11 +109,11 @@ These GitHub Actions variables are public configuration, not private signing mat
 Setting `dry_run` to `false` enables stricter validation:
 
 1. `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH` must be present.
-2. `scripts/release-updater-metadata.mjs` requires real signed updater payloads and matching `.sig` files.
+2. `pnpm release -- updater` requires real signed updater payloads and matching `.sig` files.
 3. Non-publishable dry-run updater signatures are disabled.
 4. For `channel=stable`, `VOYAVPN_CDN_BASE_URL`, `VOYAVPN_UPDATES_BASE_URL`, `VOYAVPN_UPDATER_PUBLIC_KEY`, Apple signing/notarization inputs, and Windows signing inputs must be present and non-placeholder.
 5. For `channel=stable`, `VOYAVPN_CORE_ASSETS_JSON` must be present so core staging metadata is generated from explicit release input instead of `tests/fixtures`.
-6. The workflow generates the stable updater overlay during preflight, builds the package matrix, generates CDN/updater/core metadata artifacts, then runs `scripts/check-release-readiness.mjs --mode stable` in the final readiness job against downloaded workflow artifacts and generated metadata.
+6. The workflow generates the stable updater overlay during preflight, builds the package matrix, generates CDN/updater/core metadata artifacts, then runs `pnpm release -- readiness --mode stable` in the final readiness job against downloaded workflow artifacts and generated metadata.
 
 The current repository keeps `bundle.createUpdaterArtifacts` disabled by default in `apps/desktop/src-tauri/tauri.conf.json`, so stable packages use the generated overlay at `target/release-config/tauri.updater.stable.generated.json`. The overlay contains only the public updater key and updater CDN endpoint; private signing material stays in the approved secret system or release machine.
 
@@ -142,13 +142,13 @@ Prepared release shell sequence:
 
 ```sh
 export VOYAVPN_RELEASE_CHANNEL=stable
-pnpm tauri:stable-updater-config
-pnpm check:release:stable
+pnpm release -- updater-config
+pnpm release -- readiness --mode stable
 ```
 
 Expected unprepared-shell failures include missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing platform signing inputs, missing real stable artifacts, stable checks pointed at fixtures, placeholder updater signatures, or forbidden production URLs. These failures are not repository blockers when they occur in a local shell that has not been provisioned with external production inputs.
 
-Expected prepared-environment pass criteria: `pnpm tauri:stable-updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables updater artifacts with the approved public key and updater CDN endpoint, and `pnpm check:release:stable` exits successfully before any stable pointer promotion.
+Expected prepared-environment pass criteria: `pnpm release -- updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables updater artifacts with the approved public key and updater CDN endpoint, and `pnpm release -- readiness --mode stable` exits successfully before any stable pointer promotion.
 
 ## What Must Stay Out Of Git
 
@@ -166,9 +166,9 @@ Do not commit:
 The scripts can be exercised without secrets:
 
 ```sh
-node scripts/release-artifacts.mjs --input target/debug/bundle --output dist/release/local --target local-debug --channel beta --allow-empty
-node scripts/release-updater-metadata.mjs --input dist/release --out dist/updater/latest.json --target darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-aarch64,windows-x86_64 --placeholder-signatures
-node scripts/core-assets.mjs --fixture tests/fixtures/release/core-assets.json --out dist/core-staging/core-assets.json --base-url https://cdn.voyavpn.test/beta --channel beta
+pnpm release -- artifacts --input target/debug/bundle --output dist/release/local --target local-debug --channel beta --allow-empty
+pnpm release -- updater --input dist/release --out dist/updater/latest.json --target darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-aarch64,windows-x86_64 --placeholder-signatures
+pnpm release -- core-assets --fixture tests/fixtures/release/core-assets.json --out dist/core-staging/core-assets.json --base-url https://cdn.voyavpn.test/beta --channel beta
 ```
 
-Remove `--allow-empty` and `--placeholder-signatures` for real release validation. For stable, generate the overlay first with `pnpm tauri:stable-updater-config`, then run `pnpm check:release:stable`.
+Remove `--allow-empty` and `--placeholder-signatures` for real release validation. For stable, generate the overlay first with `pnpm release -- updater-config`, then run `pnpm release -- readiness --mode stable`.

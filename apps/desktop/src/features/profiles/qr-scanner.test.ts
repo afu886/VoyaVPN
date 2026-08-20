@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  QrNotFoundError,
   readClipboardImageBlob,
   scanDisplayMediaQr,
   scanQrBlob,
@@ -57,7 +56,9 @@ describe("profile QR scanner", () => {
   it("reports a missing QR code and still revokes its object URL", async () => {
     zxingMocks.decodeFromImageUrl.mockRejectedValue(new Error("not found"));
 
-    await expect(scanQrBlob(new Blob(["not-a-qr"]))).rejects.toBeInstanceOf(QrNotFoundError);
+    await expect(scanQrBlob(new Blob(["not-a-qr"]))).rejects.toMatchObject({
+      name: "QrNotFoundError",
+    });
 
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:voya-qr");
   });

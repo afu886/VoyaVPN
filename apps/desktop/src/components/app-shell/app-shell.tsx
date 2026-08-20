@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { lazy, Suspense, useEffect, useRef, type MutableRefObject } from "react";
 
 import { AppSidebar, SHELL_PANEL_ID } from "@/components/app-shell/app-sidebar";
 import { ModalHost } from "@/components/app-shell/modal-host";
@@ -8,16 +8,40 @@ import { Toaster } from "@/components/app-shell/toaster";
 import { useAcrylicWindow } from "@/components/app-shell/use-acrylic-window";
 import { useWindowChrome } from "@/components/app-shell/use-window-chrome";
 import { useI18n } from "@voya/i18n/use-i18n";
-import { HomeScreen } from "@/features/home";
-import { ProfilesScreen } from "@/features/profiles";
-import { RoutingScreen } from "@/features/routing";
-import { DnsScreen } from "@/features/dns";
-import { ProxyConnectionsScreen, ProxyGroupsScreen } from "@/features/proxy";
-import { LogsScreen } from "@/features/logs";
 import { proxyStartMonitor, proxyStopMonitor, useRuntimeEventStore } from "@/ipc";
 import type { ProxyMonitorStatus } from "@/ipc/bindings";
 import { type ShellTab, useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
+
+const HomeScreen = lazy(() =>
+  import("@/features/home/home-screen").then(({ HomeScreen }) => ({ default: HomeScreen })),
+);
+const ProfilesScreen = lazy(() =>
+  import("@/features/profiles/server-table").then(({ ProfilesScreen }) => ({
+    default: ProfilesScreen,
+  })),
+);
+const RoutingScreen = lazy(() =>
+  import("@/features/routing/routing-screen").then(({ RoutingScreen }) => ({
+    default: RoutingScreen,
+  })),
+);
+const DnsScreen = lazy(() =>
+  import("@/features/dns/dns-screen").then(({ DnsScreen }) => ({ default: DnsScreen })),
+);
+const ProxyGroupsScreen = lazy(() =>
+  import("@/features/proxy/proxy-groups-screen").then(({ ProxyGroupsScreen }) => ({
+    default: ProxyGroupsScreen,
+  })),
+);
+const ProxyConnectionsScreen = lazy(() =>
+  import("@/features/proxy/proxy-connections-screen").then(({ ProxyConnectionsScreen }) => ({
+    default: ProxyConnectionsScreen,
+  })),
+);
+const LogsScreen = lazy(() =>
+  import("@/features/logs/logs-screen").then(({ LogsScreen }) => ({ default: LogsScreen })),
+);
 
 // Render only the active screen. Replaces the Radix `Tabs`/`TabsContent` fan-out
 // (which already unmounted inactive panels) so the grid shell can drop the tab
@@ -74,7 +98,7 @@ export function AppShell() {
           role="tabpanel"
           tabIndex={0}
         >
-          {renderActiveScreen(activeTab)}
+          <Suspense fallback={<ScreenFallback />}>{renderActiveScreen(activeTab)}</Suspense>
         </div>
 
         <div className="col-span-2 min-w-0">
@@ -86,6 +110,10 @@ export function AppShell() {
       <Toaster />
     </main>
   );
+}
+
+function ScreenFallback() {
+  return <div className="h-full animate-pulse bg-surface-raised/40" aria-label="Loading screen" />;
 }
 
 function useProxyMonitorLifecycle(activeTab: ShellTab) {

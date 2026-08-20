@@ -29,15 +29,15 @@ pnpm native:macos:tunnel:verify
 pnpm native:macos:dmg
 ```
 
-`pnpm native:macos:libbox` clones the pinned sing-box source tag and builds the
-Apple `Libbox.xcframework`. By default it stages the framework at
-`src-tauri/native/macos/Frameworks/Libbox.xcframework`. Override the source or
-destination with:
+`pnpm native:macos:libbox` clones the pinned sing-box source tag, builds the
+Apple XCFramework, validates its universal macOS slice, and stages only
+`src-tauri/native/macos/Frameworks/Libbox.framework`. iOS and tvOS slices are
+discarded. Override the source or destination with:
 
 - `VOYAVPN_SING_BOX_REF`: sing-box git ref, defaults to the app's pinned
   sing-box version.
 - `VOYAVPN_SING_BOX_SOURCE_DIR`: local sing-box source checkout.
-- `VOYAVPN_LIBBOX_XCFRAMEWORK`: existing or target `Libbox.xcframework` path.
+- `VOYAVPN_LIBBOX_FRAMEWORK`: existing or target universal macOS `Libbox.framework` path.
 
 `pnpm native:macos:tunnel` stages one PacketTunnel provider shape:
 
@@ -46,12 +46,7 @@ destination with:
 - App Store/TestFlight or unsigned development:
   `VoyaVPN.app/Contents/PlugIns/app.voyavpn.desktop.PacketTunnel.appex`
 - `Contents/Frameworks/Libbox.framework` under the selected provider bundle
-  only when the selected `Libbox.xcframework` slice is a dynamic framework.
-
-`voyavpn-macos-tunnelctl` is no longer bundled by default because App
-Store/TestFlight provisioning applies to app bundles and extensions, not a loose
-helper executable with restricted NetworkExtension entitlements. Set
-`VOYAVPN_BUILD_MACOS_TUNNEL_HELPER=1` only for local development experiments.
+  only when the staged framework is dynamic.
 
 When the selected `Libbox.framework` slice is static, the script links Libbox
 symbols into `VoyaPacketTunnel` and intentionally does not embed a framework in
@@ -137,7 +132,7 @@ signatures, and required entitlement strings. Set `VOYAVPN_REQUIRE_LIBBOX=1`,
 `VOYAVPN_REQUIRE_PROVISIONING=1` to make those checks hard failures in release
 lanes.
 
-If `Libbox.xcframework` is absent, the PacketTunnel provider still builds but
+If `Libbox.framework` is absent, the PacketTunnel provider still builds but
 fails closed at runtime with a clear "requires the sing-box Apple/libbox
 runtime" error. It does not report a connected VPN without an active sing-box
 runtime.

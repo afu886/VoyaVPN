@@ -5,13 +5,14 @@ import { BrandMark } from "@/assets/brand-mark";
 import { SidebarNavItem } from "@/components/app-shell/sidebar-nav-item";
 import { SidebarSectionHeader } from "@/components/app-shell/sidebar-section-header";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import { type ShellTab, useShellStore } from "@/stores/shell-store";
 
 // `id` of the content `tabpanel` the nav controls. Exported so the shell can tag
 // the panel element with a matching id for `aria-controls` / `aria-labelledby`.
 export const SHELL_PANEL_ID = "shell-tabpanel";
 
-type NavItem = { icon: LucideIcon; titleKey: string; value: ShellTab };
+type NavItem = { icon: LucideIcon; titleKey: TranslationKey; value: ShellTab };
 
 // The 7 destinations split into the always-on primary cluster and a collapsible
 // NETWORK section. Labels reuse the existing `tabs.*` keys; only the section

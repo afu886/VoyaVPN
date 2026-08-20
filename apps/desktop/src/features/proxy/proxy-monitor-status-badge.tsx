@@ -2,6 +2,7 @@ import { AlertTriangle, CircleDot, LoaderCircle, PauseCircle } from "lucide-reac
 
 import { Badge } from "@voya/ui/components/badge";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationFunction } from "@voya/i18n";
 import type { RuntimeProxyMonitorStatus } from "@/ipc/runtime-event-store";
 import { cn } from "@voya/ui/lib/utils";
 
@@ -61,7 +62,7 @@ export function ProxyMonitorStatusBadge({
 
 function monitorStatusDisplay(
   status: RuntimeProxyMonitorStatus,
-  t: (key: string, options?: Record<string, unknown>) => string,
+  t: TranslationFunction,
 ): MonitorStatusDisplay {
   if (status.state === "failed") {
     return {

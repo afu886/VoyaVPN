@@ -52,7 +52,11 @@ impl Database {
     pub async fn connect_in_memory() -> Result<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
-            .connect("sqlite::memory:")
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(":memory:")
+                    .foreign_keys(true),
+            )
             .await?;
         MIGRATOR.run(&pool).await?;
 

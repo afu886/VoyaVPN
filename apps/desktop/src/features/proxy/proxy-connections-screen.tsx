@@ -29,6 +29,7 @@ import {
 } from "@voya/ui/components/menubar";
 import { Skeleton } from "@voya/ui/components/skeleton";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import {
   proxyCloseConnection,
   proxyListConnections,
@@ -44,7 +45,7 @@ import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-b
 type ConnectionColumn = {
   cell: (connection: ProxyConnectionItem) => React.ReactNode;
   id: string;
-  labelKey: string;
+  labelKey: TranslationKey;
   sortValue?: (connection: ProxyConnectionItem) => number | string;
   width: string;
 };

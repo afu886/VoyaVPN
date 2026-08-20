@@ -1,6 +1,6 @@
 import { BrowserQRCodeReader } from "@zxing/browser";
 
-export class QrNotFoundError extends Error {
+class QrNotFoundError extends Error {
   constructor(options?: ErrorOptions) {
     super("No QR code found.", options);
     this.name = "QrNotFoundError";

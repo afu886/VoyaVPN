@@ -15,7 +15,7 @@ fn database_name_is_voyavpn_specific() {
 }
 
 #[tokio::test]
-async fn migrated_profile_schema_omits_obsolete_columns() {
+async fn fresh_schema_contains_only_current_tables_and_columns() {
     let database = Database::connect_in_memory()
         .await
         .expect("database test operation should succeed");
@@ -51,167 +51,79 @@ async fn migrated_profile_schema_omits_obsolete_columns() {
 
     assert!(columns.iter().any(|column| column == "protocol_extra"));
     assert!(columns.iter().any(|column| column == "transport_extra"));
-}
 
-#[tokio::test]
-async fn retired_raw_dns_and_full_template_tables_are_absent() {
-    let database = Database::connect_in_memory()
-        .await
-        .expect("database test operation should succeed");
-    let rows = sqlx::query(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('dns_items', 'full_config_template_items')",
-    )
+    let subscription_columns = sqlx::query("PRAGMA table_info(subscriptions)")
         .fetch_all(database.pool())
-        .await
-        .expect("database test operation should succeed");
-
-    assert!(rows.is_empty());
-}
-
-#[tokio::test]
-async fn convergence_migration_discards_node_overrides_and_raw_configuration() {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .expect("database test operation should succeed");
-    sqlx::raw_sql(include_str!("../../migrations/0001_fresh_schema.sql"))
-        .execute(&pool)
-        .await
-        .expect("initial schema should apply");
-    sqlx::raw_sql(include_str!(
-        "../../migrations/0002_drop_core_type_columns.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("second migration should apply");
-    sqlx::query(
-        r#"INSERT INTO profile_items (
-            index_id, config_type, allow_insecure, fingerprint, mux_enabled, protocol_extra
-        ) VALUES ('legacy', 7, 'true', 'firefox', 1,
-            '{"UpMbps":80,"DownMbps":160,"HopInterval":"20","Ports":"443-445"}')"#,
-    )
-    .execute(&pool)
-    .await
-    .expect("legacy profile should insert");
-    sqlx::query(
-        "INSERT INTO dns_items (id, remarks, enabled, use_system_hosts) VALUES ('dns', 'raw', 1, 0)",
-    )
-    .execute(&pool)
-    .await
-    .expect("legacy DNS should insert");
-    sqlx::query(
-        "INSERT INTO full_config_template_items (id, remarks, enabled) VALUES ('template', 'raw', 1)",
-    )
-    .execute(&pool)
-    .await
-    .expect("legacy template should insert");
-
-    sqlx::raw_sql(include_str!(
-        "../../migrations/0003_converge_global_profile_dns_templates.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("convergence migration should apply");
-
-    let protocol_extra: String =
-        sqlx::query_scalar("SELECT protocol_extra FROM profile_items WHERE index_id = 'legacy'")
-            .fetch_one(&pool)
-            .await
-            .expect("migrated profile should remain");
-    let extra: serde_json::Value =
-        serde_json::from_str(&protocol_extra).expect("protocol extra should remain valid JSON");
-    assert_eq!(
-        extra.get("Ports").and_then(serde_json::Value::as_str),
-        Some("443-445")
-    );
-    for retired in ["UpMbps", "DownMbps", "HopInterval"] {
-        assert!(extra.get(retired).is_none(), "{retired} should be removed");
-    }
-    let retired_tables: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('dns_items', 'full_config_template_items')",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("table catalog should be readable");
-    assert_eq!(retired_tables, 0);
-}
-
-#[tokio::test]
-async fn subscription_cleanup_migration_preserves_current_columns_and_rows() {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .expect("database test operation should succeed");
-    for migration in [
-        include_str!("../../migrations/0001_fresh_schema.sql"),
-        include_str!("../../migrations/0002_drop_core_type_columns.sql"),
-        include_str!("../../migrations/0003_converge_global_profile_dns_templates.sql"),
-    ] {
-        sqlx::raw_sql(migration)
-            .execute(&pool)
-            .await
-            .expect("pre-cleanup migration should apply");
-    }
-    sqlx::query(
-        r#"INSERT INTO subscriptions (
-            id, remarks, url, more_url, enabled, user_agent, sort, filter,
-            auto_update_interval, update_time, convert_target, prev_profile,
-            next_profile, pre_socks_port, memo
-        ) VALUES ('sub', 'Kept', 'https://example.test/sub', 'https://example.test/more',
-            1, 'Voya/Test', 7, 'US', 30, 123, 'singbox', 'before', 'after', 1080, 'legacy')"#,
-    )
-    .execute(&pool)
-    .await
-    .expect("legacy subscription should insert");
-
-    sqlx::raw_sql(include_str!(
-        "../../migrations/0004_remove_subscription_scheduler_columns.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("subscription cleanup migration should apply");
-
-    let columns = sqlx::query("PRAGMA table_info(subscriptions)")
-        .fetch_all(&pool)
         .await
         .expect("subscription schema should be readable")
         .into_iter()
         .map(|row| row.get::<String, _>("name"))
         .collect::<Vec<_>>();
-    for removed in ["auto_update_interval", "update_time", "memo"] {
-        assert!(!columns.iter().any(|column| column == removed));
+    for retired in ["auto_update_interval", "update_time", "memo"] {
+        assert!(!subscription_columns.iter().any(|column| column == retired));
     }
 
-    let row = sqlx::query("SELECT * FROM subscriptions WHERE id = 'sub'")
-        .fetch_one(&pool)
+    let retired_tables: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('dns_items', 'full_config_template_items')",
+    )
+    .fetch_one(database.pool())
+    .await
+    .expect("table catalog should be readable");
+    assert_eq!(retired_tables, 0);
+
+    let tables = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != '_sqlx_migrations' ORDER BY name",
+    )
+    .fetch_all(database.pool())
+    .await
+    .expect("table catalog should be readable");
+    assert_eq!(
+        tables,
+        [
+            "profile_ex_items",
+            "profile_items",
+            "routing_items",
+            "server_stat_items",
+            "subscriptions",
+        ]
+    );
+
+    let indexes = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .fetch_all(database.pool())
+    .await
+    .expect("index catalog should be readable");
+    assert_eq!(
+        indexes,
+        [
+            "idx_profile_items_config_type",
+            "idx_profile_items_subid",
+            "idx_routing_items_active",
+            "idx_routing_items_sort",
+            "idx_subscriptions_sort",
+        ]
+    );
+
+    for query in [
+        "PRAGMA foreign_key_list(profile_ex_items)",
+        "PRAGMA foreign_key_list(server_stat_items)",
+    ] {
+        let foreign_keys = sqlx::query(query)
+            .fetch_all(database.pool())
+            .await
+            .expect("foreign key catalog should be readable");
+        assert_eq!(foreign_keys.len(), 1);
+        assert_eq!(foreign_keys[0].get::<String, _>("table"), "profile_items");
+        assert_eq!(foreign_keys[0].get::<String, _>("from"), "index_id");
+        assert_eq!(foreign_keys[0].get::<String, _>("on_delete"), "CASCADE");
+    }
+
+    let enabled: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+        .fetch_one(database.pool())
         .await
-        .expect("migrated subscription should remain");
-    assert_eq!(row.get::<String, _>("id"), "sub");
-    assert_eq!(row.get::<String, _>("remarks"), "Kept");
-    assert_eq!(row.get::<String, _>("url"), "https://example.test/sub");
-    assert_eq!(
-        row.get::<String, _>("more_url"),
-        "https://example.test/more"
-    );
-    assert_eq!(row.get::<i32, _>("enabled"), 1);
-    assert_eq!(row.get::<String, _>("user_agent"), "Voya/Test");
-    assert_eq!(row.get::<i32, _>("sort"), 7);
-    assert_eq!(
-        row.get::<Option<String>, _>("filter").as_deref(),
-        Some("US")
-    );
-    assert_eq!(row.get::<String, _>("convert_target"), "singbox");
-    assert_eq!(
-        row.get::<Option<String>, _>("prev_profile").as_deref(),
-        Some("before")
-    );
-    assert_eq!(
-        row.get::<Option<String>, _>("next_profile").as_deref(),
-        Some("after")
-    );
-    assert_eq!(row.get::<Option<i32>, _>("pre_socks_port"), Some(1080));
+        .expect("foreign key state should be readable");
+    assert_eq!(enabled, 1);
 }
 
 #[tokio::test]

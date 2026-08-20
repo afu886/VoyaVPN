@@ -24,18 +24,10 @@ pub use fmt::*;
 pub use groups::*;
 pub use singbox::*;
 
-/// A visible marker for workspace smoke tests and package metadata.
-pub const CRATE_BOUNDARY: &str = "pure-domain";
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::Value;
-
-    #[test]
-    fn boundary_is_pure_domain() {
-        assert_eq!(CRATE_BOUNDARY, "pure-domain");
-    }
 
     #[test]
     fn routing_rule_serialization_reaches_singbox_generator() {

@@ -1,6 +1,5 @@
 import { CONFIG_TYPES, type ProfileProtocol } from "./profile-constants";
-
-type Translate = (key: string, options?: Record<string, unknown>) => string;
+import type { TranslationFunction } from "@voya/i18n";
 
 export function optionalNumber(value: unknown) {
   if (value === "" || value === null || value === undefined) {
@@ -10,7 +9,7 @@ export function optionalNumber(value: unknown) {
   return Number(value);
 }
 
-export function addressLabel(configType: ProfileProtocol, t: Translate) {
+export function addressLabel(configType: ProfileProtocol, t: TranslationFunction) {
   if (configType === CONFIG_TYPES.Custom) {
     return t("panes.profiles.fields.addressConfig");
   }
@@ -24,7 +23,7 @@ export function addressLabel(configType: ProfileProtocol, t: Translate) {
   return t("panes.profiles.fields.address");
 }
 
-export function passwordLabel(configType: ProfileProtocol, t: Translate) {
+export function passwordLabel(configType: ProfileProtocol, t: TranslationFunction) {
   if (
     configType === CONFIG_TYPES.VMess ||
     configType === CONFIG_TYPES.VLESS ||

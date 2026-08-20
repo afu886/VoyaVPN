@@ -122,7 +122,7 @@ Query/Table/Virtual + react-hook-form/zod + zustand，源码 46 tsx / 33 ts。�
 ## 验证（每域最小集 → 全量兜底）
 
 - 任意前端改动：`pnpm typecheck`、`pnpm lint`、`pnpm test --run`。
-- IPC 不变性：`pnpm bindings:check`（不得改 typed IPC 契约）。
+- IPC 不变性：`pnpm check:bindings`（不得改 typed IPC 契约）。
 - CSS/token 编译：`pnpm build`（Tailwind v4 仅在构建期校验）。
 - 端到端/视觉（**人工**，不在 runner 内）：`pnpm dev:web`(127.0.0.1:1420) 或 `pnpm dev` + chrome-devtools MCP
   截图核 亮/暗 × 连接/断开 × 中/英/fa-RTL × 小窗口断点；reduced-motion 开启时辉光/动效停；对照本报告评分卡逐项核。

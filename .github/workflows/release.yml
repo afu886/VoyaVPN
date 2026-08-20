@@ -44,6 +44,9 @@ defaults:
     shell: bash
 
 jobs:
+  quality-gate:
+    uses: ./.github/workflows/ci.yml
+
   preflight:
     name: Release Preflight
     runs-on: ubuntu-latest
@@ -193,11 +196,13 @@ jobs:
           ].forEach(requireValue);
           NODE
 
-          pnpm tauri:stable-updater-config
+          pnpm release -- updater-config
 
   package:
     name: Package ${{ matrix.release_target }}
-    needs: preflight
+    needs:
+      - preflight
+      - quality-gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -298,7 +303,7 @@ jobs:
 
       - name: Normalize artifacts and write checksums
         run: |
-          node scripts/release-artifacts.mjs \
+          pnpm release -- artifacts \
             --input "$BUNDLE_DIR" \
             --output "dist/release/${{ matrix.release_target }}" \
             --target "${{ matrix.release_target }}" \
@@ -342,7 +347,7 @@ jobs:
           fi
 
           base_url="${VOYAVPN_CDN_BASE_URL:-https://cdn.voyavpn.test/${CHANNEL}}"
-          node scripts/release-index.mjs \
+          pnpm release -- index \
             --input dist/downloaded-release-artifacts \
             --out dist/cdn-staging/release-index.json \
             --channel "$CHANNEL" \
@@ -398,7 +403,7 @@ jobs:
             placeholder_flag="--placeholder-signatures"
           fi
 
-          node scripts/release-updater-metadata.mjs \
+          pnpm release -- updater \
             --input dist/downloaded-release-artifacts \
             --out dist/updater/latest.json \
             --channel "$CHANNEL" \
@@ -446,7 +451,7 @@ jobs:
           fi
 
           base_url="${VOYAVPN_CDN_BASE_URL:-https://cdn.voyavpn.test/${CHANNEL}}"
-          node scripts/core-assets.mjs \
+          pnpm release -- core-assets \
             --fixture dist/core-staging/source-core-assets.json \
             --out dist/core-staging/core-assets.json \
             --channel "$CHANNEL" \
@@ -545,7 +550,7 @@ jobs:
           WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          node scripts/check-release-readiness.mjs \
+          pnpm release -- readiness \
             --mode stable \
             --cdn-base-url "$VOYAVPN_CDN_BASE_URL" \
             --updates-base-url "$VOYAVPN_UPDATES_BASE_URL" \

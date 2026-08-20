@@ -4,6 +4,7 @@ import { Cpu, Gauge, Globe2, Network, RefreshCw, Settings2, type LucideIcon } fr
 import { Button } from "@voya/ui/components/button";
 import { Tabs, TabsContent } from "@voya/ui/components/tabs";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import { UpdatesPanel } from "@/features/updates";
 
 import { CoreTab } from "./core-tab";
@@ -19,7 +20,7 @@ import {
 
 export type SettingsTab = "core" | "general" | "network" | "sources" | "tests" | "updates";
 
-const tabDefs: Array<{ icon: LucideIcon; labelKey: string; value: SettingsTab }> = [
+const tabDefs: Array<{ icon: LucideIcon; labelKey: TranslationKey; value: SettingsTab }> = [
   { icon: Settings2, labelKey: "settings.tabGeneral", value: "general" },
   { icon: Globe2, labelKey: "options.sources", value: "sources" },
   { icon: Cpu, labelKey: "options.runtimeCore", value: "core" },

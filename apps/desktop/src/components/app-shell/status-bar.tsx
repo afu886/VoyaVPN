@@ -6,8 +6,9 @@ import { Badge } from "@voya/ui/components/badge";
 import { Button } from "@voya/ui/components/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@voya/ui/components/tooltip";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import { listProfiles, openSettingsWindow, runtimeStatus, tunProviderDiagnostics, useRuntimeEventStore } from "@/ipc";
-import type { CoreStateEvent, RuntimeStatusResponse, TunProviderDiagnostics } from "@/ipc/bindings";
+import type { CoreState, CoreStateEvent, RuntimeStatusResponse, TunProviderDiagnostics } from "@/ipc/bindings";
 import { getErrorMessage } from "@voya/utils/error";
 import { formatBytesPerSecond } from "@voya/utils/formatting";
 import { useMountedRef } from "@voya/utils/use-mounted-ref";
@@ -15,6 +16,12 @@ import { shellTabRoutes, useShellStore } from "@/stores/shell-store";
 import { useToastStore } from "@/stores/toast-store";
 
 const PROFILES_QUERY_KEY = ["profiles", { filter: "" }] as const;
+const CORE_STATE_TRANSLATION_KEYS = {
+  connected: "status.connected",
+  connecting: "status.connecting",
+  disconnected: "status.disconnected",
+  disconnecting: "status.disconnecting",
+} as const satisfies Record<CoreState, TranslationKey>;
 
 export function StatusBar() {
   const { t } = useI18n();
@@ -50,7 +57,7 @@ export function StatusBar() {
 
   const state = coreState?.state ?? "disconnected";
   const StateIcon = state === "connected" ? Power : state === "disconnected" ? WifiOff : LoaderCircle;
-  const stateLabel = t(`status.${state}`);
+  const stateLabel = t(CORE_STATE_TRANSLATION_KEYS[state]);
   const pidLabel = coreState?.mainPid ? `PID ${coreState.mainPid}` : t("status.noPid");
   const uploadLabel = t("status.upload", { speed: formatBytesPerSecond(statistics?.uploadBytesPerSecond ?? 0) });
   const downloadLabel = t("status.download", { speed: formatBytesPerSecond(statistics?.downloadBytesPerSecond ?? 0) });

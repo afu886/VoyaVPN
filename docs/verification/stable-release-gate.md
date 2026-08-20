@@ -39,7 +39,7 @@ Production stable may be exposed only when:
 
 - Release workflow and docs define CDN staging, pointer promotion, updater smoke, manual download smoke, core smoke, legal approval, rollback, and monitoring.
 - Windows, macOS, and Linux coverage includes x64 and arm64.
-- Stable Tauri updater config is generated with `pnpm tauri:stable-updater-config` into `target/release-config/tauri.updater.stable.generated.json`; the generated overlay enables `bundle.createUpdaterArtifacts`, while the committed `apps/desktop/src-tauri/tauri.conf.json` keeps `createUpdaterArtifacts` false with an empty credential-free updater config.
+- Stable Tauri updater config is generated with `pnpm release -- updater-config` into `target/release-config/tauri.updater.stable.generated.json`; the generated overlay enables `bundle.createUpdaterArtifacts`, while the committed `apps/desktop/src-tauri/tauri.conf.json` keeps `createUpdaterArtifacts` false with an empty credential-free updater config.
 - Rollback docs cover app updater pointer rollback, manual index rollback, core manifest rollback, and bad artifact quarantine.
 - The stable external evidence checklist has matching owner, system, required evidence, stop or rollback condition, and artifact/hash fields for each stable gate entry.
 - Generated evidence contains no `voyavpn.example`, placeholder updater signatures, placeholder public keys, or production GitHub download URLs.
@@ -55,13 +55,13 @@ Prepared release shell sequence:
 
 ```sh
 export VOYAVPN_RELEASE_CHANNEL=stable
-pnpm tauri:stable-updater-config
-pnpm check:release:stable
+pnpm release -- updater-config
+pnpm release -- readiness --mode stable
 ```
 
 Expected unprepared-shell failures are missing external inputs, not repository blockers. A normal local shell may fail immediately on missing `VOYAVPN_CDN_BASE_URL`, missing `VOYAVPN_UPDATES_BASE_URL`, missing `VOYAVPN_UPDATER_PUBLIC_KEY`, missing `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, missing platform signing inputs, missing real stable artifacts, fixture artifact paths in stable mode, placeholder updater signatures, or forbidden production URLs.
 
-Expected prepared-environment pass criteria: `pnpm tauri:stable-updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables `bundle.createUpdaterArtifacts`, updater metadata is signed and CDN-derived, app/core metadata use approved CDN production URLs, and `pnpm check:release:stable` exits successfully with zero failures. Stable pointer promotion must not start until the prepared environment passes `pnpm check:release:stable`.
+Expected prepared-environment pass criteria: `pnpm release -- updater-config` generates `target/release-config/tauri.updater.stable.generated.json`, the overlay enables `bundle.createUpdaterArtifacts`, updater metadata is signed and CDN-derived, app/core metadata use approved CDN production URLs, and `pnpm release -- readiness --mode stable` exits successfully with zero failures. Stable pointer promotion must not start until that check passes.
 
 ## Repository-Owned Checks
 
@@ -70,8 +70,8 @@ Before handing a frozen commit to external release owners, run:
 ```sh
 pnpm run verify:ci
 pnpm run build
-pnpm run smoke:frontend
-pnpm run check:release:dry-run
+pnpm run check:frontend:smoke
+pnpm release -- readiness --mode dry-run
 ```
 
 These checks prove local regression, packaging metadata shape, and dry-run release readiness. They do not prove CDN publication, signing, notarization, external smoke, legal approval, stable pointer promotion, rollback drills, or monitoring readiness.

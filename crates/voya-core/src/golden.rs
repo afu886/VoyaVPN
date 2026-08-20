@@ -11,7 +11,8 @@ use serde_json::{Map, Value};
 use crate::{
     generate_singbox_config, generate_singbox_config_value, AppConfig, ConfigType,
     CoreConfigContext, CoreGenPlatform, CoreType, MultipleLoad, ProfileItem, ProtocolExtraItem,
-    RoutingItem, RuleType, RulesItem, TransportExtraItem, DIRECT_TAG, LOOPBACK, PROXY_TAG,
+    RoutingItem, RuleType, RulesItem, TransportExtraItem, BLOCK_TAG, DIRECT_TAG, LOOPBACK,
+    PROXY_TAG,
 };
 
 #[derive(Debug, Deserialize)]
@@ -121,6 +122,9 @@ pub(crate) fn generated_value_for_case(case: &GoldenCase) -> Value {
         "singbox.outbound.tuic_tls" => singbox_tuic_tls_outbound(),
         "singbox.outbound.anytls_tls" => singbox_anytls_tls_outbound(),
         "singbox.outbound.naive_quic_tls" => singbox_naive_quic_tls_outbound(),
+        "singbox.runtime.pre_socks" => singbox_pre_socks_snapshot(),
+        "singbox.routing.per_rule_outbound" => singbox_per_rule_outbound_snapshot(),
+        "singbox.runtime.logs_and_api" => singbox_logs_and_api_snapshot(),
         generated => panic!(
             "golden case `{}` references unknown generated selector `{generated}`",
             case.id
@@ -238,6 +242,19 @@ fn push_diff_line(rendered: &mut String, prefix: char, line: &str, emitted: &mut
 }
 
 fn singbox_vless_ws_tls_mux_outbound() -> Value {
+    let generated = generate_singbox_config(&singbox_vless_ws_tls_mux_context())
+        .expect("sing-box config should generate");
+    serde_json::to_value(
+        generated
+            .outbounds
+            .iter()
+            .find(|outbound| outbound.tag == PROXY_TAG)
+            .expect("proxy outbound"),
+    )
+    .expect("sing-box outbound serializes")
+}
+
+fn singbox_vless_ws_tls_mux_context() -> CoreConfigContext {
     let mut config = AppConfig::default();
     config.core_basic_item.enable_fragment = true;
     config.core_basic_item.mux_enabled = true;
@@ -268,16 +285,7 @@ fn singbox_vless_ws_tls_mux_outbound() -> Value {
         ..ProfileItem::default()
     };
 
-    let generated = generate_singbox_config(&singbox_context(config, node))
-        .expect("sing-box config should generate");
-    serde_json::to_value(
-        generated
-            .outbounds
-            .iter()
-            .find(|outbound| outbound.tag == PROXY_TAG)
-            .expect("proxy outbound"),
-    )
-    .expect("sing-box outbound serializes")
+    singbox_context(config, node)
 }
 
 fn singbox_tuic_tls_outbound() -> Value {
@@ -459,6 +467,132 @@ fn singbox_tun_route() -> Value {
     serde_json::to_value(generated.route).expect("sing-box route serializes")
 }
 
+fn singbox_pre_socks_configs() -> Vec<Value> {
+    let mut config = AppConfig::default();
+    config.tun_mode_item.enable_tun = true;
+    config.tun_mode_item.enable_ipv6_address = false;
+    config.simple_dns_item.add_common_hosts = Some(false);
+    config.simple_dns_item.block_binding_query = Some(false);
+
+    let mut main_context = singbox_vless_ws_tls_mux_context();
+    main_context.app_config = config.clone();
+    main_context.simple_dns_item = config.simple_dns_item.clone();
+    main_context.is_tun_enabled = false;
+
+    let mut pre_context = singbox_context(
+        config,
+        ProfileItem {
+            index_id: "pre-socks".to_string(),
+            config_type: ConfigType::SOCKS,
+            remarks: "pre-socks".to_string(),
+            address: LOOPBACK.to_string(),
+            port: 20_808,
+            network: "raw".to_string(),
+            ..ProfileItem::default()
+        },
+    );
+    pre_context.is_tun_enabled = true;
+
+    [main_context, pre_context]
+        .into_iter()
+        .map(|context| {
+            generate_singbox_config_value(&context).expect("pre-socks config should generate")
+        })
+        .collect()
+}
+
+fn singbox_pre_socks_snapshot() -> Value {
+    let configs = singbox_pre_socks_configs();
+    serde_json::json!({
+        "main": {
+            "inbounds": configs[0]["inbounds"],
+            "outbounds": configs[0]["outbounds"],
+            "routeFinal": configs[0]["route"]["final"],
+        },
+        "preSocks": {
+            "inbounds": configs[1]["inbounds"],
+            "outbounds": configs[1]["outbounds"],
+            "routeFinal": configs[1]["route"]["final"],
+        },
+    })
+}
+
+fn singbox_per_rule_outbound_config() -> Value {
+    let rule_node = singbox_socks_node("rule-node", "RuleNode");
+    let mut context = singbox_context(AppConfig::default(), singbox_socks_node("active", "Active"));
+    context
+        .all_proxies_map
+        .insert("remark:RuleNode".to_string(), rule_node);
+    context.routing_item = Some(RoutingItem {
+        rule_set: vec![
+            RulesItem {
+                id: "direct".to_string(),
+                outbound_tag: Some(DIRECT_TAG.to_string()),
+                domain: Some(vec!["full:direct.example".to_string()]),
+                rule_type: Some(RuleType::Routing),
+                ..RulesItem::default()
+            },
+            RulesItem {
+                id: "block".to_string(),
+                outbound_tag: Some(BLOCK_TAG.to_string()),
+                domain: Some(vec!["full:block.example".to_string()]),
+                rule_type: Some(RuleType::Routing),
+                ..RulesItem::default()
+            },
+            RulesItem {
+                id: "node".to_string(),
+                outbound_tag: Some("RuleNode".to_string()),
+                domain: Some(vec!["domain:node.example".to_string()]),
+                rule_type: Some(RuleType::Routing),
+                ..RulesItem::default()
+            },
+        ],
+        ..RoutingItem::default()
+    });
+    generate_singbox_config_value(&context).expect("per-rule config should generate")
+}
+
+fn singbox_per_rule_outbound_snapshot() -> Value {
+    let config = singbox_per_rule_outbound_config();
+    let rules = config["route"]["rules"]
+        .as_array()
+        .expect("route rules")
+        .iter()
+        .filter(|rule| {
+            rule.pointer("/domain/0")
+                .or_else(|| rule.pointer("/domain_suffix/0"))
+                .and_then(Value::as_str)
+                .is_some_and(|domain| domain.ends_with(".example"))
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "outbounds": config["outbounds"],
+        "route": {
+            "final": config["route"]["final"],
+            "rules": rules,
+        },
+    })
+}
+
+fn singbox_logs_and_api_config() -> Value {
+    let mut config = AppConfig::default();
+    config.core_basic_item.log_enabled = true;
+    config.core_basic_item.loglevel = "info".to_string();
+    generate_singbox_config_value(&singbox_context(
+        config,
+        singbox_socks_node("runtime", "Runtime"),
+    ))
+    .expect("runtime config should generate")
+}
+
+fn singbox_logs_and_api_snapshot() -> Value {
+    let config = singbox_logs_and_api_config();
+    serde_json::json!({
+        "experimental": config["experimental"],
+        "log": config["log"],
+    })
+}
+
 fn singbox_routing_dns_contexts() -> (CoreConfigContext, CoreConfigContext) {
     let mut dns_config = AppConfig::default();
     dns_config.simple_dns_item.fake_ip = Some(true);
@@ -579,7 +713,13 @@ fn golden_matrix_manifest_loads_fixture_files() {
             "golden case {} lacks hotspot tags",
             case.id
         );
-        let _core_acceptance = case.core_acceptance;
+        if case.core_acceptance {
+            assert!(
+                !acceptance_configs_for_case(case).is_empty(),
+                "golden case {} lacks an acceptance config",
+                case.id
+            );
+        }
         for volatile in &case.volatile_fields {
             assert!(
                 !volatile.reason.trim().is_empty(),
@@ -615,22 +755,33 @@ fn golden_core_acceptance_checks_are_opt_in() {
         return;
     }
 
-    let singbox_config = acceptance_singbox_config();
-    run_optional_core_check(
-        "sing-box",
-        "VOYA_SINGBOX_BIN",
-        "sing-box",
-        &["check", "-c"],
-        &singbox_config,
-    );
+    let matrix = load_matrix();
+    for case in matrix.cases.iter().filter(|case| case.core_acceptance) {
+        for (index, config) in acceptance_configs_for_case(case).iter().enumerate() {
+            run_optional_core_check(
+                &format!("{}-{index}", case.id),
+                "VOYA_SINGBOX_BIN",
+                "sing-box",
+                &["check", "-c"],
+                config,
+            );
+        }
+    }
 }
 
-fn acceptance_singbox_config() -> Value {
-    generate_singbox_config_value(&singbox_context(
-        AppConfig::default(),
-        singbox_socks_node("accept-singbox", "accept-singbox"),
-    ))
-    .expect("sing-box acceptance config should generate")
+fn acceptance_configs_for_case(case: &GoldenCase) -> Vec<Value> {
+    match case.generated.as_str() {
+        "singbox.outbound.vless_ws_tls_mux" => {
+            vec![
+                generate_singbox_config_value(&singbox_vless_ws_tls_mux_context())
+                    .expect("VLESS acceptance config should generate"),
+            ]
+        }
+        "singbox.runtime.pre_socks" => singbox_pre_socks_configs(),
+        "singbox.routing.per_rule_outbound" => vec![singbox_per_rule_outbound_config()],
+        "singbox.runtime.logs_and_api" => vec![singbox_logs_and_api_config()],
+        _ => Vec::new(),
+    }
 }
 
 fn run_optional_core_check(

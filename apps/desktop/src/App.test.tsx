@@ -402,12 +402,12 @@ describe("App", () => {
     expect(within(sidebar).queryByRole("button", { name: "Theme" })).toBeNull();
   });
 
-  it("defaults to the connection home hero", () => {
+  it("defaults to the connection home hero", async () => {
     useShellStore.setState({ activeTab: "home" });
 
     renderApp();
 
-    const hero = screen.getByRole("region", { name: "Connection home" });
+    const hero = await screen.findByRole("region", { name: "Connection home" });
     expect(within(hero).getByRole("button", { name: "Connect" })).toBeInTheDocument();
     expect(within(hero).getByText("Not protected")).toBeInTheDocument();
     expect(screen.getByTestId("status-bar")).toHaveTextContent("Disconnected");
@@ -441,6 +441,7 @@ describe("App", () => {
   });
 
   it("shows Connections immediately and defers monitor plus query work", async () => {
+    await import("@/features/proxy/proxy-connections-screen");
     vi.useFakeTimers();
     (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
@@ -789,6 +790,7 @@ describe("App", () => {
 async function activateTab(name: RegExp) {
   await act(async () => {
     fireEvent.click(screen.getByRole("tab", { name }));
+    await Promise.resolve();
   });
 }
 

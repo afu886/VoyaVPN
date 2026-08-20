@@ -6,6 +6,7 @@ import {
   i18next,
   localeOptions,
   type Locale,
+  type TranslationFunction,
 } from "./index";
 
 function subscribe(listener: () => void) {
@@ -22,12 +23,13 @@ function getSnapshot() {
 
 export function useI18n() {
   const language = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as Locale;
+  const t: TranslationFunction = (key, options) => String(i18next.t(key, options));
 
   return {
     direction: getLocaleDirection(language),
     language,
     localeOptions,
     setLocale: changeLocale,
-    t: (key: string, options?: Record<string, unknown>) => String(i18next.t(key, options)),
+    t,
   };
 }

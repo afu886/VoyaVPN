@@ -1,0 +1,337 @@
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { basename, join, relative, resolve } from "node:path";
+import { repoRootFromScript } from "../../lib/common.mjs";
+import { sha256File } from "../validation.mjs";
+
+const repoRoot = repoRootFromScript(import.meta.url);
+
+const artifactSuffixes = [
+  ".tar.gz.sig",
+  ".tar.gz",
+  ".AppImage.sig",
+  ".AppImage",
+  ".dmg.sig",
+  ".dmg",
+  ".msi.sig",
+  ".msi",
+  ".exe.sig",
+  ".exe",
+  ".deb.sig",
+  ".deb",
+  ".rpm.sig",
+  ".rpm",
+  ".zip.sig",
+  ".zip",
+];
+
+function parseArgs(argv) {
+  const options = {
+    input: null,
+    output: "dist/release",
+    target: null,
+    channel: "beta",
+    version: null,
+    product: "VoyaVPN",
+    allowEmpty: false,
+    stableUpdaterConfig: null,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const next = () => {
+      const value = argv[index + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error(`${arg} requires a value`);
+      }
+      index += 1;
+      return value;
+    };
+
+    switch (arg) {
+      case "--input":
+        options.input = next();
+        break;
+      case "--output":
+        options.output = next();
+        break;
+      case "--target":
+        options.target = next();
+        break;
+      case "--channel":
+        options.channel = next();
+        break;
+      case "--version":
+        options.version = next();
+        break;
+      case "--product":
+        options.product = next();
+        break;
+      case "--stable-updater-config":
+        options.stableUpdaterConfig = next();
+        break;
+      case "--allow-empty":
+        options.allowEmpty = true;
+        break;
+      case "--help":
+        options.help = true;
+        break;
+      default:
+        throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  return options;
+}
+
+function printHelp() {
+  console.log(`Usage: pnpm release -- artifacts --input <bundle-dir> --target <platform> [options]
+
+Options:
+  --output <dir>     Directory for normalized artifacts and manifests. Default: dist/release
+  --channel <name>   Release channel label used in artifact names. Default: beta
+  --version <semver> App version. Defaults to package.json version
+  --product <name>   Product name used in artifact names. Default: VoyaVPN
+  --stable-updater-config <file>
+                    Stable updater overlay used by the package build.
+                    Default for stable: target/release-config/tauri.updater.stable.generated.json
+  --allow-empty      Write empty manifests instead of failing when no bundle artifacts exist`);
+}
+
+async function readPackageVersion() {
+  const packageJson = JSON.parse(await readFile(resolve(repoRoot, "package.json"), "utf8"));
+  return packageJson.version;
+}
+
+async function walkFiles(root) {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+
+  const files = [];
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await walkFiles(path)));
+    } else if (entry.isFile()) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
+function artifactSuffix(filename) {
+  const lowerName = filename.toLowerCase();
+  return artifactSuffixes.find((suffix) => lowerName.endsWith(suffix.toLowerCase())) ?? null;
+}
+
+function isStableChannel(channel) {
+  return channel.trim().toLowerCase() === "stable";
+}
+
+function placeholderText(value) {
+  return (
+    !value ||
+    /placeholder|replace_before_release|replace-before-release|changeme|\btodo\b|\btbd\b|voyavpn\.example/i.test(
+      String(value),
+    )
+  );
+}
+
+function slugify(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function classifyArtifact(filePath, inputDir, suffix) {
+  const relativePath = relative(inputDir, filePath).replaceAll("\\", "/").toLowerCase();
+  const isSignature = suffix.toLowerCase().endsWith(".sig");
+  const payloadSuffix = isSignature ? suffix.slice(0, -4) : suffix;
+
+  if (isSignature) {
+    return "signature";
+  }
+
+  if (payloadSuffix === ".tar.gz" || payloadSuffix === ".zip" || relativePath.includes("/updater/")) {
+    return "updater";
+  }
+
+  switch (payloadSuffix.toLowerCase()) {
+    case ".dmg":
+      return "dmg";
+    case ".msi":
+      return "msi";
+    case ".exe":
+      return relativePath.includes("/nsis/") ? "nsis" : "setup";
+    case ".deb":
+      return "deb";
+    case ".rpm":
+      return "rpm";
+    case ".appimage":
+      return "appimage";
+    default:
+      return "artifact";
+  }
+}
+
+function nextUniqueName(state, requestedName, suffix) {
+  const key = requestedName.toLowerCase();
+  const count = state.get(key) ?? 0;
+  state.set(key, count + 1);
+
+  if (count === 0) {
+    return requestedName;
+  }
+
+  return `${requestedName.slice(0, -suffix.length)}-${count + 1}${suffix}`;
+}
+
+function sha256Text(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function stableUpdaterConfigEvidence(options, outputDir) {
+  const configuredPath =
+    options.stableUpdaterConfig ??
+    process.env.VOYAVPN_STABLE_UPDATER_CONFIG_PATH ??
+    (isStableChannel(options.channel) ? "target/release-config/tauri.updater.stable.generated.json" : null);
+  if (!configuredPath) {
+    return null;
+  }
+
+  const sourcePath = resolve(repoRoot, configuredPath);
+  let sourceText;
+  try {
+    sourceText = await readFile(sourcePath, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT" && !isStableChannel(options.channel)) {
+      return null;
+    }
+    throw new Error(`Stable updater config overlay is required for stable artifacts: ${sourcePath}`, { cause: error });
+  }
+
+  const overlay = JSON.parse(sourceText);
+  const updater = overlay.plugins?.updater;
+  const endpoints = Array.isArray(updater?.endpoints) ? updater.endpoints.map((endpoint) => String(endpoint)) : [];
+  const pubkey = typeof updater?.pubkey === "string" ? updater.pubkey.trim() : "";
+  const createUpdaterArtifacts = overlay.bundle?.createUpdaterArtifacts === true;
+
+  if (isStableChannel(options.channel)) {
+    if (!createUpdaterArtifacts) {
+      throw new Error("Stable updater config overlay must enable bundle.createUpdaterArtifacts.");
+    }
+    if (placeholderText(pubkey) || pubkey.length < 32) {
+      throw new Error("Stable updater config overlay must contain the approved non-placeholder updater public key.");
+    }
+    if (endpoints.length === 0 || endpoints.some((endpoint) => placeholderText(endpoint))) {
+      throw new Error("Stable updater config overlay must contain non-placeholder updater endpoints.");
+    }
+  }
+
+  const copiedName = "stable-updater-config.json";
+  const copiedPath = join(outputDir, copiedName);
+  if (resolve(copiedPath) !== sourcePath) {
+    await writeFile(copiedPath, sourceText);
+  }
+
+  return {
+    path: copiedName,
+    sourcePath: relative(repoRoot, sourcePath).replaceAll("\\", "/"),
+    sha256: sha256Text(sourceText),
+    pubkeySha256: sha256Text(pubkey),
+    endpoints,
+    createUpdaterArtifacts,
+  };
+}
+
+async function main(argv = []) {
+  const options = parseArgs(argv);
+  if (options.help) {
+    printHelp();
+    return;
+  }
+  if (!options.input) {
+    throw new Error("--input is required");
+  }
+  if (!options.target) {
+    throw new Error("--target is required");
+  }
+
+  const version = options.version ?? (await readPackageVersion());
+  const inputDir = resolve(repoRoot, options.input);
+  const outputDir = resolve(repoRoot, options.output);
+  const productSlug = slugify(options.product);
+  const channelSlug = slugify(options.channel);
+  const targetSlug = slugify(options.target);
+
+  await mkdir(outputDir, { recursive: true });
+  const stableUpdaterConfig = await stableUpdaterConfigEvidence(options, outputDir);
+
+  const sourceFiles = (await walkFiles(inputDir))
+    .map((file) => ({ file, suffix: artifactSuffix(basename(file)) }))
+    .filter((entry) => entry.suffix !== null)
+    .sort((left, right) => relative(inputDir, left.file).localeCompare(relative(inputDir, right.file)));
+
+  if (sourceFiles.length === 0 && !options.allowEmpty) {
+    throw new Error(`No release artifacts found under ${inputDir}`);
+  }
+
+  const names = new Map();
+  const artifacts = [];
+
+  for (const { file, suffix } of sourceFiles) {
+    const kind = classifyArtifact(file, inputDir, suffix);
+    const requestedName = `${productSlug}-${version}-${channelSlug}-${targetSlug}-${kind}${suffix}`;
+    const name = nextUniqueName(names, requestedName, suffix);
+    const destination = join(outputDir, name);
+
+    await copyFile(file, destination);
+
+    const fileStat = await stat(destination);
+    const hash = await sha256File(destination);
+    artifacts.push({
+      name,
+      path: name,
+      kind,
+      target: options.target,
+      channel: options.channel,
+      version,
+      bytes: fileStat.size,
+      sha256: hash,
+      originalName: basename(file),
+      originalRelativePath: relative(inputDir, file).replaceAll("\\", "/"),
+    });
+  }
+
+  const manifest = {
+    productName: options.product,
+    version,
+    channel: options.channel,
+    target: options.target,
+    generatedAt: new Date().toISOString(),
+    sourceBundleDir: relative(repoRoot, inputDir).replaceAll("\\", "/"),
+    ...(stableUpdaterConfig ? { stableUpdaterConfig } : {}),
+    artifacts,
+  };
+
+  const checksumLines = artifacts.map((artifact) => `${artifact.sha256}  ${artifact.name}`);
+  await writeFile(join(outputDir, "SHA256SUMS"), `${checksumLines.join("\n")}${checksumLines.length ? "\n" : ""}`);
+  await writeFile(join(outputDir, "artifact-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  console.log(`Collected ${artifacts.length} artifact(s) for ${options.target} in ${relative(repoRoot, outputDir)}`);
+}
+
+export { main, printHelp };

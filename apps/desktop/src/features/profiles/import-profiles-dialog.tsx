@@ -29,13 +29,6 @@ import { redactOperationalError } from "@voya/utils/operational-redaction";
 import { importProfilesFromText, listSubscriptions, scanScreenQr } from "@/ipc";
 import type { ImportProfilesResult } from "@/ipc/bindings";
 
-import {
-  QrNotFoundError,
-  readClipboardImageBlob,
-  scanDisplayMediaQr,
-  scanQrBlob,
-} from "./qr-scanner";
-
 type ImportProfilesDialogProps = {
   onImported: (result: ImportProfilesResult) => Promise<void> | void;
   onOpenChange: (open: boolean) => void;
@@ -130,7 +123,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
       return;
     }
 
-    await scanIntoPayload(() => scanQrBlob(file));
+    await scanIntoPayload(async () => {
+      const { scanQrBlob } = await import("./qr-scanner");
+      return scanQrBlob(file);
+    });
   }
 
   async function handleClipboardImage() {
@@ -139,7 +135,10 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
       return;
     }
 
-    await scanIntoPayload(async () => scanQrBlob(await readClipboardImageBlob()));
+    await scanIntoPayload(async () => {
+      const { readClipboardImageBlob, scanQrBlob } = await import("./qr-scanner");
+      return scanQrBlob(await readClipboardImageBlob());
+    });
   }
 
   async function handleScreenScan() {
@@ -153,6 +152,7 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
       }
 
       try {
+        const { scanDisplayMediaQr } = await import("./qr-scanner");
         applyScannedPayload(await scanDisplayMediaQr());
       } catch (fallbackError) {
         const backendMessage =
@@ -199,7 +199,9 @@ export function ImportProfilesDialog({ onImported, onOpenChange, open }: ImportP
   }
 
   function formatQrError(error: unknown) {
-    return error instanceof QrNotFoundError ? t("qr.noQrFound") : getErrorMessage(error);
+    return error instanceof Error && error.name === "QrNotFoundError"
+      ? t("qr.noQrFound")
+      : getErrorMessage(error);
   }
 
   return (

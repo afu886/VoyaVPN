@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 
 import { changeLocale, getLocaleDirection, i18next, localeOptions, type Locale } from "./index";
 
@@ -56,14 +57,16 @@ describe("i18n locales", () => {
     }
   });
 
-  it("imports v2rayN ResUI resources into every locale", () => {
+  it("keeps only production-referenced overlay and ResX resources", () => {
     const englishResx = localeTree("en").resx;
+    const productionKeys = collectProductionTranslationKeys();
 
-    expect(isLocaleTree(englishResx) ? Object.keys(englishResx).length : 0).toBeGreaterThan(500);
+    expect(isLocaleTree(englishResx) ? Object.keys(englishResx).length : 0).toBeGreaterThan(0);
+    expect(flattenKeys(localeTree("en")).sort()).toEqual([...productionKeys].sort());
+    expect([...productionKeys].some((key) => key.startsWith("backup."))).toBe(false);
 
     for (const locale of localeOptions) {
-      expect(getValue(localeTree(locale.code), "resx.BatchExportURLSuccessfully")).toBeTruthy();
-      expect(getValue(localeTree(locale.code), "resx.SpeedDisplayText")).toBeTruthy();
+      expect(flattenKeys(localeTree(locale.code)).sort()).toEqual([...productionKeys].sort());
     }
   });
 
@@ -72,24 +75,19 @@ describe("i18n locales", () => {
     // sub-domain that previously leaked English values into zh-Hans/zh-Hant.
     const translatedKeys = [
       "actions.connect",
-      "actions.save",
       "actions.settings",
       "proxy.network",
       "confirm.deleteProfilesTitle",
-      "menu.language",
-      "menu.qr",
       "modal.language",
       "modal.theme",
       "options.autostart",
       "options.configTemplate.import",
       "options.configTemplate.invalidSourceUrl",
       "options.routeTemplateSource",
-      "panes.logs.title",
       "panes.profiles.title",
       "panes.profiles.fields.flow",
       "panes.profiles.fields.host",
       "panes.subscriptions.empty",
-      "qr.title",
       "status.connected",
       "tabs.profiles",
       "updates.title",
@@ -110,8 +108,8 @@ describe("i18n locales", () => {
     }
   });
 
-  it("covers static translation keys used by app source", () => {
-    const staticKeys = collectStaticTranslationKeys();
+  it("covers translation keys used by app source", () => {
+    const staticKeys = collectProductionTranslationKeys();
 
     expect(staticKeys.size).toBeGreaterThan(0);
 
@@ -169,21 +167,25 @@ function isLocaleTree(value: LocaleTree | string | undefined): value is LocaleTr
   return typeof value === "object" && value !== null;
 }
 
-function collectStaticTranslationKeys() {
+function collectProductionTranslationKeys() {
+  const knownKeys = new Set(flattenKeys(localeTree("en")));
   const keys = new Set<string>();
-  const staticTranslationKey = /\bt\(\s*["']([^"'`]+)["']/g;
 
   for (const [path, source] of sourceModules) {
-    if (path === "ipc/bindings.ts") {
-      continue;
+    const sourceFile = ts.createSourceFile(
+      path,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    function visit(node: ts.Node) {
+      if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && knownKeys.has(node.text)) {
+        keys.add(node.text);
+      }
+      ts.forEachChild(node, visit);
     }
-
-    let match = staticTranslationKey.exec(source);
-
-    while (match) {
-      keys.add(match[1]);
-      match = staticTranslationKey.exec(source);
-    }
+    visit(sourceFile);
   }
 
   return keys;
@@ -203,7 +205,12 @@ function visitSourceDir(sourceRoot: string, modules: Array<[string, string]>, di
 
     if (entry.isDirectory()) {
       visitSourceDir(sourceRoot, modules, path);
-    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+    } else if (
+      entry.isFile()
+      && /\.(ts|tsx)$/.test(entry.name)
+      && !/\.(test|spec)\.(ts|tsx)$/.test(entry.name)
+      && entry.name !== "bindings.ts"
+    ) {
       modules.push([relative(sourceRoot, path).replaceAll("\\", "/"), readFileSync(path, "utf8")]);
     }
   }

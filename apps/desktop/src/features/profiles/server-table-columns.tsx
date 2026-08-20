@@ -1,17 +1,18 @@
 import type * as React from "react";
 
 import { Badge } from "@voya/ui/components/badge";
+import type { TranslationFunction, TranslationKey } from "@voya/i18n";
 import type { ProfileListItem_Serialize, ProfileSortKey } from "@/ipc/bindings";
 import { formatDelay, formatSpeed, formatTraffic } from "@voya/utils/formatting";
 
 import { getProtocolLabel } from "./profile-constants";
 
-export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+export type TranslateFn = TranslationFunction;
 
 export type ServerColumn = {
   cell: (item: ProfileListItem_Serialize, rowNumber: number, t: TranslateFn) => React.ReactNode;
   id: string;
-  labelKey: string;
+  labelKey: TranslationKey;
   sortKey?: ProfileSortKey;
   width: string;
 };
@@ -139,7 +140,7 @@ export const serverColumns: ServerColumn[] = [
   },
 ];
 
-export const COLUMN_LABEL_KEY_BY_ID: Record<string, string> = Object.fromEntries(
+export const COLUMN_LABEL_KEY_BY_ID: Record<string, TranslationKey> = Object.fromEntries(
   serverColumns.map((column) => [column.id, column.labelKey]),
 );
 

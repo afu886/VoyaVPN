@@ -14,6 +14,7 @@ import { Button } from "@voya/ui/components/button";
 import { EmptyState } from "@voya/ui/components/empty-state";
 import { ScrollArea } from "@voya/ui/components/scroll-area";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import {
   proxyListGroups,
   proxyReloadConfig,
@@ -33,7 +34,7 @@ import { getErrorMessage } from "@voya/utils/error";
 import { cn } from "@voya/ui/lib/utils";
 import { ProxyMonitorStatusBadge } from "@/features/proxy/proxy-monitor-status-badge";
 
-const trafficModeOptions: Array<{ labelKey: string; value: TrafficMode }> = [
+const trafficModeOptions: Array<{ labelKey: TranslationKey; value: TrafficMode }> = [
   { labelKey: "proxy.trafficModeRule", value: 0 },
   { labelKey: "proxy.trafficModeGlobal", value: 1 },
   { labelKey: "proxy.trafficModeDirect", value: 2 },

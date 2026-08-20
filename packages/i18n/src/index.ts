@@ -22,6 +22,15 @@ export const localeOptions = [
 
 export type Locale = (typeof localeOptions)[number]["code"];
 export type LocaleDirection = (typeof localeOptions)[number]["direction"];
+type LeafPaths<T> = {
+  [Key in keyof T & string]: T[Key] extends string
+    ? Key
+    : T[Key] extends Record<string, unknown>
+      ? `${Key}.${LeafPaths<T[Key]>}`
+      : never;
+}[keyof T & string];
+export type TranslationKey = LeafPaths<typeof en>;
+export type TranslationFunction = (key: TranslationKey, options?: Record<string, unknown>) => string;
 
 const storageKey = "voyavpn.locale";
 

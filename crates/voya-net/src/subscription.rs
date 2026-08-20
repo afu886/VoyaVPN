@@ -208,7 +208,7 @@ impl SubscriptionClient {
             raw_url,
             source.convert_target.as_deref(),
             source.sub_convert_url.as_deref(),
-        );
+        )?;
         if main_url.trim() != raw_url {
             validate_subscription_url(&main_url, url_policy)?;
         }
@@ -309,40 +309,50 @@ fn forbidden_subscription_url(url: &str, reason: impl Into<String>) -> DownloadE
     }
 }
 
-#[must_use]
 pub fn build_subscription_url(
     raw_url: &str,
     convert_target: Option<&str>,
     sub_convert_url: Option<&str>,
-) -> String {
+) -> Result<String> {
     let Some(target) = convert_target
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return raw_url.trim().to_string();
+        return Ok(raw_url.trim().to_string());
     };
 
     let template = sub_convert_url
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or(DEFAULT_SUB_CONVERT_URL);
-    let encoded_url = utf8_percent_encode(raw_url.trim(), NON_ALPHANUMERIC).to_string();
-    let mut url = if template.contains("{0}") {
+    let has_source_placeholder = template.contains("{0}");
+    let rendered = if has_source_placeholder {
+        let encoded_url = utf8_percent_encode(raw_url.trim(), NON_ALPHANUMERIC).to_string();
         template.replace("{0}", &encoded_url)
     } else {
-        format!("{template}{encoded_url}")
+        template.to_string()
     };
+    let mut url = reqwest::Url::parse(&rendered).map_err(|source| {
+        forbidden_subscription_url(template, format!("invalid converter URL: {source}"))
+    })?;
+    let query_keys = url
+        .query_pairs()
+        .map(|(key, _)| key.into_owned())
+        .collect::<Vec<_>>();
+    let mut query = url.query_pairs_mut();
 
-    if !url.contains("target=") {
-        url.push_str("&target=");
-        url.push_str(target);
+    if !has_source_placeholder && !query_keys.iter().any(|key| key == "url") {
+        query.append_pair("url", raw_url.trim());
     }
-    if !url.contains("config=") {
-        url.push_str("&config=");
-        url.push_str(DEFAULT_SUB_CONVERT_CONFIG);
+    if !query_keys.iter().any(|key| key == "target") {
+        query.append_pair("target", target);
     }
+    if !query_keys.iter().any(|key| key == "config") {
+        query.append_pair("config", DEFAULT_SUB_CONVERT_CONFIG);
+    }
+    drop(query);
 
-    url
+    Ok(url.into())
 }
 
 #[must_use]
@@ -529,10 +539,36 @@ mod tests {
             &source_url,
             Some("clash"),
             Some(&format!("{base}/convert?url={{0}}")),
-        );
+        )
+        .expect("subscription conversion URL");
         assert!(rewritten.contains("/convert?url=http%3A%2F%2F127%2E0%2E0%2E1"));
         assert!(rewritten.contains("&target=clash"));
         assert!(rewritten.contains("&config="));
+    }
+
+    #[test]
+    fn conversion_url_without_placeholder_uses_query_parameters() {
+        let rewritten = build_subscription_url(
+            "https://source.example/sub?id=one",
+            Some("clash&config=override"),
+            Some("https://converter.example/sub"),
+        )
+        .expect("subscription conversion URL");
+        let parsed = reqwest::Url::parse(&rewritten).expect("converted URL should parse");
+        let query = parsed.query_pairs().collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            query.get("url").map(AsRef::as_ref),
+            Some("https://source.example/sub?id=one")
+        );
+        assert_eq!(
+            query.get("target").map(AsRef::as_ref),
+            Some("clash&config=override")
+        );
+        assert_eq!(
+            query.get("config").map(AsRef::as_ref),
+            Some(DEFAULT_SUB_CONVERT_CONFIG)
+        );
     }
 
     #[tokio::test]

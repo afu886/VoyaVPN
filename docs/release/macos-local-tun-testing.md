@@ -57,7 +57,7 @@ pnpm native:macos:preflight
 | Apple Development signing identity | Portal step 1 above; or set `VOYAVPN_CODESIGN_IDENTITY`. |
 | Provisioning UDID readable | Set `VOYAVPN_PROVISIONING_UDID` if `system_profiler` cannot report it. |
 | Development profile per bundle id | Portal step 4; the report lists why each candidate profile was rejected. |
-| `Libbox.xcframework` with a macOS slice | `pnpm native:macos:libbox`. |
+| Universal macOS `Libbox.framework` with arm64 and x86_64 | `pnpm native:macos:libbox`. |
 
 The profile checks mirror the exact selection criteria the build uses
 (bundle id, certificate fingerprint, device coverage, expiry), so a green

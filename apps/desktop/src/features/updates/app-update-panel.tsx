@@ -3,9 +3,18 @@ import { PackageCheck, RefreshCw } from "lucide-react";
 import { Badge } from "@voya/ui/components/badge";
 import { Button } from "@voya/ui/components/button";
 import { cn } from "@voya/ui/lib/utils";
+import type { TranslationKey } from "@voya/i18n";
+import type { AppUpdaterState } from "@/ipc/bindings";
 
 import { redactUpdateMessage } from "./update-dialog-utils";
 import type { CheckUpdateDialogController } from "./use-check-update-dialog";
+
+const APP_UPDATER_STATE_TRANSLATION_KEYS = {
+  error: "updates.appUpdaterState.error",
+  ready: "updates.appUpdaterState.ready",
+  unconfigured: "updates.appUpdaterState.unconfigured",
+  unsupported: "updates.appUpdaterState.unsupported",
+} as const satisfies Record<AppUpdaterState, TranslationKey>;
 
 export function AppUpdatePanel({ controller }: { controller: CheckUpdateDialogController }) {
   const {
@@ -34,7 +43,7 @@ export function AppUpdatePanel({ controller }: { controller: CheckUpdateDialogCo
             <span className="text-sm font-medium">{t("updates.appUpdater")}</span>
             <Badge variant={appUpdaterStatus?.state === "ready" ? "secondary" : "outline"}>
               {appUpdaterStatus
-                ? t(`updates.appUpdaterState.${appUpdaterStatus.state}`)
+                ? t(APP_UPDATER_STATE_TRANSLATION_KEYS[appUpdaterStatus.state])
                 : t("updates.waiting")}
             </Badge>
           </div>

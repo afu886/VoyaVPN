@@ -9,8 +9,7 @@
     "build": "tsc -b --pretty false && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest",
-    "smoke:frontend": "playwright test"
+    "test": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

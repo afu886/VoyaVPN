@@ -32,6 +32,11 @@ export default defineConfig({
               test: /node_modules[\\/](@codemirror|@uiw)[\\/]/,
             },
             {
+              name: "vendor-qr",
+              priority: 35,
+              test: /node_modules[\\/]@zxing[\\/]/,
+            },
+            {
               name: "vendor-radix",
               priority: 34,
               test: /node_modules[\\/]@radix-ui[\\/]/,
@@ -45,16 +50,6 @@ export default defineConfig({
               name: "vendor-data",
               priority: 20,
               test: /node_modules[\\/](@hookform|@tanstack|i18next|react-hook-form|zod|zustand)[\\/]/,
-            },
-            {
-              name: "feature-profiles",
-              priority: 15,
-              test: /src[\\/]features[\\/](groups|profiles|subscriptions)[\\/]/,
-            },
-            {
-              name: "feature-ops",
-              priority: 14,
-              test: /src[\\/]features[\\/](proxy|dns|logs|options|qr|routing|updates)[\\/]/,
             },
             {
               name: "vendor",

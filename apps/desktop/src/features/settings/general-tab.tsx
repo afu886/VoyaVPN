@@ -6,6 +6,7 @@ import { Input } from "@voya/ui/components/input";
 import { Separator } from "@voya/ui/components/separator";
 import { cn } from "@voya/ui/lib/utils";
 import { useI18n } from "@voya/i18n/use-i18n";
+import type { TranslationKey } from "@voya/i18n";
 import type { ThemeMode } from "@/stores/preferences-store";
 
 import {
@@ -18,7 +19,7 @@ import type { SettingsBundleController } from "./use-settings-bundle";
 
 const themeOptions: Array<{
   icon: typeof Monitor;
-  labelKey: string;
+  labelKey: TranslationKey;
   value: ThemeMode;
 }> = [
   { icon: Monitor, labelKey: "menu.themeSystem", value: "system" },

@@ -20,7 +20,7 @@ TypeScript, Tailwind v4, and shadcn/ui foundations.
 - `crates/voya-udptest`: UDP tester support.
 - `crates/voya-app`: application orchestration, including the product-level proxy runtime backed by the sing-box Clash-compatible API.
 
-The root `package.json` `version` is the release-artifact version read by `scripts/release-artifacts.mjs`; keep app, Tauri, and Cargo versions aligned when intentionally bumping releases.
+The root `package.json` `version` is the release-artifact version read by `pnpm release -- artifacts`; keep app, Tauri, and Cargo versions aligned when intentionally bumping releases.
 
 ## Setup
 
@@ -57,8 +57,8 @@ pnpm --filter @voya/desktop dev:web
 Regenerate Rust-to-TypeScript IPC bindings after command or event type changes:
 
 ```sh
-pnpm bindings
-pnpm bindings:check
+pnpm generate:bindings
+pnpm check:bindings
 ```
 
 ## Build Commands
@@ -99,7 +99,7 @@ pnpm run check:frontend:typecheck
 pnpm run check:frontend:test
 pnpm run check:frontend:lint
 pnpm run check:dead-code
-pnpm bindings:check
+pnpm check:bindings
 ```
 
 Run one desktop frontend test file:
@@ -123,8 +123,8 @@ Run the credential-free release workflow equivalent locally:
 ```sh
 pnpm run verify:ci
 pnpm tauri:build --debug
-node scripts/release-artifacts.mjs --input target/debug/bundle --output dist/release/local --target local-debug --channel beta --allow-empty
-node scripts/release-updater-metadata.mjs --input dist/release --out dist/updater/latest.json --target darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-aarch64,windows-x86_64 --placeholder-signatures
+pnpm release -- artifacts --input target/debug/bundle --output dist/release/local --target local-debug --channel beta --allow-empty
+pnpm release -- updater --input dist/release --out dist/updater/latest.json --target darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-aarch64,windows-x86_64 --placeholder-signatures
 ```
 
 The GitHub release workflow is manual-only:
@@ -137,8 +137,8 @@ workflow_dispatch inputs: channel, build_profile, dry_run, updater_metadata
 Generate release-owner evidence scaffolding and validate staged metadata:
 
 ```sh
-pnpm release:record
-pnpm release:verify-staging -- --release-index <release-index.json> --updater-metadata <latest.json> --core-manifest <core-assets.json>
+pnpm release -- record
+pnpm release -- verify-staging --release-index <release-index.json> --updater-metadata <latest.json> --core-manifest <core-assets.json>
 ```
 
 Production stable publication still requires external signing identities, notarization credentials, updater private keys, CDN publication control, platform smoke machines, and rollback readiness. The release runbooks live under `docs/release/`, and the stable gate report is `docs/verification/stable-release-gate.md`.

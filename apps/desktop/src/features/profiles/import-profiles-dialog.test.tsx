@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLocale } from "@voya/i18n";
 
 import { ImportProfilesDialog } from "./import-profiles-dialog";
-import { QrNotFoundError } from "./qr-scanner";
 
 const ipcMocks = vi.hoisted(() => ({
   importProfilesFromText: vi.fn(),
@@ -167,7 +166,9 @@ describe("ImportProfilesDialog QR scanning", () => {
   });
 
   it("shows the localized no-QR result without changing the payload", async () => {
-    scannerMocks.scanQrBlob.mockRejectedValue(new QrNotFoundError());
+    scannerMocks.scanQrBlob.mockRejectedValue(
+      Object.assign(new Error("No QR code found."), { name: "QrNotFoundError" }),
+    );
     renderDialog();
 
     fireEvent.change(await screen.findByLabelText("Scan image"), {

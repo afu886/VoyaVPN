@@ -1,10 +1,8 @@
 use reqwest::{Client, Proxy};
 use std::{
     collections::HashMap,
-    fs,
     future::Future,
     net::IpAddr,
-    path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Mutex},
     time::Duration,
@@ -48,14 +46,6 @@ pub enum DownloadError {
         url: String,
         attempts: Vec<DownloadAttempt>,
     },
-    #[error("failed to write download to {path}: {source}")]
-    WriteFile {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("download target {path} has no parent directory")]
-    MissingParent { path: PathBuf },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -365,42 +355,6 @@ impl DownloadClient {
         clients.insert(proxy_url.to_string(), client.clone());
 
         Ok(client)
-    }
-
-    pub async fn download_file(
-        &self,
-        request: DownloadRequest,
-        target: impl AsRef<Path>,
-    ) -> Result<DownloadBytesResponse> {
-        let target = target.as_ref();
-        let parent = target
-            .parent()
-            .ok_or_else(|| DownloadError::MissingParent {
-                path: target.to_path_buf(),
-            })?;
-        fs::create_dir_all(parent).map_err(|source| DownloadError::WriteFile {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-
-        let response = self.download_bytes(request).await?;
-        let temp = target.with_extension(format!(
-            "{}.download",
-            target
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("tmp")
-        ));
-        fs::write(&temp, &response.body).map_err(|source| DownloadError::WriteFile {
-            path: temp.clone(),
-            source,
-        })?;
-        fs::rename(&temp, target).map_err(|source| DownloadError::WriteFile {
-            path: target.to_path_buf(),
-            source,
-        })?;
-
-        Ok(response)
     }
 }
 

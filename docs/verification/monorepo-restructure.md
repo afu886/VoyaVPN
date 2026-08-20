@@ -11,7 +11,7 @@
 
 命令: `pnpm run verify:ci`
 
-结果: 通过。`scripts/verify-ci.mjs` 顺序执行的 8 个 gate 全部绿色，最终输出 `CI baseline checks passed.`
+结果: 通过。`scripts/quality/verify-ci.mjs` 顺序执行的 gate 全部绿色，最终输出 `CI baseline checks passed.`
 
 | Gate | 命令 | 结果摘要 |
 | --- | --- | --- |
@@ -21,8 +21,8 @@
 | Frontend typecheck | `pnpm run check:frontend:typecheck` | 通过；`pnpm -r run typecheck` 覆盖 `packages/{utils,i18n,ui}` 与 `apps/desktop`。 |
 | Frontend tests | `pnpm run check:frontend:test` | 通过；`pnpm test --run` 摘要为 27 个测试文件、159 个测试通过。 |
 | Frontend lint | `pnpm run check:frontend:lint` | 通过；`eslint .` 无报错。 |
-| Generated binding drift | `pnpm run bindings:check` | 通过；输出 `Generated IPC bindings are up to date.` |
-| i18n locale drift | `pnpm run i18n:check` | 通过；本机缺少 `../v2rayN` ResX 资源，脚本按预期跳过导入。 |
+| Generated binding drift | `pnpm run check:bindings` | 通过；输出 `Generated IPC bindings are up to date.` |
+| i18n locale drift | `pnpm run check:i18n` | 通过；本机缺少 `../v2rayN` ResX 资源时使用已提交的引用快照检查。 |
 
 ## Vitest 收集核对
 
@@ -39,13 +39,13 @@
 - 已确认包含 7 个 `scripts/*.test.mjs`:
 
 ```text
-scripts/check-release-readiness.test.mjs
-scripts/release-artifacts.test.mjs
-scripts/release-record.test.mjs
-scripts/release-updater-metadata.test.mjs
-scripts/sing-box-core-installer.test.mjs
-scripts/tauri-core-seeds.test.mjs
-scripts/verify-release-staging.test.mjs
+scripts/release/commands/readiness.test.mjs
+scripts/release/commands/artifacts.test.mjs
+scripts/release/commands/record.test.mjs
+scripts/release/commands/updater.test.mjs
+scripts/core/sing-box-installer.test.mjs
+scripts/tauri/core-seeds.test.mjs
+scripts/release/commands/verify-staging.test.mjs
 ```
 
 ## 旧路径残留扫描
@@ -81,7 +81,7 @@ scripts/verify-release-staging.test.mjs
 
 - `pnpm dev`: 验证 Tauri 窗口启动，debug 构建自动重导 bindings 后确认 `apps/desktop/src/ipc/bindings.ts` 无漂移。
 - `pnpm tauri:build --debug`: 开包检查 `THIRD_PARTY_NOTICES.md` 与 `core-seeds`。
-- `pnpm smoke:frontend`: Playwright + `tauri-driver` 冒烟。
+- `pnpm check:frontend:smoke`: Playwright + `tauri-driver` 冒烟。
 - `release.yml` dry-run: 手动触发 `channel=beta`、`dry_run=true` 验证发布链路。
 
 ## 终验结论
