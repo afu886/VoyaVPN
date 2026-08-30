@@ -180,7 +180,7 @@ impl Default for InboundSettings {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SystemProxySettings {
     pub mode: String,
@@ -189,6 +189,19 @@ pub struct SystemProxySettings {
     pub advanced_protocol: String,
     pub custom_pac_path: Option<String>,
     pub custom_script_path: Option<String>,
+}
+
+impl Default for SystemProxySettings {
+    fn default() -> Self {
+        Self {
+            mode: "forcedClear".to_string(),
+            exceptions: String::new(),
+            bypass_local: false,
+            advanced_protocol: String::new(),
+            custom_pac_path: None,
+            custom_script_path: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Type)]
@@ -356,6 +369,10 @@ mod tests {
     fn settings_are_strict_and_versioned() {
         let value = serde_json::to_value(AppSettingsV1::default()).expect("serialize settings");
         assert_eq!(value["schemaVersion"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(
+            value["network"]["systemProxy"]["mode"],
+            serde_json::Value::String("forcedClear".to_string())
+        );
         assert!(value.get("core").is_some());
         assert!(value.get("CoreBasicItem").is_none());
 

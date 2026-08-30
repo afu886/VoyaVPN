@@ -172,3 +172,46 @@ impl AppServices {
         settings_from_app_config(config)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn fresh_database_loads_default_settings_and_reopens() {
+        let app_dir = std::env::temp_dir().join(format!(
+            "voyavpn-fresh-settings-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let database_path = app_dir.join(voya_db::DATABASE_NAME);
+        let runtime_paths = AppPaths::new(&app_dir);
+
+        let services = AppServices::connect(&database_path, runtime_paths.clone())
+            .await
+            .expect("fresh database should connect");
+        let initial = services
+            .load_config()
+            .await
+            .expect("fresh default settings should load");
+        assert_eq!(
+            initial.system_proxy_item.sys_proxy_type,
+            SysProxyType::ForcedClear
+        );
+        services.database.close().await;
+
+        let reopened = AppServices::connect(&database_path, runtime_paths)
+            .await
+            .expect("initialized database should reconnect");
+        let persisted = reopened
+            .load_config()
+            .await
+            .expect("persisted default settings should reload");
+        assert_eq!(
+            persisted.system_proxy_item.sys_proxy_type,
+            SysProxyType::ForcedClear
+        );
+        reopened.database.close().await;
+
+        std::fs::remove_dir_all(&app_dir).expect("test database directory should be removable");
+    }
+}
