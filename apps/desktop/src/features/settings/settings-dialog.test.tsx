@@ -27,6 +27,11 @@ const windowMocks = vi.hoisted(() => ({
   setWindowTitle: vi.fn(),
 }));
 
+type CloseRequestedHandler = (event: { preventDefault: () => void }) => void;
+
+let closeRequestedHandler: CloseRequestedHandler | undefined;
+let windowClosed = false;
+
 vi.mock("@/ipc", () => ipcMocks);
 vi.mock("@/ipc/window", () => windowMocks);
 vi.mock("@/ipc/process", () => ({ relaunch: vi.fn() }));
@@ -45,8 +50,17 @@ describe("unified settings surface", () => {
     ipcMocks.updateSrsAssets.mockResolvedValue([]);
     updaterMocks.check.mockResolvedValue(null);
     updaterMocks.getVersion.mockResolvedValue("0.1.0");
-    windowMocks.closeWindow.mockResolvedValue(undefined);
-    windowMocks.onWindowCloseRequested.mockResolvedValue(() => undefined);
+    closeRequestedHandler = undefined;
+    windowClosed = false;
+    windowMocks.closeWindow.mockImplementation(async () => {
+      dispatchCloseRequest();
+    });
+    windowMocks.onWindowCloseRequested.mockImplementation(async (handler: CloseRequestedHandler) => {
+      closeRequestedHandler = handler;
+      return () => {
+        if (closeRequestedHandler === handler) closeRequestedHandler = undefined;
+      };
+    });
     windowMocks.setWindowTitle.mockResolvedValue(undefined);
   });
 
@@ -89,22 +103,81 @@ describe("unified settings surface", () => {
     );
   });
 
-  it("guards Escape close with save, discard, and cancel choices", async () => {
+  it("closes a clean settings window immediately", async () => {
+    renderWindow();
+    await screen.findByRole("region", { name: "Settings" });
+    await waitFor(() => expect(windowMocks.onWindowCloseRequested).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(windowMocks.closeWindow).toHaveBeenCalledTimes(1));
+    expect(windowClosed).toBe(true);
+  });
+
+  it("guards a native close request while settings are dirty and honors cancel", async () => {
+    const user = userEvent.setup();
+    renderWindow();
+    await user.click(await screen.findByRole("button", { name: "Light" }));
+    await waitFor(() => expect(windowMocks.onWindowCloseRequested).toHaveBeenCalledTimes(1));
+
+    expect(dispatchCloseRequest()).toBe(true);
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Unsaved settings");
+    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
+    expect(windowClosed).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
+    expect(windowClosed).toBe(false);
+  });
+
+  it("discards dirty settings and allows the reentrant close request", async () => {
     const user = userEvent.setup();
     renderWindow();
     await user.click(await screen.findByRole("button", { name: "Light" }));
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Unsaved settings");
-    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: "Escape" });
     await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+
     await waitFor(() => expect(windowMocks.closeWindow).toHaveBeenCalledTimes(1));
+    expect(windowClosed).toBe(true);
+  });
+
+  it("saves dirty settings and allows the reentrant close request", async () => {
+    const user = userEvent.setup();
+    renderWindow();
+    await user.click(await screen.findByRole("button", { name: "Light" }));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await user.click(await screen.findByRole("button", { name: "Save all" }));
+
+    await waitFor(() => expect(ipcMocks.saveAppSettings).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(windowMocks.closeWindow).toHaveBeenCalledTimes(1));
+    expect(windowClosed).toBe(true);
+  });
+
+  it("keeps the window open when saving dirty settings fails", async () => {
+    const user = userEvent.setup();
+    ipcMocks.saveAppSettings.mockRejectedValueOnce(new Error("save failed"));
+    renderWindow();
+    await user.click(await screen.findByRole("button", { name: "Light" }));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await user.click(await screen.findByRole("button", { name: "Save all" }));
+
+    await waitFor(() => expect(ipcMocks.saveAppSettings).toHaveBeenCalledTimes(1));
+    expect(windowMocks.closeWindow).not.toHaveBeenCalled();
+    expect(windowClosed).toBe(false);
+    expect(screen.getByRole("alertdialog")).toBeVisible();
   });
 });
+
+function dispatchCloseRequest() {
+  const preventDefault = vi.fn();
+  closeRequestedHandler?.({ preventDefault });
+  const prevented = preventDefault.mock.calls.length > 0;
+  if (!prevented) windowClosed = true;
+  return prevented;
+}
 
 function renderSurface() {
   return renderWithQuery(<SettingsSurface />);

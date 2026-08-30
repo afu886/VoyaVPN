@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -31,21 +31,36 @@ export function SettingsWindow() {
   const { titleBarLayout } = useWindowChrome();
   const controller = useAppSettings();
   const [confirmClose, setConfirmClose] = useState(false);
+  const dirtyRef = useRef(controller.dirty);
+  const allowNextCloseRef = useRef(false);
   const title = t("modal.settings");
 
   useAcrylicWindow(titleBarLayout === "windows");
+
+  useLayoutEffect(() => {
+    dirtyRef.current = controller.dirty;
+  }, [controller.dirty]);
 
   useEffect(() => {
     void setWindowTitle(title).catch(() => undefined);
   }, [title]);
 
   const requestClose = useCallback(() => {
-    if (controller.dirty) {
+    if (dirtyRef.current) {
       setConfirmClose(true);
       return;
     }
     void closeWindow().catch(() => undefined);
-  }, [controller.dirty]);
+  }, []);
+
+  const closeAfterConfirmation = useCallback(async () => {
+    allowNextCloseRef.current = true;
+    try {
+      await closeWindow();
+    } catch {
+      allowNextCloseRef.current = false;
+    }
+  }, []);
 
   useCloseSettingsWindowOnEscape(requestClose);
 
@@ -53,7 +68,11 @@ export function SettingsWindow() {
     let active = true;
     let unlisten: (() => void) | undefined;
     void onWindowCloseRequested((event) => {
-      if (controller.dirty) {
+      if (allowNextCloseRef.current) {
+        allowNextCloseRef.current = false;
+        return;
+      }
+      if (dirtyRef.current) {
         event.preventDefault();
         setConfirmClose(true);
       }
@@ -65,7 +84,7 @@ export function SettingsWindow() {
       active = false;
       unlisten?.();
     };
-  }, [controller.dirty]);
+  }, []);
 
   return (
     <main className="bg-background text-foreground" dir={direction}>
@@ -85,7 +104,7 @@ export function SettingsWindow() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
-                void controller.discard().then(() => closeWindow());
+                void controller.discard().then(closeAfterConfirmation);
               }}
             >
               {t("settings.discardChanges")}
@@ -94,7 +113,7 @@ export function SettingsWindow() {
               onClick={(event) => {
                 event.preventDefault();
                 void controller.save().then((saved) => {
-                  if (saved) void closeWindow();
+                  if (saved) void closeAfterConfirmation();
                 });
               }}
             >
