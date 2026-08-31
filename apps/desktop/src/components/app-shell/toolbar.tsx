@@ -6,10 +6,8 @@ import { cn } from "@voya/ui/lib/utils";
 
 // Shared screen-toolbar vocabulary. Screens compose a `Toolbar` row out of one
 // or more `ToolbarGroup` clusters (separated by a hairline rule), spill the
-// low-priority actions into a `ToolbarOverflow` "⋯" menu, and mount a
-// `BulkActionBar` only while a multi-select is active. The overflow menu reuses
-// the existing `Menubar` primitive so we add no new dropdown dependency — the
-// Profiles "Columns" menu already follows this pattern.
+// low-priority actions into a `ToolbarOverflow` "⋯" menu. The overflow menu
+// reuses the existing `Menubar` primitive so we add no new dropdown dependency.
 
 function Toolbar({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -61,21 +59,4 @@ function ToolbarOverflow({
   );
 }
 
-// The contextual action bar shown only while rows are selected. It reads blue to
-// echo the table's blue selection state and spans the content edge-to-edge with
-// a bottom rule, stacking under the toolbar like InlinePageError.
-function BulkActionBar({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-2 border-b bg-accent-blue-light px-4 py-2 text-accent-blue",
-        className,
-      )}
-      data-slot="bulk-action-bar"
-      role="toolbar"
-      {...props}
-    />
-  );
-}
-
-export { BulkActionBar, Toolbar, ToolbarGroup, ToolbarOverflow };
+export { Toolbar, ToolbarGroup, ToolbarOverflow };

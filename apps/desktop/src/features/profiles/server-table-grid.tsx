@@ -8,17 +8,16 @@ import {
   dataTableRowSelected,
   dataTableWell,
 } from "@/components/app-shell/data-table-surface";
-import { Checkbox } from "@voya/ui/components/checkbox";
 import { EmptyState } from "@voya/ui/components/empty-state";
 import { Skeleton } from "@voya/ui/components/skeleton";
 import { cn } from "@voya/ui/lib/utils";
 
 import { cellTitle, sortAriaValue } from "./server-table-columns";
+import { ProfileRowContextMenu } from "./server-table-menus";
 import type { ServerTableController } from "./use-server-table";
 
 export function ServerTableGrid({ controller }: { controller: ServerTableController }) {
   const {
-    allVisibleCheckboxState,
     gridMinWidth,
     gridTemplateColumns,
     handleSort,
@@ -27,11 +26,9 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
     rows,
     rowVirtualizer,
     selectOnly,
-    selectedIds,
+    selectedId,
     sortState,
     t,
-    toggleAllVisible,
-    toggleSelection,
     viewportRef,
     visibleColumns,
   } = controller;
@@ -47,7 +44,7 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
         >
           <table
             aria-busy={profilesQuery.isLoading}
-            aria-colcount={visibleColumns.length + 1}
+            aria-colcount={visibleColumns.length}
             aria-rowcount={hasVirtualizedRows ? rows.length + 1 : undefined}
             className="relative w-full border-separate border-spacing-0"
             style={{ minWidth: gridMinWidth }}
@@ -59,13 +56,6 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                 className={cn("grid items-center border-b", dataTableHeader)}
                 style={{ gridTemplateColumns }}
               >
-                <th className="flex h-9 items-center justify-center border-e px-2" scope="col">
-                  <Checkbox
-                    aria-label={t("panes.profiles.aria.selectAll")}
-                    checked={allVisibleCheckboxState}
-                    onCheckedChange={(checked) => toggleAllVisible(checked === true)}
-                  />
-                </th>
                 {visibleColumns.map((column) => (
                   <th
                     aria-sort={sortAriaValue(column, sortState)}
@@ -111,7 +101,7 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                 />
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="p-0" colSpan={visibleColumns.length + 1}>
+                  <td className="p-0" colSpan={visibleColumns.length}>
                     <EmptyState
                       className="min-h-[18rem] content-center"
                       description={t("panes.profiles.emptyDescription")}
@@ -129,11 +119,11 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
 
                   const item = row.original;
                   const indexId = item.profile.id;
-                  const isSelected = selectedIds.has(indexId);
+                  const isSelected = selectedId === indexId;
 
                   return (
-                    <tr
-                        key={row.id}
+                    <ProfileRowContextMenu controller={controller} item={item} key={row.id}>
+                      <tr
                         aria-rowindex={virtualRow.index + 2}
                         aria-selected={isSelected}
                         className={cn(
@@ -146,17 +136,11 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                               ),
                         )}
                         data-testid="server-row"
-                        onClick={(event) => {
-                          if (event.metaKey || event.ctrlKey) {
-                            toggleSelection(indexId, !isSelected);
-                          } else {
-                            selectOnly(indexId);
-                          }
-                        }}
+                        onClick={() => selectOnly(indexId)}
                         onKeyDown={(event) => {
                           if (event.key === " " || event.key === "Enter") {
                             event.preventDefault();
-                            toggleSelection(indexId, !isSelected);
+                            selectOnly(indexId);
                           }
                         }}
                         style={{
@@ -166,14 +150,6 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                         }}
                         tabIndex={0}
                       >
-                        <td className="flex h-full items-center justify-center border-e px-2">
-                          <Checkbox
-                            aria-label={t("panes.profiles.aria.selectRow", { name: item.profile.remarks || indexId })}
-                            checked={isSelected}
-                            onClick={(event) => event.stopPropagation()}
-                            onCheckedChange={(checked) => toggleSelection(indexId, checked === true)}
-                          />
-                        </td>
                         {visibleColumns.map((column) => {
                           const cell = column.cell(item, virtualRow.index + 1, t);
 
@@ -187,7 +163,8 @@ export function ServerTableGrid({ controller }: { controller: ServerTableControl
                             </td>
                           );
                         })}
-                    </tr>
+                      </tr>
+                    </ProfileRowContextMenu>
                   );
                 })
               )}
@@ -218,9 +195,6 @@ function ProfileSkeletonRows({
           key={rowIndex}
           style={{ gridTemplateColumns, minWidth: gridMinWidth }}
         >
-          <td className="flex h-full items-center justify-center border-e px-2">
-            <Skeleton className="size-4 rounded-sm" />
-          </td>
           {Array.from({ length: columnCount }).map((_, columnIndex) => (
             <td className="flex h-full items-center border-e px-2 last:border-e-0" key={columnIndex}>
               <Skeleton className="h-4 w-3/4" />

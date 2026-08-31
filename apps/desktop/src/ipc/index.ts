@@ -11,7 +11,6 @@ export {
   proxyStopMonitor,
   proxyTestDelay,
   connectActiveProfile,
-  copyProfiles,
   cancelSpeedtest,
   dedupeProfiles,
   disconnectCore,

@@ -186,8 +186,12 @@ test("adds and imports profiles, activates one, and connects through the fake ru
   await importDialog.getByRole("button", { exact: true, name: "Import payload" }).click();
   await expect(page.getByText("Smoke Imported VLESS")).toBeVisible();
 
-  await page.getByLabel("Select Smoke Imported VLESS").check();
-  await page.getByRole("menuitem", { name: "Export" }).click();
+  const importedProfileRow = page.getByTestId("server-row").filter({ hasText: "Smoke Imported VLESS" });
+  await importedProfileRow.click({ button: "right" });
+  const profileMenu = page.getByRole("menu", { name: "Actions for Smoke Imported VLESS" });
+  const exportMenu = profileMenu.getByRole("menuitem", { name: "Export" });
+  await exportMenu.focus();
+  await page.keyboard.press("ArrowRight");
   await page.getByRole("menuitem", { name: "Show QR" }).click();
   const shareQrDialog = page.getByRole("dialog", { name: "Show QR" });
   await expect(shareQrDialog).toBeVisible();

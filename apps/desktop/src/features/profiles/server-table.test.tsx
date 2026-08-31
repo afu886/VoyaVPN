@@ -13,7 +13,6 @@ import { ProfilesScreen } from "./server-table";
 import { applyLiveUpdates } from "./server-table-live-updates";
 
 const ipcMocks = vi.hoisted(() => ({
-  copyProfiles: vi.fn(),
   dedupeProfiles: vi.fn(),
   deleteSubscriptions: vi.fn(),
   deleteProfiles: vi.fn(),
@@ -112,6 +111,24 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+async function openRowContextMenu(rowIndex = 0) {
+  const row = screen.getAllByTestId("server-row")[rowIndex];
+  if (!row) {
+    throw new Error(`Profile row ${rowIndex} is not rendered`);
+  }
+  fireEvent.contextMenu(row, { clientX: 120, clientY: 80 });
+  return screen.findByRole("menu");
+}
+
+async function openContextSubmenu(menu: HTMLElement, name: string) {
+  const trigger = within(menu).getByRole("menuitem", { name });
+  fireEvent.focus(trigger);
+  fireEvent.keyDown(trigger, { key: "ArrowRight" });
+  await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  const menus = await screen.findAllByRole("menu");
+  return menus.at(-1)!;
+}
+
 describe("ProfilesScreen", () => {
   beforeEach(() => {
     Object.values(ipcMocks).forEach((mock) => {
@@ -127,7 +144,6 @@ describe("ProfilesScreen", () => {
       speedtestResultsByProfileId: {},
       speedtestRunning: false,
     });
-    ipcMocks.copyProfiles.mockResolvedValue([]);
     ipcMocks.dedupeProfiles.mockResolvedValue({ kept: 0, removedIndexIds: [], total: 0 });
     ipcMocks.deleteSubscriptions.mockResolvedValue(1);
     ipcMocks.deleteProfiles.mockResolvedValue(1);
@@ -221,18 +237,16 @@ describe("ProfilesScreen", () => {
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Speed" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
-
-    // Speed is now a probe inside the speedtest split-button menu.
-    await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Speed" }));
+    const menu = await openRowContextMenu();
+    const speedMenu = await openContextSubmenu(menu, "Speedtest");
+    await userEvent.click(within(speedMenu).getByRole("menuitem", { name: "Speed" }));
 
     expect(await screen.findByRole("columnheader", { name: "Speed" })).toBeInTheDocument();
     expect(await screen.findByText("request timed out")).toBeInTheDocument();
     expect(screen.queryByText("2.0 KB/s")).not.toBeInTheDocument();
   });
 
-  it("runs table operations through profile IPC wrappers", async () => {
+  it("removes multi-select and copy while keeping row actions and sorting", async () => {
     const profiles = makeProfiles(3);
     ipcMocks.listProfiles.mockResolvedValue(profiles);
 
@@ -240,20 +254,40 @@ describe("ProfilesScreen", () => {
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
+    const rows = screen.getAllByTestId("server-row");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+
+    await userEvent.click(rows[0]!);
+    fireEvent.click(rows[1]!, { ctrlKey: true });
+    expect(rows[0]).toHaveAttribute("aria-selected", "false");
+    expect(rows[1]).toHaveAttribute("aria-selected", "true");
+    expect(rows[2]).toHaveAttribute("aria-selected", "false");
     expect(screen.queryByRole("button", { name: /Activate/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Copy/ }));
-    // Delete now routes through a confirmation dialog before the IPC call fires.
-    await userEvent.click(screen.getByRole("button", { name: /Delete/ }));
+
+    const menu = await openRowContextMenu(0);
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Delete" }));
     const confirm = await screen.findByRole("alertdialog");
     fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Remarks" }));
 
     expect(ipcMocks.setActiveProfile).not.toHaveBeenCalled();
-    expect(ipcMocks.copyProfiles).toHaveBeenCalledWith(["profile-0"]);
     expect(ipcMocks.deleteProfiles).toHaveBeenCalledWith(["profile-0"]);
     expect(ipcMocks.sortProfiles).toHaveBeenCalledWith(null, "remarks", true);
+  });
+
+  it("opens the targeted profile editor from the row context menu", async () => {
+    ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
+
+    renderProfiles();
+
+    expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    const menu = await openRowContextMenu(1);
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit profile" });
+    expect(within(dialog).getByLabelText("Remarks")).toHaveValue("Server 1");
   });
 
   it("re-enables speedtest buttons when the speedtest IPC rejects", async () => {
@@ -268,12 +302,8 @@ describe("ProfilesScreen", () => {
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
 
-    // The split button's default Fast control stays a button, so it can hold the
-    // disabled/enabled state across the running speedtest the way the per-action
-    // buttons used to.
-    const speedButton = screen.getByRole("button", { name: "Fast" });
+    const speedButton = screen.getByRole("button", { name: "Bulk speedtest" });
     await userEvent.click(speedButton);
 
     await waitFor(() => expect(speedButton).toBeDisabled());
@@ -287,21 +317,34 @@ describe("ProfilesScreen", () => {
     await waitFor(() => expect(speedButton).toBeEnabled());
   });
 
-  it("runs realping only for the selected profiles", async () => {
+  it("runs a row speedtest only for the context-menu target", async () => {
     ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
 
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
-
-    // Real ping moved into the speedtest split-button menu.
-    await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Real" }));
+    const menu = await openRowContextMenu();
+    const speedMenu = await openContextSubmenu(menu, "Speedtest");
+    await userEvent.click(within(speedMenu).getByRole("menuitem", { name: "Real" }));
 
     expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith({
       kind: SPEED_ACTIONS.Latency,
       target: { scope: "profiles", profileIds: ["profile-0"] },
+    });
+  });
+
+  it("runs alternate batch speedtests against all profiles", async () => {
+    ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
+
+    renderProfiles();
+
+    expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "More speed tests" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "TCP" }));
+
+    expect(ipcMocks.runSpeedtest).toHaveBeenCalledWith({
+      kind: SPEED_ACTIONS.TcpConnect,
+      target: { scope: "all" },
     });
   });
 
@@ -312,9 +355,8 @@ describe("ProfilesScreen", () => {
     renderProfiles();
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Fast" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Bulk speedtest" })).toBeDisabled());
 
     // Stop is reachable through the split-button menu and stays enabled while a
     // run is in flight, even as the probe items are disabled.
@@ -330,8 +372,8 @@ describe("ProfilesScreen", () => {
 
     expect(await screen.findByText("Server 0")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
-    await userEvent.click(screen.getByRole("button", { name: /Delete/ }));
+    const menu = await openRowContextMenu();
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Delete" }));
 
     const confirm = await screen.findByRole("alertdialog");
     fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
@@ -444,17 +486,21 @@ describe("ProfilesScreen", () => {
       id: "profile-imported",
       remarks: "Imported node",
     });
+    const secondImportedProfile = makeProfile(8, {
+      id: "profile-imported-second",
+      remarks: "Second imported node",
+    });
     ipcMocks.listProfiles
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([importedProfile]);
+      .mockResolvedValue([importedProfile, secondImportedProfile]);
     ipcMocks.importProfilesFromText.mockResolvedValue({
       deduped: 0,
       failed: 0,
       filtered: 0,
-      imported: 1,
-      importedProfileIds: ["profile-imported"],
+      imported: 2,
+      importedProfileIds: ["profile-imported", "profile-imported-second"],
       messages: [],
-      parsed: 1,
+      parsed: 2,
       removedExisting: 0,
       skipped: 0,
       subscriptionId: null,
@@ -470,8 +516,10 @@ describe("ProfilesScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Import payload" }));
 
     expect(await screen.findByText("Imported node")).toBeInTheDocument();
-    expect(await screen.findByText("1 selected")).toBeInTheDocument();
-    expect(screen.getByText("Imported 1 profile.")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("server-row");
+    expect(rows[0]).toHaveAttribute("aria-selected", "true");
+    expect(rows[1]).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByText("Imported 2 profiles.")).toBeInTheDocument();
   });
 
   it("refreshes and selects a profile imported from a scanned screen QR code", async () => {
@@ -514,7 +562,7 @@ describe("ProfilesScreen", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import payload" }));
 
     expect(await screen.findByText("Scanned node")).toBeInTheDocument();
-    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+    expect(screen.getByTestId("server-row")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Imported 1 profile.")).toBeInTheDocument();
   });
 
@@ -562,7 +610,7 @@ describe("ProfilesScreen", () => {
     );
     expect(await screen.findByText("Clipboard node")).toBeInTheDocument();
     expect(filterInput).toHaveValue("");
-    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+    expect(screen.getByTestId("server-row")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Imported 1 profile. 1 updated. 2 duplicates removed.")).toBeInTheDocument();
   });
 
@@ -593,19 +641,27 @@ describe("ProfilesScreen", () => {
     expect(ipcMocks.importProfilesFromText).not.toHaveBeenCalled();
   });
 
-  it("shows a read-only QR export for one or multiple selected profiles", async () => {
-    ipcMocks.listProfiles.mockResolvedValue(makeProfiles(2));
+  it("batch exports every profile even when the list is filtered", async () => {
+    const profiles = makeProfiles(2);
+    ipcMocks.listProfiles.mockImplementation(async (_subscriptionId: string | null, filter: string | null) =>
+      filter ? [profiles[1]!] : profiles,
+    );
 
     renderProfiles();
 
-    await userEvent.click(await screen.findByLabelText("Select Server 1"));
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
+    expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter profiles" }), {
+      target: { value: "Server 1" },
+    });
+    await waitFor(() => expect(ipcMocks.listProfiles).toHaveBeenCalledWith(null, "Server 1"));
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "Bulk export" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
 
     const expectedContent =
       "vless://profile-0@example.test:443\nvless://profile-1@example.test:443";
     expect(ipcMocks.exportProfileShareLinks).toHaveBeenCalledWith(["profile-0", "profile-1"]);
+    expect(ipcMocks.listProfiles).toHaveBeenLastCalledWith(null, null);
     await waitFor(() => expect(ipcMocks.generateQrCode).toHaveBeenCalledWith(expectedContent));
 
     const dialog = await screen.findByRole("dialog", { name: "Show QR" });
@@ -614,7 +670,7 @@ describe("ProfilesScreen", () => {
     expect(within(dialog).getByAltText("Generated QR code")).toBeInTheDocument();
   });
 
-  it("keeps the QR dialog closed when the selected profile cannot export a share link", async () => {
+  it("keeps the QR dialog closed when the context-menu profile cannot export a share link", async () => {
     ipcMocks.listProfiles.mockResolvedValue([
       makeProfile(0, {
         protocol: {
@@ -633,9 +689,10 @@ describe("ProfilesScreen", () => {
 
     renderProfiles();
 
-    await userEvent.click(await screen.findByLabelText("Select Policy group"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
+    expect(await screen.findByText("Policy group")).toBeInTheDocument();
+    const menu = await openRowContextMenu();
+    const exportMenu = await openContextSubmenu(menu, "Export");
+    await userEvent.click(within(exportMenu).getByRole("menuitem", { name: "Show QR" }));
 
     expect(await screen.findByText("share export does not support policy groups")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Show QR" })).not.toBeInTheDocument();
@@ -648,9 +705,10 @@ describe("ProfilesScreen", () => {
 
     renderProfiles();
 
-    await userEvent.click(await screen.findByLabelText("Select Server 0"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Export" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Show QR" }));
+    expect(await screen.findByText("Server 0")).toBeInTheDocument();
+    const menu = await openRowContextMenu();
+    const exportMenu = await openContextSubmenu(menu, "Export");
+    await userEvent.click(within(exportMenu).getByRole("menuitem", { name: "Show QR" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Show QR" });
     expect(await within(dialog).findByText("QR content is too large")).toBeInTheDocument();
@@ -659,7 +717,7 @@ describe("ProfilesScreen", () => {
     );
   });
 
-  it("moves the selected row through the explicit keyboard-accessible move menu", async () => {
+  it("moves the context-menu row through the keyboard-accessible move submenu", async () => {
     ipcMocks.listProfiles.mockResolvedValue(makeProfiles(3));
 
     renderProfiles();
@@ -668,9 +726,9 @@ describe("ProfilesScreen", () => {
 
     const rows = screen.getAllByTestId("server-row");
     expect(rows[0]).not.toHaveAttribute("draggable");
-    await userEvent.click(screen.getByLabelText("Select Server 0"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Move" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Move down" }));
+    const menu = await openRowContextMenu();
+    const moveMenu = await openContextSubmenu(menu, "Move");
+    await userEvent.click(within(moveMenu).getByRole("menuitem", { name: "Move down" }));
 
     await waitFor(() =>
       expect(ipcMocks.moveProfile).toHaveBeenCalledWith(null, "profile-0", MOVE_ACTIONS.Down, null),

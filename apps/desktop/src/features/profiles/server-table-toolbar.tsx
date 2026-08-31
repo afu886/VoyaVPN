@@ -1,24 +1,17 @@
 import {
-  ArrowDown,
-  ArrowUp,
   ClipboardPaste,
   Columns3,
-  Copy,
-  ChevronsDown,
-  ChevronsUp,
   FilePlus2,
   Filter,
-  Pencil,
   RotateCcw,
   Rows3,
   Rss,
   Search,
   Share2,
-  Trash2,
   Upload,
 } from "lucide-react";
 
-import { BulkActionBar, Toolbar, ToolbarGroup, ToolbarOverflow } from "@/components/app-shell/toolbar";
+import { Toolbar, ToolbarGroup, ToolbarOverflow } from "@/components/app-shell/toolbar";
 import { InlinePageError } from "@/components/app-shell/inline-page-error";
 import { PageHeader, PageHeaderHeading } from "@/components/app-shell/page-section";
 import { Button } from "@voya/ui/components/button";
@@ -32,33 +25,28 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@voya/ui/components/menubar";
-import { copyProfiles, dedupeProfiles, moveProfile } from "@/ipc";
+import { dedupeProfiles } from "@/ipc";
 import { getErrorMessage } from "@voya/utils/error";
 
 import { COLUMN_LABEL_KEY_BY_ID } from "./server-table-columns";
 import { ExportMenuItems, SpeedtestSplitButton } from "./server-table-menus";
-import { MOVE_ACTIONS } from "./profile-constants";
 import type { ServerTableController } from "./use-server-table";
 
 export function ServerTableToolbar({ controller }: { controller: ServerTableController }) {
   const {
     filterText,
+    handleBulkExport,
     handleCancelSpeedtest,
-    handleExport,
     handleImportFromClipboard,
     handleSpeedtest,
     hideableColumns,
     importingFromClipboard,
     operationError,
     operationMessage,
-    primarySelection,
     profiles,
     profilesQuery,
-    requestDelete,
     resetColumnVisibility,
     runOperation,
-    selected,
-    selectedIdsArray,
     setDialogState,
     setFilterText,
     setImportOpen,
@@ -66,6 +54,7 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
     speedtestRunning,
     t,
   } = controller;
+  const batchActionsDisabled = profilesQuery.isLoading || (!filterText.trim() && profiles.length === 0);
 
   return (
     <>
@@ -98,6 +87,31 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
             <FilePlus2 className="size-4" aria-hidden="true" />
             {t("panes.profiles.toolbar.add")}
           </Button>
+          <SpeedtestSplitButton
+            disabled={batchActionsDisabled}
+            label={t("panes.profiles.toolbar.bulkSpeedtest")}
+            onCancel={handleCancelSpeedtest}
+            onRun={(kind) => handleSpeedtest(kind, { scope: "all" })}
+            running={speedtestRunning}
+          />
+          <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
+            <MenubarMenu>
+              <MenubarTrigger asChild>
+                <Button disabled={batchActionsDisabled} size="sm" type="button" variant="outline">
+                  <Share2 className="size-4" aria-hidden="true" />
+                  {t("panes.profiles.toolbar.bulkExport")}
+                </Button>
+              </MenubarTrigger>
+              <MenubarContent align="start">
+                <ExportMenuItems
+                  onExport={(kind) => void handleBulkExport(kind)}
+                  onSave={(kind) => void handleBulkExport(kind, false, true)}
+                  onShowQr={() => void handleBulkExport("shareLinks", true)}
+                  t={t}
+                />
+              </MenubarContent>
+            </MenubarMenu>
+          </Menubar>
         </ToolbarGroup>
 
         <ToolbarGroup>
@@ -158,104 +172,6 @@ export function ServerTableToolbar({ controller }: { controller: ServerTableCont
           </ToolbarOverflow>
         </ToolbarGroup>
       </Toolbar>
-
-      {selected.length > 0 ? (
-        <BulkActionBar>
-          <span className="text-sm font-medium">
-            {t("panes.profiles.bulk.selected", { count: selected.length })}
-          </span>
-          <div className="ms-auto flex items-center gap-2">
-            <Button
-              disabled={selected.length !== 1}
-              onClick={() => primarySelection && setDialogState({ mode: "edit", profile: primarySelection })}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Pencil className="size-4" aria-hidden="true" />
-              {t("panes.profiles.toolbar.edit")}
-            </Button>
-            <Button
-              onClick={() => void runOperation(() => copyProfiles(selectedIdsArray))}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Copy className="size-4" aria-hidden="true" />
-              {t("panes.profiles.toolbar.copy")}
-            </Button>
-            <SpeedtestSplitButton
-              disabled={selected.length === 0}
-              onCancel={handleCancelSpeedtest}
-              onRun={handleSpeedtest}
-              running={speedtestRunning}
-            />
-            <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
-              <MenubarMenu>
-                <MenubarTrigger asChild>
-                  <Button disabled={selected.length !== 1} size="sm" type="button" variant="outline">
-                    <ArrowDown className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.menu.move")}
-                  </Button>
-                </MenubarTrigger>
-                <MenubarContent align="end">
-                  <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Top, null))}
-                  >
-                    <ChevronsUp className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.menu.moveTop")}
-                  </MenubarItem>
-                  <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Up, null))}
-                  >
-                    <ArrowUp className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.menu.moveUp")}
-                  </MenubarItem>
-                  <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Down, null))}
-                  >
-                    <ArrowDown className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.menu.moveDown")}
-                  </MenubarItem>
-                  <MenubarItem
-                    onSelect={() => primarySelection && void runOperation(() => moveProfile(null, primarySelection.profile.id, MOVE_ACTIONS.Bottom, null))}
-                  >
-                    <ChevronsDown className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.menu.moveBottom")}
-                  </MenubarItem>
-                </MenubarContent>
-              </MenubarMenu>
-            </Menubar>
-            <Menubar className="h-auto border-0 bg-transparent p-0 shadow-none">
-              <MenubarMenu>
-                <MenubarTrigger asChild>
-                  <Button size="sm" type="button" variant="outline">
-                    <Share2 className="size-4" aria-hidden="true" />
-                    {t("panes.profiles.export.export")}
-                  </Button>
-                </MenubarTrigger>
-                <MenubarContent align="end">
-                  <ExportMenuItems
-                    onExport={(kind) => void handleExport(kind, selectedIdsArray)}
-                    onSave={(kind) => void handleExport(kind, selectedIdsArray, false, true)}
-                    onShowQr={() => void handleExport("shareLinks", selectedIdsArray, true)}
-                    t={t}
-                  />
-                </MenubarContent>
-              </MenubarMenu>
-            </Menubar>
-            <Button
-              onClick={() => requestDelete(selectedIdsArray)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              {t("panes.profiles.toolbar.delete")}
-            </Button>
-          </div>
-        </BulkActionBar>
-      ) : null}
 
       {operationError ? <InlinePageError>{operationError}</InlinePageError> : null}
       {profilesQuery.isError ? <InlinePageError>{getErrorMessage(profilesQuery.error)}</InlinePageError> : null}

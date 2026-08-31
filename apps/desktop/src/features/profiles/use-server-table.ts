@@ -21,6 +21,7 @@ import type {
   ProfileListEntry,
   ProfileSortKey,
   SpeedTestKind,
+  SpeedTestTarget,
 } from "@/ipc/bindings";
 import { useI18n } from "@voya/i18n/use-i18n";
 import { getErrorMessage } from "@voya/utils/error";
@@ -55,7 +56,7 @@ export function useServerTable() {
   const [operationError, setOperationError] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shareQrContent, setShareQrContent] = useState<string | null>(null);
   const [sortState, setSortState] = useState<{ ascending: boolean; key: ProfileSortKey } | null>(null);
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
@@ -123,16 +124,6 @@ export function useServerTable() {
           key: row.id,
           start: index * 38,
         }));
-  const selected = profiles.filter((item) => selectedIds.has(item.profile.id));
-  const primarySelection = selected[0] ?? null;
-  const allVisibleSelected = profiles.length > 0 && profiles.every((item) => selectedIds.has(item.profile.id));
-  const someVisibleSelected = profiles.some((item) => selectedIds.has(item.profile.id));
-  const allVisibleCheckboxState: boolean | "indeterminate" = allVisibleSelected
-    ? true
-    : someVisibleSelected
-      ? "indeterminate"
-      : false;
-
   async function runOperation(operation: () => Promise<unknown>) {
     setOperationError(null);
     setOperationMessage(null);
@@ -156,30 +147,15 @@ export function useServerTable() {
     const indexIds = pendingDelete;
     setPendingDelete(null);
     if (indexIds && indexIds.length > 0) {
+      if (selectedId && indexIds.includes(selectedId)) {
+        setSelectedId(null);
+      }
       void runOperation(() => deleteProfiles(indexIds));
     }
   }
 
-  function toggleSelection(indexId: string, selected: boolean) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-
-      if (selected) {
-        next.add(indexId);
-      } else {
-        next.delete(indexId);
-      }
-
-      return next;
-    });
-  }
-
   function selectOnly(indexId: string) {
-    setSelectedIds(new Set([indexId]));
-  }
-
-  function toggleAllVisible(selected: boolean) {
-    setSelectedIds(selected ? new Set(profiles.map((item) => item.profile.id)) : new Set());
+    setSelectedId(indexId);
   }
 
   async function handleSort(sortKey: ProfileSortKey) {
@@ -227,7 +203,7 @@ export function useServerTable() {
     const importedIndexIds = result.importedProfileIds;
     if (importedIndexIds.length > 0) {
       setFilterText("");
-      setSelectedIds(new Set(importedIndexIds));
+      setSelectedId(importedIndexIds[0] ?? null);
       const refreshedProfiles = await listProfiles(null, null);
       queryClient.setQueryData(profilesQueryKey(""), refreshedProfiles);
     } else {
@@ -236,9 +212,38 @@ export function useServerTable() {
     await queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
   }
 
-  const selectedIdsArray = selected.map((item) => item.profile.id);
+  async function performExport(
+    kind: ProfileExportKind,
+    indexIds: string[],
+    showQr: boolean,
+    saveFile: boolean,
+  ) {
+    const result = await runProfileExport(kind, indexIds);
+    if (showQr) {
+      setShareQrContent(result.text);
+      return;
+    }
 
-  async function handleExport(kind: ProfileExportKind, indexIds = selectedIdsArray, showQr = false, saveFile = false) {
+    if (saveFile) {
+      const path = await saveTextFile({
+        defaultPath: exportFileName(kind),
+        filters: [exportFileFilter(kind)],
+        text: result.text,
+      });
+      if (path) {
+        setOperationMessage(t("panes.profiles.export.savedFile", { path }));
+      }
+      return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+      throw new Error(t("panes.profiles.export.clipboardUnavailable"));
+    }
+    await navigator.clipboard.writeText(result.text);
+    setOperationMessage(t("panes.profiles.export.copied", { count: result.count }));
+  }
+
+  async function handleExport(kind: ProfileExportKind, indexIds: string[], showQr = false, saveFile = false) {
     setOperationError(null);
     setOperationMessage(null);
     if (indexIds.length === 0) {
@@ -247,43 +252,35 @@ export function useServerTable() {
     }
 
     try {
-      const result = await runProfileExport(kind, indexIds);
-      if (showQr) {
-        setShareQrContent(result.text);
-        return;
-      }
-
-      if (saveFile) {
-        const path = await saveTextFile({
-          defaultPath: exportFileName(kind),
-          filters: [exportFileFilter(kind)],
-          text: result.text,
-        });
-        if (path) {
-          setOperationMessage(t("panes.profiles.export.savedFile", { path }));
-        }
-        return;
-      }
-
-      if (!navigator.clipboard?.writeText) {
-        throw new Error(t("panes.profiles.export.clipboardUnavailable"));
-      }
-      await navigator.clipboard.writeText(result.text);
-      setOperationMessage(t("panes.profiles.export.copied", { count: result.count }));
+      await performExport(kind, indexIds, showQr, saveFile);
     } catch (error) {
       setOperationError(getErrorMessage(error));
     }
   }
 
-  async function handleSpeedtest(kind: SpeedTestKind, targetAll = false) {
+  async function handleBulkExport(kind: ProfileExportKind, showQr = false, saveFile = false) {
+    setOperationError(null);
+    setOperationMessage(null);
+    try {
+      const allProfiles = await listProfiles(null, null);
+      const indexIds = allProfiles.map((item) => item.profile.id);
+      if (indexIds.length === 0) {
+        setOperationError(t("panes.profiles.export.noProfiles"));
+        return;
+      }
+      await performExport(kind, indexIds, showQr, saveFile);
+    } catch (error) {
+      setOperationError(getErrorMessage(error));
+    }
+  }
+
+  async function handleSpeedtest(kind: SpeedTestKind, target: SpeedTestTarget) {
     setColumnVisibility((current) => ({ ...current, delay: true, speed: true }));
     setSpeedtestRunning(true);
     try {
       await runOperation(() => runSpeedtest({
         kind,
-        target: targetAll
-          ? { scope: "all" }
-          : { scope: "profiles", profileIds: selectedIdsArray },
+        target,
       }));
     } finally {
       setSpeedtestRunning(false);
@@ -296,12 +293,12 @@ export function useServerTable() {
   }
 
   return {
-    allVisibleCheckboxState,
     confirmDelete,
     dialogState,
     filterText,
     gridMinWidth,
     gridTemplateColumns,
+    handleBulkExport,
     handleCancelSpeedtest,
     handleDialogImport,
     handleExport,
@@ -315,7 +312,6 @@ export function useServerTable() {
     operationError,
     operationMessage,
     pendingDelete,
-    primarySelection,
     profiles,
     profilesQuery,
     queryClient,
@@ -326,9 +322,7 @@ export function useServerTable() {
     rowVirtualizer,
     runOperation,
     selectOnly,
-    selected,
-    selectedIds,
-    selectedIdsArray,
+    selectedId,
     setDialogState,
     setFilterText,
     setImportOpen,
@@ -340,8 +334,6 @@ export function useServerTable() {
     speedtestRunning,
     subscriptionsOpen,
     t,
-    toggleAllVisible,
-    toggleSelection,
     viewportRef,
     visibleColumns,
   };

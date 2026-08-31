@@ -46,7 +46,6 @@ const wrapperNames = [
   "previewGroupProfile",
   "saveGroupProfile",
   "deleteProfiles",
-  "copyProfiles",
   "exportProfileShareLinks",
   "exportProfileShareLinksBase64",
   "exportProfileVoyaBundle",

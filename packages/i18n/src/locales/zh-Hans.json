@@ -173,12 +173,7 @@
       },
       "aria": {
         "activeProfile": "当前配置",
-        "filter": "过滤配置",
-        "selectAll": "全选配置",
-        "selectRow": "选择 {{name}}"
-      },
-      "bulk": {
-        "selected": "已选 {{count}} 项"
+        "filter": "过滤配置"
       },
       "certFetch": {
         "allowInsecure": "允许不安全抓取",
@@ -226,6 +221,7 @@
         "clipboardUnavailable": "当前环境不支持写入剪贴板。",
         "copied": "已复制 {{count}} 个导出配置到剪贴板。",
         "export": "导出",
+        "noProfiles": "没有可导出的配置。",
         "noSelection": "请至少选择一个配置再导出。",
         "saveClientConfig": "保存客户端配置",
         "savedFile": "已保存导出到 {{path}}。",
@@ -311,11 +307,13 @@
         "title": "Import Profiles"
       },
       "menu": {
+        "actionsFor": "{{name}} 的操作",
         "move": "移动",
         "moveBottom": "移到底部",
         "moveDown": "下移",
         "moveTop": "移到顶部",
-        "moveUp": "上移"
+        "moveUp": "上移",
+        "speedtest": "测速"
       },
       "panels": {
         "custom": "自定义配置",
@@ -341,7 +339,8 @@
       "title": "配置",
       "toolbar": {
         "add": "新增",
-        "copy": "复制",
+        "bulkExport": "批量导出",
+        "bulkSpeedtest": "批量测速",
         "dedupe": "去重",
         "delete": "删除",
         "edit": "编辑",

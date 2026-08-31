@@ -173,12 +173,7 @@
       },
       "aria": {
         "activeProfile": "Active profile",
-        "filter": "Filter profiles",
-        "selectAll": "Select all profiles",
-        "selectRow": "Select {{name}}"
-      },
-      "bulk": {
-        "selected": "{{count}} selected"
+        "filter": "Filter profiles"
       },
       "certFetch": {
         "allowInsecure": "Allow insecure fetch",
@@ -226,6 +221,7 @@
         "clipboardUnavailable": "Clipboard write is unavailable in this context.",
         "copied": "Copied {{count}} exported profile(s) to clipboard.",
         "export": "Export",
+        "noProfiles": "There are no profiles to export.",
         "noSelection": "Select at least one profile to export.",
         "saveClientConfig": "Save client config",
         "savedFile": "Saved export to {{path}}.",
@@ -311,11 +307,13 @@
         "title": "Import Profiles"
       },
       "menu": {
+        "actionsFor": "Actions for {{name}}",
         "move": "Move",
         "moveBottom": "Move to bottom",
         "moveDown": "Move down",
         "moveTop": "Move to top",
-        "moveUp": "Move up"
+        "moveUp": "Move up",
+        "speedtest": "Speedtest"
       },
       "panels": {
         "custom": "Custom profile",
@@ -341,7 +339,8 @@
       "title": "Profiles",
       "toolbar": {
         "add": "Add",
-        "copy": "Copy",
+        "bulkExport": "Bulk export",
+        "bulkSpeedtest": "Bulk speedtest",
         "dedupe": "Dedupe",
         "delete": "Delete",
         "edit": "Edit",

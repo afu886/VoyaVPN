@@ -145,15 +145,12 @@ export const COLUMN_LABEL_KEY_BY_ID: Record<string, TranslationKey> = Object.fro
   serverColumns.map((column) => [column.id, column.labelKey]),
 );
 
-// Leading track is the selection checkbox column.
-const SELECTION_COLUMN_WIDTH_REM = 2.75;
-
 export function buildGridTemplateColumns(columns: ServerColumn[]) {
-  return `${SELECTION_COLUMN_WIDTH_REM}rem ${columns.map((column) => column.width).join(" ")}`;
+  return columns.map((column) => column.width).join(" ");
 }
 
 export function buildGridMinWidth(columns: ServerColumn[]) {
-  const total = columns.reduce((sum, column) => sum + columnMinWidthRem(column.width), SELECTION_COLUMN_WIDTH_REM);
+  const total = columns.reduce((sum, column) => sum + columnMinWidthRem(column.width), 0);
   return `${total}rem`;
 }
 

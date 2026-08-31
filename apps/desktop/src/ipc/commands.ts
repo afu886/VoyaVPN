@@ -173,10 +173,6 @@ export async function deleteProfiles(indexIds: string[]): Promise<number> {
   return unwrapCommandResult(await commands.deleteProfiles(indexIds));
 }
 
-export async function copyProfiles(indexIds: string[]): Promise<ProfileListEntry[]> {
-  return unwrapCommandResult(await commands.copyProfiles(indexIds));
-}
-
 export async function exportProfileShareLinks(indexIds: string[]): Promise<ExportProfilesResult> {
   return unwrapCommandResult(await commands.exportProfileShareLinks(indexIds));
 }

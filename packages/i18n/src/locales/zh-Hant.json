@@ -173,12 +173,7 @@
       },
       "aria": {
         "activeProfile": "目前設定檔",
-        "filter": "篩選設定檔",
-        "selectAll": "全選設定檔",
-        "selectRow": "選擇 {{name}}"
-      },
-      "bulk": {
-        "selected": "已選 {{count}} 項"
+        "filter": "篩選設定檔"
       },
       "certFetch": {
         "allowInsecure": "允許不安全抓取",
@@ -226,6 +221,7 @@
         "clipboardUnavailable": "目前環境不支援寫入剪貼簿。",
         "copied": "已複製 {{count}} 個匯出設定到剪貼簿。",
         "export": "匯出",
+        "noProfiles": "沒有可匯出的設定檔。",
         "noSelection": "請至少選擇一個設定再匯出。",
         "saveClientConfig": "儲存用戶端設定",
         "savedFile": "已儲存匯出到 {{path}}。",
@@ -311,11 +307,13 @@
         "title": "Import Profiles"
       },
       "menu": {
+        "actionsFor": "{{name}} 的操作",
         "move": "移動",
         "moveBottom": "移至底部",
         "moveDown": "下移",
         "moveTop": "移至頂部",
-        "moveUp": "上移"
+        "moveUp": "上移",
+        "speedtest": "測速"
       },
       "panels": {
         "custom": "自訂設定檔",
@@ -341,7 +339,8 @@
       "title": "設定檔",
       "toolbar": {
         "add": "新增",
-        "copy": "複製",
+        "bulkExport": "批次匯出",
+        "bulkSpeedtest": "批次測速",
         "dedupe": "去重",
         "delete": "刪除",
         "edit": "編輯",
