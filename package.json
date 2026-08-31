@@ -12,6 +12,7 @@
     "build": "pnpm --filter @voya/desktop build",
     "build:mac": "node scripts/native/macos/build-app.mjs",
     "build:mac:local": "VOYAVPN_SKIP_NOTARIZATION=1 node scripts/native/macos/build-app.mjs",
+    "build:windows:local": "node scripts/native/windows/build-app.mjs",
     "preview": "pnpm --filter @voya/desktop preview",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest",

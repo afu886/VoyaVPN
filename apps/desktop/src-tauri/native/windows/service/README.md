@@ -41,7 +41,19 @@ pnpm native:windows:tunnel:uninstall
 ```
 
 `install`, `status`, and `uninstall` must be run from an elevated Windows
-terminal. The service binary also supports foreground smoke checks:
+terminal. Installation is idempotent: it stops an existing service, copies the
+new binary to
+`%ProgramFiles%\VoyaVPN\voyavpn-tunnel-service.exe`, configures demand start,
+and leaves the service stopped. `uninstall` removes the service and that exact
+managed executable without recursively deleting the containing directory.
+
+For the complete unsigned local client, installer, and TUN-service flow, use:
+
+```powershell
+pnpm build:windows:local
+```
+
+The service binary also supports foreground smoke checks:
 
 ```sh
 voyavpn-tunnel-service.exe run --config C:\path\to\VoyaVPN\binConfigs\config.json

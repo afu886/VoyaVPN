@@ -13,12 +13,27 @@ use crate::coreinfo::{CoreLaunch, TargetOs};
 pub const MACOS_PACKET_TUNNEL_BUNDLE_ID: &str = "app.voyavpn.desktop.PacketTunnel";
 pub const WINDOWS_TUN_SERVICE_NAME: &str = "VoyaVPNTunnelService";
 pub const MACOS_PACKET_TUNNEL_START_TIMEOUT_MS: i64 = 20_000;
+#[cfg(target_os = "macos")]
 const MACOS_PACKET_TUNNEL_APPEX_NAME: &str = "app.voyavpn.desktop.PacketTunnel.appex";
+#[cfg(target_os = "macos")]
 const MACOS_PACKET_TUNNEL_SYSEX_NAME: &str = "app.voyavpn.desktop.PacketTunnel.systemextension";
 const MACOS_PROVIDER_STATUS_RELATIVE_PATH: &str =
     "Library/Application Support/VoyaVPN/packet-tunnel-status.json";
 const MACOS_PROVIDER_LOG_RELATIVE_PATH: &str = "Library/Application Support/VoyaVPN/provider.log";
 const PROVIDER_LOG_TAIL_LINES: usize = 200;
+
+#[cfg(any(target_os = "macos", windows, test))]
+fn command_output_text(stdout: &[u8], stderr: &[u8]) -> String {
+    let stdout = String::from_utf8_lossy(stdout);
+    let stderr = String::from_utf8_lossy(stderr);
+    if stderr.trim().is_empty() {
+        stdout.into_owned()
+    } else if stdout.trim().is_empty() {
+        stderr.into_owned()
+    } else {
+        format!("{stdout}\n{stderr}")
+    }
+}
 
 pub const WINDOWS_TUN_DEVICES: &[WindowsTunDevice] = &[WindowsTunDevice {
     name: "wintunsingbox_tun",
@@ -776,6 +791,13 @@ mod tests {
             parse_macos_provider_state("unexpected"),
             NativeTunProviderState::Error
         );
+    }
+
+    #[test]
+    fn command_output_combines_stdout_and_stderr_without_losing_context() {
+        assert_eq!(command_output_text(b"stdout", b""), "stdout");
+        assert_eq!(command_output_text(b"", b"stderr"), "stderr");
+        assert_eq!(command_output_text(b"stdout", b"stderr"), "stdout\nstderr");
     }
 
     #[test]

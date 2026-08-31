@@ -7,7 +7,6 @@
       "ignoreBinaries": [
         "pgrep",
         "plutil",
-        "sc.exe",
         "system_profiler",
         "xcode-select"
       ]

@@ -136,8 +136,8 @@ fn run_service(args: Vec<std::ffi::OsString>) -> Result<(), ServiceError> {
     }
 
     fn set_service_status(
-        status_handle: &windows_service::service_control_handler::ServiceStatusHandle,
-        state: windows_service::service::ServiceState,
+        status_handle: &service_control_handler::ServiceStatusHandle,
+        state: ServiceState,
     ) -> Result<(), ServiceError> {
         status_handle.set_service_status(ServiceStatus {
             service_type: ServiceType::OWN_PROCESS,
@@ -164,7 +164,7 @@ fn run_service(args: Vec<std::ffi::OsString>) -> Result<(), ServiceError> {
             name: SERVICE_NAME.into(),
             display_name: "VoyaVPN Tunnel Service".into(),
             service_type: ServiceType::OWN_PROCESS,
-            start_type: ServiceStartType::DemandStart,
+            start_type: ServiceStartType::OnDemand,
             error_control: ServiceErrorControl::Normal,
             executable_path: executable,
             launch_arguments: Vec::new(),
@@ -450,6 +450,7 @@ enum ServiceError {
         source: io::Error,
     },
     CurrentDir(io::Error),
+    #[cfg(not(windows))]
     Unsupported(String),
     #[cfg(windows)]
     WindowsService(windows_service::Error),
@@ -508,6 +509,7 @@ impl std::fmt::Display for ServiceError {
             Self::CurrentDir(source) => {
                 write!(formatter, "failed to resolve current directory: {source}")
             }
+            #[cfg(not(windows))]
             Self::Unsupported(message) => write!(formatter, "{message}"),
             #[cfg(windows)]
             Self::WindowsService(source) => write!(formatter, "Windows service error: {source}"),

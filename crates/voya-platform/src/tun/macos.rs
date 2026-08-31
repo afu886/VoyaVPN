@@ -284,7 +284,6 @@ fn require_bundled_component(
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
 pub(super) fn parse_macos_provider_state(output: &str) -> NativeTunProviderState {
     match output.trim() {
         "running" => NativeTunProviderState::Running,
@@ -297,19 +296,6 @@ pub(super) fn parse_macos_provider_state(output: &str) -> NativeTunProviderState
     }
 }
 
-#[cfg(any(target_os = "macos", windows))]
-fn command_output_text(stdout: &[u8], stderr: &[u8]) -> String {
-    let stdout = String::from_utf8_lossy(stdout);
-    let stderr = String::from_utf8_lossy(stderr);
-    if stderr.trim().is_empty() {
-        stdout.into_owned()
-    } else if stdout.trim().is_empty() {
-        stderr.into_owned()
-    } else {
-        format!("{stdout}\n{stderr}")
-    }
-}
-
 #[cfg(target_os = "macos")]
 fn macos_app_contents_dir() -> Option<PathBuf> {
     let executable = std::env::current_exe().ok()?;
@@ -317,11 +303,6 @@ fn macos_app_contents_dir() -> Option<PathBuf> {
         .ancestors()
         .find(|path| path.file_name().is_some_and(|name| name == "Contents"))
         .map(Path::to_path_buf)
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_app_contents_dir() -> Option<PathBuf> {
-    None
 }
 
 #[cfg(target_os = "macos")]

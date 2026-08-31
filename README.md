@@ -76,6 +76,17 @@ Build unsigned debug Tauri packages without signing credentials:
 pnpm tauri:build --debug
 ```
 
+On Windows, build and install an unsigned release-profile client plus the
+protected TUN service for local testing (the service step opens one UAC prompt):
+
+```powershell
+pnpm build:windows:local
+```
+
+This generates both NSIS and MSI artifacts, installs the current-user NSIS
+copy, and leaves the demand-start service stopped until TUN is enabled. See
+[`docs/release/windows-local-tun-testing.md`](docs/release/windows-local-tun-testing.md).
+
 Build release-profile Tauri packages in a prepared signing environment:
 
 ```sh

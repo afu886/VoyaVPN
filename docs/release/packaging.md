@@ -323,18 +323,36 @@ The script also supports `VOYAVPN_NOTARY_APPLE_ID`,
 `VOYAVPN_NOTARY_TEAM_ID`, and `VOYAVPN_NOTARY_PASSWORD`. These values must come
 from the release secret system and must not be committed.
 
-Windows release builds must build and install the service on smoke machines:
+For an unsigned, release-profile local Windows package with a working TUN
+service, run this command from a normal PowerShell. It generates NSIS and MSI,
+silently installs the current-user NSIS copy, and requests elevation only once
+to update the service:
 
-```sh
+```powershell
+pnpm build:windows:local
+```
+
+The local lane refuses to replace an MSI or a VoyaVPN install outside
+`%LOCALAPPDATA%\VoyaVPN`. The service binary is copied out of the user-writable
+`target/` tree into
+`%ProgramFiles%\VoyaVPN\voyavpn-tunnel-service.exe`, then registered as a
+demand-start service. See
+[windows-local-tun-testing.md](windows-local-tun-testing.md) for prerequisites,
+verification, and teardown.
+
+The lower-level service helpers remain available. `install` and `uninstall`
+must run from an elevated Windows terminal:
+
+```powershell
 pnpm native:windows:tunnel:build
 pnpm native:windows:tunnel:install
 pnpm native:windows:tunnel:status
+pnpm native:windows:tunnel:uninstall
 ```
 
 `VoyaVPNTunnelService` runs `sing-box check -c` before launching sing-box with
-Wintun. Install and uninstall commands must run from an elevated Windows
-terminal or an installer custom action with equivalent service-management
-rights.
+Wintun. The local workflow leaves it stopped until the client supplies a
+runtime configuration and enables TUN.
 
 ## First-Run Core Acquisition Flow
 
