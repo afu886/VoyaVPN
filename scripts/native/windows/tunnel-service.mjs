@@ -138,8 +138,11 @@ export function requireWindows(platform = process.platform) {
   }
 }
 
-export function tunnelServiceSourcePath(repoRoot = defaultRepoRoot) {
-  return resolve(repoRoot, "target", "release", serviceExecutableName);
+export function tunnelServiceSourcePath(repoRoot = defaultRepoRoot, env = process.env) {
+  const rustTarget = environmentValue(env, "CARGO_BUILD_TARGET");
+  return rustTarget
+    ? resolve(repoRoot, "target", rustTarget, "release", serviceExecutableName)
+    : resolve(repoRoot, "target", "release", serviceExecutableName);
 }
 
 export function managedTunnelServicePath(env = process.env) {
@@ -150,12 +153,17 @@ export function managedTunnelServicePath(env = process.env) {
   return win32.join(programFiles, "VoyaVPN", serviceExecutableName);
 }
 
-export function buildTunnelService({ repoRoot = defaultRepoRoot, runCommand = run } = {}) {
+export function buildTunnelService({
+  env = process.env,
+  repoRoot = defaultRepoRoot,
+  runCommand = run,
+} = {}) {
   runCommand("cargo", ["build", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service", "--release"], {
     cwd: repoRoot,
+    env,
     shell: false,
   });
-  return tunnelServiceSourcePath(repoRoot);
+  return tunnelServiceSourcePath(repoRoot, env);
 }
 
 export function installTunnelService({
@@ -177,10 +185,10 @@ export function installTunnelService({
   requireWindows(platform);
   validateTiming(timeoutMs, pollIntervalMs);
 
-  const sourcePath = tunnelServiceSourcePath(repoRoot);
+  const sourcePath = tunnelServiceSourcePath(repoRoot, env);
   const destinationPath = managedTunnelServicePath(env);
   if (!fileExists(sourcePath)) {
-    ensureBuilt({ repoRoot, runCommand });
+    ensureBuilt({ env, repoRoot, runCommand });
   }
   if (!fileExists(sourcePath) || !fileStat(sourcePath).isFile()) {
     throw new Error(`Windows tunnel service build output is missing: ${sourcePath}`);

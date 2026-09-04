@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildTunnelService,
   installTunnelService,
   managedTunnelServicePath,
   tunnelServiceErrorExitCode,
@@ -16,7 +17,11 @@ const stoppedService = { status: 0, stdout: "STATE              : 1  STOPPED", s
 
 function installFixture(queryResults) {
   const repoRoot = "/repo";
-  const sourcePath = tunnelServiceSourcePath(repoRoot);
+  const env = {
+    CARGO_BUILD_TARGET: "x86_64-pc-windows-msvc",
+    ProgramFiles: "C:\\Program Files",
+  };
+  const sourcePath = tunnelServiceSourcePath(repoRoot, env);
   const destinationPath = "C:\\Program Files\\VoyaVPN\\voyavpn-tunnel-service.exe";
   const files = new Set([sourcePath]);
   const runCommand = vi.fn();
@@ -38,9 +43,10 @@ function installFixture(queryResults) {
   });
 
   return {
+    files,
     options: {
       platform: "win32",
-      env: { ProgramFiles: "C:\\Program Files" },
+      env,
       repoRoot,
       captureCommand,
       runCommand,
@@ -57,6 +63,41 @@ function installFixture(queryResults) {
 }
 
 describe("Windows tunnel service helper", () => {
+  it("builds and resolves the service under the Cargo target directory", () => {
+    const env = { CARGO_BUILD_TARGET: "x86_64-pc-windows-msvc" };
+    const runCommand = vi.fn();
+
+    expect(buildTunnelService({
+      env,
+      repoRoot: "C:\\repo",
+      runCommand,
+    })).toBe(
+      "C:\\repo\\target\\x86_64-pc-windows-msvc\\release\\voyavpn-tunnel-service.exe",
+    );
+    expect(runCommand).toHaveBeenCalledWith(
+      "cargo",
+      ["build", "-p", "voyavpn", "--bin", "voyavpn-tunnel-service", "--release"],
+      { cwd: "C:\\repo", env, shell: false },
+    );
+  });
+
+  it("passes the target environment to the fallback service build", () => {
+    const fixture = installFixture([missingService, stoppedService]);
+    fixture.files.clear();
+    const ensureBuilt = vi.fn(({ env }) => {
+      expect(env).toBe(fixture.options.env);
+      fixture.files.add(tunnelServiceSourcePath("/repo", env));
+    });
+
+    installTunnelService({ ...fixture.options, ensureBuilt });
+
+    expect(ensureBuilt).toHaveBeenCalledWith({
+      env: fixture.options.env,
+      repoRoot: "/repo",
+      runCommand: fixture.options.runCommand,
+    });
+  });
+
   it("uses the native Program Files directory for the managed service binary", () => {
     expect(managedTunnelServicePath({ ProgramW6432: "D:\\Program Files" })).toBe(
       "D:\\Program Files\\VoyaVPN\\voyavpn-tunnel-service.exe",
